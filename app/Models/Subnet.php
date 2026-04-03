@@ -8,18 +8,36 @@ class Subnet extends Model
 {
     public $timestamps = false;
     protected $table = 'subnets';
+    protected $fillable = [
+        'name', 'network_address', 'netmask',
+        'redirect', 'dhcp', 'dhcp_expired', 'dns', 'qos', 'OSPF_area_id',
+    ];
+    protected $casts = [
+        'redirect'     => 'boolean',
+        'dhcp'         => 'boolean',
+        'dhcp_expired' => 'boolean',
+        'dns'          => 'boolean',
+        'qos'          => 'boolean',
+    ];
 
     public function ipAddresses()
     {
         return $this->hasMany(IpAddress::class);
     }
 
+    public function allowedSubnets()
+    {
+        return $this->hasMany(AllowedSubnet::class);
+    }
+
     public function getLabelAttribute(): string
     {
-        $label = $this->network_address . '/' . $this->netmask;
-        if ($this->name) {
-            $label .= ' - ' . $this->name;
-        }
-        return $label;
+        return $this->network_address . '/' . $this->netmask
+            . ($this->name ? ' - ' . $this->name : '');
+    }
+
+    public function __toString(): string
+    {
+        return $this->label;
     }
 }
