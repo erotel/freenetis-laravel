@@ -88,11 +88,21 @@ class MemberController extends Controller
             ->flatMap(fn($a) => $a->variableSymbols)
             ->pluck('variable_symbol');
 
+        $mainUser = $member->users()->where('type', \App\Models\User::MAIN_USER)->first();
+        $contacts = $mainUser
+            ? $mainUser->contacts()->with('enumType')->get()
+            : collect();
+
         return view('members.show', [
             'member'          => $member,
             'variableSymbols' => $variableSymbols,
             'canEdit'         => $this->can('edit_all'),
             'canDelete'       => $this->can('delete_all'),
+            'mainUser'        => $mainUser,
+            'contacts'        => $contacts,
+            'canViewUser'     => $this->acl->hasAccess(auth()->id(), 'view_all', 'Users_Controller', 'users'),
+            'canEditUser'     => $this->acl->hasAccess(auth()->id(), 'edit_all', 'Users_Controller', 'users'),
+            'canViewContacts' => $this->acl->hasAccess(auth()->id(), 'view_all', 'Users_Controller', 'additional_contacts'),
         ]);
     }
 
