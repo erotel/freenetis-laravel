@@ -92,11 +92,15 @@ class UserController extends Controller
         }
 
         return view('users.show', [
-            'user'              => $user,
-            'canEdit'           => $this->can('edit_all'),
-            'canChangePassword' => $this->can('edit_all', 'password'),
-            'canViewAppPwd'     => $this->can('view_all', 'application_password'),
-            'canChangeAppPwd'   => $this->can('edit_all', 'application_password'),
+            'user'                 => $user,
+            'canEdit'              => $this->can('edit_all'),
+            'canChangePassword'    => $this->can('edit_all', 'password'),
+            'canViewAppPwd'        => $this->can('view_all', 'application_password'),
+            'canChangeAppPwd'      => $this->can('edit_all', 'application_password'),
+            'canViewContacts'      => $this->acl->hasAccess(auth()->id(), 'view_all',   'Users_Controller', 'additional_contacts'),
+            'canAddContact'        => $this->acl->hasAccess(auth()->id(), 'new_all',    'Users_Controller', 'additional_contacts'),
+            'canEditContact'       => $this->acl->hasAccess(auth()->id(), 'edit_all',   'Users_Controller', 'additional_contacts'),
+            'canDeleteContact'     => $this->acl->hasAccess(auth()->id(), 'delete_all', 'Users_Controller', 'additional_contacts'),
         ]);
     }
 

@@ -91,6 +91,25 @@
                     <td>{{ $user->application_password ?: '—' }}</td>
                 </tr>
             @endif
+
+            @php $contacts = $user->contacts()->with('enumType')->get(); @endphp
+            @if($contacts->isNotEmpty())
+                <tr>
+                    <th colspan="2" style="background:#e8e8e8;">Kontaktní informace</th>
+                </tr>
+                @foreach($contacts as $contact)
+                    <tr>
+                        <th>{{ $contact->enumType?->value ?? $contact->type }}</th>
+                        <td>{{ $contact->value }}</td>
+                    </tr>
+                @endforeach
+            @endif
         </tbody>
     </table>
+
+    @if($canViewContacts)
+        <p>
+            <a href="{{ route('contacts.show_by_user', $user->id) }}">Přidat/upravit kontakty</a>
+        </p>
+    @endif
 @endsection

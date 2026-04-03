@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\Auth\LoginController;
+use App\Http\Controllers\ContactController;
 use App\Http\Controllers\MemberController;
 use App\Http\Controllers\StreetController;
 use App\Http\Controllers\TownController;
@@ -31,4 +32,11 @@ Route::middleware('auth')->group(function () {
     Route::put('users/{id}/password', [UserController::class, 'updatePassword'])
         ->name('users.password.update');
     Route::resource('users', UserController::class);
+
+    Route::get('users/{userId}/contacts',                 [ContactController::class, 'showByUser'])->name('contacts.show_by_user');
+    Route::get('users/{userId}/contacts/create',          [ContactController::class, 'create'])->name('contacts.create');
+    Route::post('users/{userId}/contacts',                [ContactController::class, 'store'])->name('contacts.store');
+    Route::get('users/{userId}/contacts/{contactId}/edit',[ContactController::class, 'edit'])->name('contacts.edit');
+    Route::put('users/{userId}/contacts/{contactId}',     [ContactController::class, 'update'])->name('contacts.update');
+    Route::delete('users/{userId}/contacts/{contactId}',  [ContactController::class, 'destroy'])->name('contacts.destroy');
 });

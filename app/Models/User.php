@@ -94,4 +94,10 @@ class User extends Authenticatable
     {
         return $this->hasMany(\App\Models\UserKey::class);
     }
+
+    public function contacts()
+    {
+        return $this->belongsToMany(Contact::class, 'users_contacts', 'user_id', 'contact_id')
+                    ->withPivot('mail_redirection');
+    }
 }
