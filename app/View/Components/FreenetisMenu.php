@@ -35,7 +35,7 @@ class FreenetisMenu extends Component
                 ['url' => route('vlans.index'), 'path' => 'vlans', 'label' => 'VLANy', 'acl' => ['view_all', 'Vlans_Controller', 'vlan']],
             ]],
             ['name' => 'finance', 'label' => 'Finance', 'items' => [
-                ['url' => url('accounts'), 'path' => 'accounts', 'label' => 'Účty', 'acl' => ['view_all', 'Accounts_Controller', 'accounts']],
+                ['url' => route('accounts.index'), 'path' => 'accounts', 'label' => 'Účty', 'acl' => ['view_all', 'Accounts_Controller', 'accounts']],
                 ['url' => url('transfers'), 'path' => 'transfers', 'label' => 'Převody', 'acl' => ['view_all', 'Transfers_Controller', 'transfers']],
                 ['url' => url('invoices'), 'path' => 'invoices', 'label' => 'Faktury', 'acl' => ['view_all', 'Invoices_Controller', 'invoices']],
             ]],

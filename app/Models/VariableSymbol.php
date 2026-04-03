@@ -8,5 +8,9 @@ class VariableSymbol extends Model
 {
     public $timestamps = false;
     protected $table = 'variable_symbols';
-    // Full model will be implemented when variable symbols are migrated
+
+    public function account()
+    {
+        return $this->belongsTo(Account::class);
+    }
 }

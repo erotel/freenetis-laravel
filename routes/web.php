@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\AccountController;
 use App\Http\Controllers\Auth\LoginController;
 use App\Http\Controllers\ContactController;
 use App\Http\Controllers\DeviceController;
@@ -41,6 +42,7 @@ Route::middleware('auth')->group(function () {
     Route::get('users/{userId}/devices', [DeviceController::class, 'showByUser'])
         ->name('devices.by_user');
 
+    Route::resource('accounts', AccountController::class)->except(['destroy']);
     Route::resource('subnets', SubnetController::class);
     Route::resource('vlans', VlanController::class);
 
