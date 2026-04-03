@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\AccountController;
+use App\Http\Controllers\TransferController;
 use App\Http\Controllers\Auth\LoginController;
 use App\Http\Controllers\ContactController;
 use App\Http\Controllers\DeviceController;
@@ -43,6 +44,11 @@ Route::middleware('auth')->group(function () {
         ->name('devices.by_user');
 
     Route::resource('accounts', AccountController::class)->except(['destroy']);
+
+    // transfers — named route before resource to avoid wildcard clash
+    Route::get('transfers/account/{accountId}', [TransferController::class, 'showByAccount'])
+        ->name('transfers.by_account');
+    Route::resource('transfers', TransferController::class)->only(['index', 'show']);
     Route::resource('subnets', SubnetController::class);
     Route::resource('vlans', VlanController::class);
 

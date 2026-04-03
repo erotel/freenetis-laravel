@@ -36,7 +36,7 @@ class FreenetisMenu extends Component
             ]],
             ['name' => 'finance', 'label' => 'Finance', 'items' => [
                 ['url' => route('accounts.index'), 'path' => 'accounts', 'label' => 'Účty', 'acl' => ['view_all', 'Accounts_Controller', 'accounts']],
-                ['url' => url('transfers'), 'path' => 'transfers', 'label' => 'Převody', 'acl' => ['view_all', 'Transfers_Controller', 'transfers']],
+                ['url' => route('transfers.index'), 'path' => 'transfers', 'label' => 'Převody', 'acl' => ['view_all', 'Accounts_Controller', 'transfers']],
                 ['url' => url('invoices'), 'path' => 'invoices', 'label' => 'Faktury', 'acl' => ['view_all', 'Invoices_Controller', 'invoices']],
             ]],
             ['name' => 'logs', 'label' => 'Logy', 'items' => [
