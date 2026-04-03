@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Helpers\MemberType;
+use App\Models\AccountAttribute;
 use App\Models\Member;
 use App\Services\AclService;
 use Illuminate\Http\Request;
@@ -78,7 +79,14 @@ class MemberController extends Controller
             abort(403);
         }
 
-        $member = Member::with(['users', 'accounts.variableSymbols', 'addressPoint'])->find($id);
+        $member = Member::with([
+            'users',
+            'accounts.variableSymbols',
+            'accounts.accountAttribute',
+            'addressPoint.town',
+            'addressPoint.street',
+            'ipAddresses.subnet',
+        ])->find($id);
         if (!$member) {
             abort(404);
         }
@@ -88,21 +96,29 @@ class MemberController extends Controller
             ->flatMap(fn($a) => $a->variableSymbols)
             ->pluck('variable_symbol');
 
+        // Credit account: attribute_id = 221100 ("Účet kreditu")
+        $creditAccount = $member->accounts
+            ->first(fn($a) => $a->account_attribute_id === AccountAttribute::CREDIT_ATTRIBUTE_ID);
+
         $mainUser = $member->users()->where('type', \App\Models\User::MAIN_USER)->first();
         $contacts = $mainUser
             ? $mainUser->contacts()->with('enumType')->get()
             : collect();
 
         return view('members.show', [
-            'member'          => $member,
-            'variableSymbols' => $variableSymbols,
-            'canEdit'         => $this->can('edit_all'),
-            'canDelete'       => $this->can('delete_all'),
-            'mainUser'        => $mainUser,
-            'contacts'        => $contacts,
-            'canViewUser'     => $this->acl->hasAccess(auth()->id(), 'view_all', 'Users_Controller', 'users'),
-            'canEditUser'     => $this->acl->hasAccess(auth()->id(), 'edit_all', 'Users_Controller', 'users'),
-            'canViewContacts' => $this->acl->hasAccess(auth()->id(), 'view_all', 'Users_Controller', 'additional_contacts'),
+            'member'              => $member,
+            'variableSymbols'     => $variableSymbols,
+            'creditAccount'       => $creditAccount,
+            'canEdit'             => $this->can('edit_all'),
+            'canDelete'           => $this->can('delete_all'),
+            'mainUser'            => $mainUser,
+            'contacts'            => $contacts,
+            'canViewUser'         => $this->acl->hasAccess(auth()->id(), 'view_all', 'Users_Controller', 'users'),
+            'canEditUser'         => $this->acl->hasAccess(auth()->id(), 'edit_all', 'Users_Controller', 'users'),
+            'canViewContacts'     => $this->acl->hasAccess(auth()->id(), 'view_all', 'Users_Controller', 'additional_contacts'),
+            'canViewTransfers'    => $this->acl->hasAccess(auth()->id(), 'view_all', 'Accounts_Controller', 'transfers'),
+            'canViewIpAddresses'  => $this->acl->hasAccess(auth()->id(), 'view_all', 'Ip_addresses_Controller', 'ip_address'),
+            'canViewDevices'      => $this->acl->hasAccess(auth()->id(), 'view_all', 'Devices_Controller', 'devices'),
         ]);
     }
 

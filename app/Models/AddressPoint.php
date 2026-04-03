@@ -8,5 +8,15 @@ class AddressPoint extends Model
 {
     public $timestamps = false;
     protected $table = 'address_points';
-    // Full model will be implemented when address_points controller is migrated
+    protected $fillable = ['name', 'country_id', 'town_id', 'street_id', 'street_number'];
+
+    public function town()
+    {
+        return $this->belongsTo(Town::class);
+    }
+
+    public function street()
+    {
+        return $this->belongsTo(Street::class);
+    }
 }

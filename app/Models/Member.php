@@ -66,6 +66,11 @@ class Member extends Model
         return $this->belongsTo(AddressPoint::class);
     }
 
+    public function ipAddresses()
+    {
+        return $this->hasMany(IpAddress::class);
+    }
+
     // --- Helpers ---
 
     public function __toString(): string

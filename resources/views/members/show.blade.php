@@ -16,79 +16,22 @@
 @section('content')
     <h2>{{ $member->name }}</h2>
 
-    <table class="extended" cellspacing="0" style="float:left; width:380px;">
-        <thead>
-            <tr><th colspan="2">Základní informace</th></tr>
-        </thead>
-        <tbody>
-            <tr>
-                <th>ID člena</th>
-                <td>{{ $member->id }}</td>
-            </tr>
-            <tr>
-                <th>Název / Jméno</th>
-                <td>{{ $member->name }}</td>
-            </tr>
-            <tr>
-                <th>Typ člena</th>
-                <td>{{ $member->type_label }}</td>
-            </tr>
-            <tr>
-                <th>Registrace</th>
-                <td>{{ $member->registration ? 'Ano' : 'Ne' }}</td>
-            </tr>
-            @if($member->entrance_date && $member->entrance_date !== '0000-00-00')
-                <tr>
-                    <th>Datum vstupu</th>
-                    <td>{{ $member->entrance_date }}</td>
-                </tr>
-            @endif
-            @if($member->leaving_date && $member->leaving_date !== '0000-00-00')
-                <tr>
-                    <th>Datum odchodu</th>
-                    <td>{{ $member->leaving_date }}</td>
-                </tr>
-            @endif
-            @if($member->organization_identifier)
-                <tr>
-                    <th>IČO</th>
-                    <td>{{ $member->organization_identifier }}</td>
-                </tr>
-            @endif
-            @if($member->vat_organization_identifier)
-                <tr>
-                    <th>DIČ</th>
-                    <td>{{ $member->vat_organization_identifier }}</td>
-                </tr>
-            @endif
-            @if($member->comment)
-                <tr>
-                    <th>Poznámka</th>
-                    <td>{{ $member->comment }}</td>
-                </tr>
-            @endif
-            <tr>
-                <th>Zablokován</th>
-                <td>{{ $member->locked ? 'Ano' : 'Ne' }}</td>
-            </tr>
-            @if($variableSymbols->isNotEmpty())
-                <tr>
-                    <th>Variabilní symboly</th>
-                    <td>{{ $variableSymbols->implode(', ') }}</td>
-                </tr>
-            @endif
-        </tbody>
-    </table>
-
-    <div style="clear:both; padding-top:1em;">
+    {{-- Section 1: Action links --}}
+    <div style="margin-bottom:1em;">
         @if($canEdit)
             <a href="{{ route('members.edit', $member->id) }}">
                 <img src="{{ asset('media/images/icons/gtk_edit.png') }}" alt="Upravit">
                 Upravit
             </a>
+        @endif
+        @if($canViewTransfers)
             &nbsp;
+            <a href="{{ route('transfers.index', ['member_id' => $member->id]) }}">
+                Zobrazit převody
+            </a>
         @endif
         @if($canDelete)
+            &nbsp;
             <form method="POST" action="{{ route('members.destroy', $member->id) }}" style="display:inline;"
                   onsubmit="return confirm('Opravdu smazat člena {{ addslashes($member->name) }}?');">
                 @csrf
@@ -101,22 +44,149 @@
         @endif
     </div>
 
+    {{-- Sections 2+3: Základní informace + Informace o účtu side by side --}}
+    <div style="overflow: hidden; margin-bottom: 20px;">
+
+        {{-- Left: Základní informace --}}
+        <table class="extended" cellspacing="0" style="float:left; width:360px; margin-right:20px;">
+            <thead>
+                <tr><th colspan="2">Základní informace</th></tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <th>ID člena</th>
+                    <td>{{ $member->id }}</td>
+                </tr>
+                <tr>
+                    <th>Název / Jméno</th>
+                    <td>{{ $member->name }}</td>
+                </tr>
+                <tr>
+                    <th>Typ člena</th>
+                    <td>{{ $member->type_label }}</td>
+                </tr>
+                @if($variableSymbols->isNotEmpty())
+                    <tr>
+                        <th>Variabilní symboly</th>
+                        <td>{{ $variableSymbols->implode(', ') }}</td>
+                    </tr>
+                @endif
+                @if($member->entrance_date && $member->entrance_date !== '0000-00-00')
+                    <tr>
+                        <th>Datum vstupu</th>
+                        <td>{{ $member->entrance_date }}</td>
+                    </tr>
+                @endif
+                @if($member->leaving_date && $member->leaving_date !== '0000-00-00')
+                    <tr>
+                        <th>Datum odchodu</th>
+                        <td>{{ $member->leaving_date }}</td>
+                    </tr>
+                @endif
+                @if($member->organization_identifier)
+                    <tr>
+                        <th>IČO</th>
+                        <td>{{ $member->organization_identifier }}</td>
+                    </tr>
+                @endif
+                @if($member->vat_organization_identifier)
+                    <tr>
+                        <th>DIČ</th>
+                        <td>{{ $member->vat_organization_identifier }}</td>
+                    </tr>
+                @endif
+
+                {{-- Address section --}}
+                <tr><th colspan="2" style="background:#e8e8e8;">Adresa</th></tr>
+                @if($member->addressPoint)
+                    @if($member->addressPoint->street)
+                        <tr>
+                            <th>Ulice</th>
+                            <td>{{ $member->addressPoint->street->street }}
+                                {{ $member->addressPoint->street_number }}</td>
+                        </tr>
+                    @endif
+                    @if($member->addressPoint->town)
+                        <tr>
+                            <th>Město</th>
+                            <td>{{ $member->addressPoint->town->town }},
+                                {{ $member->addressPoint->town->zip_code }}</td>
+                        </tr>
+                    @endif
+                    <tr>
+                        <th>Země</th>
+                        <td>Czech Republic</td>
+                    </tr>
+                @else
+                    <tr><td colspan="2">—</td></tr>
+                @endif
+
+                {{-- Further info section --}}
+                <tr><th colspan="2" style="background:#e8e8e8;">Další informace</th></tr>
+                <tr>
+                    <th>Přihláška</th>
+                    <td>{{ $member->registration ? 'ano' : 'ne' }}</td>
+                </tr>
+                <tr>
+                    <th>Přístup do systému</th>
+                    <td>{{ $member->locked ? 'Zamčen' : 'Odemčen' }}</td>
+                </tr>
+                @if($member->comment)
+                    <tr>
+                        <th>Komentář</th>
+                        <td>{{ $member->comment }}</td>
+                    </tr>
+                @endif
+            </tbody>
+        </table>
+
+        {{-- Right: Informace o účtu --}}
+        @if($creditAccount)
+            <div style="float:left;">
+                <table class="extended" cellspacing="0" style="width:280px;">
+                    <tr><th colspan="2" style="background:#e8e8e8;">Informace o účtu</th></tr>
+                    <tr>
+                        <th>Současný kredit</th>
+                        <td style="color:{{ $creditAccount->balance >= 0 ? 'green' : 'red' }}">
+                            {{ number_format($creditAccount->balance, 2, ',', ' ') }} Kč
+                        </td>
+                    </tr>
+                    @if($canViewTransfers)
+                        <tr>
+                            <th></th>
+                            <td>
+                                <a href="{{ route('transfers.by_account', $creditAccount->id) }}">
+                                    Zobrazit převody účtu
+                                </a>
+                            </td>
+                        </tr>
+                    @endif
+                </table>
+            </div>
+        @endif
+
+    </div>
+    <div style="clear:both;"></div>
+
+    {{-- Section 4: Informace o hlavním uživateli --}}
     @if($mainUser)
         <h3>Informace o hlavním uživateli</h3>
         <br>
 
         @if($canViewUser)
-            <a href="{{ route('users.show', $mainUser->id) }}">Zobrazit</a> |
+            <a href="{{ route('users.show', $mainUser->id) }}">Zobrazit</a>
         @endif
         @if($canEditUser)
-            <a href="{{ route('users.edit', $mainUser->id) }}">Upravit</a> |
-            <a href="{{ route('users.password', $mainUser->id) }}">Změnit heslo</a>
+            | <a href="{{ route('users.edit', $mainUser->id) }}">Upravit</a>
+            | <a href="{{ route('users.password', $mainUser->id) }}">Změnit heslo</a>
+        @endif
+        @if($canViewDevices)
+            | <a href="{{ route('devices.by_user', $mainUser->id) }}">Zobrazit zařízení</a>
         @endif
         <br><br>
 
         <div style="overflow: hidden;">
-
-            <table class="extended" cellspacing="0" style="float: left; width: 360px; margin-right: 20px;">
+            <table class="extended" cellspacing="0" style="float:left; width:360px; margin-right:20px;">
                 <tr><th colspan="2" style="background:#e8e8e8;">Základní informace</th></tr>
                 <tr><th>ID uživatele</th><td>{{ $mainUser->id }}</td></tr>
                 <tr><th>Přihl. jméno</th><td>{{ $mainUser->login }}</td></tr>
@@ -130,8 +200,8 @@
             </table>
 
             @if($canViewContacts && $contacts->count() > 0)
-                <div style="float: left;">
-                    <table class="extended" cellspacing="0" style="width: 300px;">
+                <div style="float:left;">
+                    <table class="extended" cellspacing="0" style="width:300px;">
                         <tr><th colspan="2" style="background:#e8e8e8;">Kontaktní informace</th></tr>
                         @foreach($contacts as $contact)
                             <tr>
@@ -147,11 +217,11 @@
                     </p>
                 </div>
             @endif
-
         </div>
-        <div style="clear: both;"></div>
+        <div style="clear:both;"></div>
     @endif
 
+    {{-- Section 5: Uživatelé --}}
     @if($member->users->isNotEmpty())
         <h3>Uživatelé</h3>
         <table class="extended" cellspacing="0">
@@ -188,4 +258,31 @@
             Přidat uživatele
         </a>
     </p>
+
+    {{-- Section 6: IP adresy --}}
+    @if($canViewIpAddresses && $member->ipAddresses->count() > 0)
+        <h3>IP adresy</h3>
+        <table class="extended" cellspacing="0">
+            <thead>
+                <tr>
+                    <th>IP adresa</th>
+                    <th>Subnet</th>
+                    <th>DHCP</th>
+                    <th>Gateway</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach($member->ipAddresses as $ip)
+                    <tr>
+                        <td>
+                            <a href="{{ route('ip_addresses.show', $ip->id) }}">{{ $ip->ip_address }}</a>
+                        </td>
+                        <td>{{ $ip->subnet?->label ?? '—' }}</td>
+                        <td>{{ $ip->dhcp ? '✓' : '—' }}</td>
+                        <td>{{ $ip->gateway ? '✓' : '—' }}</td>
+                    </tr>
+                @endforeach
+            </tbody>
+        </table>
+    @endif
 @endsection
