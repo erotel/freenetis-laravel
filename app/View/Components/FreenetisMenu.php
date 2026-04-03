@@ -1,0 +1,80 @@
+<?php
+
+namespace App\View\Components;
+
+use App\Services\AclService;
+use Illuminate\View\Component;
+
+class FreenetisMenu extends Component
+{
+    public array $groups;
+
+    public function __construct(AclService $acl)
+    {
+        $user = auth()->user();
+        $userId = $user?->id ?? 0;
+        $currentPath = request()->path();
+
+        $menuGroups = [
+            ['name' => 'home', 'label' => 'Domů', 'items' => [
+                ['url' => url('/'), 'path' => '', 'label' => 'Dashboard', 'acl' => null],
+            ]],
+            ['name' => 'addresses', 'label' => 'Adresy', 'items' => [
+                ['url' => url('towns'), 'path' => 'towns', 'label' => 'Města', 'acl' => ['view_all', 'Address_points_Controller', 'town']],
+                ['url' => url('streets'), 'path' => 'streets', 'label' => 'Ulice', 'acl' => ['view_all', 'Address_points_Controller', 'street']],
+            ]],
+            ['name' => 'members', 'label' => 'Členové', 'items' => [
+                ['url' => route('members.index'), 'path' => 'members', 'label' => 'Seznam členů', 'acl' => ['view_all', 'Members_Controller', 'members']],
+                ['url' => route('users.index'), 'path' => 'users', 'label' => 'Uživatelé', 'acl' => ['view_all', 'Users_Controller', 'users']],
+                ['url' => url('contacts'), 'path' => 'contacts', 'label' => 'Kontakty', 'acl' => ['view_all', 'Contacts_Controller', 'contacts']],
+            ]],
+            ['name' => 'network', 'label' => 'Síť', 'items' => [
+                ['url' => url('devices'), 'path' => 'devices', 'label' => 'Zařízení', 'acl' => ['view_all', 'Devices_Controller', 'devices']],
+                ['url' => url('ip-addresses'), 'path' => 'ip-addresses', 'label' => 'IP adresy', 'acl' => ['view_all', 'Ip_addresses_Controller', 'ip_addresses']],
+                ['url' => url('subnets'), 'path' => 'subnets', 'label' => 'Subnety', 'acl' => ['view_all', 'Subnets_Controller', 'subnets']],
+                ['url' => url('vlans'), 'path' => 'vlans', 'label' => 'VLANy', 'acl' => ['view_all', 'Vlans_Controller', 'vlans']],
+            ]],
+            ['name' => 'finance', 'label' => 'Finance', 'items' => [
+                ['url' => url('accounts'), 'path' => 'accounts', 'label' => 'Účty', 'acl' => ['view_all', 'Accounts_Controller', 'accounts']],
+                ['url' => url('transfers'), 'path' => 'transfers', 'label' => 'Převody', 'acl' => ['view_all', 'Transfers_Controller', 'transfers']],
+                ['url' => url('invoices'), 'path' => 'invoices', 'label' => 'Faktury', 'acl' => ['view_all', 'Invoices_Controller', 'invoices']],
+            ]],
+            ['name' => 'logs', 'label' => 'Logy', 'items' => [
+                ['url' => url('logs'), 'path' => 'logs', 'label' => 'Systémové logy', 'acl' => ['view_all', 'Logs_Controller', 'logs']],
+                ['url' => url('login-logs'), 'path' => 'login-logs', 'label' => 'Logy přihlášení', 'acl' => ['view_all', 'Login_logs_Controller', 'login_logs']],
+            ]],
+            ['name' => 'settings', 'label' => 'Nastavení', 'items' => [
+                ['url' => url('settings'), 'path' => 'settings', 'label' => 'Nastavení', 'acl' => ['view_all', 'Settings_Controller', 'settings']],
+                ['url' => url('acl'), 'path' => 'acl', 'label' => 'Přístupová práva', 'acl' => ['view_all', 'Acl_Controller', 'acl']],
+            ]],
+        ];
+
+        $this->groups = [];
+
+        foreach ($menuGroups as $group) {
+            $visibleItems = [];
+
+            foreach ($group['items'] as $item) {
+                if ($item['acl'] === null) {
+                    $visibleItems[] = $item + ['current' => ($currentPath === $item['path'])];
+                } else {
+                    [$acoValue, $axoSection, $axoVal] = $item['acl'];
+                    $hasAccess = $acl->hasAccess($userId, $acoValue, $axoSection, $axoVal);
+
+                    if ($hasAccess) {
+                        $visibleItems[] = $item + ['current' => ($currentPath === $item['path'])];
+                    }
+                }
+            }
+
+            if (!empty($visibleItems)) {
+                $this->groups[] = $group + ['items' => $visibleItems];
+            }
+        }
+    }
+
+    public function render()
+    {
+        return view('components.freenetis-menu');
+    }
+}

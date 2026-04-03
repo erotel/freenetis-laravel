@@ -5,7 +5,9 @@ namespace App\Providers;
 use App\Auth\FreenetisUserProvider;
 use App\Models\User;
 use App\Services\AclService;
+use App\View\Components\FreenetisMenu;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Blade;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\ServiceProvider;
 
@@ -25,6 +27,9 @@ class AppServiceProvider extends ServiceProvider
                 $config['model']
             );
         });
+
+        // Register Blade components
+        Blade::component('freenetis-menu', FreenetisMenu::class);
 
         // Gate for FreenetIS ACL
         // Usage: Gate::check('freenetis', [$acoType, $axoSection, $axoValue, $memberIdParam])

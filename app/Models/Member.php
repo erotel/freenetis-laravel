@@ -2,18 +2,74 @@
 
 namespace App\Models;
 
+use App\Helpers\MemberType;
 use Illuminate\Database\Eloquent\Model;
-use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class Member extends Model
 {
-    protected $table = 'members';
     public $timestamps = false;
+    protected $table = 'members';
 
-    protected $fillable = ['name', 'locked', 'type'];
+    protected $fillable = [
+        'name',
+        'user_id',
+        'address_point_id',
+        'type',
+        'registration',
+        'organization_identifier',
+        'vat_organization_identifier',
+        'entrance_fee',
+        'debt_payment_rate',
+        'entrance_date',
+        'leaving_date',
+        'comment',
+        'locked',
+    ];
 
-    public function users(): HasMany
+    const ASSOCIATION = 1;
+
+    protected $casts = [
+        'type'         => 'integer',
+        'registration' => 'boolean',
+        'locked'       => 'boolean',
+    ];
+
+    public static function typeLabels(): array
+    {
+        return MemberType::labels();
+    }
+
+    public function getTypeLabelAttribute(): string
+    {
+        return MemberType::label((int) $this->type);
+    }
+
+    // --- Relations ---
+
+    public function users()
     {
         return $this->hasMany(User::class);
+    }
+
+    public function primaryUser()
+    {
+        return $this->hasOne(User::class)->where('type', User::MAIN_USER);
+    }
+
+    public function accounts()
+    {
+        return $this->hasMany(Account::class);
+    }
+
+    public function addressPoint()
+    {
+        return $this->belongsTo(AddressPoint::class);
+    }
+
+    // --- Helpers ---
+
+    public function __toString(): string
+    {
+        return $this->name ?? '';
     }
 }

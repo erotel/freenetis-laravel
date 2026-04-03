@@ -10,8 +10,12 @@ class User extends Authenticatable
     protected $table = 'users';
     public $timestamps = false;
 
-    protected $fillable = ['login', 'password', 'type', 'member_id'];
-    protected $hidden = ['password'];
+    protected $fillable = [
+        'login', 'password', 'type', 'member_id',
+        'name', 'middle_name', 'surname', 'pre_title', 'post_title',
+        'birthday', 'comment', 'application_password', 'settings',
+    ];
+    protected $hidden = ['password', 'application_password'];
 
     const MAIN_USER = 1;
     const USER = 2;
@@ -56,10 +60,38 @@ class User extends Authenticatable
         return '';
     }
 
+    // --- Accessors ---
+
+    public function getFullNameAttribute(): string
+    {
+        return trim(
+            ($this->pre_title ? $this->pre_title . ' ' : '') .
+            $this->name . ' ' .
+            ($this->middle_name ? $this->middle_name . ' ' : '') .
+            $this->surname .
+            ($this->post_title ? ', ' . $this->post_title : '')
+        );
+    }
+
     // --- Relations ---
 
     public function member(): BelongsTo
     {
         return $this->belongsTo(Member::class);
+    }
+
+    public function devices()
+    {
+        return $this->hasMany(\App\Models\Device::class);
+    }
+
+    public function logs()
+    {
+        return $this->hasMany(\App\Models\Log::class);
+    }
+
+    public function usersKeys()
+    {
+        return $this->hasMany(\App\Models\UserKey::class);
     }
 }
