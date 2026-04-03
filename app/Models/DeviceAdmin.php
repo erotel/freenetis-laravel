@@ -8,4 +8,9 @@ class DeviceAdmin extends Model
 {
     public $timestamps = false;
     protected $table = 'device_admins';
+
+    public function device()
+    {
+        return $this->belongsTo(Device::class);
+    }
 }

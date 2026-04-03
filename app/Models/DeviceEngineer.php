@@ -8,4 +8,9 @@ class DeviceEngineer extends Model
 {
     public $timestamps = false;
     protected $table = 'device_engineers';
+
+    public function device()
+    {
+        return $this->belongsTo(Device::class);
+    }
 }

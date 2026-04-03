@@ -2,10 +2,13 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\DeviceAdmin;
+use App\Models\DeviceEngineer;
 use App\Models\Member;
 use App\Models\User;
 use App\Services\AclService;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 
 class UserController extends Controller
@@ -91,8 +94,20 @@ class UserController extends Controller
             abort(404);
         }
 
+        $aroGroups = DB::table('groups_aro_map')
+            ->join('aro_groups', 'aro_groups.id', '=', 'groups_aro_map.group_id')
+            ->where('groups_aro_map.aro_id', $user->id)
+            ->select('aro_groups.id', 'aro_groups.name')
+            ->get();
+
+        $deviceAdmins    = DeviceAdmin::where('user_id', $user->id)->with('device')->get();
+        $deviceEngineers = DeviceEngineer::where('user_id', $user->id)->with('device')->get();
+
         return view('users.show', [
             'user'                 => $user,
+            'aroGroups'            => $aroGroups,
+            'deviceAdmins'         => $deviceAdmins,
+            'deviceEngineers'      => $deviceEngineers,
             'canEdit'              => $this->can('edit_all'),
             'canChangePassword'    => $this->can('edit_all', 'password'),
             'canViewAppPwd'        => $this->can('view_all', 'application_password'),
@@ -101,6 +116,8 @@ class UserController extends Controller
             'canAddContact'        => $this->acl->hasAccess(auth()->id(), 'new_all',    'Users_Controller', 'additional_contacts'),
             'canEditContact'       => $this->acl->hasAccess(auth()->id(), 'edit_all',   'Users_Controller', 'additional_contacts'),
             'canDeleteContact'     => $this->acl->hasAccess(auth()->id(), 'delete_all', 'Users_Controller', 'additional_contacts'),
+            'canViewDevices'       => $this->acl->hasAccess(auth()->id(), 'view_all', 'Devices_Controller',    'devices'),
+            'canViewLoginLogs'     => $this->acl->hasAccess(auth()->id(), 'view_all', 'Login_logs_Controller', 'logs'),
         ]);
     }
 
