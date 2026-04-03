@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\AccountController;
+use App\Http\Controllers\IfaceController;
 use App\Http\Controllers\LoginLogController;
 use App\Http\Controllers\TransferController;
 use App\Http\Controllers\Auth\LoginController;
@@ -59,6 +60,9 @@ Route::middleware('auth')->group(function () {
     Route::resource('ip-addresses', IpAddressController::class)
         ->names('ip_addresses')
         ->parameters(['ip-addresses' => 'id']);
+
+    Route::get('ifaces', [IfaceController::class, 'index'])->name('ifaces.index');
+    Route::get('ifaces/{id}', [IfaceController::class, 'show'])->name('ifaces.show');
 
     Route::get('login-logs', [LoginLogController::class, 'index'])->name('login_logs.index');
     Route::get('login-logs/user/{userId}', [LoginLogController::class, 'showByUser'])->name('login_logs.by_user');

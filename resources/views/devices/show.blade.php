@@ -167,7 +167,7 @@
                 @foreach($device->ifaces as $iface)
                     <tr>
                         <td>{{ $iface->type ?? '—' }}</td>
-                        <td>{{ $iface->name ?? '—' }}</td>
+                        <td><a href="{{ route('ifaces.show', $iface->id) }}">{{ $iface->name ?? '—' }}</a></td>
                         <td>{{ $iface->mac ?? '—' }}</td>
                         <td>
                             @forelse($iface->ipAddresses as $ip)
