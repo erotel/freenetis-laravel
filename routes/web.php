@@ -3,6 +3,7 @@
 use App\Http\Controllers\Auth\LoginController;
 use App\Http\Controllers\ContactController;
 use App\Http\Controllers\DeviceController;
+use App\Http\Controllers\IpAddressController;
 use App\Http\Controllers\MemberController;
 use App\Http\Controllers\StreetController;
 use App\Http\Controllers\TownController;
@@ -37,6 +38,13 @@ Route::middleware('auth')->group(function () {
     Route::resource('devices', DeviceController::class);
     Route::get('users/{userId}/devices', [DeviceController::class, 'showByUser'])
         ->name('devices.by_user');
+
+    // ip-addresses — device-scoped create must come before resource to avoid wildcard conflict
+    Route::get('ip-addresses/device/{deviceId}', [IpAddressController::class, 'create'])
+        ->name('ip_addresses.create_for_device');
+    Route::resource('ip-addresses', IpAddressController::class)
+        ->names('ip_addresses')
+        ->parameters(['ip-addresses' => 'id']);
 
     Route::get('users/{userId}/contacts',                 [ContactController::class, 'showByUser'])->name('contacts.show_by_user');
     Route::get('users/{userId}/contacts/create',          [ContactController::class, 'create'])->name('contacts.create');
