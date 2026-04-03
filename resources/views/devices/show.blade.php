@@ -77,6 +77,31 @@
                     @endif
                 </td>
             </tr>
+            <tr>
+                <th>Člen</th>
+                <td>
+                    @if($device->user?->member)
+                        <a href="{{ route('members.show', $device->user->member_id) }}">{{ $device->user->member->name }}</a>
+                    @else
+                        —
+                    @endif
+                </td>
+            </tr>
+            @if($device->addressPoint)
+                <tr>
+                    <th>Adresa umístění</th>
+                    <td>
+                        @if($device->addressPoint->street)
+                            {{ $device->addressPoint->street->street }}
+                            {{ $device->addressPoint->street_number }},
+                        @endif
+                        @if($device->addressPoint->town)
+                            {{ $device->addressPoint->town->town }}
+                            {{ $device->addressPoint->town->zip_code }}
+                        @endif
+                    </td>
+                </tr>
+            @endif
             @if($device->operating_system !== null)
                 <tr>
                     <th>Operační systém</th>
@@ -125,4 +150,93 @@
             @endif
         </tbody>
     </table>
+
+    {{-- Rozhraní --}}
+    @if($device->ifaces->count() > 0)
+        <h3>Rozhraní</h3>
+        <table class="extended" cellspacing="0">
+            <thead>
+                <tr>
+                    <th>Typ</th>
+                    <th>Jméno</th>
+                    <th>MAC</th>
+                    <th>IP adresy</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach($device->ifaces as $iface)
+                    <tr>
+                        <td>{{ $iface->type ?? '—' }}</td>
+                        <td>{{ $iface->name ?? '—' }}</td>
+                        <td>{{ $iface->mac ?? '—' }}</td>
+                        <td>
+                            @forelse($iface->ipAddresses as $ip)
+                                <a href="{{ route('ip_addresses.show', $ip->id) }}">{{ $ip->ip_address }}</a>@if(!$loop->last), @endif
+                            @empty
+                                —
+                            @endforelse
+                        </td>
+                    </tr>
+                @endforeach
+            </tbody>
+        </table>
+    @endif
+
+    {{-- Správci zařízení --}}
+    @if($device->deviceAdmins->count() > 0)
+        <h3>Správci zařízení</h3>
+        <table class="extended" cellspacing="0">
+            <thead>
+                <tr>
+                    <th>Jméno</th>
+                    <th>Příjmení</th>
+                    <th>Login</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach($device->deviceAdmins as $da)
+                    <tr>
+                        <td>{{ $da->user->name ?? '—' }}</td>
+                        <td>{{ $da->user->surname ?? '—' }}</td>
+                        <td>
+                            @if($da->user)
+                                <a href="{{ route('users.show', $da->user_id) }}">{{ $da->user->login }}</a>
+                            @else
+                                —
+                            @endif
+                        </td>
+                    </tr>
+                @endforeach
+            </tbody>
+        </table>
+    @endif
+
+    {{-- Technici zařízení --}}
+    @if($device->deviceEngineers->count() > 0)
+        <h3>Technici zařízení</h3>
+        <table class="extended" cellspacing="0">
+            <thead>
+                <tr>
+                    <th>Jméno</th>
+                    <th>Příjmení</th>
+                    <th>Login</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach($device->deviceEngineers as $de)
+                    <tr>
+                        <td>{{ $de->user->name ?? '—' }}</td>
+                        <td>{{ $de->user->surname ?? '—' }}</td>
+                        <td>
+                            @if($de->user)
+                                <a href="{{ route('users.show', $de->user_id) }}">{{ $de->user->login }}</a>
+                            @else
+                                —
+                            @endif
+                        </td>
+                    </tr>
+                @endforeach
+            </tbody>
+        </table>
+    @endif
 @endsection

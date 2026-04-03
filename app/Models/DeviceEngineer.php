@@ -13,4 +13,9 @@ class DeviceEngineer extends Model
     {
         return $this->belongsTo(Device::class);
     }
+
+    public function user()
+    {
+        return $this->belongsTo(User::class);
+    }
 }

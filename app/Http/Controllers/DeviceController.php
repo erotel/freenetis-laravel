@@ -93,8 +93,15 @@ class DeviceController extends Controller
             abort(403);
         }
 
-        $device = Device::with(['user', 'enumType', 'ifaces', 'deviceAdmins', 'deviceEngineers'])
-            ->find($id);
+        $device = Device::with([
+            'user.member',
+            'enumType',
+            'addressPoint.street',
+            'addressPoint.town',
+            'ifaces.ipAddresses.subnet',
+            'deviceAdmins.user',
+            'deviceEngineers.user',
+        ])->find($id);
 
         if (!$device) {
             abort(404);
