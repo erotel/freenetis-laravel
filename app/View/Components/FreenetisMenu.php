@@ -29,7 +29,7 @@ class FreenetisMenu extends Component
                 ['url' => url('users/' . ($user?->id ?? 0) . '/contacts'), 'path' => 'contacts', 'label' => 'Kontakty', 'acl' => ['view_all', 'Users_Controller', 'additional_contacts']],
             ]],
             ['name' => 'network', 'label' => 'Síť', 'items' => [
-                ['url' => url('devices'), 'path' => 'devices', 'label' => 'Zařízení', 'acl' => ['view_all', 'Devices_Controller', 'devices']],
+                ['url' => route('devices.index'), 'path' => 'devices', 'label' => 'Zařízení', 'acl' => ['view_all', 'Devices_Controller', 'devices']],
                 ['url' => url('ip-addresses'), 'path' => 'ip-addresses', 'label' => 'IP adresy', 'acl' => ['view_all', 'Ip_addresses_Controller', 'ip_addresses']],
                 ['url' => url('subnets'), 'path' => 'subnets', 'label' => 'Subnety', 'acl' => ['view_all', 'Subnets_Controller', 'subnets']],
                 ['url' => url('vlans'), 'path' => 'vlans', 'label' => 'VLANy', 'acl' => ['view_all', 'Vlans_Controller', 'vlans']],

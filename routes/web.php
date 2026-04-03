@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\Auth\LoginController;
 use App\Http\Controllers\ContactController;
+use App\Http\Controllers\DeviceController;
 use App\Http\Controllers\MemberController;
 use App\Http\Controllers\StreetController;
 use App\Http\Controllers\TownController;
@@ -32,6 +33,10 @@ Route::middleware('auth')->group(function () {
     Route::put('users/{id}/password', [UserController::class, 'updatePassword'])
         ->name('users.password.update');
     Route::resource('users', UserController::class);
+
+    Route::resource('devices', DeviceController::class);
+    Route::get('users/{userId}/devices', [DeviceController::class, 'showByUser'])
+        ->name('devices.by_user');
 
     Route::get('users/{userId}/contacts',                 [ContactController::class, 'showByUser'])->name('contacts.show_by_user');
     Route::get('users/{userId}/contacts/create',          [ContactController::class, 'create'])->name('contacts.create');

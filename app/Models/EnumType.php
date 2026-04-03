@@ -12,4 +12,7 @@ class EnumType extends Model
 
     /** type_id grouping all contact types */
     const CONTACT_GROUP_ID = 4;
+
+    /** type_id grouping all device types */
+    const DEVICE_GROUP_ID = 2;
 }
