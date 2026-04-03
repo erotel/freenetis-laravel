@@ -152,8 +152,13 @@
     </table>
 
     {{-- Rozhraní --}}
+    <h3>
+        Rozhraní
+        @if($canEditDevice)
+            <a href="{{ route('ifaces.create', $device->id) }}" style="font-size:12px; margin-left:10px;">+ Přidat rozhraní</a>
+        @endif
+    </h3>
     @if($device->ifaces->count() > 0)
-        <h3>Rozhraní</h3>
         <table class="extended" cellspacing="0">
             <thead>
                 <tr>
@@ -161,6 +166,9 @@
                     <th>Jméno</th>
                     <th>MAC</th>
                     <th>IP adresy</th>
+                    @if($canEditDevice)
+                        <th>Akce</th>
+                    @endif
                 </tr>
             </thead>
             <tbody>
@@ -176,6 +184,22 @@
                                 —
                             @endforelse
                         </td>
+                        @if($canEditDevice)
+                            <td>
+                                <a href="{{ route('ifaces.edit', $iface->id) }}" title="Upravit">
+                                    <img src="{{ asset('media/images/icons/gtk_edit.png') }}" alt="Upravit">
+                                </a>
+                                <form method="POST" action="{{ route('ifaces.destroy', $iface->id) }}"
+                                      style="display:inline"
+                                      onsubmit="return confirm('Smazat rozhraní {{ addslashes($iface->name) }}?')">
+                                    @csrf
+                                    @method('DELETE')
+                                    <button type="submit" style="border:none;background:none;cursor:pointer;padding:0" title="Smazat">
+                                        <img src="{{ asset('media/images/icons/delete.png') }}" alt="Smazat">
+                                    </button>
+                                </form>
+                            </td>
+                        @endif
                     </tr>
                 @endforeach
             </tbody>

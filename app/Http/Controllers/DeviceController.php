@@ -3,10 +3,15 @@
 namespace App\Http\Controllers;
 
 use App\Models\Device;
+use App\Models\DeviceTemplate;
 use App\Models\EnumType;
+use App\Models\Iface;
+use App\Models\IpAddress;
+use App\Models\Subnet;
 use App\Models\User;
 use App\Services\AclService;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 
 class DeviceController extends Controller
 {
@@ -108,12 +113,161 @@ class DeviceController extends Controller
         }
 
         return view('devices.show', [
-            'device'      => $device,
-            'canEdit'     => $this->can('edit_all'),
-            'canDelete'   => $this->can('delete_all'),
+            'device'          => $device,
+            'canEdit'         => $this->can('edit_all'),
+            'canDelete'       => $this->can('delete_all'),
+            'canEditDevice'   => $this->can('edit_all'),
             'canViewLogin'    => $this->can('view_all', 'login'),
             'canViewPassword' => $this->can('view_all', 'password'),
         ]);
+    }
+
+    public function createWithTemplate(Request $request, int $userId = null)
+    {
+        abort_unless($this->can('new_all'), 403);
+
+        $user        = $userId ? User::findOrFail($userId) : null;
+        $users       = User::orderBy('surname')->orderBy('name')->get();
+        $deviceTypes = EnumType::where('type_id', EnumType::DEVICE_GROUP_ID)->orderBy('value')->get();
+        $rawTemplates = DeviceTemplate::with('enumType')->get();
+        $subnets     = Subnet::orderBy('name')->get();
+
+        // JSON-friendly list for JS filtering (id, name, enum_type_id)
+        $templates = $rawTemplates->map(fn($t) => [
+            'id'           => $t->id,
+            'name'         => $t->name . ($t->enumType ? ' (' . $t->enumType->value . ')' : ''),
+            'enum_type_id' => $t->enum_type_id,
+        ]);
+
+        // Pre-selected type from query string (preserved across template reload)
+        $selectedTypeId = (int) $request->query('type_id') ?: null;
+
+        // Server-side template rendering when template_id passed via GET
+        $selectedTemplate  = null;
+        $ifaceDefinitions  = [];
+        if ($templateId = (int) $request->query('template_id')) {
+            $selectedTemplate = $rawTemplates->find($templateId);
+            if ($selectedTemplate) {
+                $ifaceDefinitions = $selectedTemplate->getIfaceDefinitions();
+            }
+        }
+
+        return view('devices.add', compact(
+            'user', 'users', 'deviceTypes', 'templates',
+            'subnets', 'selectedTemplate', 'ifaceDefinitions', 'selectedTypeId'
+        ));
+    }
+
+    public function storeWithTemplate(Request $request)
+    {
+        \Log::info('storeWithTemplate called', ['all' => $request->except(['_token'])]);
+
+        try {
+
+        abort_unless($this->can('new_all'), 403);
+
+        $baseRules = [
+            'user_id'            => 'required|integer|exists:users,id',
+            'name'               => 'required|string|max:255',
+            'type'               => 'required|integer|exists:enum_types,id',
+            'device_template_id' => 'nullable|integer|exists:device_templates,id',
+            'buy_date'           => 'nullable|date',
+            'comment'            => 'nullable|string|max:254',
+        ];
+
+        // Build iface validation rules from template
+        $ifaceRules = [];
+        $ifaceDefs  = [];
+        if ($templateId = (int) $request->input('device_template_id')) {
+            $template = DeviceTemplate::findOrFail($templateId);
+            $ifaceDefs = $template->getIfaceDefinitions();
+            foreach ($ifaceDefs as $n => $def) {
+                if (($def['count'] ?? 1) <= 0) continue;
+                $ifaceRules["iface_name_{$n}"] = 'required|string|max:254';
+                if ($def['has_mac']) {
+                    $ifaceRules["iface_mac_{$n}"] = [
+                        'nullable',
+                        'regex:/^([0-9a-fA-F]{2}:){5}[0-9a-fA-F]{2}$/',
+                        'unique:ifaces,mac',
+                    ];
+                }
+                if ($def['has_ip']) {
+                    $ifaceRules["iface_ip_{$n}"]     = "nullable|ip|required_with:iface_subnet_{$n}";
+                    $ifaceRules["iface_subnet_{$n}"] = "nullable|integer|exists:subnets,id|required_with:iface_ip_{$n}";
+                }
+            }
+        }
+
+        $validated = $request->validate(array_merge($baseRules, $ifaceRules), [
+            'iface_mac_*.regex'  => 'MAC adresa musí být ve formátu aa:bb:cc:dd:ee:ff.',
+            'iface_mac_*.unique' => 'Tato MAC adresa je již použita.',
+        ]);
+
+        // At least one has_mac iface must have MAC filled (if template has any)
+        $hasMacDefs = array_filter($ifaceDefs, fn($d) => ($d['has_mac'] ?? false) && ($d['count'] ?? 1) > 0);
+        if (!empty($hasMacDefs)) {
+            $atLeastOneMac = false;
+            foreach ($hasMacDefs as $n => $def) {
+                if ($request->filled("iface_mac_{$n}")) {
+                    $atLeastOneMac = true;
+                    break;
+                }
+            }
+            if (!$atLeastOneMac) {
+                return back()->withInput()
+                    ->withErrors(['iface_mac_0' => 'Alespoň jedno rozhraní musí mít vyplněnou MAC adresu.']);
+            }
+        }
+
+        $deviceId = null;
+
+        DB::transaction(function () use ($validated, $ifaceDefs, $request, &$deviceId) {
+            $memberId = User::find($validated['user_id'])?->member_id;
+
+            $device = Device::create([
+                'user_id'  => $validated['user_id'],
+                'name'     => $validated['name'],
+                'type'     => $validated['type'],
+                'buy_date' => $validated['buy_date'] ?? null,
+                'comment'  => $validated['comment'] ?? null,
+            ]);
+
+            $deviceId = $device->id;
+
+            foreach ($ifaceDefs as $n => $def) {
+                if (($def['count'] ?? 1) <= 0) continue;
+                $iface = Iface::create([
+                    'device_id' => $device->id,
+                    'type'      => $def['type'],
+                    'name'      => $request->input("iface_name_{$n}"),
+                    'mac'       => ($def['has_mac'] && $request->filled("iface_mac_{$n}"))
+                                    ? $request->input("iface_mac_{$n}") : null,
+                ]);
+
+                if ($def['has_ip'] && $request->filled("iface_ip_{$n}")) {
+                    IpAddress::create([
+                        'iface_id'   => $iface->id,
+                        'subnet_id'  => $request->input("iface_subnet_{$n}"),
+                        'ip_address' => $request->input("iface_ip_{$n}"),
+                        'member_id'  => $memberId,
+                        'dhcp'       => 0,
+                        'gateway'    => 0,
+                        'service'    => 0,
+                    ]);
+                }
+            }
+        });
+
+        session()->flash('success', 'Zařízení bylo úspěšně přidáno.');
+        return redirect()->route('devices.show', $deviceId);
+
+        } catch (\Exception $e) {
+            \Log::error('storeWithTemplate error', [
+                'message' => $e->getMessage(),
+                'trace'   => $e->getTraceAsString(),
+            ]);
+            throw $e;
+        }
     }
 
     public function create(Request $request)
@@ -228,25 +382,18 @@ class DeviceController extends Controller
             abort(403);
         }
 
-        $device = Device::find($id);
-        if (!$device) {
-            abort(404);
-        }
-
-        if ($device->ifaces()->exists()) {
-            session()->flash('error', 'Zařízení nelze smazat, má přiřazená rozhraní.');
-            return redirect()->back();
-        }
-
+        $device = Device::findOrFail($id);
         $userId = $device->user_id;
-        $device->delete();
 
-        session()->flash('success', 'Zařízení bylo úspěšně smazáno.');
+        DB::transaction(function () use ($device) {
+            foreach ($device->ifaces as $iface) {
+                $iface->ipAddresses()->delete();
+            }
+            $device->ifaces()->delete();
+            $device->delete();
+        });
 
-        if ($userId) {
-            return redirect()->route('devices.by_user', $userId);
-        }
-
-        return redirect()->route('devices.index');
+        return redirect()->route('devices.by_user', $userId)
+            ->with('success', 'Zařízení bylo smazáno.');
     }
 }

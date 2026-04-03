@@ -26,7 +26,7 @@
 
     @if($canNew)
         <p>
-            <a href="{{ route('devices.create', ['user_id' => $user->id]) }}">
+            <a href="{{ route('devices.add', $user->id) }}">
                 <img src="{{ asset('media/images/icons/ico_add.gif') }}" alt="Přidat">
                 Přidat zařízení
             </a>

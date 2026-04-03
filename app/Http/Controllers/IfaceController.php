@@ -2,9 +2,13 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Device;
 use App\Models\Iface;
+use App\Models\IpAddress;
+use App\Models\Subnet;
 use App\Services\AclService;
 use Illuminate\Http\Request;
+use Illuminate\Validation\Rule;
 
 class IfaceController extends Controller
 {
@@ -42,6 +46,45 @@ class IfaceController extends Controller
         return view('ifaces.index', compact('ifaces', 'sort', 'dir', 'perPage', 'search'));
     }
 
+    public function create(int $deviceId = null)
+    {
+        abort_unless($this->can('new_all'), 403);
+
+        $device = $deviceId ? Device::findOrFail($deviceId) : null;
+        $types  = Iface::typeLabels();
+
+        return view('ifaces.create', compact('device', 'types'));
+    }
+
+    public function store(Request $request)
+    {
+        abort_unless($this->can('new_all'), 403);
+
+        $type = (int) $request->input('type');
+
+        $validated = $request->validate([
+            'device_id' => 'required|integer|exists:devices,id',
+            'type'      => 'required|integer|in:1,2,3,4,5,6,7',
+            'name'      => 'required|string|max:254',
+            'mac'       => [
+                ($type === Iface::ETHERNET || $type === Iface::WIRELESS) ? 'required' : 'nullable',
+                'string',
+                'regex:/^([0-9a-fA-F]{2}:){5}[0-9a-fA-F]{2}$/',
+                'unique:ifaces,mac',
+            ],
+            'comment'   => 'nullable|string|max:254',
+        ], [
+            'mac.regex'  => 'MAC adresa musí být ve formátu aa:bb:cc:dd:ee:ff.',
+            'mac.unique' => 'Tato MAC adresa je již použita.',
+        ]);
+
+        $iface = Iface::create($validated);
+
+        session()->flash('success', 'Rozhraní bylo úspěšně přidáno.');
+
+        return redirect()->route('devices.show', $iface->device_id);
+    }
+
     public function show(int $id)
     {
         abort_unless($this->can(), 403);
@@ -53,5 +96,82 @@ class IfaceController extends Controller
         ])->findOrFail($id);
 
         return view('ifaces.show', compact('iface'));
+    }
+
+    public function edit(int $id)
+    {
+        abort_unless($this->can('edit_all'), 403);
+
+        $iface   = Iface::with(['device', 'ipAddresses.subnet'])->findOrFail($id);
+        $subnets = Subnet::orderBy('name')->get();
+
+        return view('ifaces.edit', compact('iface', 'subnets'));
+    }
+
+    public function update(Request $request, int $id)
+    {
+        abort_unless($this->can('edit_all'), 403);
+
+        $iface = Iface::with('ipAddresses')->findOrFail($id);
+
+        $validated = $request->validate([
+            'name'    => 'required|string|max:254',
+            'mac'     => [
+                'nullable', 'string',
+                'regex:/^([0-9a-fA-F]{2}:){5}[0-9a-fA-F]{2}$/',
+                Rule::unique('ifaces', 'mac')->ignore($id),
+            ],
+            'comment' => 'nullable|string|max:254',
+        ], [
+            'mac.regex'  => 'MAC adresa musí být ve formátu aa:bb:cc:dd:ee:ff.',
+            'mac.unique' => 'Tato MAC adresa je již použita.',
+        ]);
+
+        $iface->update($validated);
+
+        // Update existing IP addresses
+        foreach ($iface->ipAddresses as $n => $ip) {
+            $ipAddress = $request->input("ip_address_{$n}");
+            $subnetId  = $request->input("ip_subnet_{$n}");
+            if ($ipAddress && $subnetId) {
+                $ip->update([
+                    'ip_address' => $ipAddress,
+                    'subnet_id'  => (int) $subnetId,
+                ]);
+            }
+        }
+
+        // Add new IP if filled
+        $newIp     = $request->input('new_ip_address');
+        $newSubnet = $request->input('new_ip_subnet');
+        if ($newIp && $newSubnet) {
+            $memberId = $iface->device?->user?->member_id;
+            IpAddress::create([
+                'iface_id'   => $iface->id,
+                'subnet_id'  => (int) $newSubnet,
+                'ip_address' => $newIp,
+                'member_id'  => $memberId,
+                'dhcp'       => 0,
+                'gateway'    => 0,
+                'service'    => 0,
+            ]);
+        }
+
+        session()->flash('success', 'Rozhraní bylo úspěšně upraveno.');
+        return redirect()->route('devices.show', $iface->device_id);
+    }
+
+    public function destroy(int $id)
+    {
+        abort_unless($this->can('delete_all'), 403);
+
+        $iface = Iface::findOrFail($id);
+        $deviceId = $iface->device_id;
+
+        $iface->ipAddresses()->delete();
+        $iface->delete();
+
+        session()->flash('success', 'Rozhraní bylo smazáno.');
+        return redirect()->route('devices.show', $deviceId);
     }
 }

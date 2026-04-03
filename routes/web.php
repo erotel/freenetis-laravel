@@ -41,6 +41,8 @@ Route::middleware('auth')->group(function () {
         ->name('users.password.update');
     Route::resource('users', UserController::class);
 
+    Route::get('devices/add/{userId?}', [DeviceController::class, 'createWithTemplate'])->name('devices.add');
+    Route::post('devices/add', [DeviceController::class, 'storeWithTemplate'])->name('devices.store_template');
     Route::resource('devices', DeviceController::class);
     Route::get('users/{userId}/devices', [DeviceController::class, 'showByUser'])
         ->name('devices.by_user');
@@ -62,6 +64,11 @@ Route::middleware('auth')->group(function () {
         ->parameters(['ip-addresses' => 'id']);
 
     Route::get('ifaces', [IfaceController::class, 'index'])->name('ifaces.index');
+    Route::get('ifaces/create/{deviceId?}', [IfaceController::class, 'create'])->name('ifaces.create');
+    Route::post('ifaces', [IfaceController::class, 'store'])->name('ifaces.store');
+    Route::get('ifaces/{id}/edit', [IfaceController::class, 'edit'])->name('ifaces.edit');
+    Route::put('ifaces/{id}', [IfaceController::class, 'update'])->name('ifaces.update');
+    Route::delete('ifaces/{id}', [IfaceController::class, 'destroy'])->name('ifaces.destroy');
     Route::get('ifaces/{id}', [IfaceController::class, 'show'])->name('ifaces.show');
 
     Route::get('login-logs', [LoginLogController::class, 'index'])->name('login_logs.index');
