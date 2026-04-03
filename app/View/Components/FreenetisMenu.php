@@ -40,8 +40,7 @@ class FreenetisMenu extends Component
                 ['url' => url('invoices'), 'path' => 'invoices', 'label' => 'Faktury', 'acl' => ['view_all', 'Invoices_Controller', 'invoices']],
             ]],
             ['name' => 'logs', 'label' => 'Logy', 'items' => [
-                ['url' => url('logs'), 'path' => 'logs', 'label' => 'Systémové logy', 'acl' => ['view_all', 'Logs_Controller', 'logs']],
-                ['url' => url('login-logs'), 'path' => 'login-logs', 'label' => 'Logy přihlášení', 'acl' => ['view_all', 'Login_logs_Controller', 'login_logs']],
+                ['url' => route('login_logs.index'), 'path' => 'login-logs', 'label' => 'Logy přihlášení', 'acl' => ['view_all', 'Login_logs_Controller', 'logs']],
             ]],
             ['name' => 'settings', 'label' => 'Nastavení', 'items' => [
                 ['url' => url('settings'), 'path' => 'settings', 'label' => 'Nastavení', 'acl' => ['view_all', 'Settings_Controller', 'settings']],

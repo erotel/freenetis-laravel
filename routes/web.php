@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\AccountController;
+use App\Http\Controllers\LoginLogController;
 use App\Http\Controllers\TransferController;
 use App\Http\Controllers\Auth\LoginController;
 use App\Http\Controllers\ContactController;
@@ -58,6 +59,9 @@ Route::middleware('auth')->group(function () {
     Route::resource('ip-addresses', IpAddressController::class)
         ->names('ip_addresses')
         ->parameters(['ip-addresses' => 'id']);
+
+    Route::get('login-logs', [LoginLogController::class, 'index'])->name('login_logs.index');
+    Route::get('login-logs/user/{userId}', [LoginLogController::class, 'showByUser'])->name('login_logs.by_user');
 
     Route::get('users/{userId}/contacts',                 [ContactController::class, 'showByUser'])->name('contacts.show_by_user');
     Route::get('users/{userId}/contacts/create',          [ContactController::class, 'create'])->name('contacts.create');
