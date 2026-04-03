@@ -32,7 +32,7 @@ class FreenetisMenu extends Component
                 ['url' => route('devices.index'), 'path' => 'devices', 'label' => 'Zařízení', 'acl' => ['view_all', 'Devices_Controller', 'devices']],
                 ['url' => route('ip_addresses.index'), 'path' => 'ip-addresses', 'label' => 'IP adresy', 'acl' => ['view_all', 'Ip_addresses_Controller', 'ip_address']],
                 ['url' => route('subnets.index'), 'path' => 'subnets', 'label' => 'Subnety', 'acl' => ['view_all', 'Subnets_Controller', 'subnet']],
-                ['url' => url('vlans'), 'path' => 'vlans', 'label' => 'VLANy', 'acl' => ['view_all', 'Vlans_Controller', 'vlans']],
+                ['url' => route('vlans.index'), 'path' => 'vlans', 'label' => 'VLANy', 'acl' => ['view_all', 'Vlans_Controller', 'vlan']],
             ]],
             ['name' => 'finance', 'label' => 'Finance', 'items' => [
                 ['url' => url('accounts'), 'path' => 'accounts', 'label' => 'Účty', 'acl' => ['view_all', 'Accounts_Controller', 'accounts']],

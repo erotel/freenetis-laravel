@@ -6,6 +6,7 @@ use App\Http\Controllers\DeviceController;
 use App\Http\Controllers\IpAddressController;
 use App\Http\Controllers\MemberController;
 use App\Http\Controllers\SubnetController;
+use App\Http\Controllers\VlanController;
 use App\Http\Controllers\StreetController;
 use App\Http\Controllers\TownController;
 use App\Http\Controllers\UserController;
@@ -41,6 +42,7 @@ Route::middleware('auth')->group(function () {
         ->name('devices.by_user');
 
     Route::resource('subnets', SubnetController::class);
+    Route::resource('vlans', VlanController::class);
 
     // ip-addresses — device-scoped create must come before resource to avoid wildcard conflict
     Route::get('ip-addresses/device/{deviceId}', [IpAddressController::class, 'create'])

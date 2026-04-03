@@ -107,7 +107,7 @@ class IpAddressController extends Controller
 
         $data = $this->validateIpForm($request);
 
-        if ($data['gateway'] && $this->gatewayExistsInSubnet((int) $data['subnet_id'])) {
+        if ($request->boolean('gateway') && $this->gatewayExistsInSubnet((int) $data['subnet_id'])) {
             return back()->withInput()
                 ->withErrors(['gateway' => 'V tomto subnetu již existuje gateway.']);
         }
@@ -147,7 +147,7 @@ class IpAddressController extends Controller
 
         $data = $this->validateIpForm($request, $id);
 
-        if ($data['gateway'] && !$ip->gateway &&
+        if ($request->boolean('gateway') && !$ip->gateway &&
             $this->gatewayExistsInSubnet((int) $data['subnet_id'], $id)) {
             return back()->withInput()
                 ->withErrors(['gateway' => 'V tomto subnetu již existuje gateway.']);
@@ -217,9 +217,9 @@ class IpAddressController extends Controller
                 Rule::unique('ip_addresses')->where('subnet_id', $subnetId)
                     ->ignore($excludeId),
             ],
-            'dhcp'    => 'boolean',
-            'gateway' => 'boolean',
-            'service' => 'boolean',
+            'dhcp'    => 'nullable|boolean',
+            'gateway' => 'nullable|boolean',
+            'service' => 'nullable|boolean',
         ], [
             'ip_address.regex'  => 'Neplatný formát IP adresy.',
             'ip_address.unique' => 'Tato IP adresa je již v daném subnetu použita.',
