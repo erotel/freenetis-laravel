@@ -15,13 +15,6 @@
 @section('content')
     <h2>Seznam VLANů</h2>
 
-    @if(session('success'))
-        <p class="success">{{ session('success') }}</p>
-    @endif
-    @if(session('error'))
-        <p class="error">{{ session('error') }}</p>
-    @endif
-
     @if($canNew)
         <p>
             <a href="{{ route('vlans.create') }}">

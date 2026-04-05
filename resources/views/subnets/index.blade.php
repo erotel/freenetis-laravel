@@ -15,13 +15,6 @@
 @section('content')
     <h2>Seznam subnetů</h2>
 
-    @if(session('success'))
-        <p class="success">{{ session('success') }}</p>
-    @endif
-    @if(session('error'))
-        <p class="error">{{ session('error') }}</p>
-    @endif
-
     <form method="GET" action="{{ route('subnets.index') }}" style="margin-bottom:1em;">
         <input type="text" name="search" value="{{ $search }}" placeholder="Hledat podle názvu nebo IP...">
         <button type="submit">Hledat</button>

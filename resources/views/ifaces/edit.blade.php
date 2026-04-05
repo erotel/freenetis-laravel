@@ -18,10 +18,6 @@
 @section('content')
     <h2>Upravit rozhraní: {{ $iface->name }}</h2>
 
-    @if(session('success'))
-        <p class="success">{{ session('success') }}</p>
-    @endif
-
     <form method="POST" action="{{ route('ifaces.update', $iface->id) }}" class="form">
         @csrf
         @method('PUT')

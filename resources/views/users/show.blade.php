@@ -16,13 +16,6 @@
 @section('content')
     <h2>{{ $user->full_name }}</h2>
 
-    @if(session('success'))
-        <p class="success">{{ session('success') }}</p>
-    @endif
-    @if(session('error'))
-        <p class="error">{{ session('error') }}</p>
-    @endif
-
     {{-- Action links --}}
     <div style="margin-bottom:1em;">
         @if($canEdit)

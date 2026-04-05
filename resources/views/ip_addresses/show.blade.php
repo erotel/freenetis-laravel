@@ -16,13 +16,6 @@
 @section('content')
     <h2>{{ $ip->ip_address }}</h2>
 
-    @if(session('success'))
-        <p class="success">{{ session('success') }}</p>
-    @endif
-    @if(session('error'))
-        <p class="error">{{ session('error') }}</p>
-    @endif
-
     <div style="margin-bottom:1em;">
         @if($canEdit)
             <a href="{{ route('ip_addresses.edit', $ip->id) }}">

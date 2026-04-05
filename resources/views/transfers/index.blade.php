@@ -15,10 +15,6 @@
 @section('content')
     <h2>Deník převodů</h2>
 
-    @if(session('success'))
-        <p class="success">{{ session('success') }}</p>
-    @endif
-
     {{-- Active filters --}}
     @if(request('account_id') || request('member_id'))
         <p>

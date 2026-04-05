@@ -54,6 +54,25 @@
             @yield('menu')
         </div>{{-- #menu --}}
 
+        <style>
+        .message.success {
+            background: #dff0d8;
+            border: 1px solid #3c763d;
+            color: #3c763d;
+            padding: 8px 12px;
+            margin-bottom: 10px;
+            border-radius: 2px;
+        }
+        .message.error {
+            background: #f2dede;
+            border: 1px solid #a94442;
+            color: #a94442;
+            padding: 8px 12px;
+            margin-bottom: 10px;
+            border-radius: 2px;
+        }
+        </style>
+
         <div id="content">
             @if(session('success'))
                 <div class="message success">{{ session('success') }}</div>

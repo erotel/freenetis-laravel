@@ -15,13 +15,6 @@
 @section('content')
     <h2>Seznam IP adres</h2>
 
-    @if(session('success'))
-        <p class="success">{{ session('success') }}</p>
-    @endif
-    @if(session('error'))
-        <p class="error">{{ session('error') }}</p>
-    @endif
-
     <form method="GET" action="{{ route('ip_addresses.index') }}" style="margin-bottom:1em;">
         <input type="text" name="search" value="{{ $search }}" placeholder="Hledat podle IP adresy...">
         <button type="submit">Hledat</button>

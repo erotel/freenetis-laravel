@@ -16,10 +16,6 @@
 @section('content')
     <h2>{{ $account->name }}</h2>
 
-    @if(session('success'))
-        <p class="success">{{ session('success') }}</p>
-    @endif
-
     <div style="margin-bottom:1em;">
         @if($canEdit)
             <a href="{{ route('accounts.edit', $account->id) }}">

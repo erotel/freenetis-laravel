@@ -17,13 +17,6 @@
 @section('content')
     <h2>Kontakty uživatele {{ $user->full_name }}</h2>
 
-    @if(session('success'))
-        <p class="success">{{ session('success') }}</p>
-    @endif
-    @if(session('error'))
-        <p class="error">{{ session('error') }}</p>
-    @endif
-
     @if($canAdd)
         <p>
             <a href="{{ route('contacts.create', $user->id) }}">
