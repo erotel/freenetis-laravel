@@ -45,6 +45,7 @@ class FreenetisMenu extends Component
             ['name' => 'settings', 'label' => 'Nastavení', 'items' => [
                 ['url' => url('settings'), 'path' => 'settings', 'label' => 'Nastavení', 'acl' => ['view_all', 'Settings_Controller', 'settings']],
                 ['url' => url('acl'), 'path' => 'acl', 'label' => 'Přístupová práva', 'acl' => ['view_all', 'Acl_Controller', 'acl']],
+                ['url' => route('fees.index'), 'path' => 'fees', 'label' => 'Tarify', 'acl' => ['view_all', 'Fees_Controller', 'fees']],
             ]],
         ];
 

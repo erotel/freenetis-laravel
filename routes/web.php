@@ -1,6 +1,8 @@
 <?php
 
 use App\Http\Controllers\AccountController;
+use App\Http\Controllers\FeeController;
+use App\Http\Controllers\MemberFeeController;
 use App\Http\Controllers\VariableSymbolController;
 use App\Http\Controllers\IfaceController;
 use App\Http\Controllers\LoginLogController;
@@ -49,6 +51,15 @@ Route::middleware('auth')->group(function () {
         ->name('devices.by_user');
 
     Route::resource('accounts', AccountController::class)->except(['destroy']);
+
+    Route::resource('fees', FeeController::class);
+
+    Route::get('members/{memberId}/fees',        [MemberFeeController::class, 'showByMember'])->name('members_fees.by_member');
+    Route::get('members/{memberId}/fees/create', [MemberFeeController::class, 'create'])->name('members_fees.create');
+    Route::post('members/{memberId}/fees',       [MemberFeeController::class, 'store'])->name('members_fees.store');
+    Route::get('members-fees/{id}/edit',         [MemberFeeController::class, 'edit'])->name('members_fees.edit');
+    Route::put('members-fees/{id}',              [MemberFeeController::class, 'update'])->name('members_fees.update');
+    Route::delete('members-fees/{id}',           [MemberFeeController::class, 'destroy'])->name('members_fees.destroy');
 
     // transfers — named route before resource to avoid wildcard clash
     Route::get('transfers/account/{accountId}', [TransferController::class, 'showByAccount'])

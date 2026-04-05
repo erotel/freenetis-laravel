@@ -6,6 +6,7 @@ use App\Helpers\MemberType;
 use App\Models\AccountAttribute;
 use App\Models\AddressPoint;
 use App\Models\Member;
+use App\Models\MemberFee;
 use App\Models\Street;
 use App\Models\Town;
 use App\Services\AclService;
@@ -121,10 +122,17 @@ class MemberController extends Controller
             ? $mainUser->contacts()->with('enumType')->get()
             : collect();
 
+        // Active regular fee — member-specific, fall back to association defaults (member_id=1)
+        $activeMemberFee = MemberFee::where('member_id', $member->id)->active()->with('fee')->first();
+        if (!$activeMemberFee) {
+            $activeMemberFee = MemberFee::where('member_id', Member::ASSOCIATION)->active()->with('fee')->first();
+        }
+
         return view('members.show', [
             'member'              => $member,
             'variableSymbols'     => $variableSymbols,
             'creditAccount'       => $creditAccount,
+            'activeMemberFee'     => $activeMemberFee,
             'canEdit'             => $this->can('edit_all'),
             'canDelete'           => $this->can('delete_all'),
             'mainUser'            => $mainUser,
@@ -135,6 +143,7 @@ class MemberController extends Controller
             'canViewTransfers'    => $this->acl->hasAccess(auth()->id(), 'view_all', 'Accounts_Controller', 'transfers'),
             'canViewIpAddresses'  => $this->acl->hasAccess(auth()->id(), 'view_all', 'Ip_addresses_Controller', 'ip_address'),
             'canViewDevices'      => $this->acl->hasAccess(auth()->id(), 'view_all', 'Devices_Controller', 'devices'),
+            'canViewFees'         => $this->acl->hasAccess(auth()->id(), 'view_all', 'Members_Controller', 'fees'),
         ]);
     }
 

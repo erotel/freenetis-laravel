@@ -71,6 +71,11 @@ class Member extends Model
         return $this->hasMany(IpAddress::class);
     }
 
+    public function memberFees()
+    {
+        return $this->hasMany(MemberFee::class);
+    }
+
     // --- Helpers ---
 
     public function __toString(): string

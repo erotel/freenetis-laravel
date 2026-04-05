@@ -32,6 +32,10 @@
             &nbsp;|&nbsp;
             <a href="{{ route('transfers.by_account', $creditAccount->id) }}">Zobrazit převody účtu</a>
         @endif
+        @if($canViewFees)
+            &nbsp;|&nbsp;
+            <a href="{{ route('members_fees.by_member', $member->id) }}">Zobrazit tarify</a>
+        @endif
         @if($canDelete)
             &nbsp;|&nbsp;
             <form method="POST" action="{{ route('members.destroy', $member->id) }}" style="display:inline;"
@@ -161,6 +165,17 @@
                             {{ number_format($creditAccount->balance, 2, ',', ' ') }} Kč
                         </td>
                     </tr>
+                    @if($activeMemberFee)
+                        <tr>
+                            <th>Měsíční platba</th>
+                            <td>
+                                {{ number_format($activeMemberFee->fee->fee, 2, ',', ' ') }} Kč
+                                @if($activeMemberFee->member_id == 1)
+                                    <small style="color:#999">(výchozí)</small>
+                                @endif
+                            </td>
+                        </tr>
+                    @endif
                 </table>
             </div>
         @endif
