@@ -152,9 +152,32 @@ class DeviceController extends Controller
             }
         }
 
+        // Subnet data with free IPs for JS autocomplete
+        $subnetData = Subnet::with('ipAddresses')->get()->map(function ($subnet) {
+            $usedIps  = $subnet->ipAddresses->pluck('ip_address')->toArray();
+            $network   = ip2long($subnet->network_address);
+            $mask      = ip2long($subnet->netmask);
+            $broadcast = $network | (~$mask & 0xFFFFFFFF);
+            $freeIps   = [];
+            for ($ip = $network + 1; $ip < $broadcast && count($freeIps) < 30; $ip++) {
+                $ipStr = long2ip($ip);
+                if (!in_array($ipStr, $usedIps)) {
+                    $freeIps[] = $ipStr;
+                }
+            }
+            return [
+                'id'      => $subnet->id,
+                'network' => $subnet->network_address,
+                'mask'    => $subnet->netmask,
+                'label'   => $subnet->label,
+                'freeIps' => $freeIps,
+            ];
+        })->values()->toArray();
+
         return view('devices.add', compact(
             'user', 'users', 'deviceTypes', 'templates',
-            'subnets', 'selectedTemplate', 'ifaceDefinitions', 'selectedTypeId'
+            'subnets', 'selectedTemplate', 'ifaceDefinitions', 'selectedTypeId',
+            'subnetData'
         ));
     }
 
@@ -202,6 +225,19 @@ class DeviceController extends Controller
             'iface_mac_*.regex'  => 'MAC adresa musí být ve formátu aa:bb:cc:dd:ee:ff.',
             'iface_mac_*.unique' => 'Tato MAC adresa je již použita.',
         ]);
+
+        // IP uniqueness check per subnet
+        foreach ($ifaceDefs as $i => $def) {
+            if (($def['count'] ?? 1) <= 0) continue;
+            if (!($def['has_ip'] ?? false)) continue;
+            $ip       = $request->input("iface_ip_{$i}");
+            $subnetId = $request->input("iface_subnet_{$i}");
+            if ($ip && $subnetId) {
+                if (IpAddress::where('ip_address', $ip)->where('subnet_id', $subnetId)->exists()) {
+                    return back()->withInput()->withErrors(["iface_ip_{$i}" => "IP adresa {$ip} je již použita v tomto subnetu."]);
+                }
+            }
+        }
 
         // At least one has_mac iface must have MAC filled (if template has any)
         $hasMacDefs = array_filter($ifaceDefs, fn($d) => ($d['has_mac'] ?? false) && ($d['count'] ?? 1) > 0);

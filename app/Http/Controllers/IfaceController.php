@@ -105,7 +105,28 @@ class IfaceController extends Controller
         $iface   = Iface::with(['device', 'ipAddresses.subnet'])->findOrFail($id);
         $subnets = Subnet::orderBy('name')->get();
 
-        return view('ifaces.edit', compact('iface', 'subnets'));
+        $subnetData = Subnet::with('ipAddresses')->get()->map(function ($subnet) {
+            $usedIps   = $subnet->ipAddresses->pluck('ip_address')->toArray();
+            $network   = ip2long($subnet->network_address);
+            $mask      = ip2long($subnet->netmask);
+            $broadcast = $network | (~$mask & 0xFFFFFFFF);
+            $freeIps   = [];
+            for ($ip = $network + 1; $ip < $broadcast && count($freeIps) < 30; $ip++) {
+                $ipStr = long2ip($ip);
+                if (!in_array($ipStr, $usedIps)) {
+                    $freeIps[] = $ipStr;
+                }
+            }
+            return [
+                'id'      => $subnet->id,
+                'network' => $subnet->network_address,
+                'mask'    => $subnet->netmask,
+                'label'   => $subnet->label,
+                'freeIps' => $freeIps,
+            ];
+        })->values()->toArray();
+
+        return view('ifaces.edit', compact('iface', 'subnets', 'subnetData'));
     }
 
     public function update(Request $request, int $id)
@@ -130,12 +151,17 @@ class IfaceController extends Controller
         $iface->update($validated);
 
         // Update existing IP addresses
-        foreach ($iface->ipAddresses as $n => $ip) {
-            $ipAddress = $request->input("ip_address_{$n}");
-            $subnetId  = $request->input("ip_subnet_{$n}");
-            if ($ipAddress && $subnetId) {
-                $ip->update([
-                    'ip_address' => $ipAddress,
+        foreach ($iface->ipAddresses as $n => $existingIp) {
+            $newIpVal = $request->input("ip_address_{$n}");
+            $subnetId = $request->input("ip_subnet_{$n}");
+            if ($newIpVal && $subnetId) {
+                if ($newIpVal !== $existingIp->ip_address) {
+                    if (IpAddress::where('ip_address', $newIpVal)->where('subnet_id', $subnetId)->where('id', '!=', $existingIp->id)->exists()) {
+                        return back()->withInput()->withErrors(["ip_address_{$n}" => "IP adresa {$newIpVal} je již použita."]);
+                    }
+                }
+                $existingIp->update([
+                    'ip_address' => $newIpVal,
                     'subnet_id'  => (int) $subnetId,
                 ]);
             }
@@ -145,6 +171,9 @@ class IfaceController extends Controller
         $newIp     = $request->input('new_ip_address');
         $newSubnet = $request->input('new_ip_subnet');
         if ($newIp && $newSubnet) {
+            if (IpAddress::where('ip_address', $newIp)->where('subnet_id', $newSubnet)->exists()) {
+                return back()->withInput()->withErrors(['new_ip_address' => "IP adresa {$newIp} je již použita."]);
+            }
             $memberId = $iface->device?->user?->member_id;
             IpAddress::create([
                 'iface_id'   => $iface->id,

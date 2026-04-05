@@ -134,4 +134,74 @@
 
         <p><input type="submit" value="Uložit"></p>
     </form>
+
+    <script>
+    const subnetData = @json($subnetData ?? []);
+
+    function ipToLong(ip) {
+        return ip.split('.').reduce((acc, oct) => (acc << 8) + parseInt(oct), 0) >>> 0;
+    }
+
+    function findSubnetForIp(ip) {
+        const ipLong = ipToLong(ip);
+        return subnetData.find(s => {
+            const network = ipToLong(s.network);
+            const mask = ipToLong(s.mask);
+            return (ipLong & mask) === (network & mask);
+        });
+    }
+
+    function setupIpAutocomplete(ipInput, subnetSelect) {
+        if (!ipInput) return;
+
+        const allFreeIps = [];
+        subnetData.forEach(s => s.freeIps.forEach(ip => allFreeIps.push(ip)));
+
+        const listId = 'datalist_' + ipInput.name.replace(/[^a-z0-9]/gi, '_');
+        let datalist = document.getElementById(listId);
+        if (!datalist) {
+            datalist = document.createElement('datalist');
+            datalist.id = listId;
+            document.body.appendChild(datalist);
+        }
+        ipInput.setAttribute('list', listId);
+        ipInput.setAttribute('autocomplete', 'off');
+
+        ipInput.addEventListener('input', function () {
+            const val = this.value;
+            datalist.innerHTML = '';
+            if (val.length < 3) return;
+            allFreeIps.filter(ip => ip.startsWith(val)).slice(0, 10).forEach(ip => {
+                const opt = document.createElement('option');
+                opt.value = ip;
+                datalist.appendChild(opt);
+            });
+        });
+
+        function autofillSubnet() {
+            const ip = ipInput.value;
+            if (!/^\d+\.\d+\.\d+\.\d+$/.test(ip)) return;
+            const subnet = findSubnetForIp(ip);
+            if (subnet && subnetSelect) {
+                subnetSelect.value = subnet.id;
+            }
+        }
+
+        ipInput.addEventListener('change', autofillSubnet);
+        ipInput.addEventListener('blur', autofillSubnet);
+    }
+
+    // Existing IP address fields
+    document.querySelectorAll('input[name^="ip_address_"]').forEach(ipInput => {
+        const n = ipInput.name.replace('ip_address_', '');
+        const subnetSelect = document.querySelector('select[name="ip_subnet_' + n + '"]');
+        setupIpAutocomplete(ipInput, subnetSelect);
+    });
+
+    // New IP address field
+    setupIpAutocomplete(
+        document.getElementById('new_ip_address'),
+        document.getElementById('new_ip_subnet')
+    );
+    </script>
 @endsection
