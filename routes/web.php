@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\AccountController;
+use App\Http\Controllers\SettingController;
 use App\Http\Controllers\BankAccountController;
 use App\Http\Controllers\BankStatementController;
 use App\Http\Controllers\BankTransferController;
@@ -113,6 +114,9 @@ Route::middleware('auth')->group(function () {
     Route::get('variable-symbols/account/{accountId}',  [VariableSymbolController::class, 'showByAccount'])->name('variable_symbols.by_account');
     Route::post('variable-symbols/account/{accountId}', [VariableSymbolController::class, 'store'])->name('variable_symbols.store');
     Route::delete('variable-symbols/{id}',              [VariableSymbolController::class, 'destroy'])->name('variable_symbols.destroy');
+
+    Route::get('settings',    [SettingController::class, 'index'])->name('settings.index');
+    Route::put('settings',    [SettingController::class, 'update'])->name('settings.update');
 
     Route::get('login-logs', [LoginLogController::class, 'index'])->name('login_logs.index');
     Route::get('login-logs/user/{userId}', [LoginLogController::class, 'showByUser'])->name('login_logs.by_user');

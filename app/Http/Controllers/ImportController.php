@@ -5,8 +5,11 @@ namespace App\Http\Controllers;
 use App\Models\BankAccount;
 use App\Models\BankStatement;
 use App\Models\BankTransfer;
+use App\Models\Member;
+use App\Models\Setting;
 use App\Models\VariableSymbol;
 use App\Models\Transfer;
+use App\Http\Controllers\SettingController;
 use App\Services\AclService;
 use App\Services\FioCsvParser;
 use Illuminate\Http\Request;
@@ -123,17 +126,23 @@ class ImportController extends Controller
                 if ($bt->variable_symbol !== null) {
                     $vsModel = VariableSymbol::where('variable_symbol', $bt->variable_symbol)->first();
                     if ($vsModel) {
-                        // Find matching system transfer
-                        $transfer = Transfer::where(function ($q) use ($vsModel, $isIncoming) {
-                            if ($isIncoming) {
-                                $q->where('destination_id', $vsModel->account_id);
-                            } else {
-                                $q->where('origin_id', $vsModel->account_id);
-                            }
-                        })->latest('datetime')->first();
+                        // pvfree_filter_member_by_bank_account equivalent:
+                        // check that the payment arrived on the correct bank account for the member's type
+                        $memberAllowed = $this->filterMemberByBankAccount($vsModel->account_id, $account, $bt);
 
-                        if ($transfer) {
-                            $bt->transfer_id = $transfer->id;
+                        if ($memberAllowed) {
+                            // Find matching system transfer
+                            $transfer = Transfer::where(function ($q) use ($vsModel, $isIncoming) {
+                                if ($isIncoming) {
+                                    $q->where('destination_id', $vsModel->account_id);
+                                } else {
+                                    $q->where('origin_id', $vsModel->account_id);
+                                }
+                            })->latest('datetime')->first();
+
+                            if ($transfer) {
+                                $bt->transfer_id = $transfer->id;
+                            }
                         }
                     }
                 }
@@ -146,5 +155,52 @@ class ImportController extends Controller
         return redirect()
             ->route('bank_accounts.show', $bankAccountId)
             ->with('success', "Import dokončen: importováno {$imported} převodů, přeskočeno {$skipped} duplicit.");
+    }
+
+    /**
+     * Equivalent of Kohana's pvfree_filter_member_by_bank_account.
+     *
+     * Checks whether the payment arrived on the expected bank account for the
+     * member type that owns $accountId. If the account routing rules are
+     * configured in the config table (bank_account_member_type_<type>) and the
+     * payment arrived on the wrong bank account, the transfer stays unmatched
+     * and a note is written to $bt->comment.
+     *
+     * Returns true if matching should proceed, false if it should be blocked.
+     */
+    private function filterMemberByBankAccount(int $accountId, BankAccount $importAccount, BankTransfer $bt): bool
+    {
+        // Resolve member type via account → member relation
+        $account = \App\Models\Account::find($accountId);
+        if (!$account || !$account->member_id) {
+            return true; // can't determine type, allow
+        }
+
+        $member = Member::find($account->member_id);
+        if (!$member) {
+            return true;
+        }
+
+        $memberType = (int) $member->type;
+        $key        = sprintf(SettingController::KEY_BA_MEMBER_TYPE, $memberType);
+        $expectedBaId = (int) Setting::get($key, 0);
+
+        if ($expectedBaId === 0) {
+            return true; // no rule configured for this type
+        }
+
+        if ($importAccount->id !== $expectedBaId) {
+            $bt->comment = sprintf(
+                'Platba patří %s (member_id=%d, typ=%d), ale přišla na špatný účet (%s). Očekáván účet id=%d.',
+                $member->name,
+                $member->id,
+                $memberType,
+                $importAccount->full_account_number,
+                $expectedBaId
+            );
+            return false;
+        }
+
+        return true;
     }
 }
