@@ -4,7 +4,10 @@ namespace App\Http\Controllers;
 
 use App\Helpers\MemberType;
 use App\Models\AccountAttribute;
+use App\Models\AddressPoint;
 use App\Models\Member;
+use App\Models\Street;
+use App\Models\Town;
 use App\Services\AclService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -167,9 +170,13 @@ class MemberController extends Controller
             abort(404);
         }
 
-        $types = MemberType::labels();
+        $member->load('addressPoint.town', 'addressPoint.street');
 
-        return view('members.edit', ['member' => $member, 'types' => $types]);
+        $types   = MemberType::labels();
+        $towns   = Town::orderBy('town')->get();
+        $streets = Street::orderBy('street')->get();
+
+        return view('members.edit', compact('member', 'types', 'towns', 'streets'));
     }
 
     public function update(Request $request, int $id)
@@ -191,9 +198,39 @@ class MemberController extends Controller
             'comment'        => 'nullable|string|max:250',
             'organization_identifier'     => 'nullable|string|max:20',
             'vat_organization_identifier' => 'nullable|string|max:30',
+            'town_id'         => 'nullable|integer|exists:towns,id',
+            'street_id'       => 'nullable|integer|exists:streets,id',
+            'street_number'   => 'nullable|string|max:50',
         ]);
 
-        $member->update($data);
+        $member->update([
+            'name'                        => $data['name'],
+            'type'                        => $data['type'],
+            'entrance_date'               => $data['entrance_date'] ?? null,
+            'leaving_date'                => $data['leaving_date'] ?? null,
+            'comment'                     => $data['comment'] ?? null,
+            'organization_identifier'     => $data['organization_identifier'] ?? null,
+            'vat_organization_identifier' => $data['vat_organization_identifier'] ?? null,
+            'locked'                      => $request->boolean('locked'),
+            'registration'                => $request->boolean('registration'),
+        ]);
+
+        // Update or create address point
+        if ($request->filled('town_id')) {
+            $addressPoint = $member->addressPoint ?? new AddressPoint();
+            $addressPoint->town_id       = $data['town_id'];
+            $addressPoint->street_id     = $data['street_id'] ?? null;
+            $addressPoint->street_number = $data['street_number'] ?? null;
+            if (!$addressPoint->exists) {
+                $addressPoint->country_id = 1;
+            }
+            $addressPoint->save();
+
+            if ($member->address_point_id !== $addressPoint->id) {
+                $member->address_point_id = $addressPoint->id;
+                $member->save();
+            }
+        }
 
         session()->flash('success', 'Člen byl úspěšně upraven.');
 

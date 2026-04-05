@@ -83,6 +83,66 @@
                         @error('comment') <span class="error">{{ $message }}</span> @enderror
                     </td>
                 </tr>
+                <tr><th colspan="2" style="background:#e8e8e8;">Adresa</th></tr>
+                <tr>
+                    <th><label for="town_id">Město</label></th>
+                    <td>
+                        <select id="town_id" name="town_id">
+                            <option value="">— vyberte město —</option>
+                            @foreach($towns as $town)
+                                <option value="{{ $town->id }}"
+                                    @selected(old('town_id', $member->addressPoint?->town_id) == $town->id)>
+                                    {{ $town->town }}{{ $town->quarter ? ' - ' . $town->quarter : '' }}, {{ $town->zip_code }}
+                                </option>
+                            @endforeach
+                        </select>
+                        @error('town_id') <span class="error">{{ $message }}</span> @enderror
+                    </td>
+                </tr>
+                <tr>
+                    <th><label for="street_id">Ulice</label></th>
+                    <td>
+                        <select id="street_id" name="street_id">
+                            <option value="">— vyberte ulici —</option>
+                            @foreach($streets as $street)
+                                <option value="{{ $street->id }}"
+                                    @selected(old('street_id', $member->addressPoint?->street_id) == $street->id)>
+                                    {{ $street->street }}
+                                </option>
+                            @endforeach
+                        </select>
+                        @error('street_id') <span class="error">{{ $message }}</span> @enderror
+                    </td>
+                </tr>
+                <tr>
+                    <th><label for="street_number">Číslo popisné</label></th>
+                    <td>
+                        <input type="text" id="street_number" name="street_number"
+                               value="{{ old('street_number', $member->addressPoint?->street_number) }}" maxlength="50">
+                        @error('street_number') <span class="error">{{ $message }}</span> @enderror
+                    </td>
+                </tr>
+                <tr><th colspan="2" style="background:#e8e8e8;">Další informace</th></tr>
+                <tr>
+                    <th><label for="locked">Přístup do systému</label></th>
+                    <td>
+                        <select id="locked" name="locked">
+                            <option value="0" @selected(!old('locked', $member->locked))>Odemčen</option>
+                            <option value="1" @selected(old('locked', $member->locked))>Zamčen</option>
+                        </select>
+                        @error('locked') <span class="error">{{ $message }}</span> @enderror
+                    </td>
+                </tr>
+                <tr>
+                    <th><label for="registration">Registrace</label></th>
+                    <td>
+                        <select id="registration" name="registration">
+                            <option value="1" @selected(old('registration', $member->registration))>Ano</option>
+                            <option value="0" @selected(!old('registration', $member->registration))>Ne</option>
+                        </select>
+                        @error('registration') <span class="error">{{ $message }}</span> @enderror
+                    </td>
+                </tr>
             </tbody>
         </table>
 
