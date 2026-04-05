@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\AccountController;
+use App\Http\Controllers\VariableSymbolController;
 use App\Http\Controllers\IfaceController;
 use App\Http\Controllers\LoginLogController;
 use App\Http\Controllers\TransferController;
@@ -70,6 +71,10 @@ Route::middleware('auth')->group(function () {
     Route::put('ifaces/{id}', [IfaceController::class, 'update'])->name('ifaces.update');
     Route::delete('ifaces/{id}', [IfaceController::class, 'destroy'])->name('ifaces.destroy');
     Route::get('ifaces/{id}', [IfaceController::class, 'show'])->name('ifaces.show');
+
+    Route::get('variable-symbols/account/{accountId}',  [VariableSymbolController::class, 'showByAccount'])->name('variable_symbols.by_account');
+    Route::post('variable-symbols/account/{accountId}', [VariableSymbolController::class, 'store'])->name('variable_symbols.store');
+    Route::delete('variable-symbols/{id}',              [VariableSymbolController::class, 'destroy'])->name('variable_symbols.destroy');
 
     Route::get('login-logs', [LoginLogController::class, 'index'])->name('login_logs.index');
     Route::get('login-logs/user/{userId}', [LoginLogController::class, 'showByUser'])->name('login_logs.by_user');

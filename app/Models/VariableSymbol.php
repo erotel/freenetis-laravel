@@ -8,6 +8,7 @@ class VariableSymbol extends Model
 {
     public $timestamps = false;
     protected $table = 'variable_symbols';
+    protected $fillable = ['account_id', 'variable_symbol'];
 
     public function account()
     {

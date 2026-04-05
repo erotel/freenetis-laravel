@@ -67,10 +67,18 @@
                     <th>Typ člena</th>
                     <td>{{ $member->type_label }}</td>
                 </tr>
-                @if($variableSymbols->isNotEmpty())
+                @if($variableSymbols->isNotEmpty() || $creditAccount)
                     <tr>
                         <th>Variabilní symboly</th>
-                        <td>{{ $variableSymbols->implode(', ') }}</td>
+                        <td>
+                            {{ $variableSymbols->implode(', ') }}
+                            @if($creditAccount)
+                                @if($variableSymbols->isNotEmpty())
+                                    &nbsp;
+                                @endif
+                                <a href="{{ route('variable_symbols.by_account', $creditAccount->id) }}">Přidávání/editace</a>
+                            @endif
+                        </td>
                     </tr>
                 @endif
                 @if($member->entrance_date && $member->entrance_date !== '0000-00-00')
