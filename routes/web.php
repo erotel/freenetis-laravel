@@ -1,6 +1,9 @@
 <?php
 
 use App\Http\Controllers\AccountController;
+use App\Http\Controllers\BankAccountController;
+use App\Http\Controllers\BankTransferController;
+use App\Http\Controllers\OutgoingPaymentController;
 use App\Http\Controllers\FeeController;
 use App\Http\Controllers\MemberFeeController;
 use App\Http\Controllers\VariableSymbolController;
@@ -51,6 +54,20 @@ Route::middleware('auth')->group(function () {
         ->name('devices.by_user');
 
     Route::resource('accounts', AccountController::class)->except(['destroy']);
+
+    Route::resource('bank-accounts', BankAccountController::class)
+        ->only(['index', 'show'])
+        ->names('bank_accounts');
+
+    Route::get('bank-transfers/unidentified', [BankTransferController::class, 'showUnidentified'])
+        ->name('bank_transfers.unidentified');
+    Route::get('bank-transfers/account/{bankAccountId}', [BankTransferController::class, 'showByBankAccount'])
+        ->name('bank_transfers.by_account');
+
+    Route::get('outgoing-payments',              [OutgoingPaymentController::class, 'index'])->name('outgoing_payments.index');
+    Route::get('outgoing-payments/{id}',         [OutgoingPaymentController::class, 'show'])->name('outgoing_payments.show');
+    Route::post('outgoing-payments/{id}/approve',[OutgoingPaymentController::class, 'approve'])->name('outgoing_payments.approve');
+    Route::post('outgoing-payments/{id}/cancel', [OutgoingPaymentController::class, 'cancel'])->name('outgoing_payments.cancel');
 
     Route::resource('fees', FeeController::class);
 
