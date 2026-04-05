@@ -2,7 +2,9 @@
 
 use App\Http\Controllers\AccountController;
 use App\Http\Controllers\BankAccountController;
+use App\Http\Controllers\BankStatementController;
 use App\Http\Controllers\BankTransferController;
+use App\Http\Controllers\ImportController;
 use App\Http\Controllers\OutgoingPaymentController;
 use App\Http\Controllers\FeeController;
 use App\Http\Controllers\MemberFeeController;
@@ -63,6 +65,14 @@ Route::middleware('auth')->group(function () {
         ->name('bank_transfers.unidentified');
     Route::get('bank-transfers/account/{bankAccountId}', [BankTransferController::class, 'showByBankAccount'])
         ->name('bank_transfers.by_account');
+
+    Route::get('bank-statements/account/{bankAccountId}', [BankStatementController::class, 'showByBankAccount'])
+        ->name('bank_statements.by_account');
+    Route::delete('bank-statements/{id}', [BankStatementController::class, 'destroy'])
+        ->name('bank_statements.destroy');
+
+    Route::get('import/bank-file/{bankAccountId}',  [ImportController::class, 'uploadBankFile'])->name('import.upload_bank_file');
+    Route::post('import/bank-file/{bankAccountId}', [ImportController::class, 'importBankFile'])->name('import.bank_file');
 
     Route::get('outgoing-payments',              [OutgoingPaymentController::class, 'index'])->name('outgoing_payments.index');
     Route::get('outgoing-payments/{id}',         [OutgoingPaymentController::class, 'show'])->name('outgoing_payments.show');

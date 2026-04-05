@@ -20,6 +20,12 @@
         @if($canViewTransfers)
             <a href="{{ route('bank_transfers.by_account', $account->id) }}">Zobrazit převody</a>
         @endif
+        @if($canViewStatements)
+            &nbsp;|&nbsp;
+            <a href="{{ route('bank_statements.by_account', $account->id) }}">Výpisy</a>
+            &nbsp;|&nbsp;
+            <a href="{{ route('import.upload_bank_file', $account->id) }}">Nahrát bankovní výpis</a>
+        @endif
     </div>
 
     <table class="extended" cellspacing="0">
@@ -47,31 +53,4 @@
         </tbody>
     </table>
 
-    @if($canViewStatements && $account->bankStatements->isNotEmpty())
-        <h3>Výpisy (posledních 10)</h3>
-        <table class="extended" cellspacing="0">
-            <thead>
-                <tr>
-                    <th>ID</th>
-                    <th>Typ</th>
-                    <th>Od</th>
-                    <th>Do</th>
-                    <th>Počáteční zůstatek</th>
-                    <th>Konečný zůstatek</th>
-                </tr>
-            </thead>
-            <tbody>
-                @foreach($account->bankStatements as $stmt)
-                    <tr>
-                        <td>{{ $stmt->id }}</td>
-                        <td>{{ $stmt->type ?: '—' }}</td>
-                        <td>{{ $stmt->from?->format('d.m.Y') }}</td>
-                        <td>{{ $stmt->to?->format('d.m.Y') }}</td>
-                        <td style="text-align:right;">{{ number_format($stmt->opening_balance, 2, ',', ' ') }} Kč</td>
-                        <td style="text-align:right;">{{ number_format($stmt->closing_balance, 2, ',', ' ') }} Kč</td>
-                    </tr>
-                @endforeach
-            </tbody>
-        </table>
-    @endif
 @endsection

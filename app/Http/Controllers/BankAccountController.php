@@ -34,9 +34,7 @@ class BankAccountController extends Controller
     {
         abort_unless($this->can('view_all'), 403);
 
-        $account = BankAccount::with(['member', 'bankStatements' => function ($q) {
-            $q->orderBy('from', 'desc')->limit(10);
-        }])->findOrFail($id);
+        $account = BankAccount::with('member')->findOrFail($id);
 
         $canViewTransfers  = $this->acl->hasAccess(auth()->id(), 'view_all', self::ACL_SECTION, 'bank_transfers');
         $canViewStatements = $this->acl->hasAccess(auth()->id(), 'view_all', self::ACL_SECTION, 'bank_statements');
