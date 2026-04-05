@@ -16,26 +16,43 @@
     <style>
     .members-table { table-layout: fixed; width: 100%; }
     .members-table .col-name {
-        max-width: 250px;
+        max-width: 200px;
         overflow: hidden;
         text-overflow: ellipsis;
         white-space: nowrap;
     }
-    .members-table .col-id   { width: 60px; }
-    .members-table .col-type { width: 160px; }
-    .members-table .col-vs   { width: 130px; }
-    .members-table .col-reg  { width: 40px; }
-    .members-table .col-akce { width: 80px; }
+    .members-table .col-id    { width: 50px; }
+    .members-table .col-type  { width: 140px; }
+    .members-table .col-town  { width: 120px; }
+    .members-table .col-vs    { width: 110px; }
+    .members-table .col-reg   { width: 40px; }
+    .members-table .col-stav  { width: 80px; }
+    .members-table .col-akce  { width: 70px; }
     </style>
 
     <h2>Seznam všech členů</h2>
 
-    <form id="member-search" method="GET" action="{{ route('members.index') }}" style="margin-bottom:1em;">
+    <form id="member-search" method="GET" action="{{ route('members.index') }}" style="margin-bottom:0.5em;">
         <input type="text" name="search" value="{{ $search }}" placeholder="Hledat podle jména...">
-        <button type="submit" form="member-search">Hledat</button>
-        @if($search)
-            <a href="{{ route('members.index') }}">Zrušit filtr</a>
+        <button type="submit">Hledat</button>
+        @if($search || $currentType !== 'all' || $currentLocked !== 'all')
+            <a href="{{ route('members.index') }}">Zrušit filtry</a>
         @endif
+    </form>
+
+    <form method="GET" action="{{ route('members.index') }}" style="display:inline-flex; gap:8px; margin-bottom:10px; flex-wrap:wrap;">
+        @if($search)<input type="hidden" name="search" value="{{ $search }}">@endif
+        <select name="type" onchange="this.form.submit()">
+            <option value="all">— všechny typy —</option>
+            @foreach($memberTypes as $typeId => $typeLabel)
+                <option value="{{ $typeId }}" @selected($currentType == $typeId)>{{ $typeLabel }}</option>
+            @endforeach
+        </select>
+        <select name="locked" onchange="this.form.submit()">
+            <option value="all">— všechny stavy —</option>
+            <option value="0" @selected($currentLocked === '0')>Odemčeni</option>
+            <option value="1" @selected($currentLocked === '1')>Zamčeni</option>
+        </select>
     </form>
 
     @if($canNew)
@@ -59,8 +76,10 @@
                 <th class="col-id"><a href="{{ $sortUrl('id') }}">ID{{ $arrow('id') }}</a></th>
                 <th class="col-name"><a href="{{ $sortUrl('name') }}">Jméno{{ $arrow('name') }}</a></th>
                 <th class="col-type"><a href="{{ $sortUrl('type') }}">Typ člena{{ $arrow('type') }}</a></th>
+                <th class="col-town">Město</th>
                 <th class="col-vs">Variabilní symbol</th>
                 <th class="col-reg"><a href="{{ $sortUrl('registration') }}">Reg.{{ $arrow('registration') }}</a></th>
+                <th class="col-stav">Stav</th>
                 <th class="col-akce">Akce</th>
             </tr>
         </thead>
@@ -70,8 +89,12 @@
                     <td class="col-id">{{ $member->id }}</td>
                     <td class="col-name"><a href="{{ route('members.show', $member->id) }}">{{ $member->name }}</a></td>
                     <td class="col-type">{{ $member->type_label }}</td>
+                    <td class="col-town">{{ $member->addressPoint?->town?->town ?? '—' }}</td>
                     <td class="col-vs">{{ $member->variable_symbol }}</td>
                     <td class="col-reg">{{ $member->registration ? 'Ano' : 'Ne' }}</td>
+                    <td class="col-stav" style="color:{{ $member->locked ? 'red' : 'green' }}">
+                        {{ $member->locked ? 'Zamčen' : 'Odemčen' }}
+                    </td>
                     <td class="action col-akce">
                         <a href="{{ route('members.show', $member->id) }}" title="Detail">
                             <img src="{{ asset('media/images/icons/con_info.png') }}" alt="Detail">
@@ -95,7 +118,7 @@
                 </tr>
             @empty
                 <tr>
-                    <td colspan="6">Žádní členové nebyli nalezeni.</td>
+                    <td colspan="8">Žádní členové nebyli nalezeni.</td>
                 </tr>
             @endforelse
         </tbody>
@@ -109,6 +132,8 @@
         @if(request('sort'))   <input type="hidden" name="sort"   value="{{ $sort }}"> @endif
         @if(request('dir'))    <input type="hidden" name="dir"    value="{{ $dir }}">  @endif
         @if(request('search')) <input type="hidden" name="search" value="{{ $search }}"> @endif
+        @if($currentType   !== 'all') <input type="hidden" name="type"   value="{{ $currentType }}"> @endif
+        @if($currentLocked !== 'all') <input type="hidden" name="locked" value="{{ $currentLocked }}"> @endif
         Záznamů na stránku:
         <select name="record_per_page" onchange="this.form.submit()">
             @foreach([50, 100, 150, 200, 250, 300, 350, 400, 450, 500] as $n)

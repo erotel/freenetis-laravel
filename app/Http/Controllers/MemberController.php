@@ -41,7 +41,9 @@ class MemberController extends Controller
             $perPage = 50;
         }
 
-        $search = trim((string) $request->query('search', ''));
+        $search        = trim((string) $request->query('search', ''));
+        $currentType   = $request->query('type', 'all');
+        $currentLocked = $request->query('locked', 'all');
 
         // Paginated list with first variable symbol via subquery
         $query = Member::query()
@@ -53,11 +55,19 @@ class MemberController extends Controller
                 'members.entrance_date',
                 'members.leaving_date',
                 'members.locked',
+                'members.address_point_id',
                 DB::raw('(SELECT vs.variable_symbol FROM accounts a JOIN variable_symbols vs ON vs.account_id = a.id WHERE a.member_id = members.id ORDER BY vs.id LIMIT 1) AS variable_symbol'),
-            ]);
+            ])
+            ->with('addressPoint.town');
 
         if ($search !== '') {
             $query->where('members.name', 'like', "%{$search}%");
+        }
+        if ($currentType !== 'all') {
+            $query->where('members.type', (int) $currentType);
+        }
+        if ($currentLocked !== 'all') {
+            $query->where('members.locked', (int) $currentLocked);
         }
 
         $members = $query->orderBy('members.' . $sort, $dir)
@@ -65,14 +75,17 @@ class MemberController extends Controller
             ->withQueryString();
 
         return view('members.index', [
-            'members'   => $members,
-            'sort'      => $sort,
-            'dir'       => $dir,
-            'perPage'   => $perPage,
-            'search'    => $search,
-            'canNew'    => $this->can('new_all'),
-            'canEdit'   => $this->can('edit_all'),
-            'canDelete' => $this->can('delete_all'),
+            'members'       => $members,
+            'sort'          => $sort,
+            'dir'           => $dir,
+            'perPage'       => $perPage,
+            'search'        => $search,
+            'memberTypes'   => MemberType::labels(),
+            'currentType'   => $currentType,
+            'currentLocked' => $currentLocked,
+            'canNew'        => $this->can('new_all'),
+            'canEdit'       => $this->can('edit_all'),
+            'canDelete'     => $this->can('delete_all'),
         ]);
     }
 
@@ -134,7 +147,10 @@ class MemberController extends Controller
         $types = MemberType::labels();
         unset($types[MemberType::FORMER], $types[MemberType::APPLICANT]);
 
-        return view('members.create', ['types' => $types]);
+        $towns   = Town::orderBy('town')->get();
+        $streets = Street::orderBy('street')->get();
+
+        return view('members.create', compact('types', 'towns', 'streets'));
     }
 
     public function store(Request $request)
@@ -150,13 +166,30 @@ class MemberController extends Controller
             'comment'        => 'nullable|string|max:250',
             'organization_identifier'     => 'nullable|string|max:20',
             'vat_organization_identifier' => 'nullable|string|max:30',
+            'town_id'         => 'nullable|integer|exists:towns,id',
+            'street_id'       => 'nullable|integer|exists:streets,id',
+            'street_number'   => 'nullable|string|max:50',
         ]);
 
-        Member::create($data);
+        $member = Member::create(array_merge($data, [
+            'locked'       => $request->boolean('locked'),
+            'registration' => $request->boolean('registration'),
+        ]));
+
+        if ($request->filled('town_id')) {
+            $addressPoint = new AddressPoint();
+            $addressPoint->town_id       = $data['town_id'];
+            $addressPoint->street_id     = $data['street_id'] ?? null;
+            $addressPoint->street_number = $data['street_number'] ?? null;
+            $addressPoint->country_id    = 1;
+            $addressPoint->save();
+            $member->address_point_id = $addressPoint->id;
+            $member->save();
+        }
 
         session()->flash('success', 'Člen byl úspěšně přidán.');
 
-        return redirect()->route('members.index');
+        return redirect()->route('members.show', $member->id);
     }
 
     public function edit(int $id)

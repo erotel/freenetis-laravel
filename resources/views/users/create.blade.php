@@ -27,15 +27,15 @@
                 <tr>
                     <th><label for="member_id">Člen <span class="required">*</span></label></th>
                     <td>
-                        @if($preselectedMember)
-                            <input type="hidden" name="member_id" value="{{ $preselectedMember }}">
-                            {{ $members->firstWhere('id', $preselectedMember)?->name ?? $preselectedMember }}
+                        @if($member)
+                            <input type="hidden" name="member_id" value="{{ $member->id }}">
+                            {{ $member->name }}
                         @else
                             <select id="member_id" name="member_id">
                                 <option value="">— vyberte člena —</option>
-                                @foreach($members as $member)
-                                    <option value="{{ $member->id }}" @selected(old('member_id') == $member->id)>
-                                        {{ $member->name }}
+                                @foreach($members as $m)
+                                    <option value="{{ $m->id }}" @selected(old('member_id') == $m->id)>
+                                        {{ $m->name }}
                                     </option>
                                 @endforeach
                             </select>
@@ -126,10 +126,6 @@
                 </tr>
             </tbody>
         </table>
-
-        @if($preselectedMember)
-            <input type="hidden" name="_member_id" value="{{ $preselectedMember }}">
-        @endif
 
         <p><input type="submit" value="Přidat"></p>
     </form>

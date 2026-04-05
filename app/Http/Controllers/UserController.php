@@ -127,13 +127,13 @@ class UserController extends Controller
             abort(403);
         }
 
-        $memberId = $request->query('member_id') ? (int) $request->query('member_id') : null;
-        $members  = Member::orderBy('name')->get();
+        $member  = $request->has('member_id') ? Member::find($request->member_id) : null;
+        $members = $member ? collect() : Member::orderBy('name')->get();
 
         return view('users.create', [
-            'members'        => $members,
-            'preselectedMember' => $memberId,
-            'canEditLogin'   => $this->can('new_all', 'login'),
+            'members'      => $members,
+            'member'       => $member,
+            'canEditLogin' => $this->can('new_all', 'login'),
         ]);
     }
 
@@ -169,11 +169,11 @@ class UserController extends Controller
 
         session()->flash('success', 'Uživatel byl úspěšně přidán.');
 
-        if ($request->input('member_id')) {
-            return redirect()->route('members.show', $request->input('member_id'));
+        if ($user->member_id) {
+            return redirect()->route('members.show', $user->member_id);
         }
 
-        return redirect()->route('users.show', $user->id);
+        return redirect()->route('users.index');
     }
 
     public function edit(int $id)
