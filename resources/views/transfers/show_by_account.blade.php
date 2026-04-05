@@ -52,44 +52,27 @@
 
     <div style="clear:both;"></div>
 
-    @php
-        $nextDir = fn(string $col) => ($sort === $col && $dir === 'asc') ? 'desc' : 'asc';
-        $arrow   = fn(string $col) => $sort === $col ? ($dir === 'asc' ? ' ↑' : ' ↓') : '';
-        $sortUrl = fn(string $col) => request()->fullUrlWithQuery(['sort' => $col, 'dir' => $nextDir($col)]);
-    @endphp
-
     <table class="extended" cellspacing="0">
         <thead>
             <tr>
-                <th><a href="{{ $sortUrl('id') }}">ID{{ $arrow('id') }}</a></th>
-                <th><a href="{{ $sortUrl('datetime') }}">Datum{{ $arrow('datetime') }}</a></th>
-                <th>Popis</th>
-                <th>Protistrana</th>
-                <th style="text-align:right;"><a href="{{ $sortUrl('amount') }}">Částka{{ $arrow('amount') }}</a></th>
-                <th style="text-align:right;">Kumulativní zůstatek</th>
+                <th>ID</th>
+                <th>Protiúčet</th>
+                <th>Datum</th>
+                <th style="text-align:right;">Částka</th>
+                <th>Text</th>
+                <th>Akce</th>
             </tr>
         </thead>
         <tbody>
-            @forelse($rows as $row)
+            @forelse($transfers as $transfer)
                 @php
-                    $transfer = $row['transfer'];
-                    $signed   = $row['signed'];
-                    $running  = $row['running_balance'];
-                    $amountColor  = $signed >= 0 ? 'green' : 'red';
-                    $runningColor = $running >= 0 ? 'green' : 'red';
-
-                    // Counterpart account
-                    $accountId = $account->id;
-                    if ($transfer->origin_id === $accountId) {
-                        $counterpart = $transfer->destination;
-                    } else {
-                        $counterpart = $transfer->origin;
-                    }
+                    $isOutgoing  = $transfer->origin_id === $accountId;
+                    $counterpart = $isOutgoing ? $transfer->destination : $transfer->origin;
+                    $signed      = $isOutgoing ? -$transfer->amount : $transfer->amount;
+                    $amountColor = $signed >= 0 ? 'green' : 'red';
                 @endphp
                 <tr>
                     <td>{{ $transfer->id }}</td>
-                    <td>{{ $transfer->datetime?->format('d.m.Y') }}</td>
-                    <td>{{ $transfer->text }}</td>
                     <td>
                         @if($counterpart)
                             <a href="{{ route('accounts.show', $counterpart->id) }}">{{ $counterpart->name }}</a>
@@ -97,11 +80,13 @@
                             —
                         @endif
                     </td>
+                    <td>{{ $transfer->datetime?->format('d.m.Y') }}</td>
                     <td style="text-align:right; color:{{ $amountColor }};">
                         {{ ($signed >= 0 ? '+' : '') . number_format($signed, 2, ',', ' ') }} Kč
                     </td>
-                    <td style="text-align:right; color:{{ $runningColor }};">
-                        {{ number_format($running, 2, ',', ' ') }} Kč
+                    <td>{{ $transfer->text }}</td>
+                    <td>
+                        <a href="{{ route('transfers.show', $transfer->id) }}">Detail</a>
                     </td>
                 </tr>
             @empty
@@ -111,4 +96,6 @@
             @endforelse
         </tbody>
     </table>
+
+    {{ $transfers->links() }}
 @endsection

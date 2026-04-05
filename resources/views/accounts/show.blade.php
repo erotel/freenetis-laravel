@@ -29,7 +29,7 @@
             &nbsp;
         @endif
         @if($canViewTransfers)
-            <a href="{{ route('transfers.index', ['account_id' => $account->id]) }}">
+            <a href="{{ route('transfers.by_account', $account->id) }}">
                 Zobrazit převody
             </a>
         @endif
@@ -67,6 +67,14 @@
                 <td style="color:{{ $account->balance > 0 ? 'green' : ($account->balance < 0 ? 'red' : 'inherit') }}">
                     {{ number_format($account->balance, 2, ',', ' ') }} Kč
                 </td>
+            </tr>
+            <tr>
+                <th>Celkem příchozí</th>
+                <td style="color:green">{{ number_format($totalIn, 2, ',', ' ') }} Kč</td>
+            </tr>
+            <tr>
+                <th>Celkem odchozí</th>
+                <td style="color:red">{{ number_format($totalOut, 2, ',', ' ') }} Kč</td>
             </tr>
             @if($account->comment)
                 <tr>

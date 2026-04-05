@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Account;
 use App\Models\AccountAttribute;
+use App\Models\Transfer;
 use App\Services\AclService;
 use Illuminate\Http\Request;
 
@@ -75,8 +76,13 @@ class AccountController extends Controller
             abort(404);
         }
 
+        $totalIn  = Transfer::where('destination_id', $account->id)->sum('amount');
+        $totalOut = Transfer::where('origin_id', $account->id)->sum('amount');
+
         return view('accounts.show', [
             'account'         => $account,
+            'totalIn'         => $totalIn,
+            'totalOut'        => $totalOut,
             'canEdit'         => $this->can('edit_all'),
             'canViewTransfers'=> $this->can('view_all', 'transfers'),
         ]);

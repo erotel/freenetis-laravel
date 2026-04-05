@@ -54,30 +54,13 @@ class TransferController extends Controller
 
         $account = Account::with(['member', 'accountAttribute'])->findOrFail($accountId);
 
-        $sort = in_array($request->sort, ['id', 'datetime', 'amount']) ? $request->sort : 'datetime';
-        $dir  = $request->dir === 'asc' ? 'asc' : 'desc';
+        $transfers = Transfer::where('origin_id', $accountId)
+            ->orWhere('destination_id', $accountId)
+            ->with(['origin.member', 'destination.member'])
+            ->orderBy('datetime', 'desc')
+            ->paginate(50);
 
-        $transfers = Transfer::with(['origin', 'destination'])
-            ->where(function ($q) use ($accountId) {
-                $q->where('origin_id', $accountId)
-                  ->orWhere('destination_id', $accountId);
-            })
-            ->orderBy($sort, $dir)
-            ->get();
-
-        // Compute running balance
-        $running = 0.0;
-        $rows = $transfers->map(function (Transfer $t) use ($accountId, &$running) {
-            $signed   = $t->signedAmount($accountId);
-            $running += $signed;
-            return [
-                'transfer'        => $t,
-                'signed'          => $signed,
-                'running_balance' => $running,
-            ];
-        });
-
-        return view('transfers.show_by_account', compact('account', 'rows', 'sort', 'dir'));
+        return view('transfers.show_by_account', compact('account', 'transfers', 'accountId'));
     }
 
     public function show(int $id)

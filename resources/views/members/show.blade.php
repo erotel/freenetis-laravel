@@ -151,6 +151,12 @@
                             {{ number_format($creditAccount->balance, 2, ',', ' ') }} Kč
                         </td>
                     </tr>
+                    <tr>
+                        <th></th>
+                        <td>
+                            <a href="{{ route('accounts.show', $creditAccount->id) }}">Detail účtu</a>
+                        </td>
+                    </tr>
                     @if($canViewTransfers)
                         <tr>
                             <th></th>
