@@ -24,14 +24,16 @@
                 Upravit
             </a>
         @endif
-        @if($canViewTransfers)
-            &nbsp;
-            <a href="{{ route('transfers.index', ['member_id' => $member->id]) }}">
-                Zobrazit převody
-            </a>
+        @if($creditAccount)
+            &nbsp;|&nbsp;
+            <a href="{{ route('accounts.show', $creditAccount->id) }}">Detail účtu</a>
+        @endif
+        @if($creditAccount && $canViewTransfers)
+            &nbsp;|&nbsp;
+            <a href="{{ route('transfers.by_account', $creditAccount->id) }}">Zobrazit převody účtu</a>
         @endif
         @if($canDelete)
-            &nbsp;
+            &nbsp;|&nbsp;
             <form method="POST" action="{{ route('members.destroy', $member->id) }}" style="display:inline;"
                   onsubmit="return confirm('Opravdu smazat člena {{ addslashes($member->name) }}?');">
                 @csrf
@@ -151,22 +153,6 @@
                             {{ number_format($creditAccount->balance, 2, ',', ' ') }} Kč
                         </td>
                     </tr>
-                    <tr>
-                        <th></th>
-                        <td>
-                            <a href="{{ route('accounts.show', $creditAccount->id) }}">Detail účtu</a>
-                        </td>
-                    </tr>
-                    @if($canViewTransfers)
-                        <tr>
-                            <th></th>
-                            <td>
-                                <a href="{{ route('transfers.by_account', $creditAccount->id) }}">
-                                    Zobrazit převody účtu
-                                </a>
-                            </td>
-                        </tr>
-                    @endif
                 </table>
             </div>
         @endif
