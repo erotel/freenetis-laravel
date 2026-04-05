@@ -2,8 +2,11 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\BankAccount;
 use App\Models\OutgoingPayment;
+use App\Models\Setting;
 use App\Services\AclService;
+use App\Services\FioApiService;
 use Illuminate\Http\Request;
 
 class OutgoingPaymentController extends Controller
@@ -38,13 +41,29 @@ class OutgoingPaymentController extends Controller
 
         $payments = $query->paginate(50)->withQueryString();
 
+        // Load export bank accounts from member type routing config
+        $exportBankAccountIds = array_filter([
+            Setting::get('bank_account_member_type_2'),
+            Setting::get('bank_account_member_type_90'),
+        ]);
+
+        $exportBankAccounts = BankAccount::whereIn('id', $exportBankAccountIds)
+            ->get()
+            ->map(fn($ba) => [
+                'id'        => $ba->id,
+                'name'      => $ba->name,
+                'full_nr'   => $ba->full_account_number,
+                'has_token' => !empty(Setting::get('fio_api_token_bank_account_' . $ba->id)),
+            ]);
+
         return view('outgoing_payments.index', [
-            'payments'     => $payments,
-            'currentStatus'=> $status,
-            'statusLabels' => OutgoingPayment::statusLabels(),
-            'statusColors' => OutgoingPayment::statusColors(),
-            'reasonLabels' => OutgoingPayment::reasonLabels(),
-            'canEdit'      => $this->canEdit(),
+            'payments'           => $payments,
+            'currentStatus'      => $status,
+            'statusLabels'       => OutgoingPayment::statusLabels(),
+            'statusColors'       => OutgoingPayment::statusColors(),
+            'reasonLabels'       => OutgoingPayment::reasonLabels(),
+            'canEdit'            => $this->canEdit(),
+            'exportBankAccounts' => $exportBankAccounts,
         ]);
     }
 
@@ -98,5 +117,79 @@ class OutgoingPaymentController extends Controller
 
         session()->flash('success', 'Platba byla zrušena.');
         return redirect()->route('outgoing_payments.index');
+    }
+
+    public function export(int $bankAccountId)
+    {
+        abort_unless($this->canEdit(), 403);
+
+        $bankAccount = BankAccount::findOrFail($bankAccountId);
+        $token = Setting::get('fio_api_token_bank_account_' . $bankAccount->id);
+
+        if (empty($token)) {
+            return back()->with('error', 'Není nastaven FIO API token pro účet ' . $bankAccount->name . '.');
+        }
+
+        $payments = OutgoingPayment::where('status', OutgoingPayment::STATUS_APPROVED)
+            ->where('bank_account_id', $bankAccountId)
+            ->get();
+
+        if ($payments->isEmpty()) {
+            return back()->with('error', 'Žádné schválené platby k exportu pro účet ' . $bankAccount->name . '.');
+        }
+
+        $xml = $this->buildFioXml($payments, $bankAccount);
+
+        try {
+            $fioService = new FioApiService();
+            $response   = $fioService->importPayments($token, $xml);
+
+            $now = now();
+            foreach ($payments as $payment) {
+                $payment->update([
+                    'status'       => OutgoingPayment::STATUS_EXPORTED,
+                    'exported_at'  => $now,
+                    'api_response' => $response,
+                ]);
+            }
+
+            return back()->with('success', 'Exportováno ' . $payments->count() . ' plateb na účet ' . $bankAccount->name . '.');
+        } catch (\RuntimeException $e) {
+            return back()->with('error', 'Chyba FIO API: ' . $e->getMessage());
+        }
+    }
+
+    private function buildFioXml($payments, BankAccount $bankAccount): string
+    {
+        $xml  = '<?xml version="1.0" encoding="UTF-8"?>' . "\n";
+        $xml .= '<Import xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"'
+              . ' xsi:noNamespaceSchemaLocation="http://www.fio.cz/schema/importIB.xsd">' . "\n";
+        $xml .= '<Orders>' . "\n";
+
+        foreach ($payments as $payment) {
+            $parts     = explode('/', $payment->target_account ?? '');
+            $accountNr = $parts[0] ?? '';
+            $bankNr    = $parts[1] ?? '';
+
+            $xml .= '<DomesticTransaction>' . "\n";
+            $xml .= '<accountFrom>' . e($bankAccount->account_nr) . '</accountFrom>' . "\n";
+            $xml .= '<currency>' . e($payment->currency ?: 'CZK') . '</currency>' . "\n";
+            $xml .= '<amount>' . number_format((float) $payment->amount, 2, '.', '') . '</amount>' . "\n";
+            $xml .= '<accountTo>' . e($accountNr) . '</accountTo>' . "\n";
+            $xml .= '<bankCode>' . e($bankNr) . '</bankCode>' . "\n";
+            if ($payment->variable_symbol) {
+                $xml .= '<vs>' . e($payment->variable_symbol) . '</vs>' . "\n";
+            }
+            $xml .= '<date>' . now()->format('Y-m-d') . '</date>' . "\n";
+            $xml .= '<messageForRecipient>' . e(mb_substr((string) $payment->message, 0, 140)) . '</messageForRecipient>' . "\n";
+            $xml .= '<comment>' . e(mb_substr((string) $payment->message, 0, 255)) . '</comment>' . "\n";
+            $xml .= '<paymentType>431001</paymentType>' . "\n";
+            $xml .= '</DomesticTransaction>' . "\n";
+        }
+
+        $xml .= '</Orders>' . "\n";
+        $xml .= '</Import>' . "\n";
+
+        return $xml;
     }
 }

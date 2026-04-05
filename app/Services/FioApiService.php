@@ -39,6 +39,46 @@ class FioApiService
         $this->fetch($url);
     }
 
+    /**
+     * POST XML payment order to FIO import endpoint.
+     * Returns the raw API response body.
+     */
+    public function importPayments(string $token, string $xmlContent): string
+    {
+        $url     = self::BASE_URL . '/import/';
+        $tmpFile = tempnam(sys_get_temp_dir(), 'fio_');
+        file_put_contents($tmpFile, $xmlContent);
+
+        $ch = curl_init($url);
+        curl_setopt_array($ch, [
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_POST           => true,
+            CURLOPT_TIMEOUT        => 30,
+            CURLOPT_SSL_VERIFYPEER => true,
+            CURLOPT_USERAGENT      => 'FreenetIS/Laravel',
+            CURLOPT_POSTFIELDS     => [
+                'token' => $token,
+                'type'  => 'xml',
+                'file'  => new \CURLFile($tmpFile, 'text/xml', 'payment.xml'),
+            ],
+        ]);
+
+        $response = curl_exec($ch);
+        $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        $error    = curl_error($ch);
+        curl_close($ch);
+        unlink($tmpFile);
+
+        if ($error) {
+            throw new \RuntimeException('FIO API curl error: ' . $error);
+        }
+        if ($httpCode !== 200) {
+            throw new \RuntimeException('FIO API HTTP ' . $httpCode . ': ' . substr((string) $response, 0, 500));
+        }
+
+        return (string) $response;
+    }
+
     private function fetch(string $url): string
     {
         $ch = curl_init($url);

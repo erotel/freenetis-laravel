@@ -18,6 +18,14 @@ class OutgoingPayment extends Model
     const REASON_TERMINATION  = 'termination_refund';
     const REASON_OTHER        = 'other';
 
+    protected $fillable = [
+        'bank_account_id', 'transfer_id', 'target_account', 'target_name',
+        'amount', 'currency', 'variable_symbol', 'message', 'reason',
+        'status', 'created_by', 'approved_by',
+        'exported_at', 'export_ref', 'export_filename', 'api_response',
+        'paid_at', 'paid_transfer_id', 'match_method',
+    ];
+
     public static function statusLabels(): array
     {
         return [

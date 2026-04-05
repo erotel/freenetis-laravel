@@ -71,6 +71,17 @@
             margin-bottom: 10px;
             border-radius: 2px;
         }
+        button.btn, input[type=submit] {
+            padding: 3px 8px;
+            cursor: pointer;
+            background: #f5f5f5;
+            border: 1px solid #ccc;
+            border-radius: 2px;
+        }
+        button.btn:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
         </style>
 
         <div id="content">

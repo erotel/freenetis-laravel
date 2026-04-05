@@ -15,6 +15,28 @@
 @section('content')
     <h2>Odchozí platby</h2>
 
+    @if($canEdit && count($exportBankAccounts) > 0)
+        <div style="margin-bottom:15px;">
+            <strong>Export schválených plateb:</strong><br>
+            <small style="color:#666;">Pokud není nastaven FIO token, stáhne se XML soubor; pokud je nastaven, platby se odešlou přímo do FIO.</small>
+            <div style="margin-top:8px;">
+                @foreach($exportBankAccounts as $ba)
+                    <form method="POST" action="{{ route('outgoing_payments.export', $ba['id']) }}"
+                          style="display:inline-block; margin-right:8px; margin-bottom:4px;">
+                        @csrf
+                        <button type="submit"
+                                class="btn"
+                                @if(!$ba['has_token']) disabled title="Není nastaven FIO API token" @endif
+                                onclick="return confirm('Exportovat schválené platby na účet {{ addslashes($ba['name']) }}?')">
+                            Export/Odeslat ({{ $ba['name'] }} – {{ $ba['full_nr'] }})
+                            @if(!$ba['has_token'])<span style="color:#999; font-size:11px;"> (bez tokenu)</span>@endif
+                        </button>
+                    </form>
+                @endforeach
+            </div>
+        </div>
+    @endif
+
     {{-- Status filter tabs --}}
     <div style="margin-bottom:1em;">
         <a href="{{ route('outgoing_payments.index') }}"

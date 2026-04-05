@@ -81,10 +81,11 @@ Route::middleware('auth')->group(function () {
     Route::post('import/fio-api/{bankAccountId}/last',   [ImportController::class, 'fetchFromFioLast'])->name('import.fio_last');
     Route::post('import/fio-api/{bankAccountId}/period', [ImportController::class, 'fetchFromFioPeriod'])->name('import.fio_period');
 
-    Route::get('outgoing-payments',              [OutgoingPaymentController::class, 'index'])->name('outgoing_payments.index');
-    Route::get('outgoing-payments/{id}',         [OutgoingPaymentController::class, 'show'])->name('outgoing_payments.show');
-    Route::post('outgoing-payments/{id}/approve',[OutgoingPaymentController::class, 'approve'])->name('outgoing_payments.approve');
-    Route::post('outgoing-payments/{id}/cancel', [OutgoingPaymentController::class, 'cancel'])->name('outgoing_payments.cancel');
+    Route::get('outgoing-payments',                              [OutgoingPaymentController::class, 'index'])->name('outgoing_payments.index');
+    Route::get('outgoing-payments/{id}',                         [OutgoingPaymentController::class, 'show'])->name('outgoing_payments.show');
+    Route::post('outgoing-payments/{id}/approve',                [OutgoingPaymentController::class, 'approve'])->name('outgoing_payments.approve');
+    Route::post('outgoing-payments/{id}/cancel',                 [OutgoingPaymentController::class, 'cancel'])->name('outgoing_payments.cancel');
+    Route::post('outgoing-payments/export/{bankAccountId}',      [OutgoingPaymentController::class, 'export'])->name('outgoing_payments.export');
 
     Route::resource('fees', FeeController::class);
 
