@@ -61,6 +61,10 @@ Route::middleware('auth')->group(function () {
     Route::resource('bank-accounts', BankAccountController::class)
         ->only(['index', 'show'])
         ->names('bank_accounts');
+    Route::get('bank-accounts/{id}/edit', [BankAccountController::class, 'edit'])
+        ->name('bank_accounts.edit');
+    Route::put('bank-accounts/{id}', [BankAccountController::class, 'update'])
+        ->name('bank_accounts.update');
 
     Route::get('bank-transfers/unidentified', [BankTransferController::class, 'showUnidentified'])
         ->name('bank_transfers.unidentified');
@@ -74,6 +78,8 @@ Route::middleware('auth')->group(function () {
 
     Route::get('import/bank-file/{bankAccountId}',  [ImportController::class, 'uploadBankFile'])->name('import.upload_bank_file');
     Route::post('import/bank-file/{bankAccountId}', [ImportController::class, 'importBankFile'])->name('import.bank_file');
+    Route::post('import/fio-api/{bankAccountId}/last',   [ImportController::class, 'fetchFromFioLast'])->name('import.fio_last');
+    Route::post('import/fio-api/{bankAccountId}/period', [ImportController::class, 'fetchFromFioPeriod'])->name('import.fio_period');
 
     Route::get('outgoing-payments',              [OutgoingPaymentController::class, 'index'])->name('outgoing_payments.index');
     Route::get('outgoing-payments/{id}',         [OutgoingPaymentController::class, 'show'])->name('outgoing_payments.show');

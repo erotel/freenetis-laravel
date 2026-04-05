@@ -11,6 +11,7 @@ use App\Models\VariableSymbol;
 use App\Models\Transfer;
 use App\Http\Controllers\SettingController;
 use App\Services\AclService;
+use App\Services\FioApiService;
 use App\Services\FioCsvParser;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -71,19 +72,114 @@ class ImportController extends Controller
             return back()->with('error', 'CSV neobsahuje žádné záznamy.');
         }
 
-        DB::transaction(function () use ($account, $header, $rows, &$imported, &$skipped) {
-            $imported = 0;
-            $skipped  = 0;
+        [$imported, $skipped] = $this->persistParsed($account, $header, $rows, 'FIO CSV importer');
 
-            // Create bank_statement
+        return redirect()
+            ->route('bank_accounts.show', $bankAccountId)
+            ->with('success', "Import dokončen: importováno {$imported} převodů, přeskočeno {$skipped} duplicit.");
+    }
+
+    public function fetchFromFioLast(int $bankAccountId, FioCsvParser $parser, FioApiService $fio)
+    {
+        abort_unless($this->can('new_all'), 403);
+
+        $account = BankAccount::findOrFail($bankAccountId);
+        $token   = Setting::get('fio_api_token_bank_account_' . $bankAccountId);
+
+        if (empty($token)) {
+            return back()->withErrors(['token' => 'Není nastaven FIO API token pro tento účet. Nastavte ho v editaci bankovního účtu.']);
+        }
+
+        try {
+            // Mirror Kohana's before_download: set FIO bookmark to last known transaction_code
+            // for this bank account so fetchLast only returns new transactions.
+            $lastId = BankTransfer::whereHas('bankStatement', function ($q) use ($bankAccountId) {
+                    $q->where('bank_account_id', $bankAccountId);
+                })
+                ->whereNotNull('transaction_code')
+                ->max('transaction_code');
+
+            if ($lastId) {
+                $fio->setLastId($token, (int) $lastId);
+            }
+
+            $csvContent = $fio->fetchLast($token);
+            $parsed     = $parser->parse($csvContent);
+
+            if (!empty($parsed['errors'])) {
+                return back()->with('error', implode(' ', $parsed['errors']));
+            }
+            if (empty($parsed['rows'])) {
+                return redirect()->route('bank_transfers.by_account', $bankAccountId)
+                    ->with('success', 'Žádné nové transakce.');
+            }
+
+            [$imported, $skipped] = $this->persistParsed($account, $parsed['header'], $parsed['rows'], 'FIO API importer');
+        } catch (\RuntimeException $e) {
+            return back()->with('error', $e->getMessage());
+        }
+
+        return redirect()
+            ->route('bank_transfers.by_account', $bankAccountId)
+            ->with('success', "FIO API: importováno {$imported} převodů, přeskočeno {$skipped} duplicit.");
+    }
+
+    public function fetchFromFioPeriod(Request $request, int $bankAccountId, FioCsvParser $parser, FioApiService $fio)
+    {
+        abort_unless($this->can('new_all'), 403);
+
+        $account = BankAccount::findOrFail($bankAccountId);
+        $token   = Setting::get('fio_api_token_bank_account_' . $bankAccountId);
+
+        if (empty($token)) {
+            return back()->withErrors(['token' => 'Není nastaven FIO API token pro tento účet. Nastavte ho v editaci bankovního účtu.']);
+        }
+
+        $data = $request->validate([
+            'date_from' => ['required', 'date'],
+            'date_to'   => ['required', 'date', 'after_or_equal:date_from'],
+        ]);
+
+        try {
+            $csvContent = $fio->fetchPeriod($token, $data['date_from'], $data['date_to']);
+            $parsed     = $parser->parse($csvContent);
+
+            if (!empty($parsed['errors'])) {
+                return back()->with('error', implode(' ', $parsed['errors']));
+            }
+            if (empty($parsed['rows'])) {
+                return redirect()->route('bank_transfers.by_account', $bankAccountId)
+                    ->with('success', 'Žádné transakce za zvolené období.');
+            }
+
+            [$imported, $skipped] = $this->persistParsed($account, $parsed['header'], $parsed['rows'], 'FIO API importer');
+        } catch (\RuntimeException $e) {
+            return back()->with('error', $e->getMessage());
+        }
+
+        return redirect()
+            ->route('bank_transfers.by_account', $bankAccountId)
+            ->with('success', "FIO API: importováno {$imported} převodů, přeskočeno {$skipped} duplicit.");
+    }
+
+    /**
+     * Shared import logic: create BankStatement + BankTransfer rows from parsed CSV data.
+     * Returns [imported, skipped].
+     */
+    private function persistParsed(BankAccount $account, array $header, array $rows, string $type): array
+    {
+        $imported = 0;
+        $skipped  = 0;
+
+        DB::transaction(function () use ($account, $header, $rows, $type, &$imported, &$skipped) {
             $stmt = new BankStatement();
-            $stmt->bank_account_id  = $account->id;
-            $stmt->user_id          = auth()->id();
-            $stmt->type             = 'FIO CSV importer';
-            $stmt->from             = $header['dateStart'] ?? null;
-            $stmt->to               = $header['dateEnd']   ?? null;
-            $stmt->opening_balance  = $header['openingBalance'] ?? 0;
-            $stmt->closing_balance  = $header['closingBalance'] ?? 0;
+            $stmt->bank_account_id = $account->id;
+            $stmt->user_id         = auth()->id();
+            $stmt->type            = $type;
+            $stmt->from            = $header['dateStart'] ?? null;
+            $stmt->to              = $header['dateEnd']   ?? null;
+            $stmt->opening_balance = $header['openingBalance'] ?? 0;
+            $stmt->closing_balance = $header['closingBalance'] ?? 0;
             $stmt->save();
 
             foreach ($rows as $row) {
@@ -91,7 +187,6 @@ class ImportController extends Controller
                     ? (int) $row['id_pohybu']
                     : null;
 
-                // Duplicate check
                 if ($transactionCode !== null) {
                     if (BankTransfer::where('transaction_code', $transactionCode)->exists()) {
                         $skipped++;
@@ -99,7 +194,7 @@ class ImportController extends Controller
                     }
                 }
 
-                $amount    = $row['castka'] ?? 0.0;
+                $amount     = $row['castka'] ?? 0.0;
                 $isIncoming = $amount >= 0;
 
                 $bt = new BankTransfer();
@@ -113,25 +208,18 @@ class ImportController extends Controller
                     : ($row['zprava'] ?? null);
 
                 if ($isIncoming) {
-                    // money coming in: our account is destination
                     $bt->destination_id = $account->id;
                     $bt->origin_id      = null;
                 } else {
-                    // money going out: our account is origin
                     $bt->origin_id      = $account->id;
                     $bt->destination_id = null;
                 }
 
-                // Try to match system transfer via variable symbol
                 if ($bt->variable_symbol !== null) {
                     $vsModel = VariableSymbol::where('variable_symbol', $bt->variable_symbol)->first();
                     if ($vsModel) {
-                        // pvfree_filter_member_by_bank_account equivalent:
-                        // check that the payment arrived on the correct bank account for the member's type
                         $memberAllowed = $this->filterMemberByBankAccount($vsModel->account_id, $account, $bt);
-
                         if ($memberAllowed) {
-                            // Find matching system transfer
                             $transfer = Transfer::where(function ($q) use ($vsModel, $isIncoming) {
                                 if ($isIncoming) {
                                     $q->where('destination_id', $vsModel->account_id);
@@ -152,9 +240,7 @@ class ImportController extends Controller
             }
         });
 
-        return redirect()
-            ->route('bank_accounts.show', $bankAccountId)
-            ->with('success', "Import dokončen: importováno {$imported} převodů, přeskočeno {$skipped} duplicit.");
+        return [$imported, $skipped];
     }
 
     /**

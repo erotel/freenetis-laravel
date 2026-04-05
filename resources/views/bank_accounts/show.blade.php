@@ -26,7 +26,36 @@
             &nbsp;|&nbsp;
             <a href="{{ route('import.upload_bank_file', $account->id) }}">Nahrát bankovní výpis</a>
         @endif
+        @if($canEdit)
+            &nbsp;|&nbsp;
+            <a href="{{ route('bank_accounts.edit', $account->id) }}">Upravit</a>
+        @endif
     </div>
+
+    @if($hasFioToken)
+        <div style="margin-bottom:1em; padding:10px; background:#f5f5f5; border:1px solid #ddd;">
+            <strong>FIO API import</strong><br><br>
+
+            <form method="POST" action="{{ route('import.fio_last', $account->id) }}" style="display:inline;">
+                @csrf
+                <button type="submit"
+                        onclick="return confirm('Stáhnout nové transakce z FIO API?')">
+                    &#8635; Načíst nové transakce
+                </button>
+            </form>
+
+            <details style="margin-top:8px;">
+                <summary style="cursor:pointer; color:#a00;">Načíst za období...</summary>
+                <form method="POST" action="{{ route('import.fio_period', $account->id) }}"
+                      style="margin-top:8px;">
+                    @csrf
+                    Od: <input type="date" name="date_from" required>
+                    Do: <input type="date" name="date_to" required>
+                    <button type="submit">Načíst</button>
+                </form>
+            </details>
+        </div>
+    @endif
 
     <table class="extended" cellspacing="0">
         <thead>
