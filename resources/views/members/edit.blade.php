@@ -143,6 +143,29 @@
                         @error('registration') <span class="error">{{ $message }}</span> @enderror
                     </td>
                 </tr>
+                @if($canEditQos && $speedClasses->count() > 0)
+                    <tr><th colspan="2" style="background:#e8e8e8;">QoS</th></tr>
+                    <tr>
+                        <th><label for="speed_class_id">Třída rychlosti</label></th>
+                        <td>
+                            <select id="speed_class_id" name="speed_class_id">
+                                <option value="">— žádná —</option>
+                                @foreach($speedClasses as $sc)
+                                    <option value="{{ $sc->id }}"
+                                        {{ old('speed_class_id', $member->speed_class_id ?? $defaultSpeedClass?->id) == $sc->id ? 'selected' : '' }}>
+                                        {{ $sc->name }}
+                                        (max: {{ \App\Models\SpeedClass::formatPair($sc->d_ceil, $sc->u_ceil) }},
+                                         min: {{ \App\Models\SpeedClass::formatPair($sc->d_rate, $sc->u_rate) }})
+                                    </option>
+                                @endforeach
+                            </select>
+                            @if($defaultSpeedClass)
+                                <small style="color:#666;">Výchozí: {{ $defaultSpeedClass->name }}</small>
+                            @endif
+                            @error('speed_class_id') <span class="error">{{ $message }}</span> @enderror
+                        </td>
+                    </tr>
+                @endif
             </tbody>
         </table>
 

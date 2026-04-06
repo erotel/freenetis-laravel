@@ -24,6 +24,7 @@ class Member extends Model
         'leaving_date',
         'comment',
         'locked',
+        'speed_class_id',
     ];
 
     const ASSOCIATION = 1;
@@ -74,6 +75,11 @@ class Member extends Model
     public function memberFees()
     {
         return $this->hasMany(MemberFee::class);
+    }
+
+    public function speedClass()
+    {
+        return $this->belongsTo(\App\Models\SpeedClass::class, 'speed_class_id');
     }
 
     // --- Helpers ---

@@ -103,6 +103,7 @@ class MemberController extends Controller
             'addressPoint.town',
             'addressPoint.street',
             'ipAddresses.subnet',
+            'speedClass',
         ])->find($id);
         if (!$member) {
             abort(404);
@@ -144,6 +145,7 @@ class MemberController extends Controller
             'canViewIpAddresses'  => $this->acl->hasAccess(auth()->id(), 'view_all', 'Ip_addresses_Controller', 'ip_address'),
             'canViewDevices'      => $this->acl->hasAccess(auth()->id(), 'view_all', 'Devices_Controller', 'devices'),
             'canViewFees'         => $this->acl->hasAccess(auth()->id(), 'view_all', 'Members_Controller', 'fees'),
+            'canViewQos'          => $this->acl->hasAccess(auth()->id(), 'view_all', 'Members_Controller', 'qos_ceil'),
         ]);
     }
 
@@ -218,7 +220,11 @@ class MemberController extends Controller
         $towns   = Town::orderBy('town')->get();
         $streets = Street::orderBy('street')->get();
 
-        return view('members.edit', compact('member', 'types', 'towns', 'streets'));
+        $speedClasses      = \App\Models\SpeedClass::orderBy('name')->get();
+        $defaultSpeedClass = \App\Models\SpeedClass::where('regular_member_default', true)->first();
+        $canEditQos        = $this->acl->hasAccess(auth()->id(), 'edit_all', 'Members_Controller', 'qos_ceil');
+
+        return view('members.edit', compact('member', 'types', 'towns', 'streets', 'speedClasses', 'defaultSpeedClass', 'canEditQos'));
     }
 
     public function update(Request $request, int $id)
@@ -236,25 +242,27 @@ class MemberController extends Controller
             'name'           => 'required|string|max:100',
             'type'           => 'required|integer|in:' . implode(',', array_keys(MemberType::labels())),
             'entrance_date'  => 'nullable|date',
-            'leaving_date'   => 'nullable|date',
+            'leaving_date'   => 'nullable|date_format:Y-m-d',
             'comment'        => 'nullable|string|max:250',
             'organization_identifier'     => 'nullable|string|max:20',
             'vat_organization_identifier' => 'nullable|string|max:30',
             'town_id'         => 'nullable|integer|exists:towns,id',
             'street_id'       => 'nullable|integer|exists:streets,id',
             'street_number'   => 'nullable|string|max:50',
+            'speed_class_id'  => 'nullable|integer|exists:speed_classes,id',
         ]);
 
         $member->update([
             'name'                        => $data['name'],
             'type'                        => $data['type'],
             'entrance_date'               => $data['entrance_date'] ?? null,
-            'leaving_date'                => $data['leaving_date'] ?? null,
+            'leaving_date'                => $request->leaving_date ?: '0000-00-00',
             'comment'                     => $data['comment'] ?? null,
             'organization_identifier'     => $data['organization_identifier'] ?? null,
             'vat_organization_identifier' => $data['vat_organization_identifier'] ?? null,
             'locked'                      => $request->boolean('locked'),
             'registration'                => $request->boolean('registration'),
+            'speed_class_id'              => $data['speed_class_id'] ?? null,
         ]);
 
         // Update or create address point

@@ -151,6 +151,23 @@
                         <td>{{ $member->comment }}</td>
                     </tr>
                 @endif
+                @if($canViewQos && $member->speedClass)
+                    <tr><th colspan="2" style="background:#e8e8e8;">QoS</th></tr>
+                    <tr>
+                        <th>Třída rychlosti</th>
+                        <td>
+                            <a href="{{ route('speed_classes.index') }}">{{ $member->speedClass->name }}</a>
+                        </td>
+                    </tr>
+                    <tr>
+                        <th>Max. rychlost (D/U)</th>
+                        <td>{{ \App\Models\SpeedClass::formatPair($member->speedClass->d_ceil, $member->speedClass->u_ceil) }}</td>
+                    </tr>
+                    <tr>
+                        <th>Min. rychlost (D/U)</th>
+                        <td>{{ \App\Models\SpeedClass::formatPair($member->speedClass->d_rate, $member->speedClass->u_rate) }}</td>
+                    </tr>
+                @endif
             </tbody>
         </table>
 

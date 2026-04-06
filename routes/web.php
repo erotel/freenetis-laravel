@@ -23,6 +23,7 @@ use App\Http\Controllers\VlanController;
 use App\Http\Controllers\StreetController;
 use App\Http\Controllers\TownController;
 use App\Http\Controllers\UserController;
+use App\Http\Controllers\SpeedClassController;
 use Illuminate\Support\Facades\Route;
 
 // Login / logout
@@ -124,6 +125,12 @@ Route::middleware('auth')->group(function () {
 
     Route::get('settings',    [SettingController::class, 'index'])->name('settings.index');
     Route::put('settings',    [SettingController::class, 'update'])->name('settings.update');
+
+    Route::post('speed-classes/{id}/set-default/{type}', [SpeedClassController::class, 'setDefault'])
+        ->name('speed_classes.set_default');
+    Route::resource('speed-classes', SpeedClassController::class)
+        ->names('speed_classes')
+        ->parameters(['speed-classes' => 'id']);
 
     Route::get('login-logs', [LoginLogController::class, 'index'])->name('login_logs.index');
     Route::get('login-logs/user/{userId}', [LoginLogController::class, 'showByUser'])->name('login_logs.by_user');
