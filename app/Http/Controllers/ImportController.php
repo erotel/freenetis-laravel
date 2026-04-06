@@ -13,6 +13,7 @@ use App\Http\Controllers\SettingController;
 use App\Services\AclService;
 use App\Services\FioApiService;
 use App\Services\FioCsvParser;
+use App\Services\InvoiceService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 
@@ -168,10 +169,11 @@ class ImportController extends Controller
      */
     private function persistParsed(BankAccount $account, array $header, array $rows, string $type): array
     {
-        $imported = 0;
-        $skipped  = 0;
+        $imported   = 0;
+        $skipped    = 0;
+        $postImport = []; // collected after transaction: [bankTransferId, memberId, amount]
 
-        DB::transaction(function () use ($account, $header, $rows, $type, &$imported, &$skipped) {
+        DB::transaction(function () use ($account, $header, $rows, $type, &$imported, &$skipped, &$postImport) {
             $stmt = new BankStatement();
             $stmt->bank_account_id = $account->id;
             $stmt->user_id         = auth()->id();
@@ -207,6 +209,8 @@ class ImportController extends Controller
                     ? $row['identifikace']
                     : ($row['zprava'] ?? null);
 
+                $matchedAccountId = null;
+
                 if ($isIncoming) {
                     $bt->destination_id = $account->id;
                     $bt->origin_id      = null;
@@ -229,7 +233,10 @@ class ImportController extends Controller
                             })->latest('datetime')->first();
 
                             if ($transfer) {
-                                $bt->transfer_id = $transfer->id;
+                                $bt->transfer_id    = $transfer->id;
+                                $matchedAccountId   = $isIncoming
+                                    ? $transfer->destination_id
+                                    : $transfer->origin_id;
                             }
                         }
                     }
@@ -237,10 +244,68 @@ class ImportController extends Controller
 
                 $bt->save();
                 $imported++;
+
+                // Collect post-import work for incoming matched payments only
+                if ($isIncoming && $matchedAccountId) {
+                    $account2 = \App\Models\Account::find($matchedAccountId);
+                    if ($account2?->member_id) {
+                        $postImport[] = [
+                            'bankTransferId' => $bt->id,
+                            'memberId'       => $account2->member_id,
+                            'amount'         => (float) $amount,
+                        ];
+                    }
+                }
             }
         });
 
+        // Run invoice/email generation outside the transaction (PDF is filesystem-based)
+        if (!empty($postImport)) {
+            $invoiceService = new InvoiceService();
+            foreach ($postImport as $job) {
+                $this->handlePostImport(
+                    $invoiceService,
+                    $job['bankTransferId'],
+                    $job['memberId'],
+                    $job['amount'],
+                    $account
+                );
+            }
+        }
+
         return [$imported, $skipped];
+    }
+
+    /**
+     * Generate invoice (services) or queue confirmation email (contribution)
+     * after a bank transfer is successfully imported.
+     */
+    private function handlePostImport(
+        InvoiceService $invoiceService,
+        int $bankTransferId,
+        int $memberId,
+        float $amount,
+        BankAccount $bankAccount
+    ): void {
+        if ($amount <= 0) return;
+
+        if ((int)$bankAccount->payment_purpose === 1) {
+            // Services account → generate invoice + PDF + email
+            $invoiceService->generateServicesInvoice(
+                $memberId,
+                $amount,
+                $bankAccount->id,
+                [$bankTransferId]
+            );
+        } else {
+            // Contribution account → queue confirmation email
+            $invoiceService->queuePaymentConfirmation(
+                $memberId,
+                $amount,
+                $bankAccount->name,
+                [$bankTransferId]
+            );
+        }
     }
 
     /**
