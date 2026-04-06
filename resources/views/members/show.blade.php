@@ -40,6 +40,10 @@
     &nbsp;|&nbsp;
     <a href="{{ route('allowed_subnets.by_member', $member->id) }}">Povolené podsítě</a>
     @endif
+    @if($canViewInvoices)
+    &nbsp;|&nbsp;
+    <a href="{{ route('invoices.by_member', $member->id) }}">Faktury</a>
+    @endif
     @if($canDelete)
     &nbsp;|&nbsp;
     <form method="POST" action="{{ route('members.destroy', $member->id) }}" style="display:inline;"

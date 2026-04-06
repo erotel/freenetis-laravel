@@ -150,6 +150,7 @@ class MemberController extends Controller
             'canViewFees'         => $this->acl->hasAccess(auth()->id(), 'view_all', 'Members_Controller', 'fees'),
             'canViewQos'           => $this->acl->hasAccess(auth()->id(), 'view_all', 'Members_Controller', 'qos_ceil'),
             'canViewAllowedSubnets'=> $this->acl->hasAccess(auth()->id(), 'view_all', 'Allowed_subnets_Controller', 'allowed_subnet'),
+            'canViewInvoices'      => $isOwnProfile || $this->acl->hasAccess(auth()->id(), 'view_all', 'Accounts_Controller', 'invoices'),
         ]);
     }
 

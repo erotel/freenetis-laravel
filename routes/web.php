@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\AccountController;
+use App\Http\Controllers\InvoiceController;
 use App\Http\Controllers\SettingController;
 use App\Http\Controllers\BankAccountController;
 use App\Http\Controllers\BankStatementController;
@@ -139,6 +140,10 @@ Route::middleware('auth')->group(function () {
     Route::post('members/{memberId}/allowed-subnets', [AllowedSubnetController::class, 'store'])->name('allowed_subnets.store');
     Route::post('allowed-subnets/{id}/toggle',        [AllowedSubnetController::class, 'toggle'])->name('allowed_subnets.toggle');
     Route::delete('allowed-subnets/{id}',             [AllowedSubnetController::class, 'destroy'])->name('allowed_subnets.destroy');
+
+    Route::get('invoices', [InvoiceController::class, 'index'])->name('invoices.index');
+    Route::get('invoices/{id}', [InvoiceController::class, 'show'])->name('invoices.show');
+    Route::get('members/{memberId}/invoices', [InvoiceController::class, 'showByMember'])->name('invoices.by_member');
 
     Route::get('login-logs', [LoginLogController::class, 'index'])->name('login_logs.index');
     Route::get('login-logs/user/{userId}', [LoginLogController::class, 'showByUser'])->name('login_logs.by_user');

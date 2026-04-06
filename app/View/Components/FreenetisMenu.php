@@ -36,7 +36,7 @@ class FreenetisMenu extends Component
                 ['url' => route('bank_accounts.index'),      'path' => 'bank-accounts',     'label' => 'Bankovní účty',          'acl' => ['view_all', 'Accounts_Controller', 'bank_accounts']],
                 ['url' => route('bank_transfers.unidentified'), 'path' => 'bank-transfers/unidentified', 'label' => 'Neidentifikované', 'acl' => ['view_all', 'Accounts_Controller', 'unidentified_transfers']],
                 ['url' => route('outgoing_payments.index'),  'path' => 'outgoing-payments', 'label' => 'Odchozí platby',         'acl' => ['view_all', 'Accounts_Controller', 'bank_transfers']],
-                ['url' => url('invoices'),                   'path' => 'invoices',          'label' => 'Faktury',                'acl' => ['view_all', 'Invoices_Controller', 'invoices']],
+                ['url' => route('invoices.index'),           'path' => 'invoices',          'label' => 'Faktury',                'acl' => ['view_all', 'Accounts_Controller', 'invoices']],
             ]],
             ['name' => 'logs', 'label' => 'Logy', 'items' => [
                 ['url' => route('login_logs.index'), 'path' => 'login-logs', 'label' => 'Logy přihlášení', 'acl' => ['view_all', 'Login_logs_Controller', 'logs']],
