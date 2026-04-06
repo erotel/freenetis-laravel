@@ -92,7 +92,10 @@ class MemberController extends Controller
 
     public function show(int $id)
     {
-        if (!$this->can('view_all')) {
+        $ownMemberId = auth()->user()?->member_id;
+        $isOwnProfile = ($id == $ownMemberId);
+
+        if (!$isOwnProfile && !$this->can('view_all')) {
             abort(403);
         }
 

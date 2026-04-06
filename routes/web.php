@@ -35,7 +35,8 @@ Route::post('/logout', [LoginController::class, 'logout'])->name('logout')->midd
 // Protected area
 Route::middleware('auth')->group(function () {
     Route::get('/', function () {
-        return view('dashboard');
+        $memberId = auth()->user()?->member_id ?? 1;
+        return redirect()->route('members.show', $memberId);
     })->name('dashboard');
 
     Route::get('/search', fn() => redirect('/'))->name('search');

@@ -17,11 +17,7 @@ class FreenetisMenu extends Component
 
         $menuGroups = [
             ['name' => 'home', 'label' => 'Domů', 'items' => [
-                ['url' => url('/'), 'path' => '', 'label' => 'Dashboard', 'acl' => null],
-            ]],
-            ['name' => 'addresses', 'label' => 'Adresy', 'items' => [
-                ['url' => url('towns'), 'path' => 'towns', 'label' => 'Města', 'acl' => ['view_all', 'Address_points_Controller', 'town']],
-                ['url' => url('streets'), 'path' => 'streets', 'label' => 'Ulice', 'acl' => ['view_all', 'Address_points_Controller', 'street']],
+                ['url' => route('members.show', $user?->member_id ?? 1), 'path' => '', 'label' => 'Můj profil', 'acl' => null],
             ]],
             ['name' => 'members', 'label' => 'Členové', 'items' => [
                 ['url' => route('members.index'), 'path' => 'members', 'label' => 'Seznam členů', 'acl' => ['view_all', 'Members_Controller', 'members']],
@@ -45,7 +41,9 @@ class FreenetisMenu extends Component
             ['name' => 'logs', 'label' => 'Logy', 'items' => [
                 ['url' => route('login_logs.index'), 'path' => 'login-logs', 'label' => 'Logy přihlášení', 'acl' => ['view_all', 'Login_logs_Controller', 'logs']],
             ]],
-            ['name' => 'settings', 'label' => 'Nastavení', 'items' => [
+            ['name' => 'settings', 'label' => 'Administrace', 'items' => [
+                ['url' => route('towns.index'), 'path' => 'towns', 'label' => 'Města', 'acl' => ['view_all', 'Address_points_Controller', 'town']],
+                ['url' => route('streets.index'), 'path' => 'streets', 'label' => 'Ulice', 'acl' => ['view_all', 'Address_points_Controller', 'street']],
                 ['url' => url('settings'), 'path' => 'settings', 'label' => 'Nastavení', 'acl' => ['view_all', 'Settings_Controller', 'settings']],
                 ['url' => url('acl'), 'path' => 'acl', 'label' => 'Přístupová práva', 'acl' => ['view_all', 'Acl_Controller', 'acl']],
                 ['url' => route('fees.index'), 'path' => 'fees', 'label' => 'Tarify', 'acl' => ['view_all', 'Fees_Controller', 'fees']],
