@@ -145,7 +145,8 @@ class MemberController extends Controller
             'canViewIpAddresses'  => $this->acl->hasAccess(auth()->id(), 'view_all', 'Ip_addresses_Controller', 'ip_address'),
             'canViewDevices'      => $this->acl->hasAccess(auth()->id(), 'view_all', 'Devices_Controller', 'devices'),
             'canViewFees'         => $this->acl->hasAccess(auth()->id(), 'view_all', 'Members_Controller', 'fees'),
-            'canViewQos'          => $this->acl->hasAccess(auth()->id(), 'view_all', 'Members_Controller', 'qos_ceil'),
+            'canViewQos'           => $this->acl->hasAccess(auth()->id(), 'view_all', 'Members_Controller', 'qos_ceil'),
+            'canViewAllowedSubnets'=> $this->acl->hasAccess(auth()->id(), 'view_all', 'Allowed_subnets_Controller', 'allowed_subnet'),
         ]);
     }
 
@@ -249,7 +250,7 @@ class MemberController extends Controller
             'town_id'         => 'nullable|integer|exists:towns,id',
             'street_id'       => 'nullable|integer|exists:streets,id',
             'street_number'   => 'nullable|string|max:50',
-            'speed_class_id'  => 'nullable|integer|exists:speed_classes,id',
+            'speed_class_id'         => 'nullable|integer|exists:speed_classes,id',
         ]);
 
         $member->update([

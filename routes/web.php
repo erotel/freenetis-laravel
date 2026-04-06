@@ -24,6 +24,7 @@ use App\Http\Controllers\StreetController;
 use App\Http\Controllers\TownController;
 use App\Http\Controllers\UserController;
 use App\Http\Controllers\SpeedClassController;
+use App\Http\Controllers\AllowedSubnetController;
 use Illuminate\Support\Facades\Route;
 
 // Login / logout
@@ -131,6 +132,12 @@ Route::middleware('auth')->group(function () {
     Route::resource('speed-classes', SpeedClassController::class)
         ->names('speed_classes')
         ->parameters(['speed-classes' => 'id']);
+
+    Route::get('members/{memberId}/allowed-subnets',  [AllowedSubnetController::class, 'showByMember'])->name('allowed_subnets.by_member');
+    Route::put('members/{memberId}/allowed-subnets/count', [AllowedSubnetController::class, 'updateCount'])->name('allowed_subnets.update_count');
+    Route::post('members/{memberId}/allowed-subnets', [AllowedSubnetController::class, 'store'])->name('allowed_subnets.store');
+    Route::post('allowed-subnets/{id}/toggle',        [AllowedSubnetController::class, 'toggle'])->name('allowed_subnets.toggle');
+    Route::delete('allowed-subnets/{id}',             [AllowedSubnetController::class, 'destroy'])->name('allowed_subnets.destroy');
 
     Route::get('login-logs', [LoginLogController::class, 'index'])->name('login_logs.index');
     Route::get('login-logs/user/{userId}', [LoginLogController::class, 'showByUser'])->name('login_logs.by_user');

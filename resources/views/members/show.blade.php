@@ -36,6 +36,10 @@
     &nbsp;|&nbsp;
     <a href="{{ route('members_fees.by_member', $member->id) }}">Zobrazit tarify</a>
     @endif
+    @if($canViewAllowedSubnets)
+    &nbsp;|&nbsp;
+    <a href="{{ route('allowed_subnets.by_member', $member->id) }}">Povolené podsítě</a>
+    @endif
     @if($canDelete)
     &nbsp;|&nbsp;
     <form method="POST" action="{{ route('members.destroy', $member->id) }}" style="display:inline;"

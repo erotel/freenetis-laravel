@@ -25,6 +25,7 @@ class Member extends Model
         'comment',
         'locked',
         'speed_class_id',
+        'allowed_subnets_count',
     ];
 
     const ASSOCIATION = 1;
@@ -80,6 +81,11 @@ class Member extends Model
     public function speedClass()
     {
         return $this->belongsTo(\App\Models\SpeedClass::class, 'speed_class_id');
+    }
+
+    public function allowedSubnets()
+    {
+        return $this->hasMany(AllowedSubnet::class);
     }
 
     // --- Helpers ---
