@@ -2,134 +2,236 @@
 <html lang="cs">
 <head>
 <meta charset="utf-8">
+<title>Faktura</title>
 <style>
-    body { font-family: DejaVu Sans, sans-serif; font-size: 11px; margin: 0; padding: 0; color: #222; }
-    h1 { font-size: 18px; text-align: center; margin-bottom: 20px; text-transform: uppercase; letter-spacing: 1px; }
-    .parties { width: 100%; border-collapse: collapse; margin-bottom: 20px; }
-    .parties td { width: 50%; vertical-align: top; padding: 0 10px 0 0; }
-    .parties td:last-child { padding: 0 0 0 10px; border-left: 1px solid #ccc; }
-    .box-title { font-size: 10px; font-weight: bold; text-transform: uppercase; color: #666;
-                 border-bottom: 1px solid #333; padding-bottom: 3px; margin-bottom: 8px; }
-    .party-name { font-size: 13px; font-weight: bold; margin-bottom: 4px; }
-    .party-line { margin-bottom: 2px; }
-    .meta { width: 100%; border-collapse: collapse; margin-bottom: 20px;
-            border: 1px solid #ddd; }
-    .meta td, .meta th { padding: 4px 8px; border: 1px solid #ddd; font-size: 10px; }
-    .meta th { background: #f0f0f0; font-weight: bold; width: 110px; }
-    table.items { width: 100%; border-collapse: collapse; margin-top: 10px; }
-    table.items th { background: #e8e8e8; padding: 5px 7px; text-align: left;
-                     border: 1px solid #ccc; font-size: 10px; }
-    table.items td { padding: 5px 7px; border: 1px solid #ddd; font-size: 10px; }
-    .right { text-align: right; }
-    .total-row td { font-weight: bold; background: #f5f5f5; border-top: 2px solid #999; }
-    .note { margin-top: 14px; font-size: 9px; color: #777; }
+* { box-sizing: border-box; }
+body { font-family: dejavusans, sans-serif; font-size: 9pt; color: #000; margin: 0; padding: 0; }
+
+/* Top header row */
+.top-row { width: 100%; border-collapse: collapse; margin-bottom: 10px; }
+.top-row td { vertical-align: top; }
+.supplier-name { font-weight: bold; font-size: 14px; margin-bottom: 5px; }
+.invoice-title { text-align: right; font-weight: bold; font-size: 14px; text-transform: uppercase; }
+.invoice-number { text-align: right; font-weight: bold; margin-top: 3px; font-size: 11px; }
+.vs-line { text-align: right; margin-top: 8px; font-size: 10px; }
+
+/* Recipient box */
+.recipient-box { border: 1px solid #000; padding: 6px 8px; margin-top: 6px; font-size: 9px; }
+.recipient-box h4 { margin: 0 0 3px; font-size: 9px; font-weight: bold; text-transform: uppercase; }
+.recipient-box p { margin: 0; padding: 0; text-decoration: none; }
+.recipient-box * { text-decoration: none; }
+
+/* Account box */
+.account-box {
+    border: 1px solid #000;
+    padding: 5px 7px;
+    text-align: center;
+    margin: 8px 0;
+    font-size: 11px;
+    font-weight: bold;
+}
+
+/* Dates row */
+.dates-row { width: 100%; border-collapse: collapse; margin-bottom: 8px; font-size: 9px; }
+.dates-row td { vertical-align: top; padding: 2px 0; width: 25%; }
+.dates-row .label { font-weight: normal; color: #444; font-size: 8px; display: block; }
+.dates-row .value { font-weight: bold; }
+
+/* Items table */
+.items-table { width: 100%; border-collapse: collapse; margin-top: 8px; font-size: 9px; }
+.items-table th, .items-table td { border: 1px solid #000; padding: 3px 4px; }
+.items-table th { text-align: center; font-weight: bold; background: #f2f2f2; }
+.items-table td.num { text-align: right; white-space: nowrap; }
+
+/* Total box */
+.total-box { margin-top: 10px; text-align: right; font-size: 12px; font-weight: bold; }
+.total-box span { border-top: 1px solid #000; padding-top: 3px; display: inline-block; min-width: 120px; text-align: right; }
+
+/* Legal note */
+.middle-note { margin-top: 10px; font-size: 8px; color: #555; }
+
+/* Bottom row */
+.bottom-row { width: 100%; border-collapse: collapse; margin-top: 15px; font-size: 9px; }
+.bottom-row td { vertical-align: top; padding-top: 5px; }
+
+/* VAT recap */
+.vat-table { width: 100%; border-collapse: collapse; margin-top: 5px; }
+.vat-table th, .vat-table td { border: 1px solid #000; padding: 2px 3px; text-align: right; white-space: nowrap; font-size: 8px; }
+.vat-table th:first-child, .vat-table td:first-child { text-align: left; }
+.vat-table th { background: #f2f2f2; }
+.vat-table .sum-row td { font-weight: bold; background: #ebebeb; }
+
+/* Signature box */
+.sign-box { font-size: 9px; }
+.sign-line { border-top: 1px solid #000; margin-top: 35px; text-align: center; font-size: 8px; padding-top: 2px; }
 </style>
 </head>
 <body>
 
-<h1>Faktura č. {{ (int)$invoice->invoice_nr }}</h1>
+@php
+    $priceTotal    = $invoice->price_total;
+    $priceVatTotal = $invoice->price_vat_total;
 
-<table class="parties">
-    <tr>
-        <td>
-            <div class="box-title">Dodavatel</div>
-            <div class="party-name">{{ $org?->name ?? 'PVfree.net, z.s.' }}</div>
-            @if($orgStreet)
-                <div class="party-line">{{ $orgStreet }}</div>
+    // VAT recap grouped by rate
+    $vatRecap = [];
+    foreach ($invoice->items as $item) {
+        $rateKey = (string)(float)$item->vat;
+        if (!isset($vatRecap[$rateKey])) {
+            $vatRecap[$rateKey] = ['rate' => $item->vat, 'base' => 0.0, 'vat' => 0.0];
+        }
+        $base = round($item->price * $item->quantity, 2);
+        $vatAmt = round($base * $item->vat, 2);
+        $vatRecap[$rateKey]['base'] += $base;
+        $vatRecap[$rateKey]['vat']  += $vatAmt;
+    }
+
+    $partner_addr = trim(($invoice->partner_street ?? '') . ' ' . ($invoice->partner_street_number ?? ''));
+    $partner_city = trim(($invoice->partner_zip_code ?? '') . ' ' . ($invoice->partner_town ?? ''));
+@endphp
+
+{{-- TOP HEADER: supplier left, invoice title + recipient right --}}
+<table class="top-row">
+<tr>
+    <td style="width:55%;">
+        <div class="supplier-name">PVfree.net z.s.</div>
+        <div>Daliborka 3<br>796 01 Prostějov</div>
+        <br>
+        <div>IČ: 26656787</div>
+        <div>DIČ: CZ26656787</div>
+        <div>Telefon: 588 207 234</div>
+        <div>E-mail: rada@pvfree.net</div>
+        <div>www.pvfree.net</div>
+    </td>
+    <td style="width:45%; text-align:right;">
+        <div class="invoice-title">FAKTURA - DAŇOVÝ DOKLAD</div>
+        <div class="invoice-number">č. {{ (int)$invoice->invoice_nr }}</div>
+
+        <div class="vs-line">
+            Variabilní symbol: <strong>{{ (int)$invoice->var_sym }}</strong>
+        </div>
+
+        <div class="recipient-box" style="text-align:left;">
+            <h4>Odběratel:</h4>
+            <p>{{ $invoice->partner_name }}</p>
+            @if($partner_addr)
+                <p>{{ $partner_addr }}</p>
             @endif
-            @if($orgTown)
-                <div class="party-line">{{ $orgTown }}</div>
-            @endif
-            @if($org?->organization_identifier)
-                <div class="party-line">IČO: {{ $org->organization_identifier }}</div>
-            @endif
-            @if($org?->vat_organization_identifier)
-                <div class="party-line">DIČ: {{ $org->vat_organization_identifier }}</div>
-            @endif
-            @if($bankAccount)
-                <div class="party-line">Účet: {{ $bankAccount->account_nr }}/{{ $bankAccount->bank_nr }}</div>
-            @endif
-        </td>
-        <td>
-            <div class="box-title">Odběratel</div>
-            <div class="party-name">{{ $invoice->partner_name }}</div>
-            @php
-                $addrLine = trim(($invoice->partner_street ?? '') . ' ' . ($invoice->partner_street_number ?? ''));
-                $townLine  = trim(($invoice->partner_town ?? '') . ($invoice->partner_zip_code ? ', ' . $invoice->partner_zip_code : ''));
-            @endphp
-            @if($addrLine)
-                <div class="party-line">{{ $addrLine }}</div>
-            @endif
-            @if($townLine)
-                <div class="party-line">{{ $townLine }}</div>
+            @if($partner_city)
+                <p>{{ $partner_city }}</p>
             @endif
             @if($invoice->organization_identifier)
-                <div class="party-line">IČO: {{ $invoice->organization_identifier }}</div>
+                <p>IČO: {{ $invoice->organization_identifier }}</p>
             @endif
             @if($invoice->vat_organization_identifier)
-                <div class="party-line">DIČ: {{ $invoice->vat_organization_identifier }}</div>
+                <p>DIČ: {{ $invoice->vat_organization_identifier }}</p>
             @endif
-        </td>
-    </tr>
+        </div>
+    </td>
+</tr>
 </table>
 
-<table class="meta">
-    <tr>
-        <th>Číslo faktury</th>
-        <td>{{ (int)$invoice->invoice_nr }}</td>
-        <th>Variabilní symbol</th>
-        <td>{{ (int)$invoice->var_sym }}</td>
-    </tr>
-    <tr>
-        <th>Datum vystavení</th>
-        <td>{{ $invoice->date_inv }}</td>
-        <th>Datum splatnosti</th>
-        <td>{{ $invoice->date_due }}</td>
-    </tr>
-    <tr>
-        <th>DUZP</th>
-        <td>{{ $invoice->date_vat }}</td>
-        <th>Měna</th>
-        <td>{{ $invoice->currency }}</td>
-    </tr>
+{{-- ACCOUNT BOX --}}
+<div class="account-box">
+    Číslo účtu: {{ $invoice->account_nr }}
+</div>
+
+{{-- DATES ROW --}}
+<table class="dates-row">
+<tr>
+    <td>
+        <span class="label">Datum vystavení:</span>
+        <span class="value">{{ $invoice->date_inv }}</span>
+    </td>
+    <td>
+        <span class="label">Datum splatnosti:</span>
+        <span class="value">{{ $invoice->date_due }}</span>
+    </td>
+    <td>
+        <span class="label">Datum uskutečnění plnění:</span>
+        <span class="value">{{ $invoice->date_vat }}</span>
+    </td>
+    <td>
+        <span class="label">Forma úhrady:</span>
+        <span class="value">Zaplaceno</span>
+    </td>
+</tr>
 </table>
 
-<table class="items">
-    <thead>
+{{-- ITEMS TABLE --}}
+<table class="items-table">
+<thead>
+<tr>
+    <th style="text-align:left;">Označení dodávky</th>
+    <th style="width:90px;">Cena</th>
+    <th style="width:55px;">% DPH</th>
+    <th style="width:75px;">DPH</th>
+    <th style="width:85px;">Kč Celkem</th>
+</tr>
+</thead>
+<tbody>
+@forelse($invoice->items as $item)
+@php
+    $lineBase   = round($item->price * $item->quantity, 2);
+    $lineVat    = round($lineBase * $item->vat, 2);
+    $lineTotal  = round($lineBase + $lineVat, 2);
+@endphp
+<tr>
+    <td>{{ $item->name }}</td>
+    <td class="num">{{ number_format($lineBase, 2, ',', ' ') }} CZK</td>
+    <td class="num">{{ number_format($item->vat * 100, 0) }}%</td>
+    <td class="num">{{ number_format($lineVat, 2, ',', ' ') }} CZK</td>
+    <td class="num">{{ number_format($lineTotal, 2, ',', ' ') }} CZK</td>
+</tr>
+@empty
+<tr><td colspan="5" style="text-align:center;">Faktura neobsahuje žádné položky.</td></tr>
+@endforelse
+</tbody>
+</table>
+
+{{-- CELKEM ZAPLACENO --}}
+<div class="total-box">
+    CELKEM ZAPLACENO: &nbsp;<span>{{ number_format($priceVatTotal, 2, ',', ' ') }} CZK</span>
+</div>
+
+{{-- LEGAL NOTE --}}
+<div class="middle-note">
+    Spolek PVfree.net, z.s., zapsán pod značkou L 10341/KSBR Krajským soudem v Brně, založen 12.3.2004.
+</div>
+
+{{-- BOTTOM: QR placeholder | VAT recap | Signature --}}
+<table class="bottom-row">
+<tr>
+    <td style="width:40%;"></td>
+
+    <td style="width:35%; padding-left:10px;">
+        <div><strong>Rekapitulace DPH v Kč:</strong></div>
+        <table class="vat-table">
+        <thead>
         <tr>
-            <th>Název</th>
-            <th>Kód</th>
-            <th class="right">Mn.</th>
-            <th class="right">Cena bez DPH</th>
-            <th class="right">DPH %</th>
-            <th class="right">Cena s DPH</th>
+            <th>Základ v Kč</th>
+            <th>Sazba</th>
+            <th>DPH v Kč</th>
+            <th>Celkem s DPH v Kč</th>
         </tr>
-    </thead>
-    <tbody>
-        @foreach($invoice->items as $item)
+        </thead>
+        <tbody>
+        @forelse($vatRecap as $rec)
         <tr>
-            <td>{{ $item->name }}</td>
-            <td>{{ $item->code }}</td>
-            <td class="right">{{ $item->quantity }}</td>
-            <td class="right">{{ number_format($item->price * $item->quantity, 2, ',', ' ') }} Kč</td>
-            <td class="right">{{ number_format($item->vat * 100, 0) }} %</td>
-            <td class="right">{{ number_format($item->price_vat, 2, ',', ' ') }} Kč</td>
+            <td>{{ number_format($rec['base'], 2, ',', ' ') }}</td>
+            <td style="text-align:center;">{{ number_format($rec['rate'] * 100, 0) }}%</td>
+            <td>{{ number_format($rec['vat'], 2, ',', ' ') }}</td>
+            <td>{{ number_format($rec['base'] + $rec['vat'], 2, ',', ' ') }}</td>
         </tr>
-        @endforeach
-    </tbody>
-    <tfoot>
-        <tr class="total-row">
-            <td colspan="3">Celkem</td>
-            <td class="right">{{ number_format($invoice->price_total, 2, ',', ' ') }} Kč</td>
-            <td></td>
-            <td class="right">{{ number_format($invoice->price_vat_total, 2, ',', ' ') }} Kč</td>
-        </tr>
-    </tfoot>
-</table>
+        @empty
+        <tr><td colspan="4" style="text-align:center;">Bez DPH.</td></tr>
+        @endforelse
+        </tbody>
+        </table>
+    </td>
 
-@if($invoice->note)
-    <p class="note">Poznámka: {{ $invoice->note }}</p>
-@endif
+    <td style="width:25%; padding-left:15px;"></td>
+</tr>
+</table>
 
 </body>
 </html>

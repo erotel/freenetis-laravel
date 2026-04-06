@@ -1,0 +1,16 @@
+accountId;2803036815
+bankId;2010
+currency;CZK
+iban;CZ1220100000002803036815
+bic;FIOBCZPPXXX
+openingBalance;"125 430,00"
+closingBalance;"127 350,00"
+dateStart;2026-04-06
+dateEnd;2026-04-06
+idFrom;30000000018
+idTo;30000000020
+
+"ID pohybu";"Datum";"Objem";"Měna";"Protiúčet";"Název protiúčtu";"Kód banky";"Název banky";"KS";"VS";"SS";"Uživatelská identifikace";"Zpráva pro příjemce";"Typ";"Provedl";"Upřesnění";"ID pokynu"
+"30000000018";"2026-04-06";"1 210,00";"CZK";"123456789";"Radek Steiger";"0100";"Komerční banka";"0308";"103810";"";"Platba za internet";"Platba za internet duben 2026";"Příjem převodem uvnitř banky";"";"";""
+"30000000019";"2026-04-06";"1 210,00";"CZK";"987654321";"Knihovna Prostějov";"2010";"Fio banka";"0308";"252531";"";"Platba za sluzby";"Internet 04/2026";"Příjem převodem uvnitř banky";"";"";""
+"30000000020";"2026-04-06";"-500,00";"CZK";"111222333";"Dodavatel s.r.o.";"0800";"Česká spořitelna";"0";"";"";"Faktura 2026-04";"Úhrada faktury";"Platba převodem";"";"";"30000000099"

@@ -164,7 +164,8 @@ class ImportController extends Controller
     }
 
     /**
-     * Shared import logic: create BankStatement + BankTransfer rows from parsed CSV data.
+     * Shared import logic: create BankStatement + BankTransfer + Transfer rows from parsed CSV data.
+     * Mirrors Kohana's Fio_Bank_Statement_File_Importer::store() double-entry accounting logic.
      * Returns [imported, skipped].
      */
     private function persistParsed(BankAccount $account, array $header, array $rows, string $type): array
@@ -184,6 +185,22 @@ class ImportController extends Controller
             $stmt->closing_balance = $header['closingBalance'] ?? 0;
             $stmt->save();
 
+            // Resolve system accounting accounts (Kohana Account_attribute_Model constants)
+            $bankAcctId      = $this->getLinkedAccountId($account->id, 221000); // BANK (per-BA)
+            $bankInterestsId = $this->getLinkedAccountId($account->id, 644000); // BANK_INTERESTS (per-BA)
+            $memberFeesId    = DB::table('accounts')->where('account_attribute_id', 684000)->value('id'); // MEMBER_FEES
+            $suppliersId     = DB::table('accounts')->where('account_attribute_id', 321000)->value('id'); // SUPPLIERS
+            $cashId          = DB::table('accounts')->where('account_attribute_id', 211000)->value('id'); // CASH (Pokladna)
+
+            if (!$bankAcctId) {
+                \Illuminate\Support\Facades\Log::error(
+                    "ImportController: bank account id={$account->id} has no linked accounting account (accounts_bank_accounts pivot missing). Double-entry transfers will be skipped."
+                );
+            }
+
+            $userId  = auth()->id();
+            $now     = now()->format('Y-m-d H:i:s');
+
             foreach ($rows as $row) {
                 $transactionCode = isset($row['id_pohybu']) && $row['id_pohybu'] !== ''
                     ? (int) $row['id_pohybu']
@@ -196,8 +213,11 @@ class ImportController extends Controller
                     }
                 }
 
-                $amount     = $row['castka'] ?? 0.0;
+                $amount     = (float)($row['castka'] ?? 0.0);
                 $isIncoming = $amount >= 0;
+                $absAmount  = abs($amount);
+                $datetime   = $row['datum'] ?? $now;
+                $text       = $row['zprava'] ?? ($row['identifikace'] ?? null);
 
                 $bt = new BankTransfer();
                 $bt->bank_statement_id = $stmt->id;
@@ -209,35 +229,88 @@ class ImportController extends Controller
                     ? $row['identifikace']
                     : ($row['zprava'] ?? null);
 
-                $matchedAccountId = null;
+                $matchedMemberId  = null;
+                $matchedCreditId  = null; // member's credit account id (221100)
 
-                if ($isIncoming) {
-                    $bt->destination_id = $account->id;
-                    $bt->origin_id      = null;
-                } else {
+                if (!$isIncoming) {
+                    // Outgoing: bank → suppliers (expenses / outgoing payments)
                     $bt->origin_id      = $account->id;
                     $bt->destination_id = null;
-                }
 
-                if ($bt->variable_symbol !== null) {
-                    $vsModel = VariableSymbol::where('variable_symbol', $bt->variable_symbol)->first();
-                    if ($vsModel) {
-                        $memberAllowed = $this->filterMemberByBankAccount($vsModel->account_id, $account, $bt);
-                        if ($memberAllowed) {
-                            $transfer = Transfer::where(function ($q) use ($vsModel, $isIncoming) {
-                                if ($isIncoming) {
-                                    $q->where('destination_id', $vsModel->account_id);
-                                } else {
-                                    $q->where('origin_id', $vsModel->account_id);
+                    if ($bankAcctId && $suppliersId) {
+                        $primaryTransferId = $this->createTransfer(
+                            $bankAcctId, $suppliersId, null, null, $userId, null,
+                            $datetime, $now, $text, $absAmount
+                        );
+                        $bt->transfer_id = $primaryTransferId;
+                    }
+
+                } elseif (($row['typ'] ?? '') === 'Připsaný úrok') {
+                    // Interest: bank_interests → bank
+                    $bt->origin_id      = null;
+                    $bt->destination_id = $account->id;
+
+                    if ($bankInterestsId && $bankAcctId) {
+                        $primaryTransferId = $this->createTransfer(
+                            $bankInterestsId, $bankAcctId, null, null, $userId, null,
+                            $datetime, $now, $row['typ'], $absAmount
+                        );
+                        $bt->transfer_id = $primaryTransferId;
+                    }
+
+                } else {
+                    // Incoming (regular or cash deposit)
+                    $bt->destination_id = $account->id;
+                    $bt->origin_id      = null;
+
+                    // 'Vklad pokladnou' uses the cash account as origin; all others use member_fees
+                    $incomingOriginId = (($row['typ'] ?? '') === 'Vklad pokladnou') ? $cashId : $memberFeesId;
+
+                    // Try to match member by variable symbol
+                    if ($bt->variable_symbol !== null) {
+                        $vsModel = VariableSymbol::where('variable_symbol', $bt->variable_symbol)->first();
+                        if ($vsModel) {
+                            // variable_symbols.account_id points directly to the 221100 credit account
+                            $creditAcct = DB::table('accounts')
+                                ->where('id', $vsModel->account_id)
+                                ->where('account_attribute_id', 221100)
+                                ->first();
+                            if ($creditAcct) {
+                                $memberAllowed = $this->filterMemberByBankAccount(
+                                    $vsModel->account_id, $account, $bt
+                                );
+                                if ($memberAllowed) {
+                                    $matchedMemberId = $creditAcct->member_id;
+                                    $matchedCreditId = $creditAcct->id;
                                 }
-                            })->latest('datetime')->first();
-
-                            if ($transfer) {
-                                $bt->transfer_id    = $transfer->id;
-                                $matchedAccountId   = $isIncoming
-                                    ? $transfer->destination_id
-                                    : $transfer->origin_id;
                             }
+                        }
+                    }
+
+                    if (!$matchedMemberId && $bt->variable_symbol !== null) {
+                        if (empty($bt->comment)) {
+                            $bt->comment = 'Neidentifikovaný převod: VS=' . (string)$bt->variable_symbol;
+                        }
+                    }
+
+                    if ($incomingOriginId && $bankAcctId) {
+                        $primaryTransferId = $this->createTransfer(
+                            $incomingOriginId, $bankAcctId, null, $matchedMemberId, $userId, null,
+                            $datetime, $now, $text, $absAmount
+                        );
+                        $bt->transfer_id = $primaryTransferId;
+
+                        // If member matched, create assigning transfer: bank → member credit
+                        if ($matchedMemberId && $matchedCreditId) {
+                            $this->createTransfer(
+                                $bankAcctId, $matchedCreditId, $primaryTransferId, $matchedMemberId, $userId, null,
+                                $datetime, $now, 'Přiřazení platby', $absAmount
+                            );
+
+                            $postImport[] = [
+                                'memberId' => $matchedMemberId,
+                                'amount'   => $absAmount,
+                            ];
                         }
                     }
                 }
@@ -245,16 +318,9 @@ class ImportController extends Controller
                 $bt->save();
                 $imported++;
 
-                // Collect post-import work for incoming matched payments only
-                if ($isIncoming && $matchedAccountId) {
-                    $account2 = \App\Models\Account::find($matchedAccountId);
-                    if ($account2?->member_id) {
-                        $postImport[] = [
-                            'bankTransferId' => $bt->id,
-                            'memberId'       => $account2->member_id,
-                            'amount'         => (float) $amount,
-                        ];
-                    }
+                // Update postImport with actual bt->id
+                if (!empty($postImport) && $matchedMemberId) {
+                    $postImport[count($postImport) - 1]['bankTransferId'] = $bt->id;
                 }
             }
         });
@@ -353,5 +419,56 @@ class ImportController extends Controller
         }
 
         return true;
+    }
+
+    /**
+     * Mirror of Kohana's Transfer_Model::insert_transfer().
+     * Creates a transfer record and updates the account balances.
+     */
+    private function createTransfer(
+        ?int $originId,
+        ?int $destinationId,
+        ?int $previousTransferId,
+        ?int $memberId,
+        ?int $userId,
+        ?int $type,
+        string $datetime,
+        string $creationDatetime,
+        ?string $text,
+        float $amount
+    ): int {
+        $transferId = DB::table('transfers')->insertGetId([
+            'origin_id'           => $originId,
+            'destination_id'      => $destinationId,
+            'previous_transfer_id'=> $previousTransferId,
+            'member_id'           => $memberId,
+            'user_id'             => $userId,
+            'type'                => $type,
+            'datetime'            => $datetime,
+            'creation_datetime'   => $creationDatetime,
+            'text'                => $text,
+            'amount'              => $amount,
+        ]);
+
+        if ($originId) {
+            DB::table('accounts')->where('id', $originId)->decrement('balance', $amount);
+        }
+        if ($destinationId) {
+            DB::table('accounts')->where('id', $destinationId)->increment('balance', $amount);
+        }
+
+        return $transferId;
+    }
+
+    /**
+     * Get the accounting account ID linked to a physical bank account via accounts_bank_accounts pivot.
+     */
+    private function getLinkedAccountId(int $bankAccountId, int $accountAttributeId): ?int
+    {
+        return DB::table('accounts_bank_accounts as aba')
+            ->join('accounts as a', 'a.id', '=', 'aba.account_id')
+            ->where('aba.bank_account_id', $bankAccountId)
+            ->where('a.account_attribute_id', $accountAttributeId)
+            ->value('a.id');
     }
 }

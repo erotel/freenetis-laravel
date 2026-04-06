@@ -1,0 +1,15 @@
+accountId;2525259633
+bankId;2010
+currency;CZK
+iban;CZ1220100000002525259633
+bic;FIOBCZPPXXX
+openingBalance;"5 000,00"
+closingBalance;"5 420,00"
+dateStart;2026-04-06
+dateEnd;2026-04-06
+idFrom;30000000016
+idTo;30000000017
+
+"ID pohybu";"Datum";"Objem";"Měna";"Protiúčet";"Název protiúčtu";"Kód banky";"Název banky";"KS";"VS";"SS";"Uživatelská identifikace";"Zpráva pro příjemce";"Typ";"Provedl";"Upřesnění";"BIC";"ID pokynu"
+"30000000016";"2026-04-06";"320,00";"CZK";"1234567890";"Steiger, Radek";"0300";"CSAS";"0";"103810";"0";"platba";"Platba za internet";"Příjem převodem uvnitř banky";"Admin";"";"AIRACZPP";"60000001"
+"30000000017";"2026-04-06";"100,00";"CZK";"9876543210";"Neznámý Plátce";"0800";"CSOB";"";"";"";"platba2";"platba bez VS";"Příjem převodem uvnitř banky";"Admin";"";"GIBACZPX";"60000002"

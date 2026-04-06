@@ -207,14 +207,15 @@ class InvoiceService
             }
 
             $mpdf = new Mpdf([
-                'tempDir'       => $tmpDir,
-                'mode'          => 'utf-8',
-                'format'        => 'A4',
-                'margin_top'    => 15,
-                'margin_bottom' => 15,
-                'margin_left'   => 15,
-                'margin_right'  => 15,
-                'default_font'  => 'dejavusans',
+                'tempDir'           => $tmpDir,
+                'mode'              => 'utf-8',
+                'format'            => 'A4',
+                'margin_top'        => 40,
+                'margin_bottom'     => 20,
+                'margin_left'       => 10,
+                'margin_right'      => 10,
+                'default_font'      => 'dejavusans',
+                'default_font_size' => 9,
             ]);
             $mpdf->WriteHTML($html);
             $mpdf->Output($pdfPath, 'F');
