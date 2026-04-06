@@ -40,11 +40,19 @@ class SettingController extends Controller
         foreach ($memberTypes as $type => $label) {
             $key = sprintf(self::KEY_BA_MEMBER_TYPE, $type);
             $routing[$type] = [
-                'label'      => $label,
-                'key'        => $key,
+                'label'           => $label,
+                'key'             => $key,
                 'bank_account_id' => (int) Setting::get($key, 0),
             ];
         }
+
+        foreach ($routing as $type => &$rule) {
+            $ba = $rule['bank_account_id']
+                ? BankAccount::find($rule['bank_account_id'])
+                : null;
+            $rule['payment_purpose'] = $ba ? (int) $ba->payment_purpose : 0;
+        }
+        unset($rule);
 
         $defaultBaId = (int) Setting::get(self::KEY_BA_DEFAULT, 0);
 
@@ -61,6 +69,11 @@ class SettingController extends Controller
             $key = sprintf(self::KEY_BA_MEMBER_TYPE, $type);
             $val = (int) $request->input("routing_{$type}", 0);
             Setting::set($key, $val);
+
+            $ppVal = $request->has("payment_purpose_{$type}") ? 1 : 0;
+            if ($val > 0) {
+                BankAccount::where('id', $val)->update(['payment_purpose' => $ppVal]);
+            }
         }
 
         $defaultBaId = (int) $request->input('default_bank_account_id', 0);

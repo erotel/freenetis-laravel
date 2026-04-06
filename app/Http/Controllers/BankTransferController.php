@@ -39,8 +39,13 @@ class BankTransferController extends Controller
     {
         abort_unless($this->can('view_all', 'unidentified_transfers'), 403);
 
-        $transfers = BankTransfer::whereNull('transfer_id')
-            ->with(['bankStatement.bankAccount', 'originAccount', 'destinationAccount'])
+        // Kohana logic: unidentified = transfer exists but member_id is NULL/0
+        // (payment could not be matched to any member — wrong account, missing VS, etc.)
+        $transfers = BankTransfer::whereNotNull('transfer_id')
+            ->whereHas('transfer', function ($q) {
+                $q->whereNull('member_id')->orWhere('member_id', 0);
+            })
+            ->with(['bankStatement.bankAccount', 'originAccount', 'destinationAccount', 'transfer'])
             ->orderByDesc('id')
             ->paginate(50);
 

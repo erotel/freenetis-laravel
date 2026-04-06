@@ -33,6 +33,7 @@
                 <tr>
                     <th>Typ člena</th>
                     <th>Bankovní účet pro příjem plateb</th>
+                    <th>Vystavovat faktury?</th>
                 </tr>
             </thead>
             <tbody>
@@ -49,6 +50,12 @@
                                     </option>
                                 @endforeach
                             </select>
+                        </td>
+                        <td style="text-align:center;">
+                            <input type="checkbox"
+                                   name="payment_purpose_{{ $type }}"
+                                   value="1"
+                                   {{ $rule['payment_purpose'] == 1 ? 'checked' : '' }}>
                         </td>
                     </tr>
                 @endforeach

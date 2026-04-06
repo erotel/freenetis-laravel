@@ -16,19 +16,19 @@
 @section('content')
     <h2>Neidentifikované převody</h2>
 
-    <p>Tyto bankovní převody nemají přiřazený systémový převod (nebyly spárovány).</p>
+    <p>Tyto bankovní převody nebyly spárovány s žádným členem (chybí VS nebo přišly na nesprávný účet).</p>
 
     <table class="extended" cellspacing="0">
         <thead>
             <tr>
                 <th>ID</th>
                 <th>Bankovní účet</th>
-                <th>Výpis / Datum</th>
-                <th>Protiúčet</th>
+                <th>Datum</th>
+                <th>Číslo protiúčtu</th>
+                <th>Název účtu</th>
                 <th style="color:#c00;">VS</th>
-                <th>KS</th>
-                <th>Transakční kód</th>
-                <th>Text</th>
+                <th>Částka</th>
+                <th>Komentář</th>
                 <th>Akce</th>
             </tr>
         </thead>
@@ -38,6 +38,7 @@
                     $mainAccount = $bt->bankStatement?->bankAccount;
                     $isIncoming  = $bt->destination_id == $mainAccount?->id;
                     $counterpart = $isIncoming ? $bt->originAccount : $bt->destinationAccount;
+                    $amount      = $bt->transfer?->amount;
                 @endphp
                 <tr>
                     <td>{{ $bt->id }}</td>
@@ -49,21 +50,21 @@
                         @endif
                     </td>
                     <td>{{ $bt->bankStatement?->from?->format('d.m.Y') ?? '—' }}</td>
+                    <td>{{ $counterpart?->full_account_number ?? '—' }}</td>
+                    <td>{{ $counterpart?->name ?? '—' }}</td>
+                    <td style="color:{{ $bt->variable_symbol ? 'inherit' : '#c00' }}">
+                        {{ $bt->variable_symbol ?: '—' }}
+                    </td>
                     <td>
-                        @if($counterpart)
-                            {{ $counterpart->full_account_number }}
+                        @if($amount !== null)
+                            {{ number_format($amount, 2, ',', ' ') }} Kč
                         @else
                             —
                         @endif
                     </td>
-                    <td style="color:{{ $bt->variable_symbol ? 'inherit' : '#c00' }}">
-                        {{ $bt->variable_symbol ?: '—' }}
-                    </td>
-                    <td>{{ $bt->constant_symbol ?: '—' }}</td>
-                    <td>{{ $bt->transaction_code ?: '—' }}</td>
                     <td>{{ $bt->comment ?: '—' }}</td>
                     <td class="action">
-                        {{-- Placeholder: future "Zadat vrácení" --}}
+                        {{-- Placeholder: future "Přiřadit" --}}
                     </td>
                 </tr>
             @empty
