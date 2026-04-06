@@ -16,7 +16,13 @@
 @section('content')
     <h2>Faktura č. {{ (int)$invoice->invoice_nr }}</h2>
 
-    <p><a href="{{ route('invoices.index') }}">&larr; Zpět na seznam faktur</a></p>
+    <p>
+        <a href="{{ route('invoices.index') }}">&larr; Zpět na seznam faktur</a>
+        @if($invoice->pdf_filename && file_exists($invoice->pdf_filename))
+            &nbsp;|&nbsp;
+            <a href="{{ route('invoices.pdf', $invoice->id) }}">&#11015; Stáhnout PDF (faktura_{{ (int)$invoice->invoice_nr }}.pdf)</a>
+        @endif
+    </p>
 
     <table class="extended" cellspacing="0">
         <thead>

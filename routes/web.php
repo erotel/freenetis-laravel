@@ -142,6 +142,7 @@ Route::middleware('auth')->group(function () {
     Route::delete('allowed-subnets/{id}',             [AllowedSubnetController::class, 'destroy'])->name('allowed_subnets.destroy');
 
     Route::get('invoices', [InvoiceController::class, 'index'])->name('invoices.index');
+    Route::get('invoices/{id}/pdf', [InvoiceController::class, 'downloadPdf'])->name('invoices.pdf');
     Route::get('invoices/{id}', [InvoiceController::class, 'show'])->name('invoices.show');
     Route::get('members/{memberId}/invoices', [InvoiceController::class, 'showByMember'])->name('invoices.by_member');
 

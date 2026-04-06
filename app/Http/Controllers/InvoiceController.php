@@ -53,6 +53,26 @@ class InvoiceController extends Controller
         return view('invoices.show', compact('invoice'));
     }
 
+    public function downloadPdf(int $id)
+    {
+        $invoice = Invoice::findOrFail($id);
+
+        $ownMemberId = auth()->user()?->member_id;
+        if ($invoice->member_id != $ownMemberId && !$this->canView()) {
+            abort(403);
+        }
+
+        if (!$invoice->pdf_filename || !file_exists($invoice->pdf_filename)) {
+            return back()->with('error', 'PDF soubor není k dispozici.');
+        }
+
+        return response()->download(
+            $invoice->pdf_filename,
+            'faktura_' . (int)$invoice->invoice_nr . '.pdf',
+            ['Content-Type' => 'application/pdf']
+        );
+    }
+
     public function showByMember(int $memberId)
     {
         $ownMemberId = auth()->user()?->member_id;

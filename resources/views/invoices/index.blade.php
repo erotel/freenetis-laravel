@@ -77,6 +77,9 @@
                            title="Detail">
                             <img src="{{ asset('media/images/icons/con_info.png') }}" alt="Detail">
                         </a>
+                        @if($invoice->pdf_filename && file_exists($invoice->pdf_filename))
+                            &nbsp;<a href="{{ route('invoices.pdf', $invoice->id) }}" title="Stáhnout PDF">PDF</a>
+                        @endif
                     </td>
                 </tr>
             @empty
