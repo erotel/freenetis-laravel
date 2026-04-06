@@ -57,7 +57,7 @@ class TransferController extends Controller
         $transfers = Transfer::where('origin_id', $accountId)
             ->orWhere('destination_id', $accountId)
             ->with(['origin.member', 'destination.member'])
-            ->orderBy('datetime', 'desc')
+            ->orderBy('id', 'desc')
             ->paginate(50);
 
         return view('transfers.show_by_account', compact('account', 'transfers', 'accountId'));

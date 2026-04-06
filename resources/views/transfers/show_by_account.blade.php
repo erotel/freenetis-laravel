@@ -17,11 +17,11 @@
 @section('content')
     <h2>Převody účtu: {{ $account->name }}</h2>
 
-    <div style="margin-bottom:1em;">
+    <div style="margin-bottom:4px;">
         <a href="{{ route('accounts.show', $account->id) }}">&larr; Zpět na účet</a>
     </div>
 
-    <table class="extended" cellspacing="0" style="float:left; margin-right:20px;">
+    <table class="extended" cellspacing="0" style="margin-bottom:4px;">
         <tbody>
             <tr>
                 <th>Název</th>
@@ -49,8 +49,6 @@
             </tr>
         </tbody>
     </table>
-
-    <div style="clear:both;"></div>
 
     <table class="extended" cellspacing="0">
         <thead>
