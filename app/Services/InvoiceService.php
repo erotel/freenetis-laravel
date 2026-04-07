@@ -131,8 +131,7 @@ class InvoiceService
         }
 
         // PDF generation (outside transaction — filesystem cannot be rolled back)
-        $invoice->load('items');
-        $pdfPath = $this->generatePdf($invoice, $org, $bankAccount);
+        $pdfPath = $this->generatePdf($invoice);
         if ($pdfPath) {
             $invoice->update(['pdf_filename' => $pdfPath]);
         }
@@ -176,9 +175,14 @@ class InvoiceService
         }
     }
 
-    private function generatePdf(Invoice $invoice, ?Member $org, ?BankAccount $bankAccount): ?string
+    public function generatePdf(Invoice $invoice): ?string
     {
         try {
+            $invoice->loadMissing(['items']);
+
+            $org         = Member::with(['addressPoint.street', 'addressPoint.town'])->find(1);
+            $bankAccount = BankAccount::find($invoice->bank_account_id);
+
             $year = (int) substr($invoice->date_inv, 0, 4) ?: now()->year;
             $dir  = self::PDF_BASE_PATH . '/' . $year;
 
@@ -188,17 +192,11 @@ class InvoiceService
 
             $pdfPath = $dir . '/' . (int)$invoice->invoice_nr . '.pdf';
 
-            // Org (supplier) address
-            $orgAp     = $org?->addressPoint;
-            $orgStreet = trim(($orgAp?->street?->street ?? '') . ' ' . ($orgAp?->street_number ?? ''));
-            $orgTown   = trim(($orgAp?->town?->town ?? '') . ', ' . ($orgAp?->town?->zip_code ?? ''));
-
             $html = view('invoices.pdf', [
                 'invoice'     => $invoice,
                 'org'         => $org,
-                'orgStreet'   => $orgStreet,
-                'orgTown'     => $orgTown,
                 'bankAccount' => $bankAccount,
+                'items'       => $invoice->items,
             ])->render();
 
             $tmpDir = storage_path('framework/cache/mpdf');
