@@ -64,7 +64,7 @@
                     </td>
                     <td>{{ $bt->comment ?: '—' }}</td>
                     <td class="action">
-                        {{-- Placeholder: future "Přiřadit" --}}
+                        <a href="{{ route('bank-transfers.refund.form', $bt->id) }}">↩ Vrátit</a>
                     </td>
                 </tr>
             @empty

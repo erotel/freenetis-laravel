@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\BankAccount;
+use App\Models\BankTransfer;
 use App\Models\OutgoingPayment;
 use App\Models\Setting;
 use App\Services\AclService;
@@ -124,38 +125,81 @@ class OutgoingPaymentController extends Controller
         abort_unless($this->canEdit(), 403);
 
         $bankAccount = BankAccount::findOrFail($bankAccountId);
-        $token = Setting::get('fio_api_token_bank_account_' . $bankAccount->id);
 
-        if (empty($token)) {
-            return back()->with('error', 'Není nastaven FIO API token pro účet ' . $bankAccount->name . '.');
-        }
-
-        $payments = OutgoingPayment::where('status', OutgoingPayment::STATUS_APPROVED)
-            ->where('bank_account_id', $bankAccountId)
+        $payments = OutgoingPayment::where('bank_account_id', $bankAccountId)
+            ->where('status', OutgoingPayment::STATUS_APPROVED)
             ->get();
 
         if ($payments->isEmpty()) {
-            return back()->with('error', 'Žádné schválené platby k exportu pro účet ' . $bankAccount->name . '.');
+            return redirect()->route('outgoing_payments.index')
+                ->with('error', 'Žádné schválené platby k exportu pro tento účet.');
         }
 
-        $xml = $this->buildFioXml($payments, $bankAccount);
+        $xml   = $this->buildFioXml($payments, $bankAccount);
+        $token = Setting::get('fio_api_token_bank_account_' . $bankAccountId);
 
-        try {
-            $fioService = new FioApiService();
-            $response   = $fioService->importPayments($token, $xml);
+        if ($token) {
+            // Send directly to FIO API
+            try {
+                $fio      = app(FioApiService::class);
+                $response = $fio->importPayments($token, $xml);
+
+                $now = now();
+                foreach ($payments as $payment) {
+                    $payment->update([
+                        'status'       => OutgoingPayment::STATUS_EXPORTED,
+                        'exported_at'  => $now,
+                        'api_response' => $response,
+                    ]);
+                }
+
+                // Append waiting note to linked bank_transfer comments
+                foreach ($payments as $payment) {
+                    if ($payment->transfer_id) {
+                        BankTransfer::where('transfer_id', $payment->transfer_id)
+                            ->update([
+                                'comment' => \Illuminate\Support\Facades\DB::raw(
+                                    "CONCAT(COALESCE(comment, ''), IF(comment IS NULL OR comment = '', '', ' | '), 'Čeká se na platbu z banky')"
+                                )
+                            ]);
+                    }
+                }
+
+                return redirect()->route('outgoing_payments.index')
+                    ->with('success', 'Platby byly odeslány do FIO (' . $payments->count() . ' plateb).');
+            } catch (\RuntimeException $e) {
+                return redirect()->route('outgoing_payments.index')
+                    ->with('error', 'Chyba FIO API: ' . $e->getMessage());
+            }
+        } else {
+            // No token — download XML file
+            $filename = 'platby_' . $bankAccount->account_nr . '_' . now()->format('Ymd_His') . '.xml';
 
             $now = now();
             foreach ($payments as $payment) {
                 $payment->update([
-                    'status'       => OutgoingPayment::STATUS_EXPORTED,
-                    'exported_at'  => $now,
-                    'api_response' => $response,
+                    'status'          => OutgoingPayment::STATUS_EXPORTED,
+                    'exported_at'     => $now,
+                    'export_filename' => $filename,
                 ]);
             }
 
-            return back()->with('success', 'Exportováno ' . $payments->count() . ' plateb na účet ' . $bankAccount->name . '.');
-        } catch (\RuntimeException $e) {
-            return back()->with('error', 'Chyba FIO API: ' . $e->getMessage());
+            // Append waiting note to linked bank_transfer comments
+            foreach ($payments as $payment) {
+                if ($payment->transfer_id) {
+                    BankTransfer::where('transfer_id', $payment->transfer_id)
+                        ->update([
+                            'comment' => \Illuminate\Support\Facades\DB::raw(
+                                "CONCAT(COALESCE(comment, ''), IF(comment IS NULL OR comment = '', '', ' | '), 'Čeká se na platbu z banky')"
+                            )
+                        ]);
+                }
+            }
+
+            return response($xml, 200, [
+                'Content-Type'        => 'application/xml; charset=utf-8',
+                'Content-Disposition' => 'attachment; filename="' . $filename . '"',
+            ]);
         }
     }
 
@@ -181,8 +225,9 @@ class OutgoingPaymentController extends Controller
                 $xml .= '<vs>' . e($payment->variable_symbol) . '</vs>' . "\n";
             }
             $xml .= '<date>' . now()->format('Y-m-d') . '</date>' . "\n";
-            $xml .= '<messageForRecipient>' . e(mb_substr((string) $payment->message, 0, 140)) . '</messageForRecipient>' . "\n";
-            $xml .= '<comment>' . e(mb_substr((string) $payment->message, 0, 255)) . '</comment>' . "\n";
+            $message = trim($payment->message . ' OP #' . $payment->id);
+            $xml .= '<messageForRecipient>' . e(mb_substr($message, 0, 140)) . '</messageForRecipient>' . "\n";
+            $xml .= '<comment>' . e(mb_substr($message, 0, 255)) . '</comment>' . "\n";
             $xml .= '<paymentType>431001</paymentType>' . "\n";
             $xml .= '</DomesticTransaction>' . "\n";
         }

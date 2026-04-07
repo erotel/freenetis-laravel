@@ -26,10 +26,12 @@
                         @csrf
                         <button type="submit"
                                 class="btn"
-                                @if(!$ba['has_token']) disabled title="Není nastaven FIO API token" @endif
                                 onclick="return confirm('Exportovat schválené platby na účet {{ addslashes($ba['name']) }}?')">
-                            Export/Odeslat ({{ $ba['name'] }} – {{ $ba['full_nr'] }})
-                            @if(!$ba['has_token'])<span style="color:#999; font-size:11px;"> (bez tokenu)</span>@endif
+                            @if($ba['has_token'])
+                                Odeslat do FIO ({{ $ba['name'] }} – {{ $ba['full_nr'] }})
+                            @else
+                                Stáhnout XML ({{ $ba['name'] }} – {{ $ba['full_nr'] }})
+                            @endif
                         </button>
                     </form>
                 @endforeach
@@ -54,6 +56,7 @@
         <thead>
             <tr>
                 <th>ID</th>
+                <th>Z účtu</th>
                 <th>Vytvořeno</th>
                 <th>Cílový účet</th>
                 <th>Příjemce</th>
@@ -71,6 +74,7 @@
                     <td>
                         <a href="{{ route('outgoing_payments.show', $payment->id) }}">{{ $payment->id }}</a>
                     </td>
+                    <td>{{ $payment->bankAccount?->name }} ({{ $payment->bankAccount?->full_account_number }})</td>
                     <td>{{ $payment->created_at->format('d.m.Y') }}</td>
                     <td>{{ $payment->target_account }}</td>
                     <td>{{ $payment->target_name ?: '—' }}</td>

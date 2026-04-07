@@ -72,6 +72,8 @@ Route::middleware('auth')->group(function () {
 
     Route::get('bank-transfers/unidentified', [BankTransferController::class, 'showUnidentified'])
         ->name('bank_transfers.unidentified');
+    Route::get('bank-transfers/{id}/refund',  [BankTransferController::class, 'refundForm'])->name('bank-transfers.refund.form');
+    Route::post('bank-transfers/{id}/refund', [BankTransferController::class, 'refundStore'])->name('bank-transfers.refund.store');
     Route::get('bank-transfers/account/{bankAccountId}', [BankTransferController::class, 'showByBankAccount'])
         ->name('bank_transfers.by_account');
 

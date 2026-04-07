@@ -6,6 +6,7 @@ use App\Models\BankAccount;
 use App\Models\BankStatement;
 use App\Models\BankTransfer;
 use App\Models\Member;
+use App\Models\OutgoingPayment;
 use App\Models\Setting;
 use App\Models\VariableSymbol;
 use App\Models\Transfer;
@@ -261,7 +262,23 @@ class ImportController extends Controller
                 } else {
                     // Incoming (regular or cash deposit)
                     $bt->destination_id = $account->id;
-                    $bt->origin_id      = null;
+
+                    // Kohana pattern: findOrCreate counterpart bank_account by account_nr + bank_nr
+                    if (!empty($row['protiucet']) && !empty($row['kod_banky'])) {
+                        $counterpart = BankAccount::firstOrCreate(
+                            [
+                                'account_nr' => $row['protiucet'],
+                                'bank_nr'    => $row['kod_banky'],
+                            ],
+                            [
+                                'name'      => $row['nazev_protiuctu'] ?? ($row['protiucet'] . '/' . $row['kod_banky']),
+                                'member_id' => null,
+                            ]
+                        );
+                        $bt->origin_id = $counterpart->id;
+                    } else {
+                        $bt->origin_id = null;
+                    }
 
                     // 'Vklad pokladnou' uses the cash account as origin; all others use member_fees
                     $incomingOriginId = (($row['typ'] ?? '') === 'Vklad pokladnou') ? $cashId : $memberFeesId;
@@ -317,6 +334,58 @@ class ImportController extends Controller
 
                 $bt->save();
                 $imported++;
+
+                // Outgoing transfers always belong to the organization (member_id=1)
+                // so they don't appear in unidentified transfers list
+                if (!$isIncoming && $bt->transfer_id) {
+                    DB::table('transfers')
+                        ->where('id', $bt->transfer_id)
+                        ->update(['member_id' => 1]);
+                }
+
+                // Reconcile outgoing payments: match by OP #id in identifikace field (Kohana-compatible)
+                if (!$isIncoming) {
+                    $opId = null;
+                    $identifikace = $row['identifikace'] ?? $row['zprava'] ?? '';
+                    if ($identifikace !== '' && preg_match('~\bOP\s*#\s*([0-9]+)\b~i', $identifikace, $m)) {
+                        $opId = (int) $m[1];
+                    }
+
+                    $match = null;
+                    if ($opId) {
+                        // Primary: match by OP id + bank_account + amount validation
+                        $match = OutgoingPayment::where('id', $opId)
+                            ->where('bank_account_id', $account->id)
+                            ->whereIn('status', [
+                                OutgoingPayment::STATUS_EXPORTED,
+                                OutgoingPayment::STATUS_APPROVED,
+                            ])
+                            ->whereRaw('ABS(amount - ?) <= 0.01', [$absAmount])
+                            ->first();
+                    }
+
+                    if ($match) {
+                        $match->update([
+                            'status'           => OutgoingPayment::STATUS_PAID,
+                            'paid_at'          => now(),
+                            'paid_transfer_id' => $bt->id,
+                            'match_method'     => 'op_id',
+                        ]);
+
+                        // Update comment on original unidentified bank_transfer
+                        if ($match->transfer_id) {
+                            BankTransfer::where('transfer_id', $match->transfer_id)
+                                ->update(['comment' => DB::raw(
+                                    "CONCAT(COALESCE(comment, ''), ' | Vráceno – platba potvrzena')"
+                                )]);
+
+                            // Remove from unidentified list
+                            DB::table('transfers')
+                                ->where('id', $match->transfer_id)
+                                ->update(['member_id' => 1]);
+                        }
+                    }
+                }
 
                 // Update postImport with actual bt->id
                 if (!empty($postImport) && $matchedMemberId) {
