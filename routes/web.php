@@ -132,13 +132,17 @@ Route::middleware('auth')->group(function () {
     Route::get('settings',    [SettingController::class, 'index'])->name('settings.index');
     Route::put('settings',    [SettingController::class, 'update'])->name('settings.update');
 
-    Route::get('aro-groups',              [AroGroupController::class, 'index'])->name('aro-groups.index');
-    Route::get('aro-groups/create',       [AroGroupController::class, 'create'])->name('aro-groups.create');
-    Route::post('aro-groups',             [AroGroupController::class, 'store'])->name('aro-groups.store');
-    Route::get('aro-groups/{id}',         [AroGroupController::class, 'show'])->name('aro-groups.show');
-    Route::get('aro-groups/{id}/edit',    [AroGroupController::class, 'edit'])->name('aro-groups.edit');
-    Route::put('aro-groups/{id}',         [AroGroupController::class, 'update'])->name('aro-groups.update');
-    Route::delete('aro-groups/{id}',      [AroGroupController::class, 'destroy'])->name('aro-groups.destroy');
+    Route::get('aro-groups',                          [AroGroupController::class, 'index'])->name('aro-groups.index');
+    Route::get('aro-groups/create',                   [AroGroupController::class, 'create'])->name('aro-groups.create');
+    Route::post('aro-groups',                         [AroGroupController::class, 'store'])->name('aro-groups.store');
+    Route::get('aro-groups/{id}',                     [AroGroupController::class, 'show'])->name('aro-groups.show');
+    Route::get('aro-groups/{id}/edit',                [AroGroupController::class, 'edit'])->name('aro-groups.edit');
+    Route::put('aro-groups/{id}',                     [AroGroupController::class, 'update'])->name('aro-groups.update');
+    Route::delete('aro-groups/{id}',                  [AroGroupController::class, 'destroy'])->name('aro-groups.destroy');
+    Route::post('aro-groups/{id}/users',              [AroGroupController::class, 'addUser'])->name('aro-groups.add-user');
+    Route::delete('aro-groups/{id}/users/{userId}',   [AroGroupController::class, 'removeUser'])->name('aro-groups.remove-user');
+    Route::post('aro-groups/{id}/acls',               [AroGroupController::class, 'addAcl'])->name('aro-groups.add-acl');
+    Route::delete('aro-groups/{id}/acls/{aclId}',     [AroGroupController::class, 'removeAcl'])->name('aro-groups.remove-acl');
 
     Route::post('speed-classes/{id}/set-default/{type}', [SpeedClassController::class, 'setDefault'])
         ->name('speed_classes.set_default');

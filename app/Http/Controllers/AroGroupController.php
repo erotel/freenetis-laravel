@@ -59,7 +59,21 @@ class AroGroupController extends Controller
             ->orderBy('users.login')
             ->get();
 
-        return view('aro_groups.show', compact('group', 'aclRules', 'users'));
+        $assignedUserIds = $users->pluck('id')->toArray();
+        $allUsers = DB::table('users')
+            ->whereNotIn('id', $assignedUserIds)
+            ->select('id', 'login')
+            ->orderBy('login')
+            ->get();
+
+        $assignedAclIds = $aclRules->keys()->toArray();
+        $allAcls = DB::table('acl')
+            ->whereNotIn('id', $assignedAclIds)
+            ->select('id', 'note')
+            ->orderBy('id')
+            ->get();
+
+        return view('aro_groups.show', compact('group', 'aclRules', 'users', 'allUsers', 'allAcls'));
     }
 
     public function create()
@@ -83,7 +97,7 @@ class AroGroupController extends Controller
             'parent_id' => $validated['parent_id'],
             'lft'       => 0,
             'rgt'       => 0,
-            'value'     => null,
+            'value'     => strtolower(str_replace(' ', '_', $validated['name'])),
         ]);
 
         return redirect()->route('aro-groups.index')
@@ -134,6 +148,80 @@ class AroGroupController extends Controller
 
         return redirect()->route('aro-groups.index')
             ->with('success', 'Skupina byla smazána.');
+    }
+
+    public function addUser(Request $request, int $id)
+    {
+        abort_unless($this->can('edit_all'), 403);
+
+        $validated = $request->validate([
+            'user_id' => 'required|integer|exists:users,id',
+        ]);
+
+        $exists = DB::table('groups_aro_map')
+            ->where('group_id', $id)
+            ->where('aro_id', $validated['user_id'])
+            ->exists();
+
+        if (!$exists) {
+            DB::table('groups_aro_map')->insert([
+                'group_id' => $id,
+                'aro_id'   => $validated['user_id'],
+            ]);
+        }
+
+        return redirect()->route('aro-groups.show', $id)
+            ->with('success', 'Uživatel byl přidán do skupiny.');
+    }
+
+    public function removeUser(int $id, int $userId)
+    {
+        abort_unless($this->can('edit_all'), 403);
+
+        DB::table('groups_aro_map')
+            ->where('group_id', $id)
+            ->where('aro_id', $userId)
+            ->delete();
+
+        return redirect()->route('aro-groups.show', $id)
+            ->with('success', 'Uživatel byl odebrán ze skupiny.');
+    }
+
+    public function addAcl(Request $request, int $id)
+    {
+        abort_unless($this->can('edit_all'), 403);
+
+        $validated = $request->validate([
+            'acl_id' => 'required|integer|exists:acl,id',
+        ]);
+
+        $exists = DB::table('aro_groups_map')
+            ->where('group_id', $id)
+            ->where('acl_id', $validated['acl_id'])
+            ->exists();
+
+        if (!$exists) {
+            DB::table('aro_groups_map')->insert([
+                'group_id' => $id,
+                'acl_id'   => $validated['acl_id'],
+            ]);
+        }
+
+        return redirect()->route('aro-groups.show', $id)
+            ->with('success', 'ACL pravidlo bylo přiřazeno skupině.');
+    }
+
+    public function removeAcl(int $id, int $aclId)
+    {
+        abort_unless($this->can('edit_all'), 403);
+
+        DB::table('aro_groups_map')
+            ->where('group_id', $id)
+            ->where('acl_id', $aclId)
+            ->delete();
+
+        return redirect()->route('aro-groups.show', $id)
+            ->with('success', 'ACL pravidlo bylo odebráno skupině.');
     }
 
     private function buildTree($groups, $parentId = null, $depth = 0): array
