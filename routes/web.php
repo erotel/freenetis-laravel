@@ -132,6 +132,12 @@ Route::middleware('auth')->group(function () {
     Route::get('settings',    [SettingController::class, 'index'])->name('settings.index');
     Route::put('settings',    [SettingController::class, 'update'])->name('settings.update');
 
+    Route::get('acl/create',       [AroGroupController::class, 'aclCreate'])->name('acl.create');
+    Route::post('acl',             [AroGroupController::class, 'aclStore'])->name('acl.store');
+    Route::get('acl/{id}/edit',    [AroGroupController::class, 'aclEdit'])->name('acl.edit');
+    Route::put('acl/{id}',         [AroGroupController::class, 'aclUpdate'])->name('acl.update');
+    Route::delete('acl/{id}',      [AroGroupController::class, 'aclDestroy'])->name('acl.destroy');
+
     Route::get('aro-groups',                          [AroGroupController::class, 'index'])->name('aro-groups.index');
     Route::get('aro-groups/create',                   [AroGroupController::class, 'create'])->name('aro-groups.create');
     Route::post('aro-groups',                         [AroGroupController::class, 'store'])->name('aro-groups.store');

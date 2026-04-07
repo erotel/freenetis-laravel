@@ -224,6 +224,139 @@ class AroGroupController extends Controller
             ->with('success', 'ACL pravidlo bylo odebráno skupině.');
     }
 
+    private function aclFormData(): array
+    {
+        $actions = ['view_all', 'edit_all', 'new_all', 'delete_all',
+                    'view_own', 'edit_own', 'new_own', 'delete_own'];
+
+        $axo = DB::table('axo')
+            ->orderBy('section_value')
+            ->orderBy('name')
+            ->get(['id', 'section_value', 'value', 'name']);
+
+        $groups = AroGroup::orderBy('lft')->get(['id', 'name']);
+
+        return compact('actions', 'axo', 'groups');
+    }
+
+    public function aclCreate()
+    {
+        abort_unless($this->can('new_all'), 403);
+        return view('aro_groups.acl_form', $this->aclFormData() + ['acl' => null, 'selected' => []]);
+    }
+
+    public function aclStore(Request $request)
+    {
+        abort_unless($this->can('new_all'), 403);
+
+        $validated = $request->validate([
+            'note'        => 'required|string|max:255',
+            'actions'     => 'required|array|min:1',
+            'actions.*'   => 'string',
+            'axo_ids'     => 'required|array|min:1',
+            'axo_ids.*'   => 'integer|exists:axo,id',
+            'group_ids'   => 'nullable|array',
+            'group_ids.*' => 'integer|exists:aro_groups,id',
+        ]);
+
+        $aclId = DB::table('acl')->insertGetId(['note' => $validated['note']]);
+
+        foreach ($validated['actions'] as $action) {
+            DB::table('aco_map')->insert(['acl_id' => $aclId, 'value' => $action]);
+        }
+
+        $axoRows = DB::table('axo')->whereIn('id', $validated['axo_ids'])->get(['section_value', 'value']);
+        foreach ($axoRows as $axo) {
+            DB::table('axo_map')->insert([
+                'acl_id'        => $aclId,
+                'section_value' => $axo->section_value,
+                'value'         => $axo->value,
+            ]);
+        }
+
+        foreach ($validated['group_ids'] ?? [] as $groupId) {
+            DB::table('aro_groups_map')->insert(['acl_id' => $aclId, 'group_id' => $groupId]);
+        }
+
+        return redirect()->route('aro-groups.index')
+            ->with('success', 'ACL pravidlo bylo vytvořeno.');
+    }
+
+    public function aclEdit(int $id)
+    {
+        abort_unless($this->can('edit_all'), 403);
+
+        $acl = DB::table('acl')->where('id', $id)->first();
+        abort_if($acl === null, 404);
+
+        $selected = [
+            'actions'   => DB::table('aco_map')->where('acl_id', $id)->pluck('value')->toArray(),
+            'axo_ids'   => DB::table('axo')
+                ->join('axo_map', function ($j) use ($id) {
+                    $j->on('axo.section_value', '=', 'axo_map.section_value')
+                      ->on('axo.value', '=', 'axo_map.value')
+                      ->where('axo_map.acl_id', $id);
+                })
+                ->pluck('axo.id')->toArray(),
+            'group_ids' => DB::table('aro_groups_map')->where('acl_id', $id)->pluck('group_id')->toArray(),
+        ];
+
+        return view('aro_groups.acl_form', $this->aclFormData() + compact('acl', 'selected'));
+    }
+
+    public function aclUpdate(Request $request, int $id)
+    {
+        abort_unless($this->can('edit_all'), 403);
+
+        $validated = $request->validate([
+            'note'        => 'required|string|max:255',
+            'actions'     => 'required|array|min:1',
+            'actions.*'   => 'string',
+            'axo_ids'     => 'required|array|min:1',
+            'axo_ids.*'   => 'integer|exists:axo,id',
+            'group_ids'   => 'nullable|array',
+            'group_ids.*' => 'integer|exists:aro_groups,id',
+        ]);
+
+        DB::table('acl')->where('id', $id)->update(['note' => $validated['note']]);
+
+        DB::table('aco_map')->where('acl_id', $id)->delete();
+        foreach ($validated['actions'] as $action) {
+            DB::table('aco_map')->insert(['acl_id' => $id, 'value' => $action]);
+        }
+
+        DB::table('axo_map')->where('acl_id', $id)->delete();
+        $axoRows = DB::table('axo')->whereIn('id', $validated['axo_ids'])->get(['section_value', 'value']);
+        foreach ($axoRows as $axo) {
+            DB::table('axo_map')->insert([
+                'acl_id'        => $id,
+                'section_value' => $axo->section_value,
+                'value'         => $axo->value,
+            ]);
+        }
+
+        DB::table('aro_groups_map')->where('acl_id', $id)->delete();
+        foreach ($validated['group_ids'] ?? [] as $groupId) {
+            DB::table('aro_groups_map')->insert(['acl_id' => $id, 'group_id' => $groupId]);
+        }
+
+        return redirect()->route('aro-groups.index')
+            ->with('success', 'ACL pravidlo bylo upraveno.');
+    }
+
+    public function aclDestroy(int $id)
+    {
+        abort_unless($this->can('delete_all'), 403);
+
+        DB::table('aco_map')->where('acl_id', $id)->delete();
+        DB::table('axo_map')->where('acl_id', $id)->delete();
+        DB::table('aro_groups_map')->where('acl_id', $id)->delete();
+        DB::table('acl')->where('id', $id)->delete();
+
+        return redirect()->route('aro-groups.index')
+            ->with('success', 'ACL pravidlo bylo smazáno.');
+    }
+
     private function buildTree($groups, $parentId = null, $depth = 0): array
     {
         $tree = [];

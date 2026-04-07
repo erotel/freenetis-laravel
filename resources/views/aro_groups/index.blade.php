@@ -16,6 +16,8 @@
 
     <div style="margin-bottom:1em;">
         <a href="{{ route('aro-groups.create') }}">+ Přidat skupinu</a>
+        &nbsp;|&nbsp;
+        <a href="{{ route('acl.create') }}">+ Přidat ACL pravidlo</a>
     </div>
 
     <table class="extended" cellspacing="0">

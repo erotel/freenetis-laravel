@@ -94,10 +94,17 @@
                             @endif
                             <td>{{ $row->section }} / {{ $row->resource }}</td>
                             @if($i === 0)
-                                <td rowspan="{{ count($rows) }}">
+                                <td rowspan="{{ count($rows) }}" style="white-space:nowrap;">
+                                    <a href="{{ route('acl.edit', $aclId) }}">Upravit</a>
+                                    |
                                     <form method="POST" action="{{ route('aro-groups.remove-acl', [$group->id, $aclId]) }}" style="display:inline">
                                         @csrf @method('DELETE')
                                         <button type="submit" onclick="return confirm('Odebrat ACL pravidlo skupině?')">Odebrat</button>
+                                    </form>
+                                    |
+                                    <form method="POST" action="{{ route('acl.destroy', $aclId) }}" style="display:inline">
+                                        @csrf @method('DELETE')
+                                        <button type="submit" onclick="return confirm('Smazat ACL pravidlo {{ $aclId }} úplně?')">Smazat</button>
                                     </form>
                                 </td>
                             @endif
