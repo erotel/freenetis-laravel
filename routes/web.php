@@ -24,6 +24,7 @@ use App\Http\Controllers\VlanController;
 use App\Http\Controllers\StreetController;
 use App\Http\Controllers\TownController;
 use App\Http\Controllers\UserController;
+use App\Http\Controllers\AroGroupController;
 use App\Http\Controllers\SpeedClassController;
 use App\Http\Controllers\AllowedSubnetController;
 use Illuminate\Support\Facades\Route;
@@ -130,6 +131,14 @@ Route::middleware('auth')->group(function () {
 
     Route::get('settings',    [SettingController::class, 'index'])->name('settings.index');
     Route::put('settings',    [SettingController::class, 'update'])->name('settings.update');
+
+    Route::get('aro-groups',              [AroGroupController::class, 'index'])->name('aro-groups.index');
+    Route::get('aro-groups/create',       [AroGroupController::class, 'create'])->name('aro-groups.create');
+    Route::post('aro-groups',             [AroGroupController::class, 'store'])->name('aro-groups.store');
+    Route::get('aro-groups/{id}',         [AroGroupController::class, 'show'])->name('aro-groups.show');
+    Route::get('aro-groups/{id}/edit',    [AroGroupController::class, 'edit'])->name('aro-groups.edit');
+    Route::put('aro-groups/{id}',         [AroGroupController::class, 'update'])->name('aro-groups.update');
+    Route::delete('aro-groups/{id}',      [AroGroupController::class, 'destroy'])->name('aro-groups.destroy');
 
     Route::post('speed-classes/{id}/set-default/{type}', [SpeedClassController::class, 'setDefault'])
         ->name('speed_classes.set_default');
