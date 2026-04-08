@@ -16,3 +16,6 @@ Schedule::command('pohoda:export-monthly')->monthlyOn(1, '06:00');
 
 // Deduct member/entrance/device fees daily at 00:03 (skips unless today matches deduct_day)
 Schedule::command('fees:deduct')->dailyAt('00:03');
+
+// Activate debtor/payment-notice notifications every minute (rules filter by day/hour internally)
+Schedule::command('notifications:activate')->everyMinute();
