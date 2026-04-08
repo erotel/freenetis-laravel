@@ -28,6 +28,7 @@ use App\Http\Controllers\AroGroupController;
 use App\Http\Controllers\SpeedClassController;
 use App\Http\Controllers\AllowedSubnetController;
 use App\Http\Controllers\EnumTypeController;
+use App\Http\Controllers\MessageController;
 use Illuminate\Support\Facades\Route;
 
 // Login / logout
@@ -171,6 +172,16 @@ Route::middleware('auth')->group(function () {
 
     Route::get('login-logs', [LoginLogController::class, 'index'])->name('login_logs.index');
     Route::get('login-logs/user/{userId}', [LoginLogController::class, 'showByUser'])->name('login_logs.by_user');
+
+    Route::get('messages', [MessageController::class, 'index'])->name('messages.index');
+    Route::get('messages/create', [MessageController::class, 'create'])->name('messages.create');
+    Route::post('messages', [MessageController::class, 'store'])->name('messages.store');
+    Route::get('messages/{id}', [MessageController::class, 'show'])->name('messages.show');
+    Route::get('messages/{id}/edit', [MessageController::class, 'edit'])->name('messages.edit');
+    Route::put('messages/{id}', [MessageController::class, 'update'])->name('messages.update');
+    Route::delete('messages/{id}', [MessageController::class, 'destroy'])->name('messages.destroy');
+    Route::post('messages/{id}/activate', [MessageController::class, 'activate'])->name('messages.activate');
+    Route::delete('messages/{id}/deactivate/{ipAddressId}', [MessageController::class, 'deactivate'])->name('messages.deactivate');
 
     Route::get('enum-types', [EnumTypeController::class, 'index'])->name('enum-types.index');
     Route::get('enum-types/create', [EnumTypeController::class, 'create'])->name('enum-types.create');

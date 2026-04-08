@@ -49,6 +49,7 @@ class FreenetisMenu extends Component
                 ['url' => route('fees.index'), 'path' => 'fees', 'label' => 'Tarify', 'acl' => ['view_all', 'Fees_Controller', 'fees']],
                 ['url' => route('speed_classes.index'), 'path' => 'speed-classes', 'label' => 'Třídy rychlosti', 'acl' => ['view_all', 'Speed_classes_Controller', 'speed_classes']],
                 ['url' => route('enum-types.index'), 'path' => 'enum-types', 'label' => 'Typy', 'acl' => ['view_all', 'Settings_Controller', 'enum_types']],
+                ['url' => route('messages.index'), 'path' => 'messages', 'label' => 'Zprávy', 'acl' => ['view_all', 'Messages_Controller', 'messages']],
             ]],
         ];
 
