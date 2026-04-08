@@ -7,13 +7,6 @@
 @section('content')
     <h2>Nastavení</h2>
 
-    @if(session('success'))
-        <div class="message success">{{ session('success') }}</div>
-    @endif
-    @if(session('error'))
-        <div class="message error">{{ session('error') }}</div>
-    @endif
-
     {{-- Tabs --}}
     <div style="margin-bottom:1em; border-bottom:2px solid #c00;">
         <a href="{{ route('settings.index', ['tab' => 'banka']) }}"
