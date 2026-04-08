@@ -185,17 +185,19 @@
                     {{ number_format($creditAccount->balance, 2, ',', ' ') }} Kč
                 </td>
             </tr>
-            @if($activeMemberFee)
             <tr>
                 <th>Měsíční platba</th>
                 <td>
-                    {{ number_format($activeMemberFee->fee->fee, 2, ',', ' ') }} Kč
-                    @if($activeMemberFee->member_id == 1)
-                    <small style="color:#999">(výchozí)</small>
+                    @if($activeMemberFee && $activeMemberFee->fee)
+                        {{ number_format($activeMemberFee->fee->fee, 2, ',', ' ') }} Kč
+                        @if(!App\Models\MemberFee::where('member_id', $member->id)->active()->exists())
+                            <small style="color:#888;">(výchozí)</small>
+                        @endif
+                    @else
+                        <span style="color:#888;">—</span>
                     @endif
                 </td>
             </tr>
-            @endif
             @if($canViewQos && $member->speedClass)
             <tr>
                 <th colspan="2" style="background:#e8e8e8; padding-top:6px;">QoS</th>

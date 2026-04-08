@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\Fee;
 use App\Models\Member;
 use App\Models\MemberFee;
+use App\Models\Setting;
 use App\Services\AclService;
 use Illuminate\Http\Request;
 
@@ -33,11 +34,26 @@ class MemberFeeController extends Controller
             ->get()
             ->groupBy(fn($mf) => $mf->fee->type_id);
 
-        // For fee types the member has no entries, get default from member_id=1
-        $defaultFees = MemberFee::where('member_id', Member::ASSOCIATION)
-            ->with('fee.enumType')
-            ->get()
-            ->groupBy(fn($mf) => $mf->fee->type_id);
+        // Get default fee from config for this member type
+        $configKey    = 'default_fee_member_type_' . $member->type;
+        $defaultFeeId = (int) Setting::get($configKey, 0);
+
+        $defaultFees = collect();
+        if ($defaultFeeId) {
+            $defaultFee = Fee::find($defaultFeeId);
+            if ($defaultFee) {
+                $virtualMf = new MemberFee([
+                    'fee_id'            => $defaultFee->id,
+                    'member_id'         => 1,
+                    'activation_date'   => $defaultFee->from,
+                    'deactivation_date' => $defaultFee->to,
+                    'priority'          => 0,
+                    'comment'           => '',
+                ]);
+                $virtualMf->setRelation('fee', $defaultFee);
+                $defaultFees = collect([$virtualMf])->groupBy(fn($mf) => $mf->fee->type_id);
+            }
+        }
 
         $typeLabels = Fee::typeLabels();
 

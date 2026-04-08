@@ -126,10 +126,18 @@ class MemberController extends Controller
             ? $mainUser->contacts()->with('enumType')->get()
             : collect();
 
-        // Active regular fee — member-specific, fall back to association defaults (member_id=1)
+        // Active regular fee — member-specific, then config-based default by member type
         $activeMemberFee = MemberFee::where('member_id', $member->id)->active()->with('fee')->first();
         if (!$activeMemberFee) {
-            $activeMemberFee = MemberFee::where('member_id', Member::ASSOCIATION)->active()->with('fee')->first();
+            $configKey    = 'default_fee_member_type_' . $member->type;
+            $defaultFeeId = (int) \App\Models\Setting::get($configKey, 0);
+            if ($defaultFeeId) {
+                $defaultFee = \App\Models\Fee::find($defaultFeeId);
+                if ($defaultFee) {
+                    $activeMemberFee = new \App\Models\MemberFee();
+                    $activeMemberFee->setRelation('fee', $defaultFee);
+                }
+            }
         }
 
         return view('members.show', [
