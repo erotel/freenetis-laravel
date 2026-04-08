@@ -27,6 +27,7 @@ use App\Http\Controllers\UserController;
 use App\Http\Controllers\AroGroupController;
 use App\Http\Controllers\SpeedClassController;
 use App\Http\Controllers\AllowedSubnetController;
+use App\Http\Controllers\EnumTypeController;
 use Illuminate\Support\Facades\Route;
 
 // Login / logout
@@ -169,6 +170,13 @@ Route::middleware('auth')->group(function () {
 
     Route::get('login-logs', [LoginLogController::class, 'index'])->name('login_logs.index');
     Route::get('login-logs/user/{userId}', [LoginLogController::class, 'showByUser'])->name('login_logs.by_user');
+
+    Route::get('enum-types', [EnumTypeController::class, 'index'])->name('enum-types.index');
+    Route::get('enum-types/create', [EnumTypeController::class, 'create'])->name('enum-types.create');
+    Route::post('enum-types', [EnumTypeController::class, 'store'])->name('enum-types.store');
+    Route::get('enum-types/{id}/edit', [EnumTypeController::class, 'edit'])->name('enum-types.edit');
+    Route::put('enum-types/{id}', [EnumTypeController::class, 'update'])->name('enum-types.update');
+    Route::delete('enum-types/{id}', [EnumTypeController::class, 'destroy'])->name('enum-types.destroy');
 
     Route::get('users/{userId}/contacts',                 [ContactController::class, 'showByUser'])->name('contacts.show_by_user');
     Route::get('users/{userId}/contacts/create',          [ContactController::class, 'create'])->name('contacts.create');

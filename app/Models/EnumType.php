@@ -15,4 +15,9 @@ class EnumType extends Model
 
     /** type_id grouping all device types */
     const DEVICE_GROUP_ID = 2;
+
+    public function typeName(): \Illuminate\Database\Eloquent\Relations\BelongsTo
+    {
+        return $this->belongsTo(EnumTypeName::class, 'type_id');
+    }
 }
