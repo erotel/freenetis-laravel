@@ -17,12 +17,6 @@ class SendEmailQueue extends Command
     protected $signature   = 'email:send-queue';
     protected $description = 'Send queued emails from email_queues table';
 
-    // BCC rules: if subject starts with key → BCC to value
-    private const BCC_RULES = [
-        'Faktura '  => 'ucdokl@pvfree.net',
-        'Vratka '   => 'ucdokl@pvfree.net',
-    ];
-
     public function handle(): int
     {
         $emails = EmailQueue::with('attachments')
@@ -55,7 +49,8 @@ class SendEmailQueue extends Command
                     ->html($queued->body)
                     ->text($this->htmlToText($queued->body));
 
-                foreach (self::BCC_RULES as $prefix => $bcc) {
+                // BCC rules — loaded dynamically from config table
+                foreach ($this->loadBccRules() as $prefix => $bcc) {
                     if (str_starts_with($queued->subject, $prefix)) {
                         $email->addBcc($bcc);
                         break;
@@ -92,6 +87,20 @@ class SendEmailQueue extends Command
 
         $this->info("Done: {$sent} sent, {$failed} failed.");
         return $failed > 0 ? 1 : 0;
+    }
+
+    /** Load BCC rules from config table (set via Settings → Email tab). */
+    private function loadBccRules(): array
+    {
+        $rules = [];
+        for ($i = 0; $i < 10; $i++) {
+            $subject = Setting::get('email_bcc_rule_' . $i . '_subject', '');
+            $address = Setting::get('email_bcc_rule_' . $i . '_address', '');
+            if ($subject !== '' && $address !== '') {
+                $rules[$subject] = $address;
+            }
+        }
+        return $rules;
     }
 
     private function buildMailer(): Mailer
