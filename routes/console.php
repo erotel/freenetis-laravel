@@ -22,3 +22,12 @@ Schedule::command('notifications:activate')->everyMinute();
 
 // Update allowed subnets redirections every hour (skips unless enabled in settings)
 Schedule::command('subnets:update-allowed')->everyMinute();
+
+// Mark expired members as former, remove devices, activate redirect at 00:09
+Schedule::command('members:redirect-former')->dailyAt('00:09');
+
+// Activate redirect for interrupted members at 00:09 (skips unless membership_interrupt_enabled)
+Schedule::command('members:redirect-interrupted')->dailyAt('00:09');
+
+// Activate redirect for applicants with expired connection test (skips unless duration configured)
+Schedule::command('members:redirect-expired-applicants')->hourly();
