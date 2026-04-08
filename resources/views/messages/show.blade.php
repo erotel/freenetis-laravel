@@ -9,6 +9,12 @@
 @section('content')
     <h2>Zpráva: {{ $message->name }}</h2>
 
+    @if(in_array($message->type, [5, 6, 25, 26]))
+        <p>
+            <a href="{{ route('message-auto-settings.index', $message->id) }}">⚙ Automatická aktivace</a>
+        </p>
+    @endif
+
     <p>
         <a href="{{ route('messages.edit', $message->id) }}">Upravit</a>
         @if(!$message->isSystem())
@@ -35,6 +41,12 @@
             <tr><th style="vertical-align:top">Text SMS</th><td>{{ $message->sms_text }}</td></tr>
         @endif
     </table>
+
+    @if(in_array($message->type, [5, 6, 25, 26]))
+        <p style="margin-top:1em;">
+            <a href="{{ route('message-auto-settings.index', $message->id) }}">⚙ Nastavení automatické aktivace</a>
+        </p>
+    @endif
 
     <h3 style="margin-top:1.5em;">Aktivní IP adresy</h3>
     @if($activeIps->isEmpty())

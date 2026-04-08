@@ -29,6 +29,9 @@
                     <td>
                         <a href="{{ route('messages.show', $msg->id) }}">Detail</a>
                         | <a href="{{ route('messages.edit', $msg->id) }}">Upravit</a>
+                        @if(in_array($msg->type, [5, 6, 25, 26]))
+                            | <a href="{{ route('message-auto-settings.index', $msg->id) }}" title="Automatická aktivace">⚙</a>
+                        @endif
                         | <form method="POST" action="{{ route('messages.destroy', $msg->id) }}" style="display:inline">
                             @csrf @method('DELETE')
                             <button type="submit" onclick="return confirm('Smazat zprávu?')">Smazat</button>
@@ -62,6 +65,9 @@
                     <td>
                         <a href="{{ route('messages.show', $msg->id) }}">Detail</a>
                         | <a href="{{ route('messages.edit', $msg->id) }}">Upravit</a>
+                        @if(in_array($msg->type, [5, 6, 25, 26]))
+                            | <a href="{{ route('message-auto-settings.index', $msg->id) }}" title="Automatická aktivace">⚙</a>
+                        @endif
                     </td>
                 </tr>
             @endforeach

@@ -28,6 +28,7 @@ use App\Http\Controllers\AroGroupController;
 use App\Http\Controllers\SpeedClassController;
 use App\Http\Controllers\AllowedSubnetController;
 use App\Http\Controllers\EnumTypeController;
+use App\Http\Controllers\MessageAutoSettingController;
 use App\Http\Controllers\MessageController;
 use Illuminate\Support\Facades\Route;
 
@@ -183,6 +184,13 @@ Route::middleware('auth')->group(function () {
     Route::delete('messages/{id}', [MessageController::class, 'destroy'])->name('messages.destroy');
     Route::post('messages/{id}/activate', [MessageController::class, 'activate'])->name('messages.activate');
     Route::delete('messages/{id}/deactivate/{ipAddressId}', [MessageController::class, 'deactivate'])->name('messages.deactivate');
+
+    Route::get('messages/{messageId}/auto-settings',          [MessageAutoSettingController::class, 'index'])->name('message-auto-settings.index');
+    Route::get('messages/{messageId}/auto-settings/create',  [MessageAutoSettingController::class, 'create'])->name('message-auto-settings.create');
+    Route::post('messages/{messageId}/auto-settings',        [MessageAutoSettingController::class, 'store'])->name('message-auto-settings.store');
+    Route::get('messages/{messageId}/auto-settings/{id}/edit', [MessageAutoSettingController::class, 'edit'])->name('message-auto-settings.edit');
+    Route::put('messages/{messageId}/auto-settings/{id}',    [MessageAutoSettingController::class, 'update'])->name('message-auto-settings.update');
+    Route::delete('messages/{messageId}/auto-settings/{id}', [MessageAutoSettingController::class, 'destroy'])->name('message-auto-settings.destroy');
 
     Route::get('enum-types', [EnumTypeController::class, 'index'])->name('enum-types.index');
     Route::get('enum-types/create', [EnumTypeController::class, 'create'])->name('enum-types.create');
