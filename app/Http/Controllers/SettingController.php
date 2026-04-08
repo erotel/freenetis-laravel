@@ -31,6 +31,8 @@ class SettingController extends Controller
         'deduct_fees_automatically_enabled',
         'deduct_day',
         'finance_enabled',
+        'default_fee_member_type_2',   // zákazník (type 2) - default fee_id
+        'default_fee_member_type_90',  // člen (type 90) - default fee_id
     ];
 
     public function __construct(private AclService $acl) {}
@@ -108,10 +110,17 @@ class SettingController extends Controller
             $financeSettings[$key] = Setting::get($key, '');
         }
 
+        // Fees for dropdown (only regular member fee type)
+        $feesForSelect = \Illuminate\Support\Facades\DB::table('fees as f')
+            ->join('enum_types as et', 'et.id', '=', 'f.type_id')
+            ->whereRaw("LOWER(et.value) = 'regular member fee'")
+            ->orderBy('f.name')
+            ->get(['f.id', 'f.name', 'f.fee', 'f.from', 'f.to']);
+
         return view('settings.index', compact(
             'bankAccounts', 'memberTypes', 'routing', 'defaultBaId',
             'emailSettings', 'bccRules', 'messages', 'activeTab',
-            'pohodaEmail', 'financeSettings'
+            'pohodaEmail', 'financeSettings', 'feesForSelect'
         ));
     }
 
@@ -186,6 +195,8 @@ class SettingController extends Controller
         Setting::set('deduct_fees_automatically_enabled', $request->boolean('deduct_fees_automatically_enabled') ? 1 : 0);
         Setting::set('deduct_day', $validated['deduct_day']);
         Setting::set('finance_enabled', $request->boolean('finance_enabled') ? 1 : 0);
+        Setting::set('default_fee_member_type_2',  $request->input('default_fee_member_type_2', ''));
+        Setting::set('default_fee_member_type_90', $request->input('default_fee_member_type_90', ''));
 
         return redirect()->route('settings.index', ['tab' => 'finance'])
             ->with('success', 'Nastavení financí bylo uloženo.');

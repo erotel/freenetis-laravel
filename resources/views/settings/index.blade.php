@@ -285,6 +285,38 @@
                     <small style="color:#888;">Den v měsíci (1–31), kdy se automaticky strhávají poplatky.</small>
                 </td>
             </tr>
+            <tr>
+                <th>Výchozí tarif — Zákazník (typ 2)</th>
+                <td>
+                    <select name="default_fee_member_type_2">
+                        <option value="">— nevybráno —</option>
+                        @foreach($feesForSelect as $fee)
+                            <option value="{{ $fee->id }}"
+                                {{ ($financeSettings['default_fee_member_type_2'] ?? '') == $fee->id ? 'selected' : '' }}>
+                                {{ $fee->name }} — {{ number_format($fee->fee, 2, ',', ' ') }} Kč
+                                (od {{ $fee->from }}{{ $fee->to ? ' do ' . $fee->to : ' ∞' }})
+                            </option>
+                        @endforeach
+                    </select>
+                    <small style="color:#888;">Použije se pokud člen nemá individuální tarif.</small>
+                </td>
+            </tr>
+            <tr>
+                <th>Výchozí tarif — Člen (typ 90)</th>
+                <td>
+                    <select name="default_fee_member_type_90">
+                        <option value="">— nevybráno —</option>
+                        @foreach($feesForSelect as $fee)
+                            <option value="{{ $fee->id }}"
+                                {{ ($financeSettings['default_fee_member_type_90'] ?? '') == $fee->id ? 'selected' : '' }}>
+                                {{ $fee->name }} — {{ number_format($fee->fee, 2, ',', ' ') }} Kč
+                                (od {{ $fee->from }}{{ $fee->to ? ' do ' . $fee->to : ' ∞' }})
+                            </option>
+                        @endforeach
+                    </select>
+                    <small style="color:#888;">Použije se pokud člen nemá individuální tarif.</small>
+                </td>
+            </tr>
         </table>
 
         <div style="margin-top:1em;">

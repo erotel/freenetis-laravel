@@ -82,26 +82,26 @@ class DeductFees extends Command
 
     private function deductMemberFees(string $date, int $orgAccount): int
     {
-        // Find default fee: fees table → enum_types where value = 'regular member fee'
-        $defaultFee = DB::table('fees as f')
-            ->join('enum_types as et', 'et.id', '=', 'f.type_id')
-            ->whereRaw("LOWER(et.value) = 'regular member fee'")
-            ->where('f.from', '<=', $date)
-            ->where('f.to', '>=', $date)
-            ->whereNull('f.special_type_id')
-            ->orderByDesc('f.from')
-            ->value('f.fee');
+        // Výchozí poplatek dle nastavení (Settings → Finance), fallback na fees tabulku
+        $defaultFeeIdType2  = (int) Setting::get('default_fee_member_type_2', 0);
+        $defaultFeeIdType90 = (int) Setting::get('default_fee_member_type_90', 0);
 
-        if ($defaultFee === null) {
-            $this->warn('No default member fee found for ' . $date);
-            return 0;
+        $defaultFeeType2  = $defaultFeeIdType2
+            ? (float) DB::table('fees')->where('id', $defaultFeeIdType2)->value('fee')
+            : null;
+        $defaultFeeType90 = $defaultFeeIdType90
+            ? (float) DB::table('fees')->where('id', $defaultFeeIdType90)->value('fee')
+            : null;
+
+        if ($defaultFeeType2 === null && $defaultFeeType90 === null) {
+            $this->warn('Výchozí poplatky nejsou nastaveny v Nastavení → Finance. Používám fallback z tabulky fees.');
         }
 
         // Members_fees per-member override: highest-priority active fee of type 'regular member fee'
         // Idempotency: LEFT JOIN transfers where type=1 and datetime=$date (exact)
         $accounts = DB::select("
-            SELECT a.id AS account_id, a.balance, m.id AS member_id,
-                IF(mf.fee IS NOT NULL, mf.fee, :default_fee) AS fee
+            SELECT a.id AS account_id, a.balance, m.id AS member_id, m.type AS member_type,
+                mf.fee AS individual_fee
             FROM accounts a
             JOIN members m ON a.member_id = m.id
             LEFT JOIN (
@@ -123,14 +123,13 @@ class DeductFees extends Command
               AND (m.leaving_date = '0000-00-00' OR m.leaving_date > :date5)
               AND t.id IS NULL
         ", [
-            'default_fee' => (float)$defaultFee,
-            'date1'       => $date,
-            'date2'       => $date,
-            'type'        => self::TYPE_MEMBER_FEE,
-            'date3'       => $date,
-            'credit'      => self::CREDIT_ACCOUNT,
-            'date4'       => $date,
-            'date5'       => $date,
+            'date1'  => $date,
+            'date2'  => $date,
+            'type'   => self::TYPE_MEMBER_FEE,
+            'date3'  => $date,
+            'credit' => self::CREDIT_ACCOUNT,
+            'date4'  => $date,
+            'date5'  => $date,
         ]);
 
         $count = 0;
@@ -139,14 +138,23 @@ class DeductFees extends Command
         DB::beginTransaction();
         try {
             foreach ($accounts as $account) {
-                $amount = (float)$account->fee;
-                if ($amount <= 0) continue;
+                // Individuální tarif má přednost, pak výchozí dle typu, pak individuální z tabulky fees
+                if ($account->individual_fee !== null) {
+                    $feeAmount = (float)$account->individual_fee;
+                } else {
+                    $feeAmount = match((int)$account->member_type) {
+                        2  => $defaultFeeType2  ?? 0.0,
+                        90 => $defaultFeeType90 ?? 0.0,
+                        default => 0.0,
+                    };
+                }
+                if ($feeAmount <= 0) continue;
 
                 DB::table('transfers')->insert([
                     'origin_id'         => $account->account_id,
                     'destination_id'    => $orgAccount,
                     'type'              => self::TYPE_MEMBER_FEE,
-                    'amount'            => $amount,
+                    'amount'            => $feeAmount,
                     'datetime'          => $date,
                     'creation_datetime' => $creationDatetime,
                     'text'              => 'Automatická srážka členského příspěvku',
@@ -154,7 +162,7 @@ class DeductFees extends Command
                     'user_id'           => null,
                 ]);
 
-                DB::table('accounts')->where('id', $account->account_id)->decrement('balance', $amount);
+                DB::table('accounts')->where('id', $account->account_id)->decrement('balance', $feeAmount);
                 $count++;
             }
 
