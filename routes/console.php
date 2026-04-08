@@ -19,3 +19,6 @@ Schedule::command('fees:deduct')->dailyAt('00:03');
 
 // Activate debtor/payment-notice notifications every minute (rules filter by day/hour internally)
 Schedule::command('notifications:activate')->everyMinute();
+
+// Update allowed subnets redirections every hour (skips unless enabled in settings)
+Schedule::command('subnets:update-allowed')->everyMinute();
