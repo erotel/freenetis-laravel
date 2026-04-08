@@ -64,7 +64,8 @@ class SettingController extends Controller
         }
         unset($rule);
 
-        $defaultBaId = (int) Setting::get(self::KEY_BA_DEFAULT, 0);
+        $defaultBaId  = (int) Setting::get(self::KEY_BA_DEFAULT, 0);
+        $pohodaEmail  = Setting::get('pohoda_accountant_email', '');
 
         // Email settings
         $emailSettings = [];
@@ -96,7 +97,8 @@ class SettingController extends Controller
 
         return view('settings.index', compact(
             'bankAccounts', 'memberTypes', 'routing', 'defaultBaId',
-            'emailSettings', 'bccRules', 'messages', 'activeTab'
+            'emailSettings', 'bccRules', 'messages', 'activeTab',
+            'pohodaEmail'
         ));
     }
 
@@ -119,6 +121,8 @@ class SettingController extends Controller
 
         $defaultBaId = (int) $request->input('default_bank_account_id', 0);
         Setting::set(self::KEY_BA_DEFAULT, $defaultBaId);
+
+        Setting::set('pohoda_accountant_email', $request->input('pohoda_accountant_email', ''));
 
         return redirect()->route('settings.index')->with('success', 'Nastavení bylo uloženo.');
     }

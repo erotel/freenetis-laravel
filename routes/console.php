@@ -10,3 +10,6 @@ Artisan::command('inspire', function () {
 
 // Send queued emails every 5 minutes
 Schedule::command('email:send-queue')->everyFiveMinutes();
+
+// Export invoices + refunds to Pohoda XML on the 1st of each month at 06:00
+Schedule::command('pohoda:export-monthly')->monthlyOn(1, '06:00');

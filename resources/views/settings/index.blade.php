@@ -84,6 +84,20 @@
             </tbody>
         </table>
 
+        <h3 style="margin-top:1.5em;">Pohoda export</h3>
+        <table class="extended" cellspacing="0">
+            <tr>
+                <th>Email účetní (Pohoda export)</th>
+                <td>
+                    <input type="text" name="pohoda_accountant_email"
+                           value="{{ $pohodaEmail }}"
+                           style="width:280px"
+                           placeholder="accountant@example.com">
+                    <small style="color:#888;">Měsíční XML export faktur bude zasílán na tuto adresu.</small>
+                </td>
+            </tr>
+        </table>
+
         <div style="margin-top:1em;">
             <button type="submit">Uložit nastavení banky</button>
         </div>
