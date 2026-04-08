@@ -50,9 +50,9 @@ class SendEmailQueue extends Command
                     ->text($this->htmlToText($queued->body));
 
                 // BCC rules — loaded dynamically from config table
-                foreach ($this->loadBccRules() as $prefix => $bcc) {
-                    if (str_starts_with($queued->subject, $prefix)) {
-                        $email->addBcc($bcc);
+                foreach ($this->loadBccRules() as $rule) {
+                    if (str_contains($queued->subject, $rule['prefix'])) {
+                        $email->addBcc($rule['address']);
                         break;
                     }
                 }
@@ -94,10 +94,10 @@ class SendEmailQueue extends Command
     {
         $rules = [];
         for ($i = 0; $i < 10; $i++) {
-            $subject = Setting::get('email_bcc_rule_' . $i . '_subject', '');
+            $prefix  = Setting::get('email_bcc_rule_' . $i . '_subject_prefix', '');
             $address = Setting::get('email_bcc_rule_' . $i . '_address', '');
-            if ($subject !== '' && $address !== '') {
-                $rules[$subject] = $address;
+            if ($prefix !== '' && $address !== '') {
+                $rules[] = ['prefix' => $prefix, 'address' => $address];
             }
         }
         return $rules;

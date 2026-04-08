@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\BankAccount;
+use App\Models\Message;
 use App\Models\Setting;
 use App\Services\AclService;
 use Illuminate\Http\Request;
@@ -74,22 +75,28 @@ class SettingController extends Controller
         // BCC rules - load up to 10
         $bccRules = [];
         for ($i = 0; $i < 10; $i++) {
-            $subject = Setting::get(self::EMAIL_BCC_PREFIX . $i . '_subject', '');
-            $address = Setting::get(self::EMAIL_BCC_PREFIX . $i . '_address', '');
-            if ($subject !== '' || $address !== '') {
-                $bccRules[] = ['subject' => $subject, 'address' => $address];
+            $messageId     = Setting::get(self::EMAIL_BCC_PREFIX . $i . '_message_id', '');
+            $subjectPrefix = Setting::get(self::EMAIL_BCC_PREFIX . $i . '_subject_prefix', '');
+            $address       = Setting::get(self::EMAIL_BCC_PREFIX . $i . '_address', '');
+            if ($messageId !== '' || $subjectPrefix !== '' || $address !== '') {
+                $bccRules[] = [
+                    'message_id'     => $messageId,
+                    'subject_prefix' => $subjectPrefix,
+                    'address'        => $address,
+                ];
             }
         }
         // Always show at least 3 empty rows for new rules
         while (count($bccRules) < 3) {
-            $bccRules[] = ['subject' => '', 'address' => ''];
+            $bccRules[] = ['message_id' => '', 'subject_prefix' => '', 'address' => ''];
         }
 
+        $messages  = Message::orderBy('name')->get(['id', 'name', 'type']);
         $activeTab = request('tab', 'banka');
 
         return view('settings.index', compact(
             'bankAccounts', 'memberTypes', 'routing', 'defaultBaId',
-            'emailSettings', 'bccRules', 'activeTab'
+            'emailSettings', 'bccRules', 'messages', 'activeTab'
         ));
     }
 
@@ -126,18 +133,23 @@ class SettingController extends Controller
 
         // Clear old BCC rules first
         for ($i = 0; $i < 10; $i++) {
-            Setting::set(self::EMAIL_BCC_PREFIX . $i . '_subject', '');
+            Setting::set(self::EMAIL_BCC_PREFIX . $i . '_message_id', '');
+            Setting::set(self::EMAIL_BCC_PREFIX . $i . '_subject_prefix', '');
             Setting::set(self::EMAIL_BCC_PREFIX . $i . '_address', '');
         }
         // Save new rules (skip fully empty pairs)
-        $subjects  = $request->input('bcc_subject', []);
-        $addresses = $request->input('bcc_address', []);
+        $messageIds      = $request->input('bcc_message_id', []);
+        $subjectPrefixes = $request->input('bcc_subject_prefix', []);
+        $addresses       = $request->input('bcc_address', []);
         $idx = 0;
-        foreach ($subjects as $i => $subject) {
-            $address = $addresses[$i] ?? '';
-            if (trim($subject) !== '' || trim($address) !== '') {
-                Setting::set(self::EMAIL_BCC_PREFIX . $idx . '_subject', trim($subject));
-                Setting::set(self::EMAIL_BCC_PREFIX . $idx . '_address', trim($address));
+        foreach ($addresses as $i => $address) {
+            $address       = trim($address);
+            $subjectPrefix = trim($subjectPrefixes[$i] ?? '');
+            $messageId     = trim($messageIds[$i] ?? '');
+            if ($address !== '' || $subjectPrefix !== '') {
+                Setting::set(self::EMAIL_BCC_PREFIX . $idx . '_message_id',     $messageId);
+                Setting::set(self::EMAIL_BCC_PREFIX . $idx . '_subject_prefix', $subjectPrefix);
+                Setting::set(self::EMAIL_BCC_PREFIX . $idx . '_address',        $address);
                 $idx++;
             }
         }

@@ -154,12 +154,14 @@
 
         <h3 style="margin-top:1.5em;">Kopie emailů (BCC pravidla)</h3>
         <p style="font-size:0.9em; color:#555;">
-            Pokud předmět emailu <strong>začíná</strong> zadaným textem, odešle se kopie na zadanou adresu.
+            Pokud předmět odeslaného emailu <strong>obsahuje</strong> zadaný text, odešle se kopie na zadanou adresu.
+            Zprávu vyberte pro automatické vyplnění předmětu.
         </p>
         <table class="extended" cellspacing="0">
             <thead>
                 <tr>
-                    <th>Předmět začíná na</th>
+                    <th>Zpráva (volitelné)</th>
+                    <th>Předmět obsahuje</th>
                     <th>BCC adresa</th>
                     <th></th>
                 </tr>
@@ -167,8 +169,30 @@
             <tbody id="bcc-rules">
                 @foreach($bccRules as $i => $rule)
                     <tr>
-                        <td><input type="text" name="bcc_subject[]" value="{{ $rule['subject'] }}" style="width:200px" placeholder="např. Faktura "></td>
-                        <td><input type="text" name="bcc_address[]" value="{{ $rule['address'] }}" style="width:200px" placeholder="kopie@example.com"></td>
+                        <td>
+                            <select name="bcc_message_id[]" style="width:200px" onchange="prefillSubject(this)">
+                                <option value="">— vyberte zprávu —</option>
+                                @foreach($messages as $msg)
+                                    <option value="{{ $msg->id }}"
+                                        data-name="{{ $msg->name }}"
+                                        {{ ($rule['message_id'] ?? '') == $msg->id ? 'selected' : '' }}>
+                                        {{ $msg->name }}
+                                    </option>
+                                @endforeach
+                            </select>
+                        </td>
+                        <td>
+                            <input type="text" name="bcc_subject_prefix[]"
+                                   value="{{ $rule['subject_prefix'] ?? '' }}"
+                                   style="width:200px"
+                                   placeholder="např. Faktura ">
+                        </td>
+                        <td>
+                            <input type="text" name="bcc_address[]"
+                                   value="{{ $rule['address'] ?? '' }}"
+                                   style="width:180px"
+                                   placeholder="kopie@example.com">
+                        </td>
                         <td><button type="button" onclick="this.closest('tr').remove()">✕</button></td>
                     </tr>
                 @endforeach
@@ -184,12 +208,27 @@
     </form>
 
     <script>
+    function prefillSubject(select) {
+        const name = select.options[select.selectedIndex].dataset.name || '';
+        const row = select.closest('tr');
+        const prefixInput = row.querySelector('input[name="bcc_subject_prefix[]"]');
+        if (prefixInput && prefixInput.value === '') {
+            prefixInput.value = name;
+        }
+    }
+
+    const messageOptions = `{!! collect($messages)->map(fn($m) => '<option value="' . $m->id . '" data-name="' . e($m->name) . '">' . e($m->name) . '</option>')->implode('') !!}`;
+
     function addBccRow() {
         const tbody = document.getElementById('bcc-rules');
         const tr = document.createElement('tr');
-        tr.innerHTML = '<td><input type="text" name="bcc_subject[]" style="width:200px" placeholder="např. Faktura "></td>' +
-                       '<td><input type="text" name="bcc_address[]" style="width:200px" placeholder="kopie@example.com"></td>' +
-                       '<td><button type="button" onclick="this.closest(\'tr\').remove()">✕</button></td>';
+        tr.innerHTML =
+            '<td><select name="bcc_message_id[]" style="width:200px" onchange="prefillSubject(this)">' +
+                '<option value="">— vyberte zprávu —</option>' + messageOptions +
+            '</select></td>' +
+            '<td><input type="text" name="bcc_subject_prefix[]" style="width:200px" placeholder="např. Faktura "></td>' +
+            '<td><input type="text" name="bcc_address[]" style="width:180px" placeholder="kopie@example.com"></td>' +
+            '<td><button type="button" onclick="this.closest(\'tr\').remove()">✕</button></td>';
         tbody.appendChild(tr);
     }
     </script>
