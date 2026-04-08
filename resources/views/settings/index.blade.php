@@ -15,9 +15,14 @@
             Banka
         </a>
         <a href="{{ route('settings.index', ['tab' => 'email']) }}"
-           style="display:inline-block; padding:6px 16px; text-decoration:none;
+           style="display:inline-block; padding:6px 16px; margin-right:4px; text-decoration:none;
                   {{ $activeTab === 'email' ? 'background:#c00; color:#fff; font-weight:bold;' : 'background:#eee; color:#333;' }}">
             Email
+        </a>
+        <a href="{{ route('settings.index', ['tab' => 'finance']) }}"
+           style="display:inline-block; padding:6px 16px; text-decoration:none;
+                  {{ $activeTab === 'finance' ? 'background:#c00; color:#fff; font-weight:bold;' : 'background:#eee; color:#333;' }}">
+            Finance
         </a>
     </div>
 
@@ -246,6 +251,46 @@
         tbody.appendChild(tr);
     }
     </script>
+    @endif
+
+    {{-- ═══════════════════════════════════════════════════ --}}
+    {{-- TAB: FINANCE                                        --}}
+    {{-- ═══════════════════════════════════════════════════ --}}
+    @if($activeTab === 'finance')
+    <form method="POST" action="{{ route('settings.update-finance') }}">
+        @csrf @method('PUT')
+
+        <h3>Nastavení financí</h3>
+        <table class="extended" cellspacing="0">
+            <tr>
+                <th>Finanční systém povolen</th>
+                <td>
+                    <input type="checkbox" name="finance_enabled" value="1"
+                        {{ ($financeSettings['finance_enabled'] ?? '') == '1' ? 'checked' : '' }}>
+                </td>
+            </tr>
+            <tr>
+                <th>Automatické strhávání poplatků</th>
+                <td>
+                    <input type="checkbox" name="deduct_fees_automatically_enabled" value="1"
+                        {{ ($financeSettings['deduct_fees_automatically_enabled'] ?? '') == '1' ? 'checked' : '' }}>
+                </td>
+            </tr>
+            <tr>
+                <th>Den strhávání poplatků</th>
+                <td>
+                    <input type="number" name="deduct_day"
+                           value="{{ $financeSettings['deduct_day'] ?? 1 }}"
+                           min="1" max="31" style="width:80px">
+                    <small style="color:#888;">Den v měsíci (1–31), kdy se automaticky strhávají poplatky.</small>
+                </td>
+            </tr>
+        </table>
+
+        <div style="margin-top:1em;">
+            <button type="submit">Uložit nastavení financí</button>
+        </div>
+    </form>
     @endif
 
 @endsection

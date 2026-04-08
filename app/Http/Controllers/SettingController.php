@@ -26,6 +26,13 @@ class SettingController extends Controller
     // BCC rules key prefix: email_bcc_rule_{n}_subject, email_bcc_rule_{n}_address
     public const EMAIL_BCC_PREFIX = 'email_bcc_rule_';
 
+    // Finance config keys
+    public const FINANCE_KEYS = [
+        'deduct_fees_automatically_enabled',
+        'deduct_day',
+        'finance_enabled',
+    ];
+
     public function __construct(private AclService $acl) {}
 
     private function can(string $action): bool
@@ -95,10 +102,16 @@ class SettingController extends Controller
         $messages  = Message::orderBy('name')->get(['id', 'name', 'type']);
         $activeTab = request('tab', 'banka');
 
+        // Finance settings
+        $financeSettings = [];
+        foreach (self::FINANCE_KEYS as $key) {
+            $financeSettings[$key] = Setting::get($key, '');
+        }
+
         return view('settings.index', compact(
             'bankAccounts', 'memberTypes', 'routing', 'defaultBaId',
             'emailSettings', 'bccRules', 'messages', 'activeTab',
-            'pohodaEmail'
+            'pohodaEmail', 'financeSettings'
         ));
     }
 
@@ -160,5 +173,21 @@ class SettingController extends Controller
 
         return redirect()->route('settings.index', ['tab' => 'email'])
             ->with('success', 'Nastavení emailu bylo uloženo.');
+    }
+
+    public function updateFinance(Request $request)
+    {
+        abort_unless($this->can('edit_all'), 403);
+
+        $validated = $request->validate([
+            'deduct_day' => 'required|integer|min:1|max:31',
+        ]);
+
+        Setting::set('deduct_fees_automatically_enabled', $request->boolean('deduct_fees_automatically_enabled') ? 1 : 0);
+        Setting::set('deduct_day', $validated['deduct_day']);
+        Setting::set('finance_enabled', $request->boolean('finance_enabled') ? 1 : 0);
+
+        return redirect()->route('settings.index', ['tab' => 'finance'])
+            ->with('success', 'Nastavení financí bylo uloženo.');
     }
 }
