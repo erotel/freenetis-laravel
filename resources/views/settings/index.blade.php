@@ -20,10 +20,17 @@
             Email
         </a>
         <a href="{{ route('settings.index', ['tab' => 'finance']) }}"
-           style="display:inline-block; padding:6px 16px; text-decoration:none;
+           style="display:inline-block; padding:6px 16px; margin-right:4px; text-decoration:none;
                   {{ $activeTab === 'finance' ? 'background:#c00; color:#fff; font-weight:bold;' : 'background:#eee; color:#333;' }}">
             Finance
         </a>
+        @foreach(['system' => 'Systém', 'users' => 'Uživatelé', 'network' => 'Síť'] as $tabKey => $tabLabel)
+        <a href="{{ route('settings.index', ['tab' => $tabKey]) }}"
+           style="display:inline-block; padding:6px 16px; margin-right:4px; text-decoration:none;
+                  {{ $activeTab === $tabKey ? 'background:#c00; color:#fff; font-weight:bold;' : 'background:#eee; color:#333;' }}">
+            {{ $tabLabel }}
+        </a>
+        @endforeach
     </div>
 
     {{-- ═══════════════════════════════════════════════════ --}}
@@ -322,6 +329,142 @@
         <div style="margin-top:1em;">
             <button type="submit">Uložit nastavení financí</button>
         </div>
+    </form>
+    @endif
+
+    {{-- ═══════════════════════════════════════════════════ --}}
+    {{-- TAB: SYSTÉM                                        --}}
+    {{-- ═══════════════════════════════════════════════════ --}}
+    @if($activeTab === 'system')
+    <form method="POST" action="{{ route('settings.update-system') }}">
+        @csrf @method('PUT')
+        <h3>Nastavení systému</h3>
+        <table class="extended" cellspacing="0">
+            <tr>
+                <th>Titulek stránky</th>
+                <td><input type="text" name="title" value="{{ $systemSettings['title'] ?? '' }}" style="width:250px"></td>
+            </tr>
+            <tr>
+                <th>IČO organizace</th>
+                <td><input type="text" name="ico" value="{{ $systemSettings['ico'] ?? '' }}" style="width:150px"></td>
+            </tr>
+            <tr>
+                <th>DIČ organizace</th>
+                <td><input type="text" name="dic" value="{{ $systemSettings['dic'] ?? '' }}" style="width:150px"></td>
+            </tr>
+            <tr>
+                <th>Samo-registrace</th>
+                <td>
+                    <input type="checkbox" name="self_registration" value="1"
+                        {{ ($systemSettings['self_registration'] ?? '') == '1' ? 'checked' : '' }}>
+                    <small style="color:#888;">Umožní nepřihlášeným uživatelům vyplnit registrační formulář.</small>
+                </td>
+            </tr>
+            <tr>
+                <th>Zapomenuté heslo</th>
+                <td>
+                    <input type="checkbox" name="forgotten_password" value="1"
+                        {{ ($systemSettings['forgotten_password'] ?? '') == '1' ? 'checked' : '' }}>
+                    <small style="color:#888;">Zobrazí odkaz pro reset hesla na přihlašovací stránce.</small>
+                </td>
+            </tr>
+            <tr>
+                <th>Vypršení session (s)</th>
+                <td>
+                    <input type="number" name="session_expiration" value="{{ $systemSettings['session_expiration'] ?? 7200 }}" style="width:100px" min="300">
+                    <small style="color:#888;">Doba nečinnosti v sekundách (výchozí: 7200 = 2 hodiny).</small>
+                </td>
+            </tr>
+        </table>
+        <div style="margin-top:1em;"><button type="submit">Uložit nastavení systému</button></div>
+    </form>
+    @endif
+
+    {{-- ═══════════════════════════════════════════════════ --}}
+    {{-- TAB: UŽIVATELÉ                                     --}}
+    {{-- ═══════════════════════════════════════════════════ --}}
+    @if($activeTab === 'users')
+    <form method="POST" action="{{ route('settings.update-users') }}">
+        @csrf @method('PUT')
+        <h3>Nastavení uživatelů</h3>
+        <table class="extended" cellspacing="0">
+            <tr>
+                <th>Minimální délka hesla</th>
+                <td>
+                    <input type="number" name="security_password_length"
+                           value="{{ $usersSettings['security_password_length'] ?? 8 }}"
+                           style="width:80px" min="4" max="32">
+                    <small style="color:#888;">Minimální počet znaků hesla (výchozí: 8).</small>
+                </td>
+            </tr>
+            <tr>
+                <th>Minimální úroveň hesla</th>
+                <td>
+                    <select name="security_password_level">
+                        @foreach([1 => 'Velmi slabé', 2 => 'Slabé', 3 => 'Dobré', 4 => 'Silné'] as $val => $label)
+                            <option value="{{ $val }}"
+                                {{ ($usersSettings['security_password_level'] ?? 3) == $val ? 'selected' : '' }}>
+                                {{ $label }}
+                            </option>
+                        @endforeach
+                    </select>
+                </td>
+            </tr>
+            <tr>
+                <th>Auto-mazání zařízení bývalých členů</th>
+                <td>
+                    <input type="checkbox" name="former_member_auto_device_remove" value="1"
+                        {{ ($usersSettings['former_member_auto_device_remove'] ?? '') == '1' ? 'checked' : '' }}>
+                    <small style="color:#888;">Při označení jako bývalý člen automaticky smaže jeho zařízení a IP adresy.</small>
+                </td>
+            </tr>
+        </table>
+        <div style="margin-top:1em;"><button type="submit">Uložit nastavení uživatelů</button></div>
+    </form>
+    @endif
+
+    {{-- ═══════════════════════════════════════════════════ --}}
+    {{-- TAB: SÍŤ                                           --}}
+    {{-- ═══════════════════════════════════════════════════ --}}
+    @if($activeTab === 'network')
+    <form method="POST" action="{{ route('settings.update-network') }}">
+        @csrf @method('PUT')
+        <h3>Nastavení sítě</h3>
+        <table class="extended" cellspacing="0">
+            <tr>
+                <th>Přesměrování povoleno</th>
+                <td>
+                    <input type="checkbox" name="redirection_enabled" value="1"
+                        {{ ($networkSettings['redirection_enabled'] ?? '') == '1' ? 'checked' : '' }}>
+                    <small style="color:#888;">Globální přepínač HTTP přesměrování dlužníků.</small>
+                </td>
+            </tr>
+            <tr>
+                <th>Síťový modul povolen</th>
+                <td>
+                    <input type="checkbox" name="networks_enabled" value="1"
+                        {{ ($networkSettings['networks_enabled'] ?? '') == '1' ? 'checked' : '' }}>
+                </td>
+            </tr>
+            <tr>
+                <th>Rozsahy IP adres</th>
+                <td>
+                    <input type="text" name="address_ranges"
+                           value="{{ $networkSettings['address_ranges'] ?? '' }}"
+                           style="width:350px" placeholder="10.133.0.0/16,185.138.44.0/22">
+                    <small style="color:#888;">Oddělte čárkou.</small>
+                </td>
+            </tr>
+            <tr>
+                <th>DNS servery</th>
+                <td>
+                    <input type="text" name="dns_servers"
+                           value="{{ $networkSettings['dns_servers'] ?? '' }}"
+                           style="width:350px" placeholder="10.133.37.37">
+                </td>
+            </tr>
+        </table>
+        <div style="margin-top:1em;"><button type="submit">Uložit nastavení sítě</button></div>
     </form>
     @endif
 

@@ -267,10 +267,13 @@ Route::middleware('auth')->group(function () {
     Route::post('variable-symbols/account/{accountId}', [VariableSymbolController::class, 'store'])->name('variable_symbols.store');
     Route::delete('variable-symbols/{id}',              [VariableSymbolController::class, 'destroy'])->name('variable_symbols.destroy');
 
-    Route::get('settings',         [SettingController::class, 'index'])->name('settings.index');
-    Route::put('settings/finance', [SettingController::class, 'updateFinance'])->name('settings.update-finance');
-    Route::put('settings/email',   [SettingController::class, 'updateEmail'])->name('settings.update-email');
-    Route::put('settings',         [SettingController::class, 'update'])->name('settings.update');
+    Route::get('settings',          [SettingController::class, 'index'])->name('settings.index');
+    Route::put('settings/finance',  [SettingController::class, 'updateFinance'])->name('settings.update-finance');
+    Route::put('settings/email',    [SettingController::class, 'updateEmail'])->name('settings.update-email');
+    Route::put('settings/system',   [SettingController::class, 'updateSystem'])->name('settings.update-system');
+    Route::put('settings/users',    [SettingController::class, 'updateUsers'])->name('settings.update-users');
+    Route::put('settings/network',  [SettingController::class, 'updateNetwork'])->name('settings.update-network');
+    Route::put('settings',          [SettingController::class, 'update'])->name('settings.update');
 
     Route::get('acl/create',       [AroGroupController::class, 'aclCreate'])->name('acl.create');
     Route::post('acl',             [AroGroupController::class, 'aclStore'])->name('acl.store');

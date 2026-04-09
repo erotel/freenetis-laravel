@@ -35,6 +35,18 @@ class SettingController extends Controller
         'default_fee_member_type_90',  // člen (type 90) - default fee_id
     ];
 
+    public const SYSTEM_KEYS = [
+        'title', 'ico', 'dic', 'self_registration', 'forgotten_password', 'session_expiration',
+    ];
+
+    public const USERS_KEYS = [
+        'security_password_length', 'security_password_level', 'former_member_auto_device_remove',
+    ];
+
+    public const NETWORK_KEYS = [
+        'redirection_enabled', 'networks_enabled', 'address_ranges', 'dns_servers',
+    ];
+
     public function __construct(private AclService $acl) {}
 
     private function can(string $action): bool
@@ -117,10 +129,26 @@ class SettingController extends Controller
             ->orderBy('f.name')
             ->get(['f.id', 'f.name', 'f.fee', 'f.from', 'f.to']);
 
+        $systemSettings = [];
+        foreach (self::SYSTEM_KEYS as $key) {
+            $systemSettings[$key] = Setting::get($key, '');
+        }
+
+        $usersSettings = [];
+        foreach (self::USERS_KEYS as $key) {
+            $usersSettings[$key] = Setting::get($key, '');
+        }
+
+        $networkSettings = [];
+        foreach (self::NETWORK_KEYS as $key) {
+            $networkSettings[$key] = Setting::get($key, '');
+        }
+
         return view('settings.index', compact(
             'bankAccounts', 'memberTypes', 'routing', 'defaultBaId',
             'emailSettings', 'bccRules', 'messages', 'activeTab',
-            'pohodaEmail', 'financeSettings', 'feesForSelect'
+            'pohodaEmail', 'financeSettings', 'feesForSelect',
+            'systemSettings', 'usersSettings', 'networkSettings'
         ));
     }
 
@@ -200,5 +228,49 @@ class SettingController extends Controller
 
         return redirect()->route('settings.index', ['tab' => 'finance'])
             ->with('success', 'Nastavení financí bylo uloženo.');
+    }
+
+    public function updateSystem(Request $request)
+    {
+        abort_unless($this->can('edit_all'), 403);
+        $request->validate([
+            'title'              => 'nullable|string|max:100',
+            'ico'                => 'nullable|string|max:20',
+            'dic'                => 'nullable|string|max:20',
+            'session_expiration' => 'nullable|integer|min:300',
+        ]);
+        Setting::set('title',              $request->input('title', ''));
+        Setting::set('ico',                $request->input('ico', ''));
+        Setting::set('dic',                $request->input('dic', ''));
+        Setting::set('self_registration',  $request->boolean('self_registration') ? 1 : 0);
+        Setting::set('forgotten_password', $request->boolean('forgotten_password') ? 1 : 0);
+        Setting::set('session_expiration', $request->input('session_expiration', 7200));
+        return redirect()->route('settings.index', ['tab' => 'system'])
+            ->with('success', 'Nastavení systému bylo uloženo.');
+    }
+
+    public function updateUsers(Request $request)
+    {
+        abort_unless($this->can('edit_all'), 403);
+        $request->validate([
+            'security_password_length' => 'nullable|integer|min:4|max:32',
+            'security_password_level'  => 'nullable|integer|in:1,2,3,4',
+        ]);
+        Setting::set('security_password_length',         $request->input('security_password_length', 8));
+        Setting::set('security_password_level',          $request->input('security_password_level', 3));
+        Setting::set('former_member_auto_device_remove', $request->boolean('former_member_auto_device_remove') ? 1 : 0);
+        return redirect()->route('settings.index', ['tab' => 'users'])
+            ->with('success', 'Nastavení uživatelů bylo uloženo.');
+    }
+
+    public function updateNetwork(Request $request)
+    {
+        abort_unless($this->can('edit_all'), 403);
+        Setting::set('redirection_enabled', $request->boolean('redirection_enabled') ? 1 : 0);
+        Setting::set('networks_enabled',    $request->boolean('networks_enabled') ? 1 : 0);
+        Setting::set('address_ranges',      $request->input('address_ranges', ''));
+        Setting::set('dns_servers',         $request->input('dns_servers', ''));
+        return redirect()->route('settings.index', ['tab' => 'network'])
+            ->with('success', 'Nastavení sítě bylo uloženo.');
     }
 }
