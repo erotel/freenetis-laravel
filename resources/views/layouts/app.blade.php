@@ -39,6 +39,7 @@
         <div id="logo">
             <a href="{{ url('/') }}">FreenetIS</a>
         </div>
+        @auth
         <div id="user-info">
             <span>{{ auth()->user()->name }} {{ auth()->user()->surname }}</span>
             (<span>{{ auth()->user()->login }}</span>)
@@ -47,6 +48,7 @@
                 <button type="submit">Odhlásit se</button>
             </form>
         </div>
+        @endauth
     </div>{{-- #header --}}
 
     <div id="middle">
@@ -90,6 +92,9 @@
             @endif
             @if(session('error'))
                 <div class="message error">{{ session('error') }}</div>
+            @endif
+            @if(session('info'))
+                <div class="message" style="background:#fff3cd; border:1px solid #ffc107; color:#856404; padding:8px 12px; margin-bottom:8px;">{{ session('info') }}</div>
             @endif
 
             @yield('breadcrumbs')
