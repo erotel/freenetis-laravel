@@ -67,12 +67,8 @@
                     style="color:red;">✕ Smazat</button>
         </form>
     @elseif(!in_array($member->type, [15, 16]))
-        <form method="POST" action="{{ route('members.destroy', $member->id) }}" style="display:inline;">
-            @csrf @method('DELETE')
-            <button type="submit"
-                    onclick="return confirm('Označit člena {{ addslashes($member->name) }} jako bývalého?')"
-                    style="color:orange;">✕ Označit jako bývalého</button>
-        </form>
+        <a href="{{ route('members.end-membership', $member->id) }}"
+           style="color:orange;">✕ Ukončit</a>
     @else
         <form method="POST" action="{{ route('members.destroy', $member->id) }}" style="display:inline;">
             @csrf @method('DELETE')

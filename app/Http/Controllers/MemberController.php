@@ -493,6 +493,144 @@ class MemberController extends Controller
         return view('members.applicants', compact('pending'));
     }
 
+    public function endMembershipForm(int $id)
+    {
+        abort_unless($this->can('edit_all'), 403);
+        $member = DB::table('members')->where('id', $id)->first();
+        abort_if(!$member, 404);
+        abort_if(in_array($member->type, [15, 16]), 400, 'Člen již byl ukončen.');
+
+        $account = DB::table('accounts')
+            ->where('member_id', $id)
+            ->where('account_attribute_id', 221100)
+            ->first(['id', 'balance']);
+
+        $bankAccount = DB::table('bank_accounts')
+            ->where('member_id', $id)
+            ->first(['account_nr', 'bank_nr']);
+
+        $refundAccount = $bankAccount
+            ? trim($bankAccount->account_nr) . '/' . trim($bankAccount->bank_nr)
+            : '';
+
+        return view('members.end_membership', [
+            'member'        => $member,
+            'balance'       => $account?->balance ?? 0,
+            'refundAccount' => $refundAccount,
+            'today'         => now()->format('Y-m-d'),
+        ]);
+    }
+
+    public function endMembership(Request $request, int $id)
+    {
+        abort_unless($this->can('edit_all'), 403);
+
+        $validated = $request->validate([
+            'leaving_date'   => 'required|date',
+            'end_mode'       => 'required|integer|in:1,2,3,4',
+            'refund_account' => 'nullable|string|max:50',
+            'refund_amount'  => 'nullable|numeric|min:0',
+        ]);
+
+        $member = DB::table('members')->where('id', $id)->first();
+        abort_if(!$member, 404);
+
+        $newType = ($member->type == MemberType::REGULAR) ? MemberType::FORMER : MemberType::FORMER_CUSTOMER;
+        $endMode = (int) $validated['end_mode'];
+
+        DB::transaction(function () use ($id, $member, $newType, $validated, $endMode) {
+            DB::table('members')->where('id', $id)->update([
+                'type'         => $newType,
+                'locked'       => 1,
+                'leaving_date' => $validated['leaving_date'],
+            ]);
+
+            // Mód 3: vratka — vložit do outgoing_payments
+            if ($endMode === 3 && !empty($validated['refund_account']) && ($validated['refund_amount'] ?? 0) > 0) {
+                $configKey     = 'bank_account_member_type_' . $member->type;
+                $bankAccountId = (int) \App\Models\Setting::get($configKey, 0);
+
+                if ($bankAccountId) {
+                    DB::table('outgoing_payments')->insert([
+                        'bank_account_id' => $bankAccountId,
+                        'target_account'  => $validated['refund_account'],
+                        'amount'          => round((float)$validated['refund_amount'], 2),
+                        'currency'        => 'CZK',
+                        'message'         => 'Vratka při ukončení členství',
+                        'reason'          => 'termination_refund',
+                        'status'          => 'draft',
+                        'created_by'      => auth()->id() ?? 1,
+                        'created_at'      => now(),
+                        'updated_at'      => now(),
+                    ]);
+
+                    // Vymazání kreditního účtu člena
+                    $creditAccount = DB::table('accounts')
+                        ->where('member_id', $id)
+                        ->where('account_attribute_id', 221100)
+                        ->first();
+
+                    if ($creditAccount && $creditAccount->balance != 0) {
+                        $clearAmount = $creditAccount->balance;
+                        $orgAccount  = DB::table('accounts')
+                            ->where('member_id', 1)
+                            ->where('account_attribute_id', 221101)
+                            ->first();
+
+                        if ($orgAccount) {
+                            DB::table('transfers')->insert([
+                                'origin_id'         => $creditAccount->id,
+                                'destination_id'    => $orgAccount->id,
+                                'type'              => 0,
+                                'amount'            => abs($clearAmount),
+                                'datetime'          => now()->format('Y-m-d H:i:s'),
+                                'creation_datetime' => now()->format('Y-m-d H:i:s'),
+                                'text'              => 'Vymazání kreditu při ukončení členství s vratkou',
+                                'member_id'         => $id,
+                            ]);
+                            DB::table('accounts')->where('id', $creditAccount->id)->update(['balance' => 0]);
+                            DB::table('accounts')->where('id', $orgAccount->id)->decrement('balance', abs($clearAmount));
+                        }
+                    }
+                }
+            }
+
+            // Odeslat email pro módy 2, 3, 4
+            if (in_array($endMode, [2, 3, 4])) {
+                $messageId = match($endMode) {
+                    3       => 96, // Vrácení platby bývalému členovi
+                    default => 94, // Bývalý člen bez platby
+                };
+
+                $message = \App\Models\Message::where('id', $messageId)->first();
+                if ($message && $message->email_text) {
+                    $userId = DB::table('users')->where('member_id', $id)->value('id');
+                    if ($userId) {
+                        $email = DB::table('contacts as c')
+                            ->join('users_contacts as uc', 'uc.contact_id', '=', 'c.id')
+                            ->where('uc.user_id', $userId)
+                            ->where('c.type', 20)
+                            ->value('c.value');
+
+                        if ($email) {
+                            DB::table('email_queues')->insert([
+                                'from'    => \App\Models\Setting::get('email_default_email', 'noreply@pvfree.net'),
+                                'to'      => $email,
+                                'subject' => \App\Models\Setting::get('email_subject_prefix', 'PVfree.net') . ' :: ' . $message->name,
+                                'body'    => $message->email_text,
+                                'state'   => 0,
+                            ]);
+                        }
+                    }
+                }
+            }
+        });
+
+        $label = ($newType == MemberType::FORMER_CUSTOMER) ? 'zákazník' : 'člen';
+        return redirect()->route('members.show', $id)
+            ->with('success', "Členství bylo ukončeno. {$member->name} označen jako bývalý {$label}.");
+    }
+
     public function restore(int $id)
     {
         abort_unless($this->can('edit_all'), 403);
