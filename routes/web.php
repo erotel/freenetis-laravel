@@ -30,12 +30,82 @@ use App\Http\Controllers\AllowedSubnetController;
 use App\Http\Controllers\EnumTypeController;
 use App\Http\Controllers\MessageAutoSettingController;
 use App\Http\Controllers\MessageController;
+use App\Http\Controllers\RegistrationController;
 use Illuminate\Support\Facades\Route;
 
 // Login / logout
 Route::get('/login', [LoginController::class, 'showLoginForm'])->name('login')->middleware('guest');
 Route::post('/login', [LoginController::class, 'login'])->middleware('guest');
 Route::post('/logout', [LoginController::class, 'logout'])->name('logout')->middleware('auth');
+
+// Public self-registration (guest only)
+Route::middleware('guest')->group(function () {
+    Route::get('register', [RegistrationController::class, 'create'])->name('registration.create');
+    Route::post('register', [RegistrationController::class, 'store'])->name('registration.store');
+    Route::get('register/success', [RegistrationController::class, 'success'])->name('registration.success');
+});
+
+// Public ARES lookup (for registration form - no auth required)
+Route::get('ares/lookup-public/{ico}', function (string $ico) {
+    $ico = preg_replace('/\D/', '', $ico);
+    if (strlen($ico) !== 8) {
+        return response()->json(['error' => 'IČO musí mít 8 číslic.'], 400);
+    }
+    try {
+        $response = \Illuminate\Support\Facades\Http::timeout(5)
+            ->get("https://ares.gov.cz/ekonomicke-subjekty-v-be/rest/ekonomicke-subjekty/{$ico}");
+        if ($response->status() === 404) {
+            return response()->json(['error' => 'Subjekt nenalezen v ARES.'], 404);
+        }
+        if (!$response->successful()) {
+            return response()->json(['error' => 'Chyba při komunikaci s ARES.'], 500);
+        }
+        $data         = $response->json();
+        $sidlo        = $data['sidlo'] ?? [];
+        $mestNazev    = $sidlo['nazevObce'] ?? '';
+        $uliceNazev   = $sidlo['nazevUlice'] ?? '';
+        $cisloDomovni = $sidlo['cisloDomovni'] ?? '';
+        $psc          = preg_replace('/\D/', '', $sidlo['psc'] ?? '');
+        $town = \Illuminate\Support\Facades\DB::table('towns')
+            ->where(function ($q) use ($mestNazev, $psc) {
+                $q->where('town', 'LIKE', '%' . $mestNazev . '%');
+                if ($psc) $q->orWhere('zip_code', $psc);
+            })
+            ->first(['id', 'town', 'zip_code']);
+        $street = null;
+        if ($town && $uliceNazev) {
+            $street = \Illuminate\Support\Facades\DB::table('streets')
+                ->where('town_id', $town->id)
+                ->where('street', 'LIKE', '%' . $uliceNazev . '%')
+                ->first(['id', 'street']);
+        }
+        return response()->json([
+            'nazev'       => $data['obchodniJmeno'] ?? '',
+            'dic'         => $data['dic'] ?? '',
+            'ulice'       => trim($uliceNazev . ' ' . $cisloDomovni),
+            'ulice_nazev' => $uliceNazev,
+            'cislo'       => $cisloDomovni,
+            'mesto'       => $mestNazev,
+            'psc'         => $psc,
+            'town_id'     => $town?->id,
+            'town_name'   => $town?->town,
+            'street_id'   => $street?->id,
+            'street_name' => $street?->street,
+        ]);
+    } catch (\Exception $e) {
+        return response()->json(['error' => 'Nepodařilo se kontaktovat ARES.'], 500);
+    }
+})->name('ares.lookup-public');
+
+// Public streets by town (for registration form - no auth required)
+Route::get('streets/by-town-public/{townId}', function (int $townId) {
+    return response()->json(
+        \Illuminate\Support\Facades\DB::table('streets')
+            ->where('town_id', $townId)
+            ->orderBy('street')
+            ->get(['id', 'street'])
+    );
+})->name('streets.by-town-public');
 
 // Protected area
 Route::middleware('auth')->group(function () {
@@ -48,7 +118,66 @@ Route::middleware('auth')->group(function () {
 
     Route::resource('towns', TownController::class);
     Route::resource('streets', StreetController::class);
+    Route::post('members/{id}/restore', [MemberController::class, 'restore'])->name('members.restore');
     Route::resource('members', MemberController::class);
+    Route::get('ares/lookup/{ico}', function (string $ico) {
+        $ico = preg_replace('/\D/', '', $ico);
+        if (strlen($ico) !== 8) {
+            return response()->json(['error' => 'IČO musí mít 8 číslic.'], 400);
+        }
+        try {
+            $response = \Illuminate\Support\Facades\Http::timeout(5)
+                ->get("https://ares.gov.cz/ekonomicke-subjekty-v-be/rest/ekonomicke-subjekty/{$ico}");
+            if ($response->status() === 404) {
+                return response()->json(['error' => 'Subjekt nenalezen v ARES.'], 404);
+            }
+            if (!$response->successful()) {
+                return response()->json(['error' => 'Chyba při komunikaci s ARES.'], 500);
+            }
+            $data         = $response->json();
+            $sidlo        = $data['sidlo'] ?? [];
+            $mestNazev    = $sidlo['nazevObce'] ?? '';
+            $uliceNazev   = $sidlo['nazevUlice'] ?? '';
+            $cisloDomovni = $sidlo['cisloDomovni'] ?? '';
+            $psc          = preg_replace('/\D/', '', $sidlo['psc'] ?? '');
+
+            // Hledat město v DB dle názvu nebo PSČ
+            $town = \Illuminate\Support\Facades\DB::table('towns')
+                ->where(function ($q) use ($mestNazev, $psc) {
+                    $q->where('town', 'LIKE', '%' . $mestNazev . '%');
+                    if ($psc) {
+                        $q->orWhere('zip_code', $psc);
+                    }
+                })
+                ->first(['id', 'town', 'zip_code']);
+
+            // Hledat ulici v DB dle názvu v rámci nalezeného města
+            $street = null;
+            if ($town && $uliceNazev) {
+                $street = \Illuminate\Support\Facades\DB::table('streets')
+                    ->where('town_id', $town->id)
+                    ->where('street', 'LIKE', '%' . $uliceNazev . '%')
+                    ->first(['id', 'street']);
+            }
+
+            return response()->json([
+                'nazev'       => $data['obchodniJmeno'] ?? '',
+                'dic'         => $data['dic'] ?? '',
+                'ulice'       => trim($uliceNazev . ' ' . $cisloDomovni),
+                'ulice_nazev' => $uliceNazev,
+                'cislo'       => $cisloDomovni,
+                'mesto'       => $mestNazev,
+                'psc'         => $psc,
+                'town_id'     => $town?->id,
+                'town_name'   => $town?->town,
+                'street_id'   => $street?->id,
+                'street_name' => $street?->street,
+            ]);
+        } catch (\Exception $e) {
+            return response()->json(['error' => 'Nepodařilo se kontaktovat ARES.'], 500);
+        }
+    })->name('ares.lookup')->middleware('auth');
+
     Route::get('streets/by-town/{townId}', function (int $townId) {
         return response()->json(
             DB::table('streets')->where('town_id', $townId)->orderBy('street')->get(['id', 'street'])

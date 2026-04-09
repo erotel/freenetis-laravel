@@ -183,6 +183,7 @@ class NotificationActivation extends Command
             ->whereNotNull('m.entrance_date')
             ->where(function ($q) use ($date) {
                 $q->where('m.leaving_date', '0000-00-00')
+                  ->orWhere('m.leaving_date', '9999-12-31')
                   ->orWhere('m.leaving_date', '>', $date);
             });
 

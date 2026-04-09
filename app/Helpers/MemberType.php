@@ -10,20 +10,26 @@ class MemberType
     const SYMPATHIZING = 4;   // Sympatizant
     const NON_MEMBER   = 5;   // Nečlen
     const FEE_FREE     = 6;   // Člen osvobozený od poplatků
-    const FORMER       = 15;  // Bývalý člen
-    const REGULAR      = 90;  // Řádný člen (lokální)
+    const FORMER           = 15;  // Bývalý člen
+    const FORMER_CUSTOMER  = 16;  // Bývalý zákazník
+    const PENDING_MEMBER   = 17;  // Čekající člen (nepodepsaná přihláška)
+    const PENDING_CUSTOMER = 18;  // Čekající zákazník (nepodepsaná smlouva)
+    const REGULAR          = 90;  // Řádný člen (lokální)
 
     public static function labels(): array
     {
         return [
-            self::APPLICANT    => 'Žadatel',
-            self::CUSTOMER     => 'Zákazník',
-            self::HONORARY     => 'Čestný člen',
-            self::SYMPATHIZING => 'Sympatizant',
-            self::NON_MEMBER   => 'Nečlen',
-            self::FEE_FREE     => 'Člen osvobozený od poplatků',
-            self::FORMER       => 'Bývalý člen',
-            self::REGULAR      => 'Řádný člen',
+            self::APPLICANT        => 'Žadatel',
+            self::CUSTOMER         => 'Zákazník',
+            self::HONORARY         => 'Čestný člen',
+            self::SYMPATHIZING     => 'Sympatizant',
+            self::NON_MEMBER       => 'Nečlen',
+            self::FEE_FREE         => 'Člen osvobozený od poplatků',
+            self::FORMER           => 'Bývalý člen',
+            self::FORMER_CUSTOMER  => 'Bývalý zákazník',
+            self::PENDING_MEMBER   => 'Čekající člen',
+            self::PENDING_CUSTOMER => 'Čekající zákazník',
+            self::REGULAR          => 'Řádný člen',
         ];
     }
 

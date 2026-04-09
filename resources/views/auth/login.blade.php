@@ -41,6 +41,9 @@
         </div>
 
         <button type="submit">Přihlásit se</button>
+        <div style="text-align:center; margin-top:1em; font-size:0.9em;">
+            <a href="{{ route('registration.create') }}">Nemáte účet? Registrujte se</a>
+        </div>
     </form>
 </div>
 </body>

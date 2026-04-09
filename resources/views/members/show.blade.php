@@ -16,6 +16,19 @@
 @section('content')
 <h2>{{ $member->name }}</h2>
 
+@if(in_array($member->type, [1, 17, 18]))
+<div style="background:#fff3cd; border:1px solid #ffc107; padding:8px 12px; margin-bottom:1em; border-radius:4px;">
+    ⚠️ <strong>
+        @if($member->type == 17) Čekající člen
+        @elseif($member->type == 18) Čekající zákazník
+        @else Žadatel
+        @endif
+    </strong> — přihláška/smlouva dosud nepodepsána.
+    Člen nemá přístup k internetu ani mu nejsou strháváni poplatky.
+    Po podpisu změňte typ přes <a href="{{ route('members.edit', $member->id) }}">Upravit</a>.
+</div>
+@endif
+
 {{-- Section 1: Action links --}}
 <div style="margin-bottom:1em;">
     @if($canEdit)
@@ -46,7 +59,14 @@
     @endif
     @if($canDelete)
     &nbsp;|&nbsp;
-    @if(!in_array($member->type, [15, 16]))
+    @if(in_array($member->type, [17, 18]))
+        <form method="POST" action="{{ route('members.destroy', $member->id) }}" style="display:inline;">
+            @csrf @method('DELETE')
+            <button type="submit"
+                    onclick="return confirm('Smazat čekajícího člena {{ addslashes($member->name) }}? Tato akce je nevratná!')"
+                    style="color:red;">✕ Smazat</button>
+        </form>
+    @elseif(!in_array($member->type, [15, 16]))
         <form method="POST" action="{{ route('members.destroy', $member->id) }}" style="display:inline;">
             @csrf @method('DELETE')
             <button type="submit"
@@ -60,6 +80,15 @@
                     onclick="return confirm('TRVALE smazat člena {{ addslashes($member->name) }} a veškerá jeho data? Tato akce je nevratná!')"
                     style="color:red; font-weight:bold;">✕ Trvale smazat</button>
         </form>
+    @endif
+    @if(in_array($member->type, [15, 16]))
+    &nbsp;|&nbsp;
+    <form method="POST" action="{{ route('members.restore', $member->id) }}" style="display:inline">
+        @csrf
+        <button type="submit"
+                onclick="return confirm('Obnovit člena {{ addslashes($member->name) }}?')"
+                style="color:green; font-weight:bold;">↩ Obnovit</button>
+    </form>
     @endif
     @endif
 </div>
@@ -162,7 +191,7 @@
                 <th colspan="2" style="background:#e8e8e8;">Další informace</th>
             </tr>
             <tr>
-                <th>{{ in_array($member->type, [2, 3]) ? 'Smlouva' : 'Přihláška' }}</th>
+                <th>{{ in_array($member->type, [2, 3, 16, 18]) ? 'Smlouva' : 'Přihláška' }}</th>
                 <td>{{ $member->registration ? 'ano' : 'ne' }}</td>
             </tr>
             <tr>
