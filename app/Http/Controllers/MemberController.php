@@ -341,7 +341,7 @@ class MemberController extends Controller
             'name'                        => $data['name'],
             'type'                        => $data['type'],
             'entrance_date'               => $data['entrance_date'] ?? null,
-            'leaving_date'                => $request->leaving_date ?: '0000-00-00',
+            'leaving_date'                => $request->leaving_date ?: '9999-12-31',
             'comment'                     => $data['comment'] ?? null,
             'organization_identifier'     => $data['organization_identifier'] ?? null,
             'vat_organization_identifier' => $data['vat_organization_identifier'] ?? null,

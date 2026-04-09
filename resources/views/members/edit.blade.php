@@ -27,9 +27,9 @@
             </thead>
             <tbody>
                 <tr>
-                    <th><label for="name">Název / Jméno <span class="required">*</span></label></th>
+                    <th><label for="name-edit">Název / Jméno <span class="required">*</span></label></th>
                     <td>
-                        <input type="text" id="name" name="name" value="{{ old('name', $member->name) }}" maxlength="100">
+                        <input type="text" id="name-edit" name="name" value="{{ old('name', $member->name) }}" maxlength="100">
                         @error('name') <span class="error">{{ $message }}</span> @enderror
                     </td>
                 </tr>
@@ -55,23 +55,29 @@
                 <tr>
                     <th><label for="leaving_date">Datum odchodu</label></th>
                     <td>
-                        <input type="date" id="leaving_date" name="leaving_date"
-                               value="{{ old('leaving_date', $member->leaving_date !== '0000-00-00' ? $member->leaving_date : '') }}">
+                        @php
+                            $leavingVal = old('leaving_date', $member->leaving_date);
+                            $leavingVal = in_array($leavingVal, ['0000-00-00', '9999-12-31']) ? '' : $leavingVal;
+                        @endphp
+                        <input type="date" id="leaving_date" name="leaving_date" value="{{ $leavingVal }}">
                         @error('leaving_date') <span class="error">{{ $message }}</span> @enderror
                     </td>
                 </tr>
                 <tr>
                     <th><label for="organization_identifier">IČO</label></th>
                     <td>
-                        <input type="text" id="organization_identifier" name="organization_identifier"
-                               value="{{ old('organization_identifier', $member->organization_identifier) }}" maxlength="20">
+                        <input type="text" id="ico-edit" name="organization_identifier"
+                               value="{{ old('organization_identifier', $member->organization_identifier) }}"
+                               maxlength="8" style="width:150px">
+                        <button type="button" onclick="loadFromAresEdit()" style="margin-left:8px;">🔍 Načíst z ARES</button>
+                        <span id="ares-status-edit" style="margin-left:8px; font-size:0.9em;"></span>
                         @error('organization_identifier') <span class="error">{{ $message }}</span> @enderror
                     </td>
                 </tr>
                 <tr>
-                    <th><label for="vat_organization_identifier">DIČ</label></th>
+                    <th><label for="dic-edit">DIČ</label></th>
                     <td>
-                        <input type="text" id="vat_organization_identifier" name="vat_organization_identifier"
+                        <input type="text" id="dic-edit" name="vat_organization_identifier"
                                value="{{ old('vat_organization_identifier', $member->vat_organization_identifier) }}" maxlength="30">
                         @error('vat_organization_identifier') <span class="error">{{ $message }}</span> @enderror
                     </td>
@@ -84,10 +90,17 @@
                     </td>
                 </tr>
                 <tr><th colspan="2" style="background:#e8e8e8;">Adresa</th></tr>
+            </tbody>
+        </table>
+
+        <div id="ares-adresa-info-edit" style="display:none; background:#e8f4e8; border:1px solid #4caf50; padding:6px 10px; margin-bottom:8px; border-radius:4px; font-size:0.9em;"></div>
+
+        <table class="extended" cellspacing="0">
+            <tbody>
                 <tr>
-                    <th><label for="town_id">Město</label></th>
+                    <th><label for="town-edit">Město</label></th>
                     <td>
-                        <select id="town_id" name="town_id">
+                        <select id="town-edit" name="town_id" onchange="loadStreetsEdit(this.value)">
                             <option value="">— vyberte město —</option>
                             @foreach($towns as $town)
                                 <option value="{{ $town->id }}"
@@ -100,13 +113,13 @@
                     </td>
                 </tr>
                 <tr>
-                    <th><label for="street_id">Ulice</label></th>
+                    <th><label for="street-edit">Ulice</label></th>
                     <td>
-                        <select id="street_id" name="street_id">
+                        <select id="street-edit" name="street_id">
                             <option value="">— vyberte ulici —</option>
                             @foreach($streets as $street)
                                 <option value="{{ $street->id }}"
-                                    @selected(old('street_id', $member->addressPoint?->street_id) == $street->id)>
+                                    {{ old('street_id', $member->addressPoint?->street_id) == $street->id ? 'selected' : '' }}>
                                     {{ $street->street }}
                                 </option>
                             @endforeach
@@ -115,9 +128,9 @@
                     </td>
                 </tr>
                 <tr>
-                    <th><label for="street_number">Číslo popisné</label></th>
+                    <th><label for="street-number-edit">Číslo popisné</label></th>
                     <td>
-                        <input type="text" id="street_number" name="street_number"
+                        <input type="text" id="street-number-edit" name="street_number"
                                value="{{ old('street_number', $member->addressPoint?->street_number) }}" maxlength="50">
                         @error('street_number') <span class="error">{{ $message }}</span> @enderror
                     </td>
@@ -171,4 +184,86 @@
 
         <p><input type="submit" value="Uložit"></p>
     </form>
+
+<script>
+function loadStreetsEdit(townId, selectedId) {
+    if (!townId) return;
+    fetch('/new/streets/by-town/' + townId)
+        .then(r => r.json())
+        .then(streets => {
+            const sel = document.getElementById('street-edit');
+            sel.innerHTML = '<option value="">— vyberte ulici —</option>';
+            streets.forEach(s => {
+                const opt = document.createElement('option');
+                opt.value = s.id;
+                opt.textContent = s.street;
+                if (selectedId && s.id == selectedId) opt.selected = true;
+                sel.appendChild(opt);
+            });
+        });
+}
+
+document.addEventListener('DOMContentLoaded', function() {
+    const townId  = document.getElementById('town-edit')?.value;
+    const streetId = '{{ old('street_id', $member->addressPoint?->street_id) }}';
+    if (townId) loadStreetsEdit(townId, streetId);
+});
+
+async function loadFromAresEdit() {
+    const ico    = document.getElementById('ico-edit').value.trim();
+    const status = document.getElementById('ares-status-edit');
+
+    if (!ico || ico.length !== 8) {
+        status.textContent = '⚠ Zadejte 8místné IČO.';
+        status.style.color = 'orange';
+        return;
+    }
+
+    status.textContent = '⏳ Načítám...';
+    status.style.color = '#666';
+
+    try {
+        const res  = await fetch('/new/ares/lookup/' + ico);
+        const data = await res.json();
+
+        if (data.error) {
+            status.textContent = '✗ ' + data.error;
+            status.style.color = 'red';
+            return;
+        }
+
+        if (data.nazev) {
+            document.getElementById('name-edit').value = data.nazev;
+        }
+        if (data.dic) {
+            document.getElementById('dic-edit').value = data.dic;
+        }
+        if (data.town_id) {
+            document.getElementById('town-edit').value = data.town_id;
+            loadStreetsEdit(data.town_id, data.street_id);
+        }
+        if (data.cislo) {
+            document.getElementById('street-number-edit').value = data.cislo;
+        }
+
+        const adresaInfo = document.getElementById('ares-adresa-info-edit');
+        if (adresaInfo && (data.mesto || data.ulice)) {
+            let adresaText = '📍 ARES adresa: ' + data.ulice + ', ' + data.mesto + ' ' + data.psc;
+            if (data.town_id)         adresaText += ' ✓ město nalezeno';
+            else                      adresaText += ' ⚠ město nenalezeno v DB';
+            if (data.street_id)       adresaText += ', ulice nalezena';
+            else if (data.ulice_nazev) adresaText += ', ⚠ ulice nenalezena v DB';
+            adresaInfo.textContent  = adresaText;
+            adresaInfo.style.display = 'block';
+        }
+
+        status.textContent = '✓ Data načtena z ARES';
+        status.style.color = 'green';
+
+    } catch (e) {
+        status.textContent = '✗ Chyba připojení k ARES';
+        status.style.color = 'red';
+    }
+}
+</script>
 @endsection
