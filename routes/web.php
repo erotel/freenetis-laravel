@@ -118,6 +118,7 @@ Route::middleware('auth')->group(function () {
 
     Route::resource('towns', TownController::class);
     Route::resource('streets', StreetController::class);
+    Route::get('members/applicants', [MemberController::class, 'applicants'])->name('members.applicants');
     Route::post('members/{id}/restore', [MemberController::class, 'restore'])->name('members.restore');
     Route::resource('members', MemberController::class);
     Route::get('ares/lookup/{ico}', function (string $ico) {

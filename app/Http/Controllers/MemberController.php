@@ -476,6 +476,23 @@ class MemberController extends Controller
             ->with('success', 'Člen a všechna jeho data byla trvale smazána.');
     }
 
+    public function applicants()
+    {
+        abort_unless($this->can('view_all'), 403);
+
+        $pending = DB::table('members as m')
+            ->whereIn('m.type', [17, 18])
+            ->where(function ($q) {
+                $q->where('m.leaving_date', '9999-12-31')
+                  ->orWhere('m.leaving_date', '0000-00-00');
+            })
+            ->orderByDesc('m.id')
+            ->select('m.id', 'm.name', 'm.type', 'm.entrance_date', 'm.registration')
+            ->get();
+
+        return view('members.applicants', compact('pending'));
+    }
+
     public function restore(int $id)
     {
         abort_unless($this->can('edit_all'), 403);

@@ -21,6 +21,7 @@ class FreenetisMenu extends Component
             ]],
             ['name' => 'members', 'label' => 'Členové', 'items' => [
                 ['url' => route('members.index'), 'path' => 'members', 'label' => 'Seznam členů', 'acl' => ['view_all', 'Members_Controller', 'members']],
+                ['url' => route('members.applicants'), 'path' => 'members/applicants', 'label' => 'Čekatelé', 'acl' => ['view_all', 'Members_Controller', 'members']],
                 ['url' => route('users.index'), 'path' => 'users', 'label' => 'Uživatelé', 'acl' => ['view_all', 'Users_Controller', 'users']],
                 ['url' => url('users/' . ($user?->id ?? 0) . '/contacts'), 'path' => 'contacts', 'label' => 'Kontakty', 'acl' => ['view_all', 'Users_Controller', 'additional_contacts']],
             ]],
