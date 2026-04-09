@@ -180,7 +180,7 @@ class MemberController extends Controller
 
         $request->validate([
             'name'                        => 'required|string|max:30',
-            'surname'                     => 'required|string|max:60',
+            'surname'                     => 'nullable|string|max:60',
             'type'                        => 'required|integer|in:' . implode(',', array_keys(MemberType::labels())),
             'entrance_date'               => 'required|date',
             'login'                       => 'required|string|min:5|max:50|unique:users,login',
@@ -208,7 +208,7 @@ class MemberController extends Controller
             ]);
 
             // 2. Člen
-            $fullName = trim($request->name . ' ' . $request->surname);
+            $fullName = $request->surname ? trim($request->name . ' ' . $request->surname) : $request->name;
             $memberId = DB::table('members')->insertGetId([
                 'name'                        => $fullName,
                 'type'                        => $request->type,
@@ -226,7 +226,7 @@ class MemberController extends Controller
             $userId = DB::table('users')->insertGetId([
                 'member_id'            => $memberId,
                 'name'                 => $request->name,
-                'surname'              => $request->surname,
+                'surname'              => $request->surname ?? '',
                 'login'                => $request->login,
                 'password'             => bcrypt($request->password),
                 'application_password' => substr(str_shuffle('abcdefghijklmnopqrstuvwxyz0123456789'), 0, 8),

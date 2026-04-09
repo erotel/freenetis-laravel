@@ -27,7 +27,7 @@
             </td>
         </tr>
         <tr>
-            <th><label for="surname">Příjmení <span style="color:red">*</span></label></th>
+            <th><label for="surname" id="surname-label">Příjmení <span id="surname-required" style="color:red">*</span></label></th>
             <td>
                 <input type="text" id="surname" name="surname" value="{{ old('surname') }}" maxlength="60" style="width:200px">
                 @error('surname') <span style="color:red">{{ $message }}</span> @enderror
@@ -58,10 +58,13 @@
             </td>
         </tr>
         <tr>
-            <th><label for="organization_identifier">IČO</label></th>
+            <th><label for="ico">IČO</label></th>
             <td>
-                <input type="text" id="organization_identifier" name="organization_identifier"
-                       value="{{ old('organization_identifier') }}" maxlength="20" style="width:150px">
+                <input type="text" id="ico" name="organization_identifier"
+                       value="{{ old('organization_identifier') }}" maxlength="8"
+                       placeholder="12345678" style="width:120px">
+                <button type="button" onclick="loadFromAres()" style="margin-left:8px;">🔍 Načíst z ARES</button>
+                <span id="ares-status" style="margin-left:8px; font-size:0.9em;"></span>
             </td>
         </tr>
         <tr>
@@ -131,6 +134,7 @@
 
     {{-- ADRESA --}}
     <h3 style="margin-top:1.5em;">Adresa</h3>
+    <div id="ares-adresa-info" style="display:none; background:#e8f4e8; border:1px solid #4caf50; padding:6px 10px; margin-bottom:8px; border-radius:4px; font-size:0.9em;"></div>
     <table class="extended" cellspacing="0">
         <tr>
             <th><label for="town_id">Město <span style="color:red">*</span></label></th>
@@ -193,5 +197,73 @@ document.addEventListener('DOMContentLoaded', function() {
     const streetId = '{{ old('street_id') }}';
     if (townId) loadStreets(townId, streetId);
 });
+
+async function loadFromAres() {
+    const ico    = document.getElementById('ico').value.trim();
+    const status = document.getElementById('ares-status');
+
+    if (!ico || ico.length !== 8) {
+        status.textContent = '⚠ Zadejte 8místné IČO.';
+        status.style.color = 'orange';
+        return;
+    }
+
+    status.textContent = '⏳ Načítám...';
+    status.style.color = '#666';
+
+    try {
+        const res  = await fetch('/new/ares/lookup/' + ico);
+        const data = await res.json();
+
+        if (data.error) {
+            status.textContent = '✗ ' + data.error;
+            status.style.color = 'red';
+            return;
+        }
+
+        if (data.nazev) {
+            document.querySelector('input[name="name"]').value = data.nazev;
+            // Firma z ARES — příjmení není potřeba
+            document.getElementById('surname').value = '';
+            document.getElementById('surname').removeAttribute('required');
+            document.getElementById('surname-required').style.display = 'none';
+            document.getElementById('surname').placeholder = '(firma — nevyplňovat)';
+            document.getElementById('surname').style.color = '#999';
+        }
+        if (data.dic) {
+            document.querySelector('input[name="vat_organization_identifier"]').value = data.dic;
+        }
+
+        // Vyplnit město a ulici z dropdownů
+        if (data.town_id) {
+            document.getElementById('town_id').value = data.town_id;
+            loadStreets(data.town_id, data.street_id);
+        }
+
+        // Vyplnit číslo popisné
+        if (data.cislo) {
+            document.querySelector('input[name="street_number"]').value = data.cislo;
+        }
+
+        // Informace o adrese
+        const adresaInfo = document.getElementById('ares-adresa-info');
+        if (adresaInfo && (data.mesto || data.ulice)) {
+            let adresaText = '📍 ARES adresa: ' + data.ulice + ', ' + data.mesto + ' ' + data.psc;
+            if (data.town_id)         adresaText += ' ✓ město nalezeno';
+            else                      adresaText += ' ⚠ město nenalezeno v DB';
+            if (data.street_id)       adresaText += ', ulice nalezena';
+            else if (data.ulice_nazev) adresaText += ', ⚠ ulice nenalezena v DB';
+            adresaInfo.textContent  = adresaText;
+            adresaInfo.style.display = 'block';
+        }
+
+        status.textContent = '✓ Data načtena z ARES';
+        status.style.color = 'green';
+
+    } catch (e) {
+        status.textContent = '✗ Chyba připojení k ARES';
+        status.style.color = 'red';
+    }
+}
 </script>
 @endsection
