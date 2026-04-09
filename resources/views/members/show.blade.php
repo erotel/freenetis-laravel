@@ -46,15 +46,21 @@
     @endif
     @if($canDelete)
     &nbsp;|&nbsp;
-    <form method="POST" action="{{ route('members.destroy', $member->id) }}" style="display:inline;"
-        onsubmit="return confirm('Opravdu smazat člena {{ addslashes($member->name) }}?');">
-        @csrf
-        @method('DELETE')
-        <button type="submit" class="icon-button" title="Smazat">
-            <img src="{{ asset('media/images/icons/delete.png') }}" alt="Smazat">
-            Smazat
-        </button>
-    </form>
+    @if($member->type != 15)
+        <form method="POST" action="{{ route('members.destroy', $member->id) }}" style="display:inline;">
+            @csrf @method('DELETE')
+            <button type="submit"
+                    onclick="return confirm('Označit člena {{ addslashes($member->name) }} jako bývalého?')"
+                    style="color:orange;">✕ Označit jako bývalého</button>
+        </form>
+    @else
+        <form method="POST" action="{{ route('members.destroy', $member->id) }}" style="display:inline;">
+            @csrf @method('DELETE')
+            <button type="submit"
+                    onclick="return confirm('TRVALE smazat člena {{ addslashes($member->name) }} a veškerá jeho data? Tato akce je nevratná!')"
+                    style="color:red; font-weight:bold;">✕ Trvale smazat</button>
+        </form>
+    @endif
     @endif
 </div>
 

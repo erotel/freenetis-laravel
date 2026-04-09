@@ -49,6 +49,11 @@ Route::middleware('auth')->group(function () {
     Route::resource('towns', TownController::class);
     Route::resource('streets', StreetController::class);
     Route::resource('members', MemberController::class);
+    Route::get('streets/by-town/{townId}', function (int $townId) {
+        return response()->json(
+            DB::table('streets')->where('town_id', $townId)->orderBy('street')->get(['id', 'street'])
+        );
+    })->name('streets.by-town');
 
     Route::get('users/member/{memberId}', [UserController::class, 'showByMember'])
         ->name('users.by_member');

@@ -164,56 +164,128 @@ class MemberController extends Controller
 
     public function create()
     {
-        if (!$this->can('new_all')) {
-            abort(403);
-        }
+        abort_unless($this->can('new_all'), 403);
 
-        $types = MemberType::labels();
-        unset($types[MemberType::FORMER], $types[MemberType::APPLICANT]);
+        $memberTypes = MemberType::labels();
+        unset($memberTypes[MemberType::FORMER], $memberTypes[MemberType::APPLICANT]);
 
-        $towns   = Town::orderBy('town')->get();
-        $streets = Street::orderBy('street')->get();
+        $towns = Town::orderBy('town')->get();
 
-        return view('members.create', compact('types', 'towns', 'streets'));
+        return view('members.create', compact('memberTypes', 'towns'));
     }
 
     public function store(Request $request)
     {
-        if (!$this->can('new_all')) {
-            abort(403);
-        }
+        abort_unless($this->can('new_all'), 403);
 
-        $data = $request->validate([
-            'name'           => 'required|string|max:100',
-            'type'           => 'required|integer|in:' . implode(',', array_keys(MemberType::labels())),
-            'entrance_date'  => 'nullable|date',
-            'comment'        => 'nullable|string|max:250',
+        $request->validate([
+            'name'                        => 'required|string|max:30',
+            'surname'                     => 'required|string|max:60',
+            'type'                        => 'required|integer|in:' . implode(',', array_keys(MemberType::labels())),
+            'entrance_date'               => 'required|date',
+            'login'                       => 'required|string|min:5|max:50|unique:users,login',
+            'password'                    => 'required|string|min:6|confirmed',
+            'email'                       => 'required|email|max:255',
+            'phone'                       => 'required|string|max:40',
+            'town_id'                     => 'required|integer|exists:towns,id',
+            'street_id'                   => 'required|integer|exists:streets,id',
+            'street_number'               => 'required|string|max:50',
             'organization_identifier'     => 'nullable|string|max:20',
             'vat_organization_identifier' => 'nullable|string|max:30',
-            'town_id'         => 'nullable|integer|exists:towns,id',
-            'street_id'       => 'nullable|integer|exists:streets,id',
-            'street_number'   => 'nullable|string|max:50',
+            'birthday'                    => 'required|date',
+            'comment'                     => 'nullable|string|max:250',
         ]);
 
-        $member = Member::create(array_merge($data, [
-            'locked'       => $request->boolean('locked'),
-            'registration' => $request->boolean('registration'),
-        ]));
+        $memberId = null;
 
-        if ($request->filled('town_id')) {
-            $addressPoint = new AddressPoint();
-            $addressPoint->town_id       = $data['town_id'];
-            $addressPoint->street_id     = $data['street_id'] ?? null;
-            $addressPoint->street_number = $data['street_number'] ?? null;
-            $addressPoint->country_id    = 1;
-            $addressPoint->save();
-            $member->address_point_id = $addressPoint->id;
-            $member->save();
-        }
+        DB::transaction(function () use ($request, &$memberId) {
+            // 1. Adresní bod
+            $addressPointId = DB::table('address_points')->insertGetId([
+                'town_id'       => $request->town_id,
+                'street_id'     => $request->street_id,
+                'street_number' => $request->street_number,
+                'country_id'    => 1,
+            ]);
 
-        session()->flash('success', 'Člen byl úspěšně přidán.');
+            // 2. Člen
+            $fullName = trim($request->name . ' ' . $request->surname);
+            $memberId = DB::table('members')->insertGetId([
+                'name'                        => $fullName,
+                'type'                        => $request->type,
+                'entrance_date'               => $request->entrance_date,
+                'leaving_date'                => '9999-12-31',
+                'comment'                     => $request->comment ?? '',
+                'organization_identifier'     => $request->organization_identifier ?? '',
+                'vat_organization_identifier' => $request->vat_organization_identifier ?? '',
+                'address_point_id'            => $addressPointId,
+                'locked'                      => 0,
+                'registration'                => 0,
+            ]);
 
-        return redirect()->route('members.show', $member->id);
+            // 3. Uživatelský účet
+            $userId = DB::table('users')->insertGetId([
+                'member_id'            => $memberId,
+                'name'                 => $request->name,
+                'surname'              => $request->surname,
+                'login'                => $request->login,
+                'password'             => bcrypt($request->password),
+                'application_password' => substr(str_shuffle('abcdefghijklmnopqrstuvwxyz0123456789'), 0, 8),
+                'type'                 => 1, // MAIN_USER
+                'birthday'             => $request->birthday ?: null,
+                'comment'              => '',
+                'settings'             => '',
+            ]);
+
+            // 4. Kreditní účet člena
+            $accountId = DB::table('accounts')->insertGetId([
+                'member_id'            => $memberId,
+                'account_attribute_id' => 221100, // Účet kreditu
+                'balance'              => 0,
+                'comment'              => '',
+            ]);
+
+            // 5. Variabilní symbol: member_id + 2 náhodné cifry
+            $vs = (string) $memberId . str_pad((string) rand(0, 99), 2, '0', STR_PAD_LEFT);
+            DB::table('variable_symbols')->insert([
+                'account_id'      => $accountId,
+                'variable_symbol' => $vs,
+            ]);
+
+            // 6. Výchozí třída rychlosti (regular_member_default)
+            $defaultSpeedClassId = \App\Models\SpeedClass::where('regular_member_default', 1)->value('id') ?? 1;
+            DB::table('members')->where('id', $memberId)->update([
+                'speed_class_id' => $defaultSpeedClassId,
+            ]);
+
+            // 7. Kontakty — email (typ 20)
+            if ($request->filled('email')) {
+                $contactId = DB::table('contacts')->insertGetId([
+                    'type'  => 20,
+                    'value' => $request->email,
+                ]);
+                DB::table('users_contacts')->insert([
+                    'user_id'          => $userId,
+                    'contact_id'       => $contactId,
+                    'mail_redirection' => 0,
+                ]);
+            }
+
+            // 6. Kontakty — telefon (typ 21)
+            if ($request->filled('phone')) {
+                $contactId = DB::table('contacts')->insertGetId([
+                    'type'  => 21,
+                    'value' => $request->phone,
+                ]);
+                DB::table('users_contacts')->insert([
+                    'user_id'          => $userId,
+                    'contact_id'       => $contactId,
+                    'mail_redirection' => 0,
+                ]);
+            }
+        });
+
+        return redirect()->route('members.show', $memberId)
+            ->with('success', 'Člen byl úspěšně vytvořen.');
     }
 
     public function edit(int $id)
@@ -302,24 +374,67 @@ class MemberController extends Controller
 
     public function destroy(int $id)
     {
-        if (!$this->can('delete_all')) {
-            abort(403);
+        abort_unless($this->can('delete_all'), 403);
+
+        $member = DB::table('members')->where('id', $id)->first();
+        abort_if(!$member, 404);
+
+        // Krok 1: pokud není ještě bývalý člen, označit ho jako bývalého
+        if ($member->type != 15) {
+            DB::table('members')->where('id', $id)->update([
+                'type'         => 15,
+                'locked'       => 1,
+                'leaving_date' => now()->format('Y-m-d'),
+            ]);
+            return redirect()->route('members.show', $id)
+                ->with('info', 'Člen byl označen jako bývalý. Pro úplné smazání klikněte znovu na Trvale smazat.');
         }
 
-        $member = Member::find($id);
-        if (!$member) {
-            abort(404);
-        }
+        // Krok 2: člen je již bývalý — smazat vše
+        DB::transaction(function () use ($id) {
+            $userIds = DB::table('users')->where('member_id', $id)->pluck('id');
 
-        if ($member->users()->exists()) {
-            session()->flash('error', 'Člena nelze smazat, má přiřazené uživatele.');
-            return redirect()->back();
-        }
+            // Kontakty
+            $contactIds = DB::table('users_contacts')->whereIn('user_id', $userIds)->pluck('contact_id');
+            DB::table('users_contacts')->whereIn('user_id', $userIds)->delete();
+            DB::table('contacts')->whereIn('id', $contactIds)->delete();
 
-        $member->delete();
+            // Zařízení, rozhraní, IP adresy
+            foreach ($userIds as $userId) {
+                $deviceIds = DB::table('devices')->where('user_id', $userId)->pluck('id');
+                foreach ($deviceIds as $deviceId) {
+                    $ifaceIds = DB::table('ifaces')->where('device_id', $deviceId)->pluck('id');
+                    foreach ($ifaceIds as $ifaceId) {
+                        DB::table('ip_addresses')->where('iface_id', $ifaceId)->delete();
+                    }
+                    DB::table('ifaces')->where('device_id', $deviceId)->delete();
+                }
+                DB::table('devices')->where('user_id', $userId)->delete();
+            }
 
-        session()->flash('success', 'Člen byl úspěšně smazán.');
+            // Uživatelé
+            DB::table('users')->where('member_id', $id)->delete();
 
-        return redirect()->route('members.index');
+            // Účty a převody
+            $accountIds = DB::table('accounts')->where('member_id', $id)->pluck('id');
+            DB::table('transfers')->whereIn('origin_id', $accountIds)->delete();
+            DB::table('transfers')->whereIn('destination_id', $accountIds)->delete();
+            DB::table('accounts')->where('member_id', $id)->delete();
+
+            // Variabilní symboly (přes account_id)
+            DB::table('variable_symbols')->whereIn('account_id', $accountIds)->delete();
+
+            // Poplatky
+            DB::table('members_fees')->where('member_id', $id)->delete();
+
+            // Povolené podsítě
+            DB::table('allowed_subnets')->where('member_id', $id)->delete();
+
+            // Člen
+            DB::table('members')->where('id', $id)->delete();
+        });
+
+        return redirect()->route('members.index')
+            ->with('success', 'Člen a všechna jeho data byla trvale smazána.');
     }
 }
