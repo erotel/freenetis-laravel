@@ -379,15 +379,20 @@ class MemberController extends Controller
         $member = DB::table('members')->where('id', $id)->first();
         abort_if(!$member, 404);
 
-        // Krok 1: pokud není ještě bývalý člen, označit ho jako bývalého
-        if ($member->type != 15) {
+        $formerTypes = [MemberType::FORMER, MemberType::FORMER_CUSTOMER];
+
+        // Krok 1: pokud není ještě bývalý, označit jako bývalého
+        if (!in_array($member->type, $formerTypes)) {
+            // typ 90 (řádný člen) → 16 (bývalý zákazník), ostatní → 15 (bývalý člen)
+            $newType = ($member->type == MemberType::REGULAR) ? MemberType::FORMER_CUSTOMER : MemberType::FORMER;
             DB::table('members')->where('id', $id)->update([
-                'type'         => 15,
+                'type'         => $newType,
                 'locked'       => 1,
                 'leaving_date' => now()->format('Y-m-d'),
             ]);
+            $label = ($newType === MemberType::FORMER_CUSTOMER) ? 'zákazník' : 'člen';
             return redirect()->route('members.show', $id)
-                ->with('info', 'Člen byl označen jako bývalý. Pro úplné smazání klikněte znovu na Trvale smazat.');
+                ->with('info', "Člen byl označen jako bývalý {$label}. Pro úplné smazání klikněte znovu na Trvale smazat.");
         }
 
         // Krok 2: člen je již bývalý — smazat vše

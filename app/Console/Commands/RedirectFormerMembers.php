@@ -11,7 +11,9 @@ class RedirectFormerMembers extends Command
     protected $signature   = 'members:redirect-former {--force : Skip time check}';
     protected $description = 'Mark expired members as former, optionally remove devices, activate redirect message';
 
-    const TYPE_FORMER = 15;
+    const TYPE_FORMER          = 15;
+    const TYPE_FORMER_CUSTOMER = 16;
+    const FORMER_TYPES         = [self::TYPE_FORMER, self::TYPE_FORMER_CUSTOMER];
 
     public function handle(): int
     {
@@ -19,8 +21,9 @@ class RedirectFormerMembers extends Command
         $today = now()->format('Y-m-d');
 
         $updated = DB::table('members')
-            ->where('type', '!=', self::TYPE_FORMER)
+            ->whereNotIn('type', self::FORMER_TYPES)
             ->whereNotNull('leaving_date')
+            ->where('leaving_date', '!=', '9999-12-31')
             ->where('leaving_date', '!=', '0000-00-00')
             ->where('leaving_date', '<=', $today)
             ->update([
@@ -37,8 +40,9 @@ class RedirectFormerMembers extends Command
         if ($autoRemove && $updated > 0) {
             // Find newly marked former members' devices
             $memberIds = DB::table('members')
-                ->where('type', self::TYPE_FORMER)
+                ->whereIn('type', self::FORMER_TYPES)
                 ->where('leaving_date', '<=', $today)
+                ->where('leaving_date', '!=', '9999-12-31')
                 ->where('leaving_date', '!=', '0000-00-00')
                 ->pluck('id');
 
@@ -69,7 +73,7 @@ class RedirectFormerMembers extends Command
 
         // Step 4: Get all former members with their IP addresses
         $formerMembers = DB::table('members as m')
-            ->where('m.type', self::TYPE_FORMER)
+            ->whereIn('m.type', self::FORMER_TYPES)
             ->pluck('m.id');
 
         // Step 5: Clear old redirections for this message

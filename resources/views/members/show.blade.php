@@ -46,7 +46,7 @@
     @endif
     @if($canDelete)
     &nbsp;|&nbsp;
-    @if($member->type != 15)
+    @if(!in_array($member->type, [15, 16]))
         <form method="POST" action="{{ route('members.destroy', $member->id) }}" style="display:inline;">
             @csrf @method('DELETE')
             <button type="submit"
@@ -162,7 +162,7 @@
                 <th colspan="2" style="background:#e8e8e8;">Další informace</th>
             </tr>
             <tr>
-                <th>Přihláška</th>
+                <th>{{ in_array($member->type, [2, 3]) ? 'Smlouva' : 'Přihláška' }}</th>
                 <td>{{ $member->registration ? 'ano' : 'ne' }}</td>
             </tr>
             <tr>

@@ -23,7 +23,8 @@ class DeductFees extends Command
 
     // Member type IDs (matches Kohana Member_Model constants)
     const MEMBER_TYPE_APPLICANT = 1;
-    const MEMBER_TYPE_FORMER    = 15;
+    const MEMBER_TYPE_FORMER          = 15;
+    const MEMBER_TYPE_FORMER_CUSTOMER = 16;
 
     public function handle(): int
     {
@@ -120,7 +121,7 @@ class DeductFees extends Command
             WHERE m.id <> 1
               AND a.account_attribute_id = :credit
               AND m.entrance_date < :date4
-              AND (m.leaving_date = '0000-00-00' OR m.leaving_date > :date5)
+              AND (m.leaving_date = '0000-00-00' OR m.leaving_date = '9999-12-31' OR m.leaving_date > :date5)
               AND t.id IS NULL
         ", [
             'date1'  => $date,
@@ -200,6 +201,7 @@ class DeductFees extends Command
                 WHERE a.account_attribute_id = :credit
                   AND m.entrance_fee > 0
                   AND m.type <> :applicant
+                  AND m.type <> :former_customer
                   AND m.entrance_date < :date1
                   AND (m.type <> :former OR m.leaving_date > :date2)
                   AND a.id NOT IN (
@@ -213,7 +215,8 @@ class DeductFees extends Command
         ", [
             'type1'      => self::TYPE_ENTRANCE_FEE,
             'credit'     => self::CREDIT_ACCOUNT,
-            'applicant'  => self::MEMBER_TYPE_APPLICANT,
+            'applicant'        => self::MEMBER_TYPE_APPLICANT,
+            'former_customer'  => self::MEMBER_TYPE_FORMER_CUSTOMER,
             'date1'      => $date,
             'former'     => self::MEMBER_TYPE_FORMER,
             'date2'      => $date,
