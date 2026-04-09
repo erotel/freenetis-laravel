@@ -379,7 +379,40 @@ class MemberController extends Controller
         $member = DB::table('members')->where('id', $id)->first();
         abort_if(!$member, 404);
 
-        $formerTypes = [MemberType::FORMER, MemberType::FORMER_CUSTOMER];
+        $formerTypes  = [MemberType::FORMER, MemberType::FORMER_CUSTOMER];
+        $pendingTypes = [MemberType::PENDING_MEMBER, MemberType::PENDING_CUSTOMER];
+
+        // Čekající členové (17/18) — smazat okamžitě bez kroku "označit jako bývalého"
+        if (in_array($member->type, $pendingTypes)) {
+            DB::transaction(function () use ($id) {
+                $userIds    = DB::table('users')->where('member_id', $id)->pluck('id');
+                $contactIds = DB::table('users_contacts')->whereIn('user_id', $userIds)->pluck('contact_id');
+                DB::table('users_contacts')->whereIn('user_id', $userIds)->delete();
+                DB::table('contacts')->whereIn('id', $contactIds)->delete();
+                foreach ($userIds as $userId) {
+                    $deviceIds = DB::table('devices')->where('user_id', $userId)->pluck('id');
+                    foreach ($deviceIds as $deviceId) {
+                        $ifaceIds = DB::table('ifaces')->where('device_id', $deviceId)->pluck('id');
+                        foreach ($ifaceIds as $ifaceId) {
+                            DB::table('ip_addresses')->where('iface_id', $ifaceId)->delete();
+                        }
+                        DB::table('ifaces')->where('device_id', $deviceId)->delete();
+                    }
+                    DB::table('devices')->where('user_id', $userId)->delete();
+                }
+                DB::table('users')->where('member_id', $id)->delete();
+                $accountIds = DB::table('accounts')->where('member_id', $id)->pluck('id');
+                DB::table('variable_symbols')->whereIn('account_id', $accountIds)->delete();
+                DB::table('transfers')->whereIn('origin_id', $accountIds)->delete();
+                DB::table('transfers')->whereIn('destination_id', $accountIds)->delete();
+                DB::table('accounts')->where('member_id', $id)->delete();
+                DB::table('members_fees')->where('member_id', $id)->delete();
+                DB::table('allowed_subnets')->where('member_id', $id)->delete();
+                DB::table('members')->where('id', $id)->delete();
+            });
+            return redirect()->route('members.index')
+                ->with('success', 'Čekající člen byl smazán.');
+        }
 
         // Krok 1: pokud není ještě bývalý, označit jako bývalého
         if (!in_array($member->type, $formerTypes)) {
@@ -441,5 +474,30 @@ class MemberController extends Controller
 
         return redirect()->route('members.index')
             ->with('success', 'Člen a všechna jeho data byla trvale smazána.');
+    }
+
+    public function restore(int $id)
+    {
+        abort_unless($this->can('edit_all'), 403);
+
+        $member = DB::table('members')->where('id', $id)->first();
+        abort_if(!$member, 404);
+
+        if (!in_array($member->type, [MemberType::FORMER, MemberType::FORMER_CUSTOMER])) {
+            return back()->with('error', 'Tento člen není označen jako bývalý.');
+        }
+
+        // 16 → 90 (zákazník), 15 → 2 (člen)
+        $originalType = ($member->type == MemberType::FORMER_CUSTOMER) ? MemberType::REGULAR : MemberType::CUSTOMER;
+
+        DB::table('members')->where('id', $id)->update([
+            'type'         => $originalType,
+            'locked'       => 0,
+            'leaving_date' => '9999-12-31',
+        ]);
+
+        $label = ($originalType == MemberType::REGULAR) ? 'zákazník' : 'člen';
+        return redirect()->route('members.show', $id)
+            ->with('success', "Člen byl obnoven jako {$label}.");
     }
 }

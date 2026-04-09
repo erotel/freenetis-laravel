@@ -37,9 +37,8 @@
             <th><label for="type">Typ člena <span style="color:red">*</span></label></th>
             <td>
                 <select id="type" name="type">
-                    @foreach($memberTypes as $value => $label)
-                        <option value="{{ $value }}" {{ old('type', 2) == $value ? 'selected' : '' }}>{{ $label }}</option>
-                    @endforeach
+                    <option value="17" {{ old('type', 18) == 17 ? 'selected' : '' }}>Čekající člen</option>
+                    <option value="18" {{ old('type', 18) == 18 ? 'selected' : '' }}>Čekající zákazník</option>
                 </select>
                 @error('type') <span style="color:red">{{ $message }}</span> @enderror
             </td>

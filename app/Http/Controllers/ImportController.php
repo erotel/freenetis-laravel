@@ -467,6 +467,12 @@ class ImportController extends Controller
             return true;
         }
 
+        // Blokovat párování pro čekající členy (typ 17/18) — smlouva/přihláška nepodepsána
+        if (in_array((int) $member->type, [17, 18])) {
+            $bt->comment = 'Čekající člen/zákazník — smlouva/přihláška nepodepsána, platba nespárována.';
+            return false;
+        }
+
         $memberType = (int) $member->type;
         $key        = sprintf(SettingController::KEY_BA_MEMBER_TYPE, $memberType);
         $expectedBaId = (int) Setting::get($key, 0);
