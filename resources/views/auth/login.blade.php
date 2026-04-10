@@ -22,6 +22,14 @@
 <div class="card">
     <h1>FreenetIS</h1>
 
+    @if(session('success'))
+        <div style="background:#d4edda; border:1px solid #c3e6cb; border-radius:4px; padding:.6rem .75rem; font-size:.875rem; color:#155724; margin-bottom:1rem;">
+            {{ session('success') }}
+        </div>
+    @endif
+    @if(session('error'))
+        <div class="error">{{ session('error') }}</div>
+    @endif
     @if ($errors->any())
         <div class="error">{{ $errors->first() }}</div>
     @endif
@@ -41,7 +49,11 @@
         </div>
 
         <button type="submit">Přihlásit se</button>
-        <div style="text-align:center; margin-top:1em; font-size:0.9em;">
+        <div style="text-align:center; margin-top:0.75em; font-size:0.9em;">
+            @if(\App\Models\Setting::get('forgotten_password', 0))
+            <a href="{{ route('forgotten-password') }}">Zapomenuté heslo?</a>
+            &nbsp;|&nbsp;
+            @endif
             <a href="{{ route('registration.create') }}">Nemáte účet? Registrujte se</a>
         </div>
     </form>

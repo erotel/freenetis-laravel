@@ -31,6 +31,7 @@ use App\Http\Controllers\EnumTypeController;
 use App\Http\Controllers\MessageAutoSettingController;
 use App\Http\Controllers\MessageController;
 use App\Http\Controllers\RegistrationController;
+use App\Http\Controllers\ForgottenPasswordController;
 use Illuminate\Support\Facades\Route;
 
 // Login / logout
@@ -43,6 +44,12 @@ Route::middleware('guest')->group(function () {
     Route::get('register', [RegistrationController::class, 'create'])->name('registration.create');
     Route::post('register', [RegistrationController::class, 'store'])->name('registration.store');
     Route::get('register/success', [RegistrationController::class, 'success'])->name('registration.success');
+
+    // Forgotten password
+    Route::get('forgotten-password', [ForgottenPasswordController::class, 'create'])->name('forgotten-password');
+    Route::post('forgotten-password', [ForgottenPasswordController::class, 'store'])->name('forgotten-password.store');
+    Route::get('forgotten-password/reset', [ForgottenPasswordController::class, 'reset'])->name('forgotten-password.reset');
+    Route::post('forgotten-password/reset', [ForgottenPasswordController::class, 'update'])->name('forgotten-password.update');
 });
 
 // Public ARES lookup (for registration form - no auth required)
