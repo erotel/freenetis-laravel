@@ -657,4 +657,50 @@ class MemberController extends Controller
         return redirect()->route('members.show', $id)
             ->with('success', "Člen byl obnoven jako {$label}.");
     }
+
+    public function approve(int $id)
+    {
+        $member = Member::findOrFail($id);
+
+        if (!in_array($member->type, [MemberType::PENDING_MEMBER, MemberType::PENDING_CUSTOMER])) {
+            return back()->with('error', 'Člen není čekatel.');
+        }
+
+        if (!$member->registration) {
+            return back()->with('error', 'Přihláška/smlouva není podepsána.');
+        }
+
+        $messageId = ($member->type == MemberType::PENDING_MEMBER) ? 10 : 116;
+
+        $member->type = ($member->type == MemberType::PENDING_MEMBER)
+            ? MemberType::REGULAR
+            : MemberType::CUSTOMER;
+        $member->entrance_form_accepted = now()->toDateString();
+        $member->save();
+
+        $message = \App\Models\Message::where('id', $messageId)->first();
+        if ($message && $message->email_text) {
+            $userId = DB::table('users')->where('member_id', $id)->value('id');
+            if ($userId) {
+                $email = DB::table('contacts as c')
+                    ->join('users_contacts as uc', 'uc.contact_id', '=', 'c.id')
+                    ->where('uc.user_id', $userId)
+                    ->where('c.type', 20)
+                    ->value('c.value');
+
+                if ($email) {
+                    DB::table('email_queues')->insert([
+                        'from'    => \App\Models\Setting::get('email_default_email', 'noreply@pvfree.net'),
+                        'to'      => $email,
+                        'subject' => \App\Models\Setting::get('email_subject_prefix', 'PVfree.net') . ' :: ' . $message->name,
+                        'body'    => $message->email_text,
+                        'state'   => 0,
+                    ]);
+                }
+            }
+        }
+
+        return redirect()->route('members.show', $id)
+            ->with('success', 'Člen byl schválen a byl mu odeslán email.');
+    }
 }

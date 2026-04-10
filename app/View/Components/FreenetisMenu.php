@@ -3,6 +3,7 @@
 namespace App\View\Components;
 
 use App\Services\AclService;
+use Illuminate\Support\Facades\DB;
 use Illuminate\View\Component;
 
 class FreenetisMenu extends Component
@@ -15,13 +16,29 @@ class FreenetisMenu extends Component
         $userId = $user?->id ?? 0;
         $currentPath = request()->path();
 
+        // Badge counts (only query if user has access, lazy via closures resolved below)
+        $countUnidentified = fn() => (int) DB::table('transfers as t')
+            ->join('bank_transfers as bt', 'bt.transfer_id', '=', 't.id')
+            ->join('accounts as a', 'a.id', '=', 't.origin_id')
+            ->whereNull('t.member_id')
+            ->where('a.account_attribute_id', 684000)
+            ->count();
+
+        $countDraftOutgoing = fn() => (int) DB::table('outgoing_payments')
+            ->where('status', 'draft')
+            ->count();
+
+        $countApplicants = fn() => (int) DB::table('members')
+            ->whereIn('type', [17, 18])
+            ->count();
+
         $menuGroups = [
             ['name' => 'home', 'label' => 'Domů', 'items' => [
                 ['url' => route('members.show', $user?->member_id ?? 1), 'path' => '', 'label' => 'Můj profil', 'acl' => null],
             ]],
             ['name' => 'members', 'label' => 'Členové', 'items' => [
                 ['url' => route('members.index'), 'path' => 'members', 'label' => 'Seznam členů', 'acl' => ['view_all', 'Members_Controller', 'members']],
-                ['url' => route('members.applicants'), 'path' => 'members/applicants', 'label' => 'Čekatelé', 'acl' => ['view_all', 'Members_Controller', 'members']],
+                ['url' => route('members.applicants'), 'path' => 'members/applicants', 'label' => 'Čekatelé', 'acl' => ['view_all', 'Members_Controller', 'members'], 'count' => $countApplicants],
                 ['url' => route('users.index'), 'path' => 'users', 'label' => 'Uživatelé', 'acl' => ['view_all', 'Users_Controller', 'users']],
                 ['url' => url('users/' . ($user?->id ?? 0) . '/contacts'), 'path' => 'contacts', 'label' => 'Kontakty', 'acl' => ['view_all', 'Users_Controller', 'additional_contacts']],
             ]],
@@ -35,8 +52,8 @@ class FreenetisMenu extends Component
                 ['url' => route('accounts.index'),           'path' => 'accounts',          'label' => 'Účty',                   'acl' => ['view_all', 'Accounts_Controller', 'accounts']],
                 ['url' => route('transfers.index'),          'path' => 'transfers',         'label' => 'Převody',                'acl' => ['view_all', 'Accounts_Controller', 'transfers']],
                 ['url' => route('bank_accounts.index'),      'path' => 'bank-accounts',     'label' => 'Bankovní účty',          'acl' => ['view_all', 'Accounts_Controller', 'bank_accounts']],
-                ['url' => route('bank_transfers.unidentified'), 'path' => 'bank-transfers/unidentified', 'label' => 'Neidentifikované', 'acl' => ['view_all', 'Accounts_Controller', 'unidentified_transfers']],
-                ['url' => route('outgoing_payments.index'),  'path' => 'outgoing-payments', 'label' => 'Odchozí platby',         'acl' => ['view_all', 'Accounts_Controller', 'bank_transfers']],
+                ['url' => route('bank_transfers.unidentified'), 'path' => 'bank-transfers/unidentified', 'label' => 'Neidentifikované', 'acl' => ['view_all', 'Accounts_Controller', 'unidentified_transfers'], 'count' => $countUnidentified],
+                ['url' => route('outgoing_payments.index'),  'path' => 'outgoing-payments', 'label' => 'Odchozí platby',         'acl' => ['view_all', 'Accounts_Controller', 'bank_transfers'], 'count' => $countDraftOutgoing],
                 ['url' => route('invoices.index'),           'path' => 'invoices',          'label' => 'Faktury',                'acl' => ['view_all', 'Accounts_Controller', 'invoices']],
             ]],
             ['name' => 'logs', 'label' => 'Logy', 'items' => [
@@ -60,20 +77,20 @@ class FreenetisMenu extends Component
             $visibleItems = [];
 
             foreach ($group['items'] as $item) {
-                if ($item['acl'] === null) {
-                    $visibleItems[] = $item + ['current' => ($currentPath === $item['path'])];
-                } else {
-                    [$acoValue, $axoSection, $axoVal] = $item['acl'];
-                    $hasAccess = $acl->hasAccess($userId, $acoValue, $axoSection, $axoVal);
+                $hasAccess = $item['acl'] === null
+                    || $acl->hasAccess($userId, ...$item['acl']);
 
-                    if ($hasAccess) {
-                        $visibleItems[] = $item + ['current' => ($currentPath === $item['path'])];
-                    }
+                if ($hasAccess) {
+                    $count = isset($item['count']) ? ($item['count'])() : null;
+                    $visibleItems[] = array_merge($item, [
+                        'current' => ($currentPath === $item['path']),
+                        'count'   => $count,
+                    ]);
                 }
             }
 
             if (!empty($visibleItems)) {
-                $this->groups[] = $group + ['items' => $visibleItems];
+                $this->groups[] = array_merge($group, ['items' => $visibleItems]);
             }
         }
     }

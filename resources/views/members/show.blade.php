@@ -61,6 +61,15 @@
     &nbsp;|&nbsp;
     <a href="{{ route('users.password', $mainUser->id) }}">Změnit heslo</a>
     @endif
+    @if($canEdit && in_array($member->type, [17, 18]) && $member->registration)
+    &nbsp;|&nbsp;
+    <form method="POST" action="{{ route('members.approve', $member->id) }}" style="display:inline">
+        @csrf
+        <button type="submit"
+                onclick="return confirm('Schválit čekatele a změnit typ na {{ $member->type == 17 ? "Řádný člen" : "Zákazník" }}?')"
+                style="color:green; font-weight:bold;">✓ Schválit čekatele</button>
+    </form>
+    @endif
     @if($canDelete)
     &nbsp;|&nbsp;
     @if(in_array($member->type, [17, 18]))
