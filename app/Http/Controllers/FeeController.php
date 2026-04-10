@@ -17,8 +17,6 @@ class FeeController extends Controller
 
     public function index(Request $request)
     {
-        abort_unless($this->can('view_all'), 403);
-
         $sort = in_array($request->sort, ['id', 'type_id', 'name', 'fee', 'from', 'to']) ? $request->sort : 'type_id';
         $dir  = $request->dir === 'desc' ? 'desc' : 'asc';
 

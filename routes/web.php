@@ -125,14 +125,20 @@ Route::middleware('auth')->group(function () {
     Route::get('/search/ajax', [SearchController::class, 'ajax'])->name('search.ajax');
     Route::get('/search', [SearchController::class, 'index'])->name('search');
 
-    Route::resource('towns', TownController::class);
-    Route::resource('streets', StreetController::class);
+    Route::get('towns', [TownController::class, 'index'])->name('towns.index')
+        ->middleware('acl:view_all,Address_points_Controller,town');
+    Route::resource('towns', TownController::class)->except(['index']);
+    Route::get('streets', [StreetController::class, 'index'])->name('streets.index')
+        ->middleware('acl:view_all,Address_points_Controller,street');
+    Route::resource('streets', StreetController::class)->except(['index']);
     Route::get('members/applicants', [MemberController::class, 'applicants'])->name('members.applicants');
     Route::get('members/{id}/end-membership', [MemberController::class, 'endMembershipForm'])->name('members.end-membership');
     Route::post('members/{id}/end-membership', [MemberController::class, 'endMembership'])->name('members.end-membership.store');
     Route::post('members/{id}/restore', [MemberController::class, 'restore'])->name('members.restore');
     Route::post('members/{id}/approve', [MemberController::class, 'approve'])->name('members.approve');
-    Route::resource('members', MemberController::class);
+    Route::get('members', [MemberController::class, 'index'])->name('members.index')
+        ->middleware('acl:view_all,Members_Controller,members');
+    Route::resource('members', MemberController::class)->except(['index']);
     Route::get('ares/lookup/{ico}', function (string $ico) {
         $ico = preg_replace('/\D/', '', $ico);
         if (strlen($ico) !== 8) {
@@ -203,7 +209,9 @@ Route::middleware('auth')->group(function () {
         ->name('users.password');
     Route::put('users/{id}/password', [UserController::class, 'updatePassword'])
         ->name('users.password.update');
-    Route::resource('users', UserController::class);
+    Route::get('users', [UserController::class, 'index'])->name('users.index')
+        ->middleware('acl:view_all,Users_Controller,users');
+    Route::resource('users', UserController::class)->except(['index']);
 
     Route::get('devices/add/{userId?}', [DeviceController::class, 'createWithTemplate'])->name('devices.add');
     Route::post('devices/add', [DeviceController::class, 'storeWithTemplate'])->name('devices.store_template');
@@ -213,8 +221,10 @@ Route::middleware('auth')->group(function () {
 
     Route::resource('accounts', AccountController::class)->except(['destroy']);
 
+    Route::get('bank-accounts', [BankAccountController::class, 'index'])->name('bank_accounts.index')
+        ->middleware('acl:view_all,Accounts_Controller,bank_accounts');
     Route::resource('bank-accounts', BankAccountController::class)
-        ->only(['index', 'show'])
+        ->only(['show'])
         ->names('bank_accounts');
     Route::get('bank-accounts/{id}/edit', [BankAccountController::class, 'edit'])
         ->name('bank_accounts.edit');
@@ -245,7 +255,9 @@ Route::middleware('auth')->group(function () {
     Route::post('outgoing-payments/{id}/cancel',                 [OutgoingPaymentController::class, 'cancel'])->name('outgoing_payments.cancel');
     Route::post('outgoing-payments/export/{bankAccountId}',      [OutgoingPaymentController::class, 'export'])->name('outgoing_payments.export');
 
-    Route::resource('fees', FeeController::class);
+    Route::get('fees', [FeeController::class, 'index'])->name('fees.index')
+        ->middleware('acl:view_all,Fees_Controller,fees');
+    Route::resource('fees', FeeController::class)->except(['index']);
 
     Route::get('members/{memberId}/fees',        [MemberFeeController::class, 'showByMember'])->name('members_fees.by_member');
     Route::get('members/{memberId}/fees/create', [MemberFeeController::class, 'create'])->name('members_fees.create');
@@ -257,16 +269,25 @@ Route::middleware('auth')->group(function () {
     // transfers — named route before resource to avoid wildcard clash
     Route::get('transfers/account/{accountId}', [TransferController::class, 'showByAccount'])
         ->name('transfers.by_account');
-    Route::resource('transfers', TransferController::class)->only(['index', 'show']);
-    Route::resource('subnets', SubnetController::class);
-    Route::resource('vlans', VlanController::class);
+    Route::get('transfers', [TransferController::class, 'index'])->name('transfers.index')
+        ->middleware('acl:view_all,Accounts_Controller,transfers');
+    Route::resource('transfers', TransferController::class)->only(['show']);
+    Route::get('subnets', [SubnetController::class, 'index'])->name('subnets.index')
+        ->middleware('acl:view_all,Subnets_Controller,subnet');
+    Route::resource('subnets', SubnetController::class)->except(['index']);
+    Route::get('vlans', [VlanController::class, 'index'])->name('vlans.index')
+        ->middleware('acl:view_all,Vlans_Controller,vlan');
+    Route::resource('vlans', VlanController::class)->except(['index']);
 
     // ip-addresses — device-scoped create must come before resource to avoid wildcard conflict
     Route::get('ip-addresses/device/{deviceId}', [IpAddressController::class, 'create'])
         ->name('ip_addresses.create_for_device');
+    Route::get('ip-addresses', [IpAddressController::class, 'index'])->name('ip_addresses.index')
+        ->middleware('acl:view_all,Ip_addresses_Controller,ip_address');
     Route::resource('ip-addresses', IpAddressController::class)
         ->names('ip_addresses')
-        ->parameters(['ip-addresses' => 'id']);
+        ->parameters(['ip-addresses' => 'id'])
+        ->except(['index']);
 
     Route::get('ifaces', [IfaceController::class, 'index'])->name('ifaces.index');
     Route::get('ifaces/create/{deviceId?}', [IfaceController::class, 'create'])->name('ifaces.create');
@@ -280,7 +301,8 @@ Route::middleware('auth')->group(function () {
     Route::post('variable-symbols/account/{accountId}', [VariableSymbolController::class, 'store'])->name('variable_symbols.store');
     Route::delete('variable-symbols/{id}',              [VariableSymbolController::class, 'destroy'])->name('variable_symbols.destroy');
 
-    Route::get('settings',          [SettingController::class, 'index'])->name('settings.index');
+    Route::get('settings', [SettingController::class, 'index'])->name('settings.index')
+        ->middleware('acl:view_all,Settings_Controller,finance_settings');
     Route::put('settings/finance',  [SettingController::class, 'updateFinance'])->name('settings.update-finance');
     Route::put('settings/email',    [SettingController::class, 'updateEmail'])->name('settings.update-email');
     Route::put('settings/system',   [SettingController::class, 'updateSystem'])->name('settings.update-system');
@@ -294,7 +316,8 @@ Route::middleware('auth')->group(function () {
     Route::put('acl/{id}',         [AroGroupController::class, 'aclUpdate'])->name('acl.update');
     Route::delete('acl/{id}',      [AroGroupController::class, 'aclDestroy'])->name('acl.destroy');
 
-    Route::get('aro-groups',                          [AroGroupController::class, 'index'])->name('aro-groups.index');
+    Route::get('aro-groups', [AroGroupController::class, 'index'])->name('aro-groups.index')
+        ->middleware('acl:view_all,Aro_groups_Controller,aro_groups');
     Route::get('aro-groups/create',                   [AroGroupController::class, 'create'])->name('aro-groups.create');
     Route::post('aro-groups',                         [AroGroupController::class, 'store'])->name('aro-groups.store');
     Route::get('aro-groups/{id}',                     [AroGroupController::class, 'show'])->name('aro-groups.show');
@@ -308,9 +331,12 @@ Route::middleware('auth')->group(function () {
 
     Route::post('speed-classes/{id}/set-default/{type}', [SpeedClassController::class, 'setDefault'])
         ->name('speed_classes.set_default');
+    Route::get('speed-classes', [SpeedClassController::class, 'index'])->name('speed_classes.index')
+        ->middleware('acl:view_all,Speed_classes_Controller,speed_classes');
     Route::resource('speed-classes', SpeedClassController::class)
         ->names('speed_classes')
-        ->parameters(['speed-classes' => 'id']);
+        ->parameters(['speed-classes' => 'id'])
+        ->except(['index']);
 
     Route::get('members/{memberId}/allowed-subnets',  [AllowedSubnetController::class, 'showByMember'])->name('allowed_subnets.by_member');
     Route::put('members/{memberId}/allowed-subnets/count', [AllowedSubnetController::class, 'updateCount'])->name('allowed_subnets.update_count');
@@ -346,7 +372,8 @@ Route::middleware('auth')->group(function () {
     Route::put('messages/{messageId}/auto-settings/{id}',    [MessageAutoSettingController::class, 'update'])->name('message-auto-settings.update');
     Route::delete('messages/{messageId}/auto-settings/{id}', [MessageAutoSettingController::class, 'destroy'])->name('message-auto-settings.destroy');
 
-    Route::get('enum-types', [EnumTypeController::class, 'index'])->name('enum-types.index');
+    Route::get('enum-types', [EnumTypeController::class, 'index'])->name('enum-types.index')
+        ->middleware('acl:view_all,Settings_Controller,enum_types');
     Route::get('enum-types/create', [EnumTypeController::class, 'create'])->name('enum-types.create');
     Route::post('enum-types', [EnumTypeController::class, 'store'])->name('enum-types.store');
     Route::get('enum-types/{id}/edit', [EnumTypeController::class, 'edit'])->name('enum-types.edit');

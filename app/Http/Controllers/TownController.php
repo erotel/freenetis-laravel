@@ -17,10 +17,6 @@ class TownController extends Controller
 
     public function index(Request $request)
     {
-        if (!$this->can('view_all')) {
-            abort(403);
-        }
-
         $allowedSorts = ['id', 'town', 'quarter', 'zip_code'];
         $sort = in_array($request->query('sort'), $allowedSorts, true)
             ? $request->query('sort')

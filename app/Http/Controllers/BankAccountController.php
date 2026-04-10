@@ -18,8 +18,6 @@ class BankAccountController extends Controller
 
     public function index()
     {
-        abort_unless($this->can('view_all'), 403);
-
         $accounts = BankAccount::with('member')->orderBy('name')->get();
 
         return view('bank_accounts.index', [

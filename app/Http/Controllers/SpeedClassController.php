@@ -14,9 +14,6 @@ class SpeedClassController extends Controller
 
     public function index()
     {
-        if (!$this->can('view_all'))
-            abort(403);
-
         $speedClasses = SpeedClass::withCount('members')->get();
         $canEdit = $this->can('edit_all');
         $canNew  = $this->can('new_all');

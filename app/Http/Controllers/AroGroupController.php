@@ -18,8 +18,6 @@ class AroGroupController extends Controller
 
     public function index()
     {
-        abort_unless($this->can('view_all'), 403);
-
         $groups = AroGroup::with('parent')->orderBy('lft')->get();
         $tree   = $this->buildTree($groups);
 

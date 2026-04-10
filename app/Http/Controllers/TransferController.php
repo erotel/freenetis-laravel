@@ -15,8 +15,6 @@ class TransferController extends Controller
 
     public function index(Request $request)
     {
-        abort_unless($this->can(), 403);
-
         $sort    = in_array($request->sort, ['id', 'datetime', 'amount']) ? $request->sort : 'datetime';
         $dir     = $request->dir === 'asc' ? 'asc' : 'desc';
         $perPage = (int) ($request->record_per_page ?? 50);

@@ -53,8 +53,6 @@ class SettingController extends Controller
 
     public function index()
     {
-        abort_unless($this->can('view_all'), 403);
-
         $bankAccounts = BankAccount::orderBy('name')->get(['id', 'name', 'account_nr', 'bank_nr']);
 
         // Member type → bank account routing rules

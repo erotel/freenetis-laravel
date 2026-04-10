@@ -18,8 +18,6 @@ class EnumTypeController extends Controller
 
     public function index()
     {
-        abort_unless($this->can('view_all'), 403);
-
         $groups = EnumTypeName::with(['enumTypes' => function ($q) {
             $q->orderBy('value');
         }])->orderBy('type_name')->get();
