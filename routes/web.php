@@ -32,6 +32,7 @@ use App\Http\Controllers\MessageAutoSettingController;
 use App\Http\Controllers\MessageController;
 use App\Http\Controllers\RegistrationController;
 use App\Http\Controllers\ForgottenPasswordController;
+use App\Http\Controllers\SearchController;
 use Illuminate\Support\Facades\Route;
 
 // Login / logout
@@ -121,7 +122,8 @@ Route::middleware('auth')->group(function () {
         return redirect()->route('members.show', $memberId);
     })->name('dashboard');
 
-    Route::get('/search', fn() => redirect('/'))->name('search');
+    Route::get('/search/ajax', [SearchController::class, 'ajax'])->name('search.ajax');
+    Route::get('/search', [SearchController::class, 'index'])->name('search');
 
     Route::resource('towns', TownController::class);
     Route::resource('streets', StreetController::class);

@@ -1,0 +1,209 @@
+<?php
+namespace App\Http\Controllers;
+
+use App\Models\Setting;
+use App\Services\AclService;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
+
+class SearchController extends Controller
+{
+    public function __construct(private AclService $acl) {}
+
+    private function can(string $action, string $section, string $value): bool
+    {
+        return $this->acl->hasAccess(auth()->id(), $action, $section, $value);
+    }
+
+    public function index(Request $request)
+    {
+        $query   = trim($request->get('q', ''));
+        $results = [];
+
+        if (strlen($query) < 2) {
+            return view('search.index', compact('query', 'results'));
+        }
+
+        $like = '%' . $query . '%';
+
+        // MEMBERS - requires view_all on members
+        if ($this->can('view_all', 'Members_Controller', 'members')) {
+            $members = DB::table('members as m')
+                ->leftJoin('variable_symbols as vs', function($j) {
+                    $j->join('accounts as a', 'a.id', '=', 'vs.account_id')
+                      ->whereColumn('a.member_id', 'm.id');
+                })
+                ->leftJoin('address_points as ap', 'ap.id', '=', 'm.address_point_id')
+                ->leftJoin('towns as t', 't.id', '=', 'ap.town_id')
+                ->leftJoin('streets as s', 's.id', '=', 'ap.street_id')
+                ->where(function($q) use ($like, $query) {
+                    $q->where('m.name', 'LIKE', $like)
+                      ->orWhere('m.id', '=', is_numeric($query) ? $query : -1)
+                      ->orWhere('vs.variable_symbol', 'LIKE', $like)
+                      ->orWhere('m.organization_identifier', 'LIKE', $like)
+                      ->orWhere('m.vat_organization_identifier', 'LIKE', $like)
+                      ->orWhere('t.town', 'LIKE', $like)
+                      ->orWhere('s.street', 'LIKE', $like)
+                      ->orWhere('ap.street_number', 'LIKE', $like);
+                })
+                ->select('m.id', 'm.name', 'm.type', 't.town', 'vs.variable_symbol')
+                ->distinct()
+                ->limit(20)
+                ->get();
+
+            if ($members->isNotEmpty()) {
+                $results['members'] = $members;
+            }
+        }
+
+        // USERS - requires view_all on users
+        if ($this->can('view_all', 'Users_Controller', 'users')) {
+            $users = DB::table('users as u')
+                ->join('members as m', 'm.id', '=', 'u.member_id')
+                ->leftJoin('users_contacts as uc', 'uc.user_id', '=', 'u.id')
+                ->leftJoin('contacts as c', 'c.id', '=', 'uc.contact_id')
+                ->where(function($q) use ($like) {
+                    $q->where('u.login', 'LIKE', $like)
+                      ->orWhere(DB::raw("CONCAT(u.name, ' ', u.surname)"), 'LIKE', $like)
+                      ->orWhere('c.value', 'LIKE', $like);
+                })
+                ->select('u.id', 'u.login', 'u.name', 'u.surname', 'm.id as member_id', 'm.name as member_name')
+                ->distinct()
+                ->limit(20)
+                ->get();
+
+            if ($users->isNotEmpty()) {
+                $results['users'] = $users;
+            }
+        }
+
+        // DEVICES + IP + MAC - requires networks_enabled and view_all
+        if ($this->can('view_all', 'Devices_Controller', 'devices') && Setting::get('networks_enabled', 0)) {
+            $devices = DB::table('devices as d')
+                ->join('users as u', 'u.id', '=', 'd.user_id')
+                ->join('members as m', 'm.id', '=', 'u.member_id')
+                ->leftJoin('ifaces as i', 'i.device_id', '=', 'd.id')
+                ->leftJoin('ip_addresses as ip', 'ip.iface_id', '=', 'i.id')
+                ->where(function($q) use ($like) {
+                    $q->where('d.name', 'LIKE', $like)
+                      ->orWhere('i.mac', 'LIKE', $like)
+                      ->orWhere('ip.ip_address', 'LIKE', $like);
+                })
+                ->select(
+                    'd.id', 'd.name as device_name',
+                    'i.mac', 'ip.ip_address',
+                    'm.id as member_id', 'm.name as member_name'
+                )
+                ->distinct()
+                ->limit(20)
+                ->get();
+
+            if ($devices->isNotEmpty()) {
+                $results['devices'] = $devices;
+            }
+        }
+
+        // SUBNETS - requires networks_enabled and view_all
+        if ($this->can('view_all', 'Subnets_Controller', 'subnet') && Setting::get('networks_enabled', 0)) {
+            $subnets = DB::table('subnets')
+                ->where(function($q) use ($like) {
+                    $q->where('name', 'LIKE', $like)
+                      ->orWhere('network_address', 'LIKE', $like);
+                })
+                ->select('id', 'name', 'network_address', 'netmask')
+                ->limit(10)
+                ->get();
+
+            if ($subnets->isNotEmpty()) {
+                $results['subnets'] = $subnets;
+            }
+        }
+
+        return view('search.index', compact('query', 'results'));
+    }
+
+    public function ajax(Request $request)
+    {
+        $query = trim($request->get('q', ''));
+        if (strlen($query) < 3) return response()->json([]);
+
+        $like    = '%' . $query . '%';
+        $results = [];
+
+        // Members
+        if ($this->can('view_all', 'Members_Controller', 'members')) {
+            $members = DB::table('members as m')
+                ->leftJoin('variable_symbols as vs', function($j) {
+                    $j->join('accounts as a', 'a.id', '=', 'vs.account_id')
+                      ->whereColumn('a.member_id', 'm.id');
+                })
+                ->leftJoin('address_points as ap', 'ap.id', '=', 'm.address_point_id')
+                ->leftJoin('towns as t', 't.id', '=', 'ap.town_id')
+                ->where(function($q) use ($like, $query) {
+                    $q->where('m.name', 'LIKE', $like)
+                      ->orWhere('vs.variable_symbol', 'LIKE', $like)
+                      ->orWhere('m.organization_identifier', 'LIKE', $like)
+                      ->orWhere('t.town', 'LIKE', $like);
+                })
+                ->select('m.id', 'm.name', 'm.type', 'vs.variable_symbol')
+                ->distinct()->limit(5)->get();
+
+            foreach ($members as $m) {
+                $results[] = [
+                    'url'    => route('members.show', $m->id),
+                    'title'  => \App\Helpers\MemberType::label($m->type) . ' ' . $m->name,
+                    'detail' => $m->variable_symbol ? 'VS: ' . $m->variable_symbol : '',
+                ];
+            }
+        }
+
+        // Users (login, email)
+        if ($this->can('view_all', 'Users_Controller', 'users')) {
+            $users = DB::table('users as u')
+                ->join('members as m', 'm.id', '=', 'u.member_id')
+                ->leftJoin('users_contacts as uc', 'uc.user_id', '=', 'u.id')
+                ->leftJoin('contacts as c', 'c.id', '=', 'uc.contact_id')
+                ->where(function($q) use ($like) {
+                    $q->where('u.login', 'LIKE', $like)
+                      ->orWhere('c.value', 'LIKE', $like);
+                })
+                ->select('m.id as member_id', 'm.name as member_name', 'u.login', 'c.value as contact')
+                ->distinct()->limit(5)->get();
+
+            foreach ($users as $u) {
+                $results[] = [
+                    'url'    => route('members.show', $u->member_id),
+                    'title'  => 'Uživatel ' . $u->login,
+                    'detail' => $u->contact ?? $u->member_name,
+                ];
+            }
+        }
+
+        // Devices/IP/MAC
+        if ($this->can('view_all', 'Devices_Controller', 'devices') && Setting::get('networks_enabled', 0)) {
+            $devices = DB::table('devices as d')
+                ->join('users as u', 'u.id', '=', 'd.user_id')
+                ->join('members as m', 'm.id', '=', 'u.member_id')
+                ->leftJoin('ifaces as i', 'i.device_id', '=', 'd.id')
+                ->leftJoin('ip_addresses as ip', 'ip.iface_id', '=', 'i.id')
+                ->where(function($q) use ($like) {
+                    $q->where('d.name', 'LIKE', $like)
+                      ->orWhere('i.mac', 'LIKE', $like)
+                      ->orWhere('ip.ip_address', 'LIKE', $like);
+                })
+                ->select('d.id', 'd.name as device_name', 'i.mac', 'ip.ip_address', 'm.id as member_id', 'm.name as member_name')
+                ->distinct()->limit(5)->get();
+
+            foreach ($devices as $d) {
+                $detail = collect([$d->ip_address, $d->mac])->filter()->implode(' / ');
+                $results[] = [
+                    'url'    => route('devices.show', $d->id),
+                    'title'  => 'Zařízení ' . $d->device_name,
+                    'detail' => $detail . ' — ' . $d->member_name,
+                ];
+            }
+        }
+
+        return response()->json(array_slice($results, 0, 10));
+    }
+}
