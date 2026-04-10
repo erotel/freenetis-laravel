@@ -18,6 +18,7 @@
 
     <p>Tyto bankovní převody nebyly spárovány s žádným členem (chybí VS nebo přišly na nesprávný účet).</p>
 
+    <div class="pagination-wrap">{{ $transfers->links() }}</div>
     <table class="extended" cellspacing="0">
         <thead>
             <tr>

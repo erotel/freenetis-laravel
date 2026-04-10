@@ -16,6 +16,7 @@
 @section('content')
     <h2>Přihlášení uživatele {{ $targetUser->login }}</h2>
 
+    {{ $logs->links() }}
     <table class="extended" cellspacing="0">
         <thead>
             <tr>

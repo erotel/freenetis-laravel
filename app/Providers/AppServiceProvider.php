@@ -31,6 +31,10 @@ class AppServiceProvider extends ServiceProvider
         // Register Blade components
         Blade::component('freenetis-menu', FreenetisMenu::class);
 
+        // Custom Kohana-style pagination
+        \Illuminate\Pagination\Paginator::defaultView('vendor.pagination.kohana');
+        \Illuminate\Pagination\Paginator::defaultSimpleView('vendor.pagination.kohana');
+
         // Gate for FreenetIS ACL
         // Usage: Gate::check('freenetis', [$acoType, $axoSection, $axoValue, $memberIdParam])
         Gate::define('freenetis', function (

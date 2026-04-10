@@ -52,6 +52,7 @@
         @endforeach
     </div>
 
+    <div class="pagination-wrap">{{ $payments->links() }}</div>
     <table class="extended" cellspacing="0">
         <thead>
             <tr>

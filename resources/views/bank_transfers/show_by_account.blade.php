@@ -29,6 +29,7 @@
     </table>
     <div style="clear:both;"></div>
 
+    <div class="pagination-wrap">{{ $transfers->links() }}</div>
     <table class="extended" cellspacing="0">
         <thead>
             <tr>

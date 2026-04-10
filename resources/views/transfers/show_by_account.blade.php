@@ -50,6 +50,7 @@
         </tbody>
     </table>
 
+    {{ $transfers->links() }}
     <table class="extended" cellspacing="0">
         <thead>
             <tr>

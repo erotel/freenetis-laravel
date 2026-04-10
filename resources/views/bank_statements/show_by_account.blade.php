@@ -21,6 +21,7 @@
         <a href="{{ route('bank_accounts.show', $account->id) }}">&larr; Zpět na účet</a>
     </div>
 
+    <div class="pagination-wrap">{{ $statements->links() }}</div>
     <table class="extended" cellspacing="0">
         <thead>
             <tr>

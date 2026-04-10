@@ -32,6 +32,7 @@
         $sortUrl = fn(string $col) => request()->fullUrlWithQuery(['sort' => $col, 'dir' => $nextDir($col), 'page' => 1]);
     @endphp
 
+    {{ $streets->links() }}
     <table class="extended" cellspacing="0">
         <thead>
             <tr>

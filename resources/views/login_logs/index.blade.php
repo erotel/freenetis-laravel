@@ -16,6 +16,7 @@
     <h2>Logy přihlášení</h2>
     <p><em>Přehled posledních přihlášení uživatelů</em></p>
 
+    {{ $users->links() }}
     <table class="extended" cellspacing="0">
         <thead>
             <tr>

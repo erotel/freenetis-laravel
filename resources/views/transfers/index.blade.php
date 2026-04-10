@@ -36,6 +36,7 @@
         $sortUrl = fn(string $col) => request()->fullUrlWithQuery(['sort' => $col, 'dir' => $nextDir($col), 'page' => 1]);
     @endphp
 
+    {{ $transfers->links() }}
     <table class="extended" cellspacing="0">
         <thead>
             <tr>

@@ -51,6 +51,7 @@
         $sortUrl = fn(string $col) => request()->fullUrlWithQuery(['sort' => $col, 'dir' => $nextDir($col), 'page' => 1]);
     @endphp
 
+    {{ $users->links() }}
     <table class="extended users-table" cellspacing="0">
         <thead>
             <tr>

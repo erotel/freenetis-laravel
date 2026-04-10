@@ -30,6 +30,7 @@
         $sortUrl = fn(string $col) => request()->fullUrlWithQuery(['sort' => $col, 'dir' => $nextDir($col), 'page' => 1]);
     @endphp
 
+    <div class="pagination-wrap">{{ $fees->links() }}</div>
     <table class="extended" cellspacing="0">
         <thead>
             <tr>
