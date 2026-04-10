@@ -598,8 +598,10 @@ class MemberController extends Controller
             // Odeslat email pro módy 2, 3, 4
             if (in_array($endMode, [2, 3, 4])) {
                 $messageId = match($endMode) {
-                    3       => 96, // Vrácení platby bývalému členovi
-                    default => 94, // Bývalý člen bez platby
+                    3 => 96, // Vrácení platby bývalému členovi
+                    2 => 94, // Bývalý člen bez platby (neplacení)
+                    4 => 34, // Ukončení na vlastní žádost
+                    default => 94,
                 };
 
                 $message = \App\Models\Message::where('id', $messageId)->first();

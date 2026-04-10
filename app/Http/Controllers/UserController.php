@@ -284,31 +284,36 @@ class UserController extends Controller
 
     public function changePassword(int $id)
     {
-        if (!$this->can('edit_all', 'password')) {
-            abort(403);
-        }
+        $isOwnUser = (auth()->user()->id == $id ||
+                      DB::table('users')->where('id', $id)->value('member_id') == auth()->user()->member_id);
+        abort_unless($this->can('edit_all', 'password') || $isOwnUser, 403);
 
         $user = User::find($id);
         if (!$user) {
             abort(404);
         }
 
-        return view('users.change_password', ['user' => $user]);
+        $member = DB::table('members')->where('id', $user->member_id)->first();
+
+        return view('users.change_password', compact('user', 'member'));
     }
 
     public function updatePassword(Request $request, int $id)
     {
-        if (!$this->can('edit_all', 'password')) {
-            abort(403);
-        }
+        $isOwnUser = (auth()->user()->id == $id ||
+                      DB::table('users')->where('id', $id)->value('member_id') == auth()->user()->member_id);
+        abort_unless($this->can('edit_all', 'password') || $isOwnUser, 403);
 
         $user = User::find($id);
         if (!$user) {
             abort(404);
         }
 
+        $minLength = (int) \App\Models\Setting::get('security_password_length', 8);
+
         $request->validate([
-            'password' => 'required|string|min:6|confirmed',
+            'password'              => "required|string|min:{$minLength}|confirmed",
+            'password_confirmation' => 'required',
         ]);
 
         $user->password = Hash::make($request->input('password'));
@@ -316,6 +321,6 @@ class UserController extends Controller
 
         session()->flash('success', 'Heslo bylo úspěšně změněno.');
 
-        return redirect()->route('users.show', $id);
+        return redirect()->route('members.show', $user->member_id);
     }
 }

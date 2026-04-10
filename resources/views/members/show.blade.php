@@ -57,6 +57,10 @@
     &nbsp;|&nbsp;
     <a href="{{ route('invoices.by_member', $member->id) }}">Faktury</a>
     @endif
+    @if($mainUser && ($canEditUser || auth()->id() == $mainUser->id))
+    &nbsp;|&nbsp;
+    <a href="{{ route('users.password', $mainUser->id) }}">Změnit heslo</a>
+    @endif
     @if($canDelete)
     &nbsp;|&nbsp;
     @if(in_array($member->type, [17, 18]))
@@ -264,7 +268,6 @@
 @endif
 @if($canEditUser)
 | <a href="{{ route('users.edit', $mainUser->id) }}">Upravit</a>
-| <a href="{{ route('users.password', $mainUser->id) }}">Změnit heslo</a>
 @endif
 @if($canViewDevices)
 | <a href="{{ route('devices.by_user', $mainUser->id) }}">Zobrazit zařízení</a>
