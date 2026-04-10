@@ -4,7 +4,6 @@ namespace App\Http\Controllers;
 
 use App\Models\Account;
 use App\Models\VariableSymbol;
-use App\Services\AclService;
 use Illuminate\Http\Request;
 
 class VariableSymbolController extends Controller
@@ -12,11 +11,9 @@ class VariableSymbolController extends Controller
     private const ACL_SECTION = 'Variable_Symbols_Controller';
     private const ACL_VALUE   = 'variable_symbols';
 
-    public function __construct(private AclService $acl) {}
-
     private function can(string $action): bool
     {
-        return $this->acl->hasAccess(auth()->id(), $action, self::ACL_SECTION, self::ACL_VALUE);
+        return $this->aclCheck($action, self::ACL_SECTION, self::ACL_VALUE);
     }
 
     public function showByAccount(int $accountId)

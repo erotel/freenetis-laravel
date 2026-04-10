@@ -6,7 +6,6 @@ use App\Models\Fee;
 use App\Models\Member;
 use App\Models\MemberFee;
 use App\Models\Setting;
-use App\Services\AclService;
 use Illuminate\Http\Request;
 
 class MemberFeeController extends Controller
@@ -14,11 +13,9 @@ class MemberFeeController extends Controller
     private const ACL_SECTION = 'Members_Controller';
     private const ACL_VALUE   = 'fees';
 
-    public function __construct(private AclService $acl) {}
-
     private function can(string $action): bool
     {
-        return $this->acl->hasAccess(auth()->id(), $action, self::ACL_SECTION, self::ACL_VALUE);
+        return $this->aclCheck($action, self::ACL_SECTION, self::ACL_VALUE);
     }
 
     public function showByMember(int $memberId)

@@ -9,7 +9,6 @@ use App\Models\Member;
 use App\Models\MemberFee;
 use App\Models\Street;
 use App\Models\Town;
-use App\Services\AclService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 
@@ -18,11 +17,9 @@ class MemberController extends Controller
     private const ACL_SECTION = 'Members_Controller';
     private const ACL_VALUE   = 'members';
 
-    public function __construct(private AclService $acl) {}
-
     private function can(string $action): bool
     {
-        return $this->acl->hasAccess(auth()->id(), $action, self::ACL_SECTION, self::ACL_VALUE);
+        return $this->aclCheck($action, self::ACL_SECTION, self::ACL_VALUE);
     }
 
     public function index(Request $request)
@@ -149,16 +146,16 @@ class MemberController extends Controller
             'canDelete'           => $this->can('delete_all'),
             'mainUser'            => $mainUser,
             'contacts'            => $contacts,
-            'canViewUser'         => $this->acl->hasAccess(auth()->id(), 'view_all', 'Users_Controller', 'users'),
-            'canEditUser'         => $this->acl->hasAccess(auth()->id(), 'edit_all', 'Users_Controller', 'users'),
-            'canViewContacts'     => $this->acl->hasAccess(auth()->id(), 'view_all', 'Users_Controller', 'additional_contacts'),
-            'canViewTransfers'    => $this->acl->hasAccess(auth()->id(), 'view_all', 'Accounts_Controller', 'transfers'),
-            'canViewIpAddresses'  => $this->acl->hasAccess(auth()->id(), 'view_all', 'Ip_addresses_Controller', 'ip_address'),
-            'canViewDevices'      => $this->acl->hasAccess(auth()->id(), 'view_all', 'Devices_Controller', 'devices'),
-            'canViewFees'         => $this->acl->hasAccess(auth()->id(), 'view_all', 'Members_Controller', 'fees'),
-            'canViewQos'           => $this->acl->hasAccess(auth()->id(), 'view_all', 'Members_Controller', 'qos_ceil'),
-            'canViewAllowedSubnets'=> $this->acl->hasAccess(auth()->id(), 'view_all', 'Allowed_subnets_Controller', 'allowed_subnet'),
-            'canViewInvoices'      => $isOwnProfile || $this->acl->hasAccess(auth()->id(), 'view_all', 'Accounts_Controller', 'invoices'),
+            'canViewUser'         => $this->aclCheck('view_all', 'Users_Controller', 'users'),
+            'canEditUser'         => $this->aclCheck('edit_all', 'Users_Controller', 'users'),
+            'canViewContacts'     => $this->aclCheck('view_all', 'Users_Controller', 'additional_contacts'),
+            'canViewTransfers'    => $this->aclCheck('view_all', 'Accounts_Controller', 'transfers'),
+            'canViewIpAddresses'  => $this->aclCheck('view_all', 'Ip_addresses_Controller', 'ip_address'),
+            'canViewDevices'      => $this->aclCheck('view_all', 'Devices_Controller', 'devices'),
+            'canViewFees'         => $this->aclCheck('view_all', 'Members_Controller', 'fees'),
+            'canViewQos'           => $this->aclCheck('view_all', 'Members_Controller', 'qos_ceil'),
+            'canViewAllowedSubnets'=> $this->aclCheck('view_all', 'Allowed_subnets_Controller', 'allowed_subnet'),
+            'canViewInvoices'      => $isOwnProfile || $this->aclCheck('view_all', 'Accounts_Controller', 'invoices'),
         ]);
     }
 
@@ -307,7 +304,7 @@ class MemberController extends Controller
 
         $speedClasses      = \App\Models\SpeedClass::orderBy('name')->get();
         $defaultSpeedClass = \App\Models\SpeedClass::where('regular_member_default', true)->first();
-        $canEditQos        = $this->acl->hasAccess(auth()->id(), 'edit_all', 'Members_Controller', 'qos_ceil');
+        $canEditQos        = $this->aclCheck('edit_all', 'Members_Controller', 'qos_ceil');
 
         return view('members.edit', compact('member', 'types', 'towns', 'streets', 'speedClasses', 'defaultSpeedClass', 'canEditQos'));
     }

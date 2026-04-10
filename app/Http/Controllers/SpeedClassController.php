@@ -3,34 +3,31 @@
 namespace App\Http\Controllers;
 
 use App\Models\SpeedClass;
-use App\Services\AclService;
 use Illuminate\Http\Request;
 
 class SpeedClassController extends Controller
 {
-    private AclService $acl;
-
-    public function __construct(AclService $acl)
+    private function can(string $action): bool
     {
-        $this->acl = $acl;
+        return $this->aclCheck($action, 'Speed_classes_Controller', 'speed_classes');
     }
 
     public function index()
     {
-        if (!$this->acl->hasAccess(auth()->id(), 'view_all', 'Speed_classes_Controller', 'speed_classes'))
+        if (!$this->can('view_all'))
             abort(403);
 
         $speedClasses = SpeedClass::withCount('members')->get();
-        $canEdit = $this->acl->hasAccess(auth()->id(), 'edit_all',   'Speed_classes_Controller', 'speed_classes');
-        $canNew  = $this->acl->hasAccess(auth()->id(), 'new_all',    'Speed_classes_Controller', 'speed_classes');
-        $canDel  = $this->acl->hasAccess(auth()->id(), 'delete_all', 'Speed_classes_Controller', 'speed_classes');
+        $canEdit = $this->can('edit_all');
+        $canNew  = $this->can('new_all');
+        $canDel  = $this->can('delete_all');
 
         return view('speed_classes.index', compact('speedClasses', 'canEdit', 'canNew', 'canDel'));
     }
 
     public function create()
     {
-        if (!$this->acl->hasAccess(auth()->id(), 'new_all', 'Speed_classes_Controller', 'speed_classes'))
+        if (!$this->can('new_all'))
             abort(403);
 
         return view('speed_classes.create');
@@ -38,7 +35,7 @@ class SpeedClassController extends Controller
 
     public function store(Request $request)
     {
-        if (!$this->acl->hasAccess(auth()->id(), 'new_all', 'Speed_classes_Controller', 'speed_classes'))
+        if (!$this->can('new_all'))
             abort(403);
 
         $validated = $request->validate([
@@ -76,7 +73,7 @@ class SpeedClassController extends Controller
 
     public function edit($id)
     {
-        if (!$this->acl->hasAccess(auth()->id(), 'edit_all', 'Speed_classes_Controller', 'speed_classes'))
+        if (!$this->can('edit_all'))
             abort(403);
 
         $speedClass = SpeedClass::findOrFail($id);
@@ -86,7 +83,7 @@ class SpeedClassController extends Controller
 
     public function update(Request $request, $id)
     {
-        if (!$this->acl->hasAccess(auth()->id(), 'edit_all', 'Speed_classes_Controller', 'speed_classes'))
+        if (!$this->can('edit_all'))
             abort(403);
 
         $speedClass = SpeedClass::findOrFail($id);
@@ -119,7 +116,7 @@ class SpeedClassController extends Controller
 
     public function destroy($id)
     {
-        if (!$this->acl->hasAccess(auth()->id(), 'delete_all', 'Speed_classes_Controller', 'speed_classes'))
+        if (!$this->can('delete_all'))
             abort(403);
 
         $speedClass = SpeedClass::withCount('members')->findOrFail($id);
@@ -136,7 +133,7 @@ class SpeedClassController extends Controller
 
     public function setDefault(Request $request, $id, $type)
     {
-        if (!$this->acl->hasAccess(auth()->id(), 'edit_all', 'Speed_classes_Controller', 'speed_classes'))
+        if (!$this->can('edit_all'))
             abort(403);
 
         if (!in_array($type, ['member', 'applicant'], true))

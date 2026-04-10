@@ -9,7 +9,6 @@ use App\Models\Iface;
 use App\Models\IpAddress;
 use App\Models\Subnet;
 use App\Models\User;
-use App\Services\AclService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 
@@ -18,11 +17,9 @@ class DeviceController extends Controller
     private const ACL_SECTION = 'Devices_Controller';
     private const ACL_VALUE   = 'devices';
 
-    public function __construct(private AclService $acl) {}
-
     private function can(string $action, string $value = self::ACL_VALUE): bool
     {
-        return $this->acl->hasAccess(auth()->id(), $action, self::ACL_SECTION, $value);
+        return $this->aclCheck($action, self::ACL_SECTION, $value);
     }
 
     public function index(Request $request)

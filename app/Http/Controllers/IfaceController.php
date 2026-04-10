@@ -6,17 +6,14 @@ use App\Models\Device;
 use App\Models\Iface;
 use App\Models\IpAddress;
 use App\Models\Subnet;
-use App\Services\AclService;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
 
 class IfaceController extends Controller
 {
-    public function __construct(private AclService $acl) {}
-
     private function can(string $action = 'view_all'): bool
     {
-        return $this->acl->hasAccess(auth()->id(), $action, 'Ifaces_Controller', 'iface');
+        return $this->aclCheck($action, 'Ifaces_Controller', 'iface');
     }
 
     public function index(Request $request)

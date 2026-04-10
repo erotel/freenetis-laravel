@@ -238,7 +238,8 @@ Route::middleware('auth')->group(function () {
     Route::post('import/fio-api/{bankAccountId}/last',   [ImportController::class, 'fetchFromFioLast'])->name('import.fio_last');
     Route::post('import/fio-api/{bankAccountId}/period', [ImportController::class, 'fetchFromFioPeriod'])->name('import.fio_period');
 
-    Route::get('outgoing-payments',                              [OutgoingPaymentController::class, 'index'])->name('outgoing_payments.index');
+    Route::get('outgoing-payments', [OutgoingPaymentController::class, 'index'])->name('outgoing_payments.index')
+        ->middleware('acl:view_all,Accounts_Controller,bank_transfers');
     Route::get('outgoing-payments/{id}',                         [OutgoingPaymentController::class, 'show'])->name('outgoing_payments.show');
     Route::post('outgoing-payments/{id}/approve',                [OutgoingPaymentController::class, 'approve'])->name('outgoing_payments.approve');
     Route::post('outgoing-payments/{id}/cancel',                 [OutgoingPaymentController::class, 'cancel'])->name('outgoing_payments.cancel');
@@ -317,15 +318,18 @@ Route::middleware('auth')->group(function () {
     Route::post('allowed-subnets/{id}/toggle',        [AllowedSubnetController::class, 'toggle'])->name('allowed_subnets.toggle');
     Route::delete('allowed-subnets/{id}',             [AllowedSubnetController::class, 'destroy'])->name('allowed_subnets.destroy');
 
-    Route::get('invoices', [InvoiceController::class, 'index'])->name('invoices.index');
+    Route::get('invoices', [InvoiceController::class, 'index'])->name('invoices.index')
+        ->middleware('acl:view_all,Accounts_Controller,invoices');
     Route::get('invoices/{id}/pdf', [InvoiceController::class, 'downloadPdf'])->name('invoices.pdf');
     Route::get('invoices/{id}', [InvoiceController::class, 'show'])->name('invoices.show');
     Route::get('members/{memberId}/invoices', [InvoiceController::class, 'showByMember'])->name('invoices.by_member');
 
-    Route::get('login-logs', [LoginLogController::class, 'index'])->name('login_logs.index');
+    Route::get('login-logs', [LoginLogController::class, 'index'])->name('login_logs.index')
+        ->middleware('acl:view_all,Login_logs_Controller,logs');
     Route::get('login-logs/user/{userId}', [LoginLogController::class, 'showByUser'])->name('login_logs.by_user');
 
-    Route::get('messages', [MessageController::class, 'index'])->name('messages.index');
+    Route::get('messages', [MessageController::class, 'index'])->name('messages.index')
+        ->middleware('acl:view_all,Messages_Controller,messages');
     Route::get('messages/create', [MessageController::class, 'create'])->name('messages.create');
     Route::post('messages', [MessageController::class, 'store'])->name('messages.store');
     Route::get('messages/{id}', [MessageController::class, 'show'])->name('messages.show');

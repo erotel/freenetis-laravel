@@ -4,24 +4,17 @@ namespace App\Http\Controllers;
 
 use App\Models\Invoice;
 use App\Models\Member;
-use App\Services\AclService;
 use Illuminate\Http\Request;
 
 class InvoiceController extends Controller
 {
-    public function __construct(private AclService $acl) {}
-
     private function canView(): bool
     {
-        return $this->acl->hasAccess(auth()->id(), 'view_all', 'Accounts_Controller', 'invoices');
+        return $this->aclCheck('view_all', 'Accounts_Controller', 'invoices');
     }
 
     public function index(Request $request)
     {
-        if (!$this->canView()) {
-            abort(403);
-        }
-
         $query = Invoice::with(['member', 'items'])
             ->orderBy('date_inv', 'desc')
             ->orderBy('id', 'desc');

@@ -3,7 +3,6 @@
 namespace App\Http\Controllers;
 
 use App\Models\AroGroup;
-use App\Services\AclService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 
@@ -12,11 +11,9 @@ class AroGroupController extends Controller
     private const ACL_SECTION = 'Aro_groups_Controller';
     private const ACL_VALUE   = 'aro_groups';
 
-    public function __construct(private AclService $acl) {}
-
     private function can(string $action): bool
     {
-        return $this->acl->hasAccess(auth()->id(), $action, self::ACL_SECTION, self::ACL_VALUE);
+        return $this->aclCheck($action, self::ACL_SECTION, self::ACL_VALUE);
     }
 
     public function index()

@@ -4,18 +4,13 @@ namespace App\Http\Controllers;
 
 use App\Models\Account;
 use App\Models\Transfer;
-use App\Services\AclService;
 use Illuminate\Http\Request;
 
 class TransferController extends Controller
 {
-    public function __construct(private AclService $acl) {}
-
     private function can(string $action = 'view_all'): bool
     {
-        return $this->acl->hasAccess(
-            auth()->id(), $action, 'Accounts_Controller', 'transfers'
-        );
+        return $this->aclCheck($action, 'Accounts_Controller', 'transfers');
     }
 
     public function index(Request $request)

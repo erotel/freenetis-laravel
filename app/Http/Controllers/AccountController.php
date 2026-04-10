@@ -5,7 +5,6 @@ namespace App\Http\Controllers;
 use App\Models\Account;
 use App\Models\AccountAttribute;
 use App\Models\Transfer;
-use App\Services\AclService;
 use Illuminate\Http\Request;
 
 class AccountController extends Controller
@@ -13,11 +12,9 @@ class AccountController extends Controller
     private const ACL_SECTION = 'Accounts_Controller';
     private const ACL_VALUE   = 'accounts';
 
-    public function __construct(private AclService $acl) {}
-
     private function can(string $action, string $value = self::ACL_VALUE): bool
     {
-        return $this->acl->hasAccess(auth()->id(), $action, self::ACL_SECTION, $value);
+        return $this->aclCheck($action, self::ACL_SECTION, $value);
     }
 
     public function index(Request $request)

@@ -4,7 +4,6 @@ namespace App\Http\Controllers;
 
 use App\Models\Street;
 use App\Models\Town;
-use App\Services\AclService;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
 
@@ -13,11 +12,9 @@ class StreetController extends Controller
     private const ACL_SECTION = 'Address_points_Controller';
     private const ACL_VALUE   = 'street';
 
-    public function __construct(private AclService $acl) {}
-
     private function can(string $action): bool
     {
-        return $this->acl->hasAccess(auth()->id(), $action, self::ACL_SECTION, self::ACL_VALUE);
+        return $this->aclCheck($action, self::ACL_SECTION, self::ACL_VALUE);
     }
 
     public function index(Request $request)

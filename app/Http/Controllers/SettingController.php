@@ -5,7 +5,6 @@ namespace App\Http\Controllers;
 use App\Models\BankAccount;
 use App\Models\Message;
 use App\Models\Setting;
-use App\Services\AclService;
 use Illuminate\Http\Request;
 
 class SettingController extends Controller
@@ -47,11 +46,9 @@ class SettingController extends Controller
         'redirection_enabled', 'networks_enabled', 'address_ranges', 'dns_servers',
     ];
 
-    public function __construct(private AclService $acl) {}
-
     private function can(string $action): bool
     {
-        return $this->acl->hasAccess(auth()->id(), $action, self::ACL_SECTION, self::ACL_VALUE);
+        return $this->aclCheck($action, self::ACL_SECTION, self::ACL_VALUE);
     }
 
     public function index()

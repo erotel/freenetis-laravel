@@ -3,7 +3,6 @@
 namespace App\Http\Controllers;
 
 use App\Models\Vlan;
-use App\Services\AclService;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
 
@@ -12,11 +11,9 @@ class VlanController extends Controller
     private const ACL_SECTION = 'Vlans_Controller';
     private const ACL_VALUE   = 'vlan';
 
-    public function __construct(private AclService $acl) {}
-
     private function can(string $action, string $section = self::ACL_SECTION, string $value = self::ACL_VALUE): bool
     {
-        return $this->acl->hasAccess(auth()->id(), $action, $section, $value);
+        return $this->aclCheck($action, $section, $value);
     }
 
     public function index(Request $request)

@@ -4,7 +4,6 @@ namespace App\Http\Controllers;
 
 use App\Models\EnumType;
 use App\Models\EnumTypeName;
-use App\Services\AclService;
 use Illuminate\Http\Request;
 
 class EnumTypeController extends Controller
@@ -12,11 +11,9 @@ class EnumTypeController extends Controller
     private const ACL_SECTION = 'Settings_Controller';
     private const ACL_VALUE   = 'enum_types';
 
-    public function __construct(private AclService $acl) {}
-
     private function can(string $action): bool
     {
-        return $this->acl->hasAccess(auth()->id(), $action, self::ACL_SECTION, self::ACL_VALUE);
+        return $this->aclCheck($action, self::ACL_SECTION, self::ACL_VALUE);
     }
 
     public function index()

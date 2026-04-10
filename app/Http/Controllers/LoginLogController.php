@@ -4,20 +4,12 @@ namespace App\Http\Controllers;
 
 use App\Models\LoginLog;
 use App\Models\User;
-use App\Services\AclService;
 use Illuminate\Support\Facades\DB;
 
 class LoginLogController extends Controller
 {
-    public function __construct(private AclService $acl) {}
-
     public function index()
     {
-        abort_unless(
-            $this->acl->hasAccess(auth()->id(), 'view_all', 'Login_logs_Controller', 'logs'),
-            403
-        );
-
         $users = DB::table('users')
             ->leftJoin(
                 DB::raw('(SELECT user_id, MAX(time) as last_time FROM login_logs GROUP BY user_id) as ll'),
@@ -42,10 +34,10 @@ class LoginLogController extends Controller
         $targetUser = User::findOrFail($userId);
 
         if ($authUser->member_id === $targetUser->member_id) {
-            $canView = $this->acl->hasAccess($authUser->id, 'view_own', 'Login_logs_Controller', 'logs')
-                    || $this->acl->hasAccess($authUser->id, 'view_all', 'Login_logs_Controller', 'logs');
+            $canView = $this->aclCheck('view_own', 'Login_logs_Controller', 'logs')
+                    || $this->aclCheck('view_all', 'Login_logs_Controller', 'logs');
         } else {
-            $canView = $this->acl->hasAccess($authUser->id, 'view_all', 'Login_logs_Controller', 'logs');
+            $canView = $this->aclCheck('view_all', 'Login_logs_Controller', 'logs');
         }
 
         abort_unless($canView, 403);

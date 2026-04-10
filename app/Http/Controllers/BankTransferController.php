@@ -5,18 +5,15 @@ namespace App\Http\Controllers;
 use App\Models\BankAccount;
 use App\Models\BankTransfer;
 use App\Models\OutgoingPayment;
-use App\Services\AclService;
 use Illuminate\Http\Request;
 
 class BankTransferController extends Controller
 {
     private const ACL_SECTION = 'Accounts_Controller';
 
-    public function __construct(private AclService $acl) {}
-
     private function can(string $action, string $value): bool
     {
-        return $this->acl->hasAccess(auth()->id(), $action, self::ACL_SECTION, $value);
+        return $this->aclCheck($action, self::ACL_SECTION, $value);
     }
 
     public function showByBankAccount(int $bankAccountId)

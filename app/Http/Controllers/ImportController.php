@@ -11,7 +11,6 @@ use App\Models\Setting;
 use App\Models\VariableSymbol;
 use App\Models\Transfer;
 use App\Http\Controllers\SettingController;
-use App\Services\AclService;
 use App\Services\FioApiService;
 use App\Services\FioCsvParser;
 use App\Services\InvoiceService;
@@ -23,11 +22,9 @@ class ImportController extends Controller
     private const ACL_SECTION = 'Accounts_Controller';
     private const ACL_VALUE   = 'bank_transfers';
 
-    public function __construct(private AclService $acl) {}
-
     private function can(string $action): bool
     {
-        return $this->acl->hasAccess(auth()->id(), $action, self::ACL_SECTION, self::ACL_VALUE);
+        return $this->aclCheck($action, self::ACL_SECTION, self::ACL_VALUE);
     }
 
     public function uploadBankFile(int $bankAccountId)

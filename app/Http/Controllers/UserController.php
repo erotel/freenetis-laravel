@@ -6,7 +6,6 @@ use App\Models\DeviceAdmin;
 use App\Models\DeviceEngineer;
 use App\Models\Member;
 use App\Models\User;
-use App\Services\AclService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
@@ -16,11 +15,9 @@ class UserController extends Controller
     private const ACL_SECTION = 'Users_Controller';
     private const ACL_VALUE   = 'users';
 
-    public function __construct(private AclService $acl) {}
-
     private function can(string $action, string $value = self::ACL_VALUE): bool
     {
-        return $this->acl->hasAccess(auth()->id(), $action, self::ACL_SECTION, $value);
+        return $this->aclCheck($action, self::ACL_SECTION, $value);
     }
 
     public function index(Request $request)
@@ -112,12 +109,12 @@ class UserController extends Controller
             'canChangePassword'    => $this->can('edit_all', 'password'),
             'canViewAppPwd'        => $this->can('view_all', 'application_password'),
             'canChangeAppPwd'      => $this->can('edit_all', 'application_password'),
-            'canViewContacts'      => $this->acl->hasAccess(auth()->id(), 'view_all',   'Users_Controller', 'additional_contacts'),
-            'canAddContact'        => $this->acl->hasAccess(auth()->id(), 'new_all',    'Users_Controller', 'additional_contacts'),
-            'canEditContact'       => $this->acl->hasAccess(auth()->id(), 'edit_all',   'Users_Controller', 'additional_contacts'),
-            'canDeleteContact'     => $this->acl->hasAccess(auth()->id(), 'delete_all', 'Users_Controller', 'additional_contacts'),
-            'canViewDevices'       => $this->acl->hasAccess(auth()->id(), 'view_all', 'Devices_Controller',    'devices'),
-            'canViewLoginLogs'     => $this->acl->hasAccess(auth()->id(), 'view_all', 'Login_logs_Controller', 'logs'),
+            'canViewContacts'      => $this->aclCheck('view_all',   'Users_Controller', 'additional_contacts'),
+            'canAddContact'        => $this->aclCheck('new_all',    'Users_Controller', 'additional_contacts'),
+            'canEditContact'       => $this->aclCheck('edit_all',   'Users_Controller', 'additional_contacts'),
+            'canDeleteContact'     => $this->aclCheck('delete_all', 'Users_Controller', 'additional_contacts'),
+            'canViewDevices'       => $this->aclCheck('view_all', 'Devices_Controller',    'devices'),
+            'canViewLoginLogs'     => $this->aclCheck('view_all', 'Login_logs_Controller', 'logs'),
         ]);
     }
 

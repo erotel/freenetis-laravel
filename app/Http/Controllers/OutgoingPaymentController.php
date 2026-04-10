@@ -6,7 +6,6 @@ use App\Models\BankAccount;
 use App\Models\BankTransfer;
 use App\Models\OutgoingPayment;
 use App\Models\Setting;
-use App\Services\AclService;
 use App\Services\FioApiService;
 use Illuminate\Http\Request;
 
@@ -14,22 +13,18 @@ class OutgoingPaymentController extends Controller
 {
     private const ACL_SECTION = 'Accounts_Controller';
 
-    public function __construct(private AclService $acl) {}
-
     private function canView(): bool
     {
-        return $this->acl->hasAccess(auth()->id(), 'view_all', self::ACL_SECTION, 'bank_transfers');
+        return $this->aclCheck('view_all', self::ACL_SECTION, 'bank_transfers');
     }
 
     private function canEdit(): bool
     {
-        return $this->acl->hasAccess(auth()->id(), 'edit_all', self::ACL_SECTION, 'unidentified_transfers');
+        return $this->aclCheck('edit_all', self::ACL_SECTION, 'unidentified_transfers');
     }
 
     public function index(Request $request)
     {
-        abort_unless($this->canView(), 403);
-
         $status = $request->query('status');
         $validStatuses = array_keys(OutgoingPayment::statusLabels());
 

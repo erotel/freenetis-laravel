@@ -3,7 +3,6 @@
 namespace App\Http\Controllers;
 
 use App\Models\Message;
-use App\Services\AclService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 
@@ -12,17 +11,13 @@ class MessageController extends Controller
     private const ACL_SECTION = 'Messages_Controller';
     private const ACL_VALUE   = 'messages';
 
-    public function __construct(private AclService $acl) {}
-
     private function can(string $action): bool
     {
-        return $this->acl->hasAccess(auth()->id(), $action, self::ACL_SECTION, self::ACL_VALUE);
+        return $this->aclCheck($action, self::ACL_SECTION, self::ACL_VALUE);
     }
 
     public function index()
     {
-        abort_unless($this->can('view_all'), 403);
-
         $systemMessages = Message::where('type', '>', 0)->orderBy('type')->get();
         $userMessages   = Message::where('type', 0)->orderBy('name')->get();
 

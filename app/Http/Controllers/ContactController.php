@@ -5,7 +5,6 @@ namespace App\Http\Controllers;
 use App\Models\Contact;
 use App\Models\EnumType;
 use App\Models\User;
-use App\Services\AclService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 
@@ -14,11 +13,9 @@ class ContactController extends Controller
     private const ACL_SECTION = 'Users_Controller';
     private const ACL_VALUE   = 'additional_contacts';
 
-    public function __construct(private AclService $acl) {}
-
     private function can(string $action, string $value = self::ACL_VALUE): bool
     {
-        return $this->acl->hasAccess(auth()->id(), $action, self::ACL_SECTION, $value);
+        return $this->aclCheck($action, self::ACL_SECTION, $value);
     }
 
     private function loadUser(int $userId): User

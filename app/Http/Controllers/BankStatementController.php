@@ -3,18 +3,14 @@
 namespace App\Http\Controllers;
 
 use App\Models\BankStatement;
-use App\Services\AclService;
-
 class BankStatementController extends Controller
 {
     private const ACL_SECTION = 'Accounts_Controller';
     private const ACL_VALUE   = 'bank_statements';
 
-    public function __construct(private AclService $acl) {}
-
     private function can(string $action): bool
     {
-        return $this->acl->hasAccess(auth()->id(), $action, self::ACL_SECTION, self::ACL_VALUE);
+        return $this->aclCheck($action, self::ACL_SECTION, self::ACL_VALUE);
     }
 
     public function showByBankAccount(int $bankAccountId)

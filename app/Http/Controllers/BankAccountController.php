@@ -4,7 +4,6 @@ namespace App\Http\Controllers;
 
 use App\Models\BankAccount;
 use App\Models\Setting;
-use App\Services\AclService;
 use Illuminate\Http\Request;
 
 class BankAccountController extends Controller
@@ -12,11 +11,9 @@ class BankAccountController extends Controller
     private const ACL_SECTION = 'Accounts_Controller';
     private const ACL_VALUE   = 'bank_accounts';
 
-    public function __construct(private AclService $acl) {}
-
     private function can(string $action): bool
     {
-        return $this->acl->hasAccess(auth()->id(), $action, self::ACL_SECTION, self::ACL_VALUE);
+        return $this->aclCheck($action, self::ACL_SECTION, self::ACL_VALUE);
     }
 
     public function index()
@@ -37,8 +34,8 @@ class BankAccountController extends Controller
 
         $account = BankAccount::with('member')->findOrFail($id);
 
-        $canViewTransfers  = $this->acl->hasAccess(auth()->id(), 'view_all', self::ACL_SECTION, 'bank_transfers');
-        $canViewStatements = $this->acl->hasAccess(auth()->id(), 'view_all', self::ACL_SECTION, 'bank_statements');
+        $canViewTransfers  = $this->aclCheck('view_all', self::ACL_SECTION, 'bank_transfers');
+        $canViewStatements = $this->aclCheck('view_all', self::ACL_SECTION, 'bank_statements');
         $canEdit           = $this->can('edit_all');
         $hasFioToken       = !empty(Setting::get('fio_api_token_bank_account_' . $account->id));
 

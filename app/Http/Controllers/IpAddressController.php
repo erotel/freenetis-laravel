@@ -6,7 +6,6 @@ use App\Models\Iface;
 use App\Models\IpAddress;
 use App\Models\Member;
 use App\Models\Subnet;
-use App\Services\AclService;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
 
@@ -15,11 +14,9 @@ class IpAddressController extends Controller
     private const ACL_SECTION = 'Ip_addresses_Controller';
     private const ACL_VALUE   = 'ip_address';
 
-    public function __construct(private AclService $acl) {}
-
     private function can(string $action): bool
     {
-        return $this->acl->hasAccess(auth()->id(), $action, self::ACL_SECTION, self::ACL_VALUE);
+        return $this->aclCheck($action, self::ACL_SECTION, self::ACL_VALUE);
     }
 
     public function index(Request $request)

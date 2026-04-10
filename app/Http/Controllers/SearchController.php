@@ -2,17 +2,14 @@
 namespace App\Http\Controllers;
 
 use App\Models\Setting;
-use App\Services\AclService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 
 class SearchController extends Controller
 {
-    public function __construct(private AclService $acl) {}
-
     private function can(string $action, string $section, string $value): bool
     {
-        return $this->acl->hasAccess(auth()->id(), $action, $section, $value);
+        return $this->aclCheck($action, $section, $value);
     }
 
     public function index(Request $request)
