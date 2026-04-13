@@ -38,6 +38,7 @@
                 <th>Privátní IP</th>
                 <th>Privátní porty</th>
                 <th>Člen</th>
+                <th>Poslední změna</th>
                 @if($canEdit)
                     <th>Akce</th>
                 @endif
@@ -65,6 +66,15 @@
                         @endif
                     </td>
                     <td>{{ $row->owner_member_name ?: '—' }}</td>
+                    @php
+                        $mod = $row->modified ? \Carbon\Carbon::parse($row->modified) : null;
+                        $cre = $row->created  ? \Carbon\Carbon::parse($row->created)  : null;
+                        $useModified = $mod && $mod->year >= 2000;
+                        $useCreated  = $cre && $cre->year >= 2000;
+                        $changeDate  = $useModified ? $mod->format('d.m.Y H:i') : ($useCreated ? $cre->format('d.m.Y H:i') : '—');
+                        $changeName  = $useModified ? ($row->modified_by_name ?: '—') : ($useCreated ? ($row->created_by_name ?: '—') : null);
+                    @endphp
+                    <td>{{ $changeDate }}{{ $changeName !== null ? ' (' . $changeName . ')' : '' }}</td>
                     @if($canEdit)
                         <td>
                             <a href="{{ route('public-port-forwards.edit', $row->id) }}">Upravit</a>
@@ -76,7 +86,7 @@
                 </tr>
             @empty
                 <tr>
-                    <td colspan="{{ $canEdit ? 8 : 7 }}">Žádné záznamy.</td>
+                    <td colspan="{{ $canEdit ? 9 : 8 }}">Žádné záznamy.</td>
                 </tr>
             @endforelse
         </tbody>

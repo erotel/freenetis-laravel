@@ -25,11 +25,15 @@ class PublicPortForwardController extends Controller
             ->leftJoin('devices AS d', 'd.id', '=', 'i.device_id')
             ->leftJoin('users AS u', 'u.id', '=', 'd.user_id')
             ->leftJoin('members AS om', 'om.id', '=', 'u.member_id')
+            ->leftJoin('members AS mm', 'mm.id', '=', 'p.modified_by')
+            ->leftJoin('members AS mc', 'mc.id', '=', 'p.created_by')
             ->select(
                 'p.id', 'p.public_ip', 'p.public_port_from', 'p.public_port_to',
                 'p.private_ip', 'p.private_port_from', 'p.private_port_to',
                 'p.protocol', 'p.enabled', 'p.created', 'p.modified',
-                'om.name AS owner_member_name'
+                'om.name AS owner_member_name',
+                'mm.name AS modified_by_name',
+                'mc.name AS created_by_name'
             )
             ->orderByRaw('INET_ATON(p.public_ip) ASC, p.protocol ASC, p.public_port_from ASC')
             ->get();

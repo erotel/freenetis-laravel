@@ -55,10 +55,12 @@
                     @php
                         $mod  = $row->modified ? \Carbon\Carbon::parse($row->modified) : null;
                         $useModified = $mod && $mod->year >= 2000;
-                        $changeDate  = $useModified ? $mod->format('d.m.Y H:i') : ($row->created ? \Carbon\Carbon::parse($row->created)->format('d.m.Y H:i') : '—');
-                        $changeName  = $useModified ? ($row->modified_by_name ?: '—') : ($row->created_by_name ?: '—');
+                        $cre = $row->created ? \Carbon\Carbon::parse($row->created) : null;
+                        $useCreated  = $cre && $cre->year >= 2000;
+                        $changeDate  = $useModified ? $mod->format('d.m.Y H:i') : ($useCreated ? $cre->format('d.m.Y H:i') : '—');
+                        $changeName  = $useModified ? ($row->modified_by_name ?: '—') : ($useCreated ? ($row->created_by_name ?: '—') : null);
                     @endphp
-                    <td>{{ $changeDate }} ({{ $changeName }})</td>
+                    <td>{{ $changeDate }}{{ $changeName !== null ? ' (' . $changeName . ')' : '' }}</td>
                     @if($canEdit)
                         <td>
                             <a href="{{ route('public-ip-nat.edit', $row->id) }}">Upravit</a>
