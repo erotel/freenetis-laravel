@@ -154,15 +154,20 @@ class IfaceController extends Controller
             $newIpVal = $request->input("ip_address_{$n}");
             $subnetId = $request->input("ip_subnet_{$n}");
             if ($newIpVal && $subnetId) {
-                if ($newIpVal !== $existingIp->ip_address) {
+                $oldIpVal = $existingIp->ip_address;
+                if ($newIpVal !== $oldIpVal) {
                     if (IpAddress::where('ip_address', $newIpVal)->where('subnet_id', $subnetId)->where('id', '!=', $existingIp->id)->exists()) {
                         return back()->withInput()->withErrors(["ip_address_{$n}" => "IP adresa {$newIpVal} je již použita."]);
                     }
+                    $this->syncIp6Delete($oldIpVal);
                 }
                 $existingIp->update([
                     'ip_address' => $newIpVal,
                     'subnet_id'  => (int) $subnetId,
                 ]);
+                if ($newIpVal !== $oldIpVal) {
+                    $this->syncIp6Add($iface->id, $newIpVal);
+                }
             }
         }
 
