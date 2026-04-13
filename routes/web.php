@@ -34,6 +34,8 @@ use App\Http\Controllers\RegistrationController;
 use App\Http\Controllers\ForgottenPasswordController;
 use App\Http\Controllers\SearchController;
 use App\Http\Controllers\WebInterfaceController;
+use App\Http\Controllers\PublicIpNat1to1Controller;
+use App\Http\Controllers\PublicPortForwardController;
 use Illuminate\Support\Facades\Route;
 
 // ── Web Interface API (machine-to-machine, IP-restricted, no session auth) ──
@@ -402,4 +404,22 @@ Route::middleware('auth')->group(function () {
     Route::get('users/{userId}/contacts/{contactId}/edit',[ContactController::class, 'edit'])->name('contacts.edit');
     Route::put('users/{userId}/contacts/{contactId}',     [ContactController::class, 'update'])->name('contacts.update');
     Route::delete('users/{userId}/contacts/{contactId}',  [ContactController::class, 'destroy'])->name('contacts.destroy');
+
+    // ── Public IP NAT 1:1 ─────────────────────────────────────────────────────
+    Route::get('public-ip-nat', [PublicIpNat1to1Controller::class, 'index'])->name('public-ip-nat.index')
+        ->middleware('acl:view_all,Network_Controller,public_ip_nat');
+    Route::get('public-ip-nat/{id}/edit',   [PublicIpNat1to1Controller::class, 'edit'])->name('public-ip-nat.edit');
+    Route::put('public-ip-nat/{id}',        [PublicIpNat1to1Controller::class, 'update'])->name('public-ip-nat.update');
+    Route::post('public-ip-nat/{id}/toggle',[PublicIpNat1to1Controller::class, 'toggle'])->name('public-ip-nat.toggle');
+    Route::post('public-ip-nat/{id}/clear', [PublicIpNat1to1Controller::class, 'clear'])->name('public-ip-nat.clear');
+
+    // ── Public Port Forwards ──────────────────────────────────────────────────
+    Route::get('public-port-forwards', [PublicPortForwardController::class, 'index'])->name('public-port-forwards.index')
+        ->middleware('acl:view_all,Network_Controller,public_ports');
+    Route::get('public-port-forwards/create',      [PublicPortForwardController::class, 'create'])->name('public-port-forwards.create');
+    Route::post('public-port-forwards',            [PublicPortForwardController::class, 'store'])->name('public-port-forwards.store');
+    Route::get('public-port-forwards/{id}/edit',   [PublicPortForwardController::class, 'edit'])->name('public-port-forwards.edit');
+    Route::put('public-port-forwards/{id}',        [PublicPortForwardController::class, 'update'])->name('public-port-forwards.update');
+    Route::post('public-port-forwards/{id}/toggle',[PublicPortForwardController::class, 'toggle'])->name('public-port-forwards.toggle');
+    Route::delete('public-port-forwards/{id}',     [PublicPortForwardController::class, 'destroy'])->name('public-port-forwards.destroy');
 });

@@ -221,14 +221,14 @@ class WebInterfaceController extends Controller
             $profiles[] = [
                 'id'             => (int) $sc->id,
                 'name'           => (string) $sc->name,
-                'up_kbit'        => (int) ($sc->u_rate / 1024),
-                'down_kbit'      => (int) ($sc->d_rate / 1024),
-                'up_ceil_kbit'   => (int) ($sc->u_ceil / 1024),
-                'down_ceil_kbit' => (int) ($sc->d_ceil / 1024),
+                'up_kbit'        => (int) ($sc->u_rate  / 1000000 * 1024),
+                'down_kbit'      => (int) ($sc->d_rate  / 1000000 * 1024),
+                'up_ceil_kbit'   => (int) ($sc->u_ceil  / 1000000 * 1024),
+                'down_ceil_kbit' => (int) ($sc->d_ceil  / 1000000 * 1024),
             ];
 
             $ips4 = DB::select("
-                SELECT m.id AS member_id, ip.ip_address
+                SELECT MIN(m.id) AS member_id, ip.ip_address
                 FROM members m
                 JOIN users u ON u.member_id = m.id
                 LEFT JOIN devices d ON d.user_id = u.id
@@ -236,7 +236,7 @@ class WebInterfaceController extends Controller
                 JOIN ip_addresses ip ON ip.iface_id = i.id OR ip.member_id = m.id
                 WHERE m.speed_class_id = ? AND m.id <> ?
                 GROUP BY ip.ip_address
-                ORDER BY m.id, ip.id
+                ORDER BY MIN(m.id), MIN(ip.id)
             ", [$sc->id, self::ASSOCIATION_MEMBER_ID]);
 
             foreach ($ips4 as $ip) {
@@ -250,7 +250,7 @@ class WebInterfaceController extends Controller
             }
 
             $ips6 = DB::select("
-                SELECT m.id AS member_id, ip.ip_address
+                SELECT MIN(m.id) AS member_id, ip.ip_address
                 FROM members m
                 JOIN users u ON u.member_id = m.id
                 LEFT JOIN devices d ON d.user_id = u.id
@@ -258,7 +258,7 @@ class WebInterfaceController extends Controller
                 JOIN ip6_addresses ip ON ip.iface_id = i.id OR ip.member_id = m.id
                 WHERE m.speed_class_id = ? AND m.id <> ?
                 GROUP BY ip.ip_address
-                ORDER BY m.id, ip.id
+                ORDER BY MIN(m.id), MIN(ip.id)
             ", [$sc->id, self::ASSOCIATION_MEMBER_ID]);
 
             foreach ($ips6 as $ip) {
