@@ -415,10 +415,9 @@ Route::middleware('auth')->group(function () {
     // ── Public Port Forwards ──────────────────────────────────────────────────
     Route::get('public-port-forwards', [PublicPortForwardController::class, 'index'])->name('public-port-forwards.index')
         ->middleware('acl:view_all,Network_Controller,public_ports');
-    Route::get('public-port-forwards/create',      [PublicPortForwardController::class, 'create'])->name('public-port-forwards.create');
-    Route::post('public-port-forwards',            [PublicPortForwardController::class, 'store'])->name('public-port-forwards.store');
-    Route::get('public-port-forwards/{id}/edit',   [PublicPortForwardController::class, 'edit'])->name('public-port-forwards.edit');
-    Route::put('public-port-forwards/{id}',        [PublicPortForwardController::class, 'update'])->name('public-port-forwards.update');
-    Route::post('public-port-forwards/{id}/toggle',[PublicPortForwardController::class, 'toggle'])->name('public-port-forwards.toggle');
-    Route::delete('public-port-forwards/{id}',     [PublicPortForwardController::class, 'destroy'])->name('public-port-forwards.destroy');
+    Route::get('public-port-forwards/create',    [PublicPortForwardController::class, 'create'])->name('public-port-forwards.create');
+    Route::post('public-port-forwards',          [PublicPortForwardController::class, 'store'])->name('public-port-forwards.store');
+    Route::get('public-port-forwards/{id}/edit', [PublicPortForwardController::class, 'edit'])->name('public-port-forwards.edit');
+    Route::put('public-port-forwards/{id}',      [PublicPortForwardController::class, 'update'])->name('public-port-forwards.update');
+    Route::get('public-port-forwards/{id}/delete',[PublicPortForwardController::class, 'destroy'])->name('public-port-forwards.destroy');
 });

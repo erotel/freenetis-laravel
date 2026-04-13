@@ -122,22 +122,6 @@ class PublicPortForwardController extends Controller
         return redirect()->route('public-port-forwards.index');
     }
 
-    public function toggle(int $id)
-    {
-        abort_unless($this->can('edit_all'), 403);
-
-        $record   = PublicPortForward::findOrFail($id);
-        $memberId = Auth::user()?->member_id;
-
-        $record->update([
-            'enabled'     => $record->enabled ? 0 : 1,
-            'modified'    => now(),
-            'modified_by' => $memberId,
-        ]);
-
-        return redirect()->route('public-port-forwards.index');
-    }
-
     public function destroy(int $id)
     {
         abort_unless($this->can('edit_all'), 403);

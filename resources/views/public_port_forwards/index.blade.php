@@ -38,7 +38,6 @@
                 <th>Privátní IP</th>
                 <th>Privátní porty</th>
                 <th>Člen</th>
-                <th>Aktivní</th>
                 @if($canEdit)
                     <th>Akce</th>
                 @endif
@@ -66,34 +65,18 @@
                         @endif
                     </td>
                     <td>{{ $row->owner_member_name ?: '—' }}</td>
-                    <td>{{ $row->enabled ? 'Ano' : 'Ne' }}</td>
                     @if($canEdit)
                         <td>
-                            <a href="{{ route('public-port-forwards.edit', $row->id) }}" title="Upravit">
-                                <img src="{{ asset('media/images/icons/gtk_edit.png') }}" alt="Upravit">
-                            </a>
-                            <form method="POST" action="{{ route('public-port-forwards.toggle', $row->id) }}" style="display:inline;">
-                                @csrf
-                                <button type="submit" class="icon-button"
-                                        title="{{ $row->enabled ? 'Deaktivovat' : 'Aktivovat' }}">
-                                    <img src="{{ asset('media/images/icons/' . ($row->enabled ? 'active.png' : 'inactive.png')) }}"
-                                         alt="{{ $row->enabled ? 'Deaktivovat' : 'Aktivovat' }}">
-                                </button>
-                            </form>
-                            <form method="POST" action="{{ route('public-port-forwards.destroy', $row->id) }}" style="display:inline;"
-                                  onsubmit="return confirm('Opravdu smazat port forward #{{ $row->id }}?');">
-                                @csrf
-                                @method('DELETE')
-                                <button type="submit" class="icon-button" title="Smazat">
-                                    <img src="{{ asset('media/images/icons/delete.png') }}" alt="Smazat">
-                                </button>
-                            </form>
+                            <a href="{{ route('public-port-forwards.edit', $row->id) }}">Upravit</a>
+                            &nbsp;|&nbsp;
+                            <a href="{{ route('public-port-forwards.destroy', $row->id) }}"
+                               onclick="return confirm('Opravdu smazat port forward #{{ $row->id }}?');">Smazat</a>
                         </td>
                     @endif
                 </tr>
             @empty
                 <tr>
-                    <td colspan="{{ $canEdit ? 9 : 8 }}">Žádné záznamy.</td>
+                    <td colspan="{{ $canEdit ? 8 : 7 }}">Žádné záznamy.</td>
                 </tr>
             @endforelse
         </tbody>
