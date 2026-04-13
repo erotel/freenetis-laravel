@@ -33,7 +33,23 @@ use App\Http\Controllers\MessageController;
 use App\Http\Controllers\RegistrationController;
 use App\Http\Controllers\ForgottenPasswordController;
 use App\Http\Controllers\SearchController;
+use App\Http\Controllers\WebInterfaceController;
 use Illuminate\Support\Facades\Route;
+
+// ── Web Interface API (machine-to-machine, IP-restricted, no session auth) ──
+Route::prefix('web-interface')->name('web-interface.')->group(function () {
+    Route::get('redirected-ranges',           [WebInterfaceController::class, 'redirectedRanges'])->name('redirected-ranges');
+    Route::get('allowed-ip-addresses',        [WebInterfaceController::class, 'allowedIpAddresses'])->name('allowed-ip-addresses');
+    Route::get('unallowed-ip-addresses/{type?}', [WebInterfaceController::class, 'unallowedIpAddresses'])->name('unallowed-ip-addresses');
+    Route::get('self-cancelable-ip-addresses',[WebInterfaceController::class, 'selfCancelableIpAddresses'])->name('self-cancelable-ip-addresses');
+    Route::get('allowed-ip6-addresses',       [WebInterfaceController::class, 'allowedIp6Addresses'])->name('allowed-ip6-addresses');
+    Route::get('ipv6-radius',                 [WebInterfaceController::class, 'ipv6Radius'])->name('ipv6-radius');
+    Route::get('qos-json',                    [WebInterfaceController::class, 'qosJson'])->name('qos-json');
+    Route::get('public-port-forwards-json',   [WebInterfaceController::class, 'publicPortForwardsJson'])->name('public-port-forwards-json');
+    Route::get('public-ip-nat-1to1-json',     [WebInterfaceController::class, 'publicIpNat1to1Json'])->name('public-ip-nat-1to1-json');
+    Route::get('public-port-forwards-txt',    [WebInterfaceController::class, 'publicPortForwardsTxt'])->name('public-port-forwards-txt');
+    Route::get('public-ip-nat-1to1-txt',      [WebInterfaceController::class, 'publicIpNat1to1Txt'])->name('public-ip-nat-1to1-txt');
+});
 
 // Login / logout
 Route::get('/login', [LoginController::class, 'showLoginForm'])->name('login')->middleware('guest');
