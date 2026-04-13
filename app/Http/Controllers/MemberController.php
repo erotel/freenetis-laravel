@@ -387,6 +387,7 @@ class MemberController extends Controller
                     foreach ($deviceIds as $deviceId) {
                         $ifaceIds = DB::table('ifaces')->where('device_id', $deviceId)->pluck('id');
                         foreach ($ifaceIds as $ifaceId) {
+                            DB::table('ip6_addresses')->where('iface_id', $ifaceId)->delete();
                             DB::table('ip_addresses')->where('iface_id', $ifaceId)->delete();
                         }
                         DB::table('ifaces')->where('device_id', $deviceId)->delete();
@@ -436,7 +437,8 @@ class MemberController extends Controller
                 foreach ($deviceIds as $deviceId) {
                     $ifaceIds = DB::table('ifaces')->where('device_id', $deviceId)->pluck('id');
                     foreach ($ifaceIds as $ifaceId) {
-                        DB::table('ip_addresses')->where('iface_id', $ifaceId)->delete();
+                        DB::table('ip6_addresses')->where('iface_id', $ifaceId)->delete();
+                            DB::table('ip_addresses')->where('iface_id', $ifaceId)->delete();
                     }
                     DB::table('ifaces')->where('device_id', $deviceId)->delete();
                 }

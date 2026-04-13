@@ -45,6 +45,11 @@ class Iface extends Model
         return $this->hasMany(IpAddress::class);
     }
 
+    public function ip6Addresses()
+    {
+        return $this->hasMany(Ip6Address::class);
+    }
+
     public function vlans()
     {
         return $this->belongsToMany(Vlan::class, 'ifaces_vlans');

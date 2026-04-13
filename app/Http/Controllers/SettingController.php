@@ -44,6 +44,7 @@ class SettingController extends Controller
 
     public const NETWORK_KEYS = [
         'redirection_enabled', 'networks_enabled', 'address_ranges', 'dns_servers',
+        'ipv6_prefix', 'ipv6_mask',
     ];
 
     private function can(string $action): bool
@@ -265,6 +266,8 @@ class SettingController extends Controller
         Setting::set('networks_enabled',    $request->boolean('networks_enabled') ? 1 : 0);
         Setting::set('address_ranges',      $request->input('address_ranges', ''));
         Setting::set('dns_servers',         $request->input('dns_servers', ''));
+        Setting::set('ipv6_prefix',         $request->input('ipv6_prefix', ''));
+        Setting::set('ipv6_mask',           $request->input('ipv6_mask', ''));
         return redirect()->route('settings.index', ['tab' => 'network'])
             ->with('success', 'Nastavení sítě bylo uloženo.');
     }

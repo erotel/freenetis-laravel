@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Controllers\Concerns\SyncsIp6Address;
 use App\Models\Device;
 use App\Models\Iface;
 use App\Models\IpAddress;
@@ -11,6 +12,7 @@ use Illuminate\Validation\Rule;
 
 class IfaceController extends Controller
 {
+    use SyncsIp6Address;
     private function can(string $action = 'view_all'): bool
     {
         return $this->aclCheck($action, 'Ifaces_Controller', 'iface');
@@ -181,6 +183,7 @@ class IfaceController extends Controller
                 'gateway'    => 0,
                 'service'    => 0,
             ]);
+            $this->syncIp6Add($iface->id, $newIp);
         }
 
         session()->flash('success', 'Rozhraní bylo úspěšně upraveno.');
@@ -194,6 +197,7 @@ class IfaceController extends Controller
         $iface = Iface::findOrFail($id);
         $deviceId = $iface->device_id;
 
+        $iface->ip6Addresses()->delete();
         $iface->ipAddresses()->delete();
         $iface->delete();
 

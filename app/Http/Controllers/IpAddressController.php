@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Controllers\Concerns\SyncsIp6Address;
 use App\Models\Iface;
 use App\Models\IpAddress;
 use App\Models\Member;
@@ -11,6 +12,7 @@ use Illuminate\Validation\Rule;
 
 class IpAddressController extends Controller
 {
+    use SyncsIp6Address;
     private const ACL_SECTION = 'Ip_addresses_Controller';
     private const ACL_VALUE   = 'ip_address';
 
@@ -106,6 +108,7 @@ class IpAddressController extends Controller
         }
 
         $ip = IpAddress::create($data);
+        $this->syncIp6Add($ip->iface_id, $ip->ip_address);
 
         session()->flash('success', 'IP adresa byla úspěšně přidána.');
         return redirect()->route('ip_addresses.show', $ip->id);
@@ -146,7 +149,9 @@ class IpAddressController extends Controller
                 ->withErrors(['gateway' => 'V tomto subnetu již existuje gateway.']);
         }
 
+        $this->syncIp6Delete($ip->ip_address);
         $ip->update($data);
+        $this->syncIp6Add($ip->iface_id, $ip->ip_address);
 
         session()->flash('success', 'IP adresa byla úspěšně upravena.');
         return redirect()->route('ip_addresses.show', $id);
@@ -163,6 +168,7 @@ class IpAddressController extends Controller
             abort(404);
         }
 
+        $this->syncIp6Delete($ip->ip_address);
         $ip->delete();
 
         session()->flash('success', 'IP adresa byla úspěšně smazána.');
@@ -229,4 +235,5 @@ class IpAddressController extends Controller
 
         return $query->exists();
     }
+
 }

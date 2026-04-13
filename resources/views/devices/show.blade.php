@@ -199,6 +199,28 @@
         </table>
     @endif
 
+    {{-- IPv6 adresy --}}
+    @php $ip6Rows = $device->ifaces->flatMap(fn($i) => $i->ip6Addresses->map(fn($a) => ['iface' => $i, 'addr' => $a])); @endphp
+    @if($ip6Rows->isNotEmpty())
+        <h3>IPv6 adresy</h3>
+        <table class="extended" cellspacing="0">
+            <thead>
+                <tr>
+                    <th>IPv6 adresa</th>
+                    <th>Rozhraní</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach($ip6Rows as $row)
+                    <tr>
+                        <td>{{ $row['addr']->ip_address }}</td>
+                        <td><a href="{{ route('ifaces.show', $row['iface']->id) }}">{{ $row['iface']->name }}</a></td>
+                    </tr>
+                @endforeach
+            </tbody>
+        </table>
+    @endif
+
     {{-- Správci zařízení --}}
     @if($device->deviceAdmins->count() > 0)
         <h3>Správci zařízení</h3>

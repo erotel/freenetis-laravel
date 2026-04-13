@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Controllers\Concerns\SyncsIp6Address;
 use App\Models\Device;
 use App\Models\DeviceTemplate;
 use App\Models\EnumType;
@@ -14,6 +15,7 @@ use Illuminate\Support\Facades\DB;
 
 class DeviceController extends Controller
 {
+    use SyncsIp6Address;
     private const ACL_SECTION = 'Devices_Controller';
     private const ACL_VALUE   = 'devices';
 
@@ -101,6 +103,7 @@ class DeviceController extends Controller
             'addressPoint.street',
             'addressPoint.town',
             'ifaces.ipAddresses.subnet',
+            'ifaces.ip6Addresses',
             'deviceAdmins.user',
             'deviceEngineers.user',
         ])->find($id);
@@ -278,15 +281,17 @@ class DeviceController extends Controller
                 ]);
 
                 if ($def['has_ip'] && $request->filled("iface_ip_{$n}")) {
+                    $ipVal = $request->input("iface_ip_{$n}");
                     IpAddress::create([
                         'iface_id'   => $iface->id,
                         'subnet_id'  => $request->input("iface_subnet_{$n}"),
-                        'ip_address' => $request->input("iface_ip_{$n}"),
+                        'ip_address' => $ipVal,
                         'member_id'  => $memberId,
                         'dhcp'       => 0,
                         'gateway'    => 0,
                         'service'    => 0,
                     ]);
+                    $this->syncIp6Add($iface->id, $ipVal);
                 }
             }
         });
@@ -420,6 +425,7 @@ class DeviceController extends Controller
 
         DB::transaction(function () use ($device) {
             foreach ($device->ifaces as $iface) {
+                $iface->ip6Addresses()->delete();
                 $iface->ipAddresses()->delete();
             }
             $device->ifaces()->delete();

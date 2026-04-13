@@ -463,6 +463,24 @@
                            style="width:350px" placeholder="10.133.37.37">
                 </td>
             </tr>
+            <tr>
+                <th>IPv6 prefix</th>
+                <td>
+                    <input type="text" name="ipv6_prefix"
+                           value="{{ $networkSettings['ipv6_prefix'] ?? '' }}"
+                           style="width:200px" placeholder="2a07:9c0">
+                    <small style="color:#888;">Společný prefix sítě (bez lomítka a délky masky).</small>
+                </td>
+            </tr>
+            <tr>
+                <th>IPv6 maska (délka prefixu)</th>
+                <td>
+                    <input type="number" name="ipv6_mask"
+                           value="{{ $networkSettings['ipv6_mask'] ?? '' }}"
+                           style="width:60px" min="1" max="128" placeholder="56">
+                    <small style="color:#888;">Délka prefixu v bitech (např. 56).</small>
+                </td>
+            </tr>
         </table>
         <div style="margin-top:1em;"><button type="submit">Uložit nastavení sítě</button></div>
     </form>
