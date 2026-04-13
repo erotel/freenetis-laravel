@@ -410,8 +410,7 @@ Route::middleware('auth')->group(function () {
         ->middleware('acl:view_all,Network_Controller,public_ip_nat');
     Route::get('public-ip-nat/{id}/edit',   [PublicIpNat1to1Controller::class, 'edit'])->name('public-ip-nat.edit');
     Route::put('public-ip-nat/{id}',        [PublicIpNat1to1Controller::class, 'update'])->name('public-ip-nat.update');
-    Route::post('public-ip-nat/{id}/toggle',[PublicIpNat1to1Controller::class, 'toggle'])->name('public-ip-nat.toggle');
-    Route::post('public-ip-nat/{id}/clear', [PublicIpNat1to1Controller::class, 'clear'])->name('public-ip-nat.clear');
+    Route::get('public-ip-nat/{id}/clear',  [PublicIpNat1to1Controller::class, 'clear'])->name('public-ip-nat.clear');
 
     // ── Public Port Forwards ──────────────────────────────────────────────────
     Route::get('public-port-forwards', [PublicPortForwardController::class, 'index'])->name('public-port-forwards.index')

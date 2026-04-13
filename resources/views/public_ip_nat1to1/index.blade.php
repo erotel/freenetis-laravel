@@ -39,9 +39,7 @@
                 <th>Veřejná IP</th>
                 <th>Privátní IP</th>
                 <th>Člen</th>
-                <th>Aktivní</th>
-                <th>Upraveno</th>
-                <th>Upravil</th>
+                <th>Poslední změna</th>
                 @if($canEdit)
                     <th>Akce</th>
                 @endif
@@ -54,44 +52,27 @@
                     <td>{{ $row->public_ip }}</td>
                     <td>{{ $row->private_ip ?: '—' }}</td>
                     <td>{{ $row->owner_member_name ?: '—' }}</td>
-                    <td>{{ $row->enabled ? 'Ano' : 'Ne' }}</td>
-                    @php $mod = $row->modified ? \Carbon\Carbon::parse($row->modified) : null; @endphp
-                    <td>{{ ($mod && $mod->year >= 2000) ? $mod->format('d.m.Y H:i') : '—' }}</td>
-                    <td>{{ $row->modified_by_name ?: '—' }}</td>
+                    @php
+                        $mod  = $row->modified ? \Carbon\Carbon::parse($row->modified) : null;
+                        $useModified = $mod && $mod->year >= 2000;
+                        $changeDate  = $useModified ? $mod->format('d.m.Y H:i') : ($row->created ? \Carbon\Carbon::parse($row->created)->format('d.m.Y H:i') : '—');
+                        $changeName  = $useModified ? ($row->modified_by_name ?: '—') : ($row->created_by_name ?: '—');
+                    @endphp
+                    <td>{{ $changeDate }} ({{ $changeName }})</td>
                     @if($canEdit)
                         <td>
-                            {{-- Edit --}}
-                            <a href="{{ route('public-ip-nat.edit', $row->id) }}" title="Upravit">
-                                <img src="{{ asset('media/images/icons/gtk_edit.png') }}" alt="Upravit">
-                            </a>
-
-                            {{-- Toggle enabled --}}
-                            <form method="POST" action="{{ route('public-ip-nat.toggle', $row->id) }}" style="display:inline;">
-                                @csrf
-                                <button type="submit" class="icon-button"
-                                        title="{{ $row->enabled ? 'Deaktivovat' : 'Aktivovat' }}">
-                                    <img src="{{ asset('media/images/icons/' . ($row->enabled ? 'active.png' : 'inactive.png')) }}"
-                                         alt="{{ $row->enabled ? 'Deaktivovat' : 'Aktivovat' }}">
-                                </button>
-                            </form>
-
-                            {{-- Clear private IP mapping (keep row) --}}
+                            <a href="{{ route('public-ip-nat.edit', $row->id) }}">Upravit</a>
                             @if($row->private_ip)
-                                <form method="POST" action="{{ route('public-ip-nat.clear', $row->id) }}" style="display:inline;"
-                                      onsubmit="return confirm('Vymazat mapování pro {{ $row->public_ip }}? Řádek zůstane, pouze se odstraní privátní IP.');">
-                                    @csrf
-                                    <button type="submit" class="icon-button" title="Vymazat mapování (ponechat řádek)">
-                                        <img src="{{ asset('media/images/icons/ico_del.gif') }}" alt="Vymazat mapování">
-                                    </button>
-                                </form>
+                                &nbsp;|&nbsp;
+                                <a href="{{ route('public-ip-nat.clear', $row->id) }}"
+                                   onclick="return confirm('Opravdu vymazat mapování pro {{ $row->public_ip }}?');">Vymazat mapování</a>
                             @endif
-
                         </td>
                     @endif
                 </tr>
             @empty
                 <tr>
-                    <td colspan="{{ $canEdit ? 8 : 7 }}">Žádné záznamy.</td>
+                    <td colspan="{{ $canEdit ? 6 : 5 }}">Žádné záznamy.</td>
                 </tr>
             @endforelse
         </tbody>

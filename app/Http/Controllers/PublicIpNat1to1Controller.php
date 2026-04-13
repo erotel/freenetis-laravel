@@ -6,6 +6,8 @@ use App\Models\PublicIpNat1to1;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\ValidationException;
+
 class PublicIpNat1to1Controller extends Controller
 {
     private function can(string $action = 'view_all'): bool
@@ -27,11 +29,13 @@ class PublicIpNat1to1Controller extends Controller
             ->leftJoin('users AS u', 'u.id', '=', 'd.user_id')
             ->leftJoin('members AS om', 'om.id', '=', 'u.member_id')
             ->leftJoin('members AS mm', 'mm.id', '=', 'n.modified_by')
+            ->leftJoin('members AS mc', 'mc.id', '=', 'n.created_by')
             ->select(
                 'n.id', 'n.public_ip', 'n.private_ip', 'n.scope',
                 'n.enabled', 'n.comment', 'n.created', 'n.modified',
                 'om.name AS owner_member_name',
-                'mm.name AS modified_by_name'
+                'mm.name AS modified_by_name',
+                'mc.name AS created_by_name'
             )
             ->orderByRaw('n.enabled DESC, INET_ATON(n.public_ip) ASC');
 
@@ -104,22 +108,6 @@ class PublicIpNat1to1Controller extends Controller
         return redirect()->route('public-ip-nat.index');
     }
 
-    public function toggle(int $id)
-    {
-        abort_unless($this->can('edit_all'), 403);
-
-        $record   = PublicIpNat1to1::findOrFail($id);
-        $memberId = Auth::user()?->member_id;
-
-        $record->update([
-            'enabled'     => $record->enabled ? 0 : 1,
-            'modified'    => now(),
-            'modified_by' => $memberId,
-        ]);
-
-        return redirect()->route('public-ip-nat.index');
-    }
-
     public function clear(int $id)
     {
         abort_unless($this->can('edit_all'), 403);
@@ -136,5 +124,4 @@ class PublicIpNat1to1Controller extends Controller
         session()->flash('success', 'Mapování bylo vymazáno.');
         return redirect()->route('public-ip-nat.index');
     }
-
 }
