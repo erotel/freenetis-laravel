@@ -24,7 +24,7 @@
                   {{ $activeTab === 'finance' ? 'background:#c00; color:#fff; font-weight:bold;' : 'background:#eee; color:#333;' }}">
             Finance
         </a>
-        @foreach(['system' => 'Systém', 'users' => 'Uživatelé', 'network' => 'Síť'] as $tabKey => $tabLabel)
+        @foreach(['system' => 'Systém', 'users' => 'Uživatelé', 'network' => 'Síť', 'sms' => 'SMS'] as $tabKey => $tabLabel)
         <a href="{{ route('settings.index', ['tab' => $tabKey]) }}"
            style="display:inline-block; padding:6px 16px; margin-right:4px; text-decoration:none;
                   {{ $activeTab === $tabKey ? 'background:#c00; color:#fff; font-weight:bold;' : 'background:#eee; color:#333;' }}">
@@ -483,6 +483,110 @@
             </tr>
         </table>
         <div style="margin-top:1em;"><button type="submit">Uložit nastavení sítě</button></div>
+    </form>
+    @endif
+
+    {{-- ═══════════════════════════════════════════════════ --}}
+    {{-- TAB: SMS                                           --}}
+    {{-- ═══════════════════════════════════════════════════ --}}
+    @if($activeTab === 'sms')
+    @php
+        $smsDriverMeta = \App\Http\Controllers\SettingController::SMS_DRIVERS;
+    @endphp
+    <form method="POST" action="{{ route('settings.update-sms') }}">
+        @csrf @method('PUT')
+
+        <h3>Základní nastavení SMS</h3>
+        <table class="extended" cellspacing="0">
+            <tr>
+                <th>SMS povoleny</th>
+                <td>
+                    <input type="checkbox" name="sms_enabled" value="1"
+                        {{ ($smsSettings['sms_enabled'] ?? '0') == '1' ? 'checked' : '' }}>
+                    <small style="color:#888;">Globální přepínač SMS notifikací.</small>
+                </td>
+            </tr>
+            <tr>
+                <th>Číslo odesílatele</th>
+                <td>
+                    <input type="text" name="sms_sender_number"
+                           value="{{ $smsSettings['sms_sender_number'] ?? '' }}"
+                           style="width:180px" placeholder="420588207234" maxlength="20">
+                    <small style="color:#888;">Číslo ve formátu bez + (např. 420588207234).</small>
+                </td>
+            </tr>
+            <tr>
+                <th>Výchozí driver</th>
+                <td>
+                    <select name="sms_driver">
+                        <option value="">— nevybráno —</option>
+                        @foreach($smsDriverMeta as $dId => $dCfg)
+                            <option value="{{ $dId }}"
+                                {{ ($smsSettings['sms_driver'] ?? '') == $dId ? 'selected' : '' }}>
+                                {{ $dId }} – {{ $dCfg['name'] }}
+                            </option>
+                        @endforeach
+                    </select>
+                    <small style="color:#888;">Driver použitý pro zařazování nových SMS do fronty.</small>
+                </td>
+            </tr>
+        </table>
+
+        @foreach($smsDriverMeta as $dId => $dCfg)
+        @php $ds = $smsDriverSettings[$dId] ?? []; @endphp
+        <h3 style="margin-top:1.5em;">Driver {{ $dId }}: {{ $dCfg['name'] }}</h3>
+        <table class="extended" cellspacing="0">
+            <tr>
+                <th>Stav driveru</th>
+                <td>
+                    <select name="sms_driver_state{{ $dId }}">
+                        <option value="1" {{ ($ds['state'] ?? '1') == '1' ? 'selected' : '' }}>Neaktivní</option>
+                        <option value="2" {{ ($ds['state'] ?? '1') == '2' ? 'selected' : '' }}>Aktivní</option>
+                    </select>
+                </td>
+            </tr>
+            @if($dCfg['has_hostname'])
+            <tr>
+                <th>Hostname</th>
+                <td>
+                    <input type="text" name="sms_hostname{{ $dId }}"
+                           value="{{ $ds['hostname'] ?? '' }}"
+                           style="width:280px" placeholder="api.klikniavolej.cz:80">
+                </td>
+            </tr>
+            @endif
+            <tr>
+                <th>Uživatel</th>
+                <td>
+                    <input type="text" name="sms_user{{ $dId }}"
+                           value="{{ $ds['user'] ?? '' }}"
+                           style="width:200px">
+                </td>
+            </tr>
+            <tr>
+                <th>{{ $dId === 5 ? 'API klíč' : 'Heslo' }}</th>
+                <td>
+                    <input type="password" name="sms_password{{ $dId }}"
+                           value="{{ $ds['password'] ?? '' }}"
+                           style="width:300px">
+                </td>
+            </tr>
+            @if($dCfg['has_test_mode'])
+            <tr>
+                <th>Testovací mód</th>
+                <td>
+                    <input type="checkbox" name="sms_test_mode{{ $dId }}" value="1"
+                        {{ ($ds['test_mode'] ?? '0') == '1' ? 'checked' : '' }}>
+                    <small style="color:#888;">SMS se nezasílají, pouze simulují odeslání.</small>
+                </td>
+            </tr>
+            @endif
+        </table>
+        @endforeach
+
+        <div style="margin-top:1.5em;">
+            <button type="submit">Uložit nastavení SMS</button>
+        </div>
     </form>
     @endif
 

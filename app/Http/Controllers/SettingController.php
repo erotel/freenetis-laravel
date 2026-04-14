@@ -47,6 +47,14 @@ class SettingController extends Controller
         'ipv6_prefix', 'ipv6_mask',
     ];
 
+    // SMS drivers: id → config
+    // has_hostname: true = admin can override hostname (Klikniavolej only)
+    // has_test_mode: true = show test mode toggle (Klikniavolej only)
+    public const SMS_DRIVERS = [
+        3 => ['name' => 'KlikniaVolej.cz',       'has_hostname' => true,  'has_test_mode' => true],
+        5 => ['name' => 'SmsManager JSON API v2', 'has_hostname' => false, 'has_test_mode' => false],
+    ];
+
     private function can(string $action): bool
     {
         return $this->aclCheck($action, self::ACL_SECTION, self::ACL_VALUE);
@@ -140,11 +148,29 @@ class SettingController extends Controller
             $networkSettings[$key] = Setting::get($key, '');
         }
 
+        // SMS settings
+        $smsSettings = [
+            'sms_enabled'       => Setting::get('sms_enabled', '0'),
+            'sms_sender_number' => Setting::get('sms_sender_number', ''),
+            'sms_driver'        => Setting::get('sms_driver', ''),
+        ];
+        $smsDriverSettings = [];
+        foreach (array_keys(self::SMS_DRIVERS) as $dId) {
+            $smsDriverSettings[$dId] = [
+                'state'     => Setting::get('sms_driver_state' . $dId, '1'),
+                'hostname'  => Setting::get('sms_hostname'     . $dId, ''),
+                'user'      => Setting::get('sms_user'         . $dId, ''),
+                'password'  => Setting::get('sms_password'     . $dId, ''),
+                'test_mode' => Setting::get('sms_test_mode'    . $dId, '0'),
+            ];
+        }
+
         return view('settings.index', compact(
             'bankAccounts', 'memberTypes', 'routing', 'defaultBaId',
             'emailSettings', 'bccRules', 'messages', 'activeTab',
             'pohodaEmail', 'financeSettings', 'feesForSelect',
-            'systemSettings', 'usersSettings', 'networkSettings'
+            'systemSettings', 'usersSettings', 'networkSettings',
+            'smsSettings', 'smsDriverSettings'
         ));
     }
 
@@ -270,5 +296,30 @@ class SettingController extends Controller
         Setting::set('ipv6_mask',           $request->input('ipv6_mask', ''));
         return redirect()->route('settings.index', ['tab' => 'network'])
             ->with('success', 'Nastavení sítě bylo uloženo.');
+    }
+
+    public function updateSms(Request $request)
+    {
+        abort_unless($this->can('edit_all'), 403);
+
+        $request->validate([
+            'sms_sender_number' => 'nullable|string|max:20',
+        ]);
+
+        Setting::set('sms_enabled',       $request->boolean('sms_enabled') ? 1 : 0);
+        Setting::set('sms_sender_number', trim((string) $request->input('sms_sender_number', '')));
+        Setting::set('sms_driver',        (string) $request->input('sms_driver', ''));
+
+        foreach (array_keys(self::SMS_DRIVERS) as $dId) {
+            $state = (int) $request->input('sms_driver_state' . $dId, 1);
+            Setting::set('sms_driver_state' . $dId, in_array($state, [1, 2]) ? $state : 1);
+            Setting::set('sms_hostname'     . $dId, trim((string) $request->input('sms_hostname'  . $dId, '')));
+            Setting::set('sms_user'         . $dId, trim((string) $request->input('sms_user'      . $dId, '')));
+            Setting::set('sms_password'     . $dId, trim((string) $request->input('sms_password'  . $dId, '')));
+            Setting::set('sms_test_mode'    . $dId, $request->boolean('sms_test_mode' . $dId) ? 1 : 0);
+        }
+
+        return redirect()->route('settings.index', ['tab' => 'sms'])
+            ->with('success', 'Nastavení SMS bylo uloženo.');
     }
 }

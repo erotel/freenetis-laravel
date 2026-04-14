@@ -327,6 +327,7 @@ Route::middleware('auth')->group(function () {
     Route::put('settings/system',   [SettingController::class, 'updateSystem'])->name('settings.update-system');
     Route::put('settings/users',    [SettingController::class, 'updateUsers'])->name('settings.update-users');
     Route::put('settings/network',  [SettingController::class, 'updateNetwork'])->name('settings.update-network');
+    Route::put('settings/sms',      [SettingController::class, 'updateSms'])->name('settings.update-sms');
     Route::put('settings',          [SettingController::class, 'update'])->name('settings.update');
 
     Route::get('acl/create',       [AroGroupController::class, 'aclCreate'])->name('acl.create');

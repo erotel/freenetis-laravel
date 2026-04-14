@@ -3,6 +3,7 @@
 namespace App\Console\Commands;
 
 use App\Models\Setting;
+use App\Services\KlikniavolejDriver;
 use App\Services\SmsManagerDriver;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\DB;
@@ -33,7 +34,8 @@ class SmsSend extends Command
     const STATE_FAILED = 2; // SENT_FAILED
 
     // sms_messages.driver values (mirror of Kohana Sms class constants)
-    const DRIVER_SMSMANAGER = 5;
+    const DRIVER_KLIKNIAVOLEJ = 3;
+    const DRIVER_SMSMANAGER   = 5;
 
     // sms_driver_stateN values
     const DRIVER_INACTIVE = 1;
@@ -105,11 +107,13 @@ class SmsSend extends Command
     /**
      * Resolve a driver instance for the given driver ID.
      * Falls back to any active driver if the requested one is not supported/active.
+     *
+     * @return SmsManagerDriver|KlikniavolejDriver|null
      */
-    private function resolveDriver(int $driverId): ?SmsManagerDriver
+    private function resolveDriver(int $driverId)
     {
         // Try requested driver first, then all known drivers as fallback
-        $candidates = array_unique(array_filter([$driverId, self::DRIVER_SMSMANAGER]));
+        $candidates = array_unique(array_filter([$driverId, self::DRIVER_SMSMANAGER, self::DRIVER_KLIKNIAVOLEJ]));
 
         foreach ($candidates as $id) {
             $state = (int) Setting::get('sms_driver_state' . $id, self::DRIVER_INACTIVE);
@@ -121,7 +125,16 @@ class SmsSend extends Command
                 return new SmsManagerDriver($apiKey);
             }
 
-            // Other drivers (KLIKNIAVOLEJ, ARTIO) not implemented yet
+            if ($id === self::DRIVER_KLIKNIAVOLEJ) {
+                $user     = (string) Setting::get('sms_user' . $id, '');
+                $password = (string) Setting::get('sms_password' . $id, '');
+                if ($user === '' || $password === '') continue;
+                $hostname = (string) Setting::get('sms_hostname' . $id, KlikniavolejDriver::DEFAULT_HOSTNAME);
+                $testMode = (bool)   Setting::get('sms_test_mode' . $id, 0);
+                return new KlikniavolejDriver($user, $password, $hostname, $testMode);
+            }
+
+            // SOUNDWINV100 (2), ARTIO (4) not implemented
         }
 
         return null;
