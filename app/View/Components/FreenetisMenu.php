@@ -31,6 +31,7 @@ class FreenetisMenu extends Component
         $countApplicants  = fn() => (int) DB::table('members')->whereIn('type', [17, 18])->count();
         $countCustomers   = fn() => (int) DB::table('members')->where('type', 2)->count();
         $countRegular     = fn() => (int) DB::table('members')->where('type', 90)->count();
+        $countLogErrors   = fn() => (int) DB::table('log_queues')->whereIn('type', [0, 1])->where('state', 0)->count();
 
         $menuGroups = [
             ['name' => 'home', 'label' => 'Domů', 'items' => [
@@ -60,7 +61,7 @@ class FreenetisMenu extends Component
             ]],
             ['name' => 'settings', 'label' => 'Administrace', 'items' => [
                 ['url' => route('login_logs.index'),  'path' => 'login-logs', 'label' => 'Logy přihlášení', 'acl' => ['view_all', 'Login_logs_Controller', 'logs']],
-                ['url' => route('log_queues.index'),  'path' => 'log-queues', 'label' => 'Chyby a logy',    'acl' => ['view_all', 'Log_queues_Controller', 'log_queue']],
+                ['url' => route('log_queues.index'),  'path' => 'log-queues', 'label' => 'Chyby a logy',    'acl' => ['view_all', 'Log_queues_Controller', 'log_queue'], 'count' => $countLogErrors],
                 ['url' => route('towns.index'), 'path' => 'towns', 'label' => 'Města', 'acl' => ['view_all', 'Address_points_Controller', 'town']],
                 ['url' => route('streets.index'), 'path' => 'streets', 'label' => 'Ulice', 'acl' => ['view_all', 'Address_points_Controller', 'street']],
                 ['url' => route('settings.index'), 'path' => 'settings', 'label' => 'Nastavení', 'acl' => ['view_all', 'Settings_Controller', 'finance_settings']],
