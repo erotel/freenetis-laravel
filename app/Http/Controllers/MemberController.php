@@ -633,6 +633,82 @@ class MemberController extends Controller
                 }
             }
 
+            // Auto device remove — pokud leaving_date <= dnes a nastavení povoluje
+            if (\App\Models\Setting::get('former_member_auto_device_remove', '0') == '1'
+                && $validated['leaving_date'] <= now()->toDateString()) {
+
+                // 1. Sbírej IP adresy (přes member_id + přes ifaces→devices→users)
+                $ips1 = DB::table('ip_addresses')
+                    ->where('member_id', $id)
+                    ->whereNotNull('ip_address')
+                    ->pluck('ip_address');
+
+                $ips2 = DB::table('ip_addresses as ia')
+                    ->join('ifaces as i', 'i.id', '=', 'ia.iface_id')
+                    ->join('devices as d', 'd.id', '=', 'i.device_id')
+                    ->join('users as u', 'u.id', '=', 'd.user_id')
+                    ->where('u.member_id', $id)
+                    ->whereNotNull('ia.ip_address')
+                    ->pluck('ia.ip_address');
+
+                $ips = $ips1->merge($ips2)->unique()->sort()->values()->all();
+
+                // 2. Zapiš IP adresy jako prefix do members.comment
+                $today  = now()->format('Y-m-d');
+                $prefix = "[{$today}] ";
+                $maxLen = 250;
+                $out    = $prefix;
+                $shown  = 0;
+
+                foreach ($ips as $ip) {
+                    $add = ($shown ? ',' : '') . $ip;
+                    if (strlen($out . $add) > $maxLen) break;
+                    $out .= $add;
+                    $shown++;
+                }
+
+                $rest = count($ips) - $shown;
+                if ($rest > 0) {
+                    $suffix = " (+{$rest} další)";
+                    if (strlen($out . $suffix) > $maxLen) {
+                        $out = rtrim(substr($out, 0, max(0, $maxLen - strlen($suffix))), ', ');
+                    }
+                    $out .= $suffix;
+                }
+
+                if (empty($ips)) {
+                    $out = $prefix . '(žádné)';
+                }
+
+                DB::statement("
+                    UPDATE members
+                    SET comment = LEFT(
+                        CONCAT(?, IF(comment IS NULL OR comment = '', '', '\n'), IFNULL(comment, '')),
+                        250
+                    )
+                    WHERE id = ?
+                ", [$out, $id]);
+
+                // 3. Smaž zařízení (ifaces → ip_addresses, ip6_addresses kaskádně)
+                $userIds = DB::table('users')->where('member_id', $id)->pluck('id');
+                $deviceIds = DB::table('devices')->whereIn('user_id', $userIds)->pluck('id');
+                foreach ($deviceIds as $deviceId) {
+                    $ifaceIds = DB::table('ifaces')->where('device_id', $deviceId)->pluck('id');
+                    foreach ($ifaceIds as $ifaceId) {
+                        DB::table('ip6_addresses')->where('iface_id', $ifaceId)->delete();
+                        DB::table('ip_addresses')->where('iface_id', $ifaceId)->delete();
+                    }
+                    DB::table('ifaces')->where('device_id', $deviceId)->delete();
+                }
+                DB::table('devices')->whereIn('user_id', $userIds)->delete();
+
+                // 4. Smaž ip_addresses přímo přes member_id
+                DB::table('ip_addresses')->where('member_id', $id)->delete();
+
+                // 5. Smaž subnets_owners
+                DB::table('subnets_owners')->where('member_id', $id)->delete();
+            }
+
             // Odeslat email pro módy 2, 3, 4
             if (in_array($endMode, [2, 3, 4])) {
                 $messageId = match($endMode) {
