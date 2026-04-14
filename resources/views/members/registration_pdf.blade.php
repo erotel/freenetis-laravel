@@ -1,159 +1,252 @@
 <?php
 /**
- * PDF view for registration (Přihláška) and end-of-membership (Ukončení).
- * Variables: $type, $member, $assoc, $mainUser, $email, $phone,
- *            $variableSymbols, $bankAccount, $logoPath,
- *            $registrationInfo, $registrationLicense
+ * PDF: Přihláška (registration) + Ukončení členství (end)
+ * Layout dle vzorových PDF — PVfree.net
+ *
+ * Variables: $type, $member, $assoc, $mainUser,
+ *            $email, $phone, $variableSymbols, $bankAccount,
+ *            $registrationInfo, $registrationLicense,
+ *            $otherContacts, $creditBalance, $subnetName, $engineers
  */
 
 $isRegistration = ($type === 'registration');
 
-$title = $isRegistration
-    ? 'Žádost o členství – registrace v sdružení'
-    : 'Žádost o ukončení členství';
+// Assoc header
+$assocStreet = trim(($assoc->street ?? '') . ' ' . ($assoc->street_number ?? ''));
+$assocCity   = trim(($assoc->zip_code ?? '') . ' ' . ($assoc->town ?? ''));
+if ($assoc->quarter ?? '') {
+    $assocCity = trim(($assoc->zip_code ?? '') . ' ' . ($assoc->town ?? '') . ($assoc->quarter ? ' ' . $assoc->quarter : ''));
+}
+$bankNr = $bankAccount ? ($bankAccount->account_nr . '/' . $bankAccount->bank_nr) : '';
 
-// Format address helper
-$memberAddress = trim(($member->street ?? '') . ' ' . ($member->street_number ?? ''));
-$assocAddress  = trim(($assoc->street  ?? '') . ' ' . ($assoc->street_number  ?? ''));
+// Member data
+$memberName = $member->name ?? '';
+$memberId   = $member->id;
+
+$memberStreet = trim(($member->street ?? '') . ' ' . ($member->street_number ?? ''));
+$memberCity   = ($member->zip_code ?? '') . ' ' . ($member->town ?? '');
+
+$birthday = $mainUser && !empty($mainUser->birthday) && $mainUser->birthday !== '0000-00-00'
+    ? \Carbon\Carbon::parse($mainUser->birthday)->format('j. n. Y')
+    : '';
+
+$entranceDate = !empty($member->entrance_date) && $member->entrance_date !== '0000-00-00'
+    ? \Carbon\Carbon::parse($member->entrance_date)->format('j. n. Y')
+    : '';
+
+$leavingDate = !empty($member->leaving_date)
+    && !in_array($member->leaving_date, ['0000-00-00', '9999-12-31'])
+    ? \Carbon\Carbon::parse($member->leaving_date)->format('j. n. Y')
+    : '';
+
+$vsStr      = $variableSymbols->implode(', ');
+$engineerStr = $engineers->implode(', ');
+
+// ICQ/Jabber/Skype as "Type: value" pairs
+$otherContactStr = $otherContacts->map(fn($c) => $c->type_name . ': ' . $c->value)->implode(', ');
 
 $today = now()->format('d.m.Y');
 
-$entranceDate = $member->entrance_date && $member->entrance_date !== '0000-00-00'
-    ? \Carbon\Carbon::parse($member->entrance_date)->format('d.m.Y')
-    : '';
-$leavingDate  = $member->leaving_date && !in_array($member->leaving_date, ['0000-00-00', '9999-12-31'])
-    ? \Carbon\Carbon::parse($member->leaving_date)->format('d.m.Y')
-    : '';
-$birthday = $mainUser && $mainUser->birthday && $mainUser->birthday !== '0000-00-00'
-    ? \Carbon\Carbon::parse($mainUser->birthday)->format('d.m.Y')
-    : '';
+// Formatted credit
+$credit = $creditBalance ? number_format((float)$creditBalance, 2, ',', ' ') . ' Kč' : '';
 ?>
 <!DOCTYPE html>
 <html>
 <head>
 <meta charset="utf-8">
 <style>
-    body        { font-family: dejavusans, sans-serif; font-size: 9pt; color: #000; }
-    h1          { font-size: 13pt; text-align: center; margin-bottom: 4px; }
-    h2          { font-size: 10pt; margin: 12px 0 4px 0; border-bottom: 1px solid #999; padding-bottom:2px; }
-    table.info  { width: 100%; border-collapse: collapse; margin-bottom: 8px; }
-    table.info th { width: 35%; text-align: left; padding: 3px 6px; background: #f0f0f0; font-weight: bold; vertical-align: top; }
-    table.info td { padding: 3px 6px; vertical-align: top; }
-    table.info tr:nth-child(even) th { background: #e8e8e8; }
-    .logo       { text-align: center; margin-bottom: 10px; }
-    .assoc-header { text-align: center; font-size: 8pt; color: #555; margin-bottom: 8px; }
-    .info-text  { font-size: 8pt; margin-top: 10px; border: 1px solid #ccc; padding: 6px; }
-    .license    { font-size: 7.5pt; margin-top: 8px; border: 1px solid #ccc; padding: 6px; }
-    .signature  { margin-top: 30px; }
-    .sig-row    { overflow: hidden; margin-top: 20px; }
-    .sig-left   { float: left; width: 45%; border-top: 1px solid #000; padding-top: 4px; font-size: 8pt; text-align: center; }
-    .sig-right  { float: right; width: 45%; border-top: 1px solid #000; padding-top: 4px; font-size: 8pt; text-align: center; }
-    .date-line  { text-align: right; margin-bottom: 10px; font-size: 8pt; }
+    body        { font-family: dejavusans, sans-serif; font-size: 10pt; color: #000; margin: 0; }
+    /* Header block top-right */
+    .hdr-wrap   { text-align: right; margin-bottom: 16px; font-size: 10pt; line-height: 1.5; }
+    .hdr-wrap b { font-weight: bold; }
+    .hdr-tbl    { display: inline-table; text-align: left; }
+    .hdr-tbl td { padding: 0 4px 0 0; white-space: nowrap; }
+    /* Title */
+    h1          { font-size: 17pt; font-weight: bold; font-style: italic; text-align: center;
+                  margin: 0 0 14px 0; }
+    /* Intro text */
+    .intro      { font-size: 8.5pt; text-align: justify; margin-bottom: 10px; line-height: 1.35; }
+    /* Data table */
+    table.data  { width: 100%; border-collapse: collapse; margin-bottom: 12px; }
+    table.data td { border: 1px solid #000; padding: 5px 7px; vertical-align: middle; }
+    table.data td.lbl  { font-weight: bold; font-size: 9pt; width: 22%; }
+    table.data td.val  { text-align: center; font-size: 9.5pt; width: 28%; }
+    table.data td.lbl2 { font-weight: bold; font-size: 9pt; width: 22%; }
+    table.data td.val2 { text-align: center; font-size: 9.5pt; width: 28%; }
+    /* Warning */
+    .warning    { font-size: 9pt; font-weight: bold; color: #c00; text-decoration: underline;
+                  margin: 10px 0 8px 0; }
+    /* Small info texts */
+    .small-info { font-size: 8pt; margin-bottom: 6px; line-height: 1.35; }
+    /* Signature lines */
+    .sig-center { text-align: center; font-size: 11pt; font-weight: bold; margin: 30px 0 8px 0; }
+    .sig-left   { font-size: 11pt; font-weight: bold; margin: 16px 0 4px 0; }
+    .sig-section-title { font-size: 14pt; font-weight: bold; text-align: center;
+                         margin: 28px 0 14px 0; }
+    /* Refund line */
+    .refund-line { font-weight: bold; font-size: 10pt; margin: 16px 0 10px 0; }
+    .date-line   { font-weight: bold; font-size: 10pt; margin: 16px 0; }
 </style>
 </head>
 <body>
 
-{{-- Logo --}}
-@if($logoPath && file_exists($logoPath))
-<div class="logo">
-    <img src="{{ $logoPath }}" style="max-height:60px; max-width:200px;">
+{{-- ── Header (top right) ── --}}
+<div class="hdr-wrap">
+    <table class="hdr-tbl">
+        <tr><td colspan="2"><b>{{ $assoc->name }}</b></td></tr>
+        @if($assoc->organization_identifier)
+        <tr>
+            <td>IČ:</td>
+            <td><b>{{ $assoc->organization_identifier }}</b></td>
+        </tr>
+        @endif
+        @if($assoc->vat_organization_identifier)
+        <tr>
+            <td>DIČ:</td>
+            <td><b>{{ $assoc->vat_organization_identifier }}</b></td>
+        </tr>
+        @endif
+        @if($bankNr)
+        <tr>
+            <td>Číslo účtu:</td>
+            <td><b>{{ $bankNr }}</b></td>
+        </tr>
+        @endif
+        @if($assocStreet)
+        <tr><td colspan="2"><b>{{ $assocStreet }}</b></td></tr>
+        @endif
+        @if($assocCity)
+        <tr><td colspan="2"><b>{{ $assocCity }}</b></td></tr>
+        @endif
+    </table>
 </div>
+
+{{-- ── Title ── --}}
+@if($isRegistration)
+    <h1>Žádost o členství – registrace ve spolku</h1>
+@else
+    <h1>Žádost o ukončení členství v {{ $assoc->name }}</h1>
 @endif
 
-{{-- Association header --}}
-<div class="assoc-header">
-    <strong>{{ $assoc->name }}</strong><br>
-    {{ $assocAddress }}@if($assocAddress && ($assoc->zip_code || $assoc->town)), @endif
-    @if($assoc->zip_code){{ $assoc->zip_code }} @endif{{ $assoc->town }}<br>
-    @if($assoc->organization_identifier)IČO: {{ $assoc->organization_identifier }}@endif
-    @if($assoc->vat_organization_identifier) &nbsp;|&nbsp; DIČ: {{ $assoc->vat_organization_identifier }}@endif
-    @if($bankAccount) &nbsp;|&nbsp; č. účtu: {{ $bankAccount->account_nr }}/{{ $bankAccount->bank_nr }}@endif
-</div>
-
-<h1>{{ $title }}</h1>
-<div class="date-line">Datum: {{ $today }}</div>
-
-{{-- Member info --}}
-<h2>Údaje žadatele</h2>
-<table class="info">
-    <tr>
-        <th>Jméno</th>
-        <td>
-            @if($mainUser)
-                {{ $mainUser->name }}{{ $mainUser->surname ? ' ' . $mainUser->surname : '' }}
-            @else
-                {{ $member->name }}
-            @endif
-        </td>
-    </tr>
-    @if($birthday)
-    <tr>
-        <th>Datum narození</th>
-        <td>{{ $birthday }}</td>
-    </tr>
-    @endif
-    <tr>
-        <th>Adresa</th>
-        <td>
-            {{ $memberAddress }}@if($memberAddress && ($member->zip_code || $member->town)), @endif
-            @if($member->zip_code){{ $member->zip_code }} @endif{{ $member->town }}
-        </td>
-    </tr>
-    @if($email)
-    <tr>
-        <th>E-mail</th>
-        <td>{{ $email }}</td>
-    </tr>
-    @endif
-    @if($phone)
-    <tr>
-        <th>Telefon</th>
-        <td>{{ $phone }}</td>
-    </tr>
-    @endif
-    @if($member->organization_identifier)
-    <tr>
-        <th>IČO</th>
-        <td>{{ $member->organization_identifier }}</td>
-    </tr>
-    @endif
-    @if($variableSymbols->count())
-    <tr>
-        <th>Variabilní symbol</th>
-        <td>{{ $variableSymbols->implode(', ') }}</td>
-    </tr>
-    @endif
-    @if($isRegistration && $entranceDate)
-    <tr>
-        <th>Datum vstupu</th>
-        <td>{{ $entranceDate }}</td>
-    </tr>
-    @endif
-    @if(!$isRegistration && $leavingDate)
-    <tr>
-        <th>Datum ukončení</th>
-        <td>{{ $leavingDate }}</td>
-    </tr>
-    @endif
-</table>
-
-{{-- Extra info / license for registration only --}}
+{{-- ── Intro text (registration only) ── --}}
 @if($isRegistration)
     @if($registrationInfo)
-    <div class="info-text">{{ $registrationInfo }}</div>
-    @endif
-    @if($registrationLicense)
-    <div class="license">{{ $registrationLicense }}</div>
+        <div class="intro">{!! nl2br(e($registrationInfo)) !!}</div>
+    @else
+        <p class="intro">
+            Žadatel se tímto stává čekatelem na členství v {{ $assoc->name }} se sídlem v {{ $assoc->town }},
+            {{ $assoc->street }} ve smyslu ustanovení čl. 3 Stanov zapsaného spolku {{ $assoc->name }}
+            se sídlem: {{ $assoc->street }}, {{ $assoc->town }}, {{ $assoc->zip_code }},
+            IČO: {{ wordwrap($assoc->organization_identifier ?? '', 3, ' ', true) }}
+            (dále jen "Spolek") a současně svobodně a dobrovolně žádá o přijetí do Spolku
+            a o zápis do seznamu členů.
+        </p>
+        <p class="intro">
+            Čekatel se podpisem této přihlášky zavazuje, že v případě vzniku jeho členství ve Spolku
+            bude uplatňovat členská práva a plnit členské povinnosti, nebude jakkoliv porušovat
+            stanovy ani vnitřní předpisy.
+        </p>
     @endif
 @endif
 
-{{-- Signatures --}}
-<div class="signature">
-    <div class="sig-row">
-        <div class="sig-left">Podpis žadatele</div>
-        <div class="sig-right">Razítko a podpis sdružení</div>
+{{-- ── Data table ── --}}
+<table class="data">
+    <tr>
+        <td class="lbl">Jméno,<br>Příjmení, Titul</td>
+        <td class="val">{{ $memberName }}</td>
+        <td class="lbl2">ID člena<br>(podle<br>freenetisu)</td>
+        <td class="val2"><b>{{ $memberId }}</b></td>
+    </tr>
+    <tr>
+        <td class="lbl"><b>Adresa přípojného<br>místa</b> (Ulice, ČP.,<br>Město, PSČ)</td>
+        <td class="val">{{ $memberStreet }}<br>{{ $member->town }}<br>{{ $member->zip_code }}</td>
+        <td class="lbl2">E-mail</td>
+        <td class="val2">{{ $email }}</td>
+    </tr>
+    <tr>
+        <td class="lbl">Datum narození</td>
+        <td class="val">{{ $birthday }}</td>
+        <td class="lbl2"><b>Telefon</b></td>
+        <td class="val2">{{ $phone }}</td>
+    </tr>
+    <tr>
+        <td class="lbl">Variabilní symbol</td>
+        <td class="val">{{ $vsStr }}</td>
+        @if($isRegistration)
+            <td class="lbl2">ICQ, Jabber,<br>Skype, apod.</td>
+            <td class="val2">{{ $otherContactStr }}</td>
+        @else
+            <td class="lbl2"><b>Kredit</b></td>
+            <td class="val2">{{ $credit }}</td>
+        @endif
+    </tr>
+    @if($isRegistration)
+    <tr>
+        <td class="lbl"><b>Podsíť</b></td>
+        <td class="val">{{ $subnetName }}</td>
+        <td class="lbl2">Technik</td>
+        <td class="val2">{{ $engineerStr }}</td>
+    </tr>
+    @endif
+    <tr>
+        <td class="lbl">Datum vstupu</td>
+        <td class="val">{{ $entranceDate }}</td>
+        @if(!$isRegistration)
+            <td class="lbl2">Datum ukončení</td>
+            <td class="val2">{{ $leavingDate }}</td>
+        @else
+            <td class="lbl2"></td>
+            <td class="val2"></td>
+        @endif
+    </tr>
+</table>
+
+@if($isRegistration)
+    {{-- ── Warning ── --}}
+    @if($registrationLicense)
+        <div class="intro">{!! nl2br(e($registrationLicense)) !!}</div>
+    @else
+        <p class="warning">
+            POZOR! Registrací se nerozumí předání žádosti o technické řešení připojení.
+            Po registraci požádejte znalou osobu o technickou realizaci připojení k síti
+            {{ $assoc->name }}, nebo <span style="text-decoration:underline">kontaktujte spolehlivé a prověřené techniky.</span>
+        </p>
+        <p class="small-info">
+            Svým podpisem potvrzuji, že jsem se seznámil(a) s informacemi o zpracování osobních
+            údajů ze strany spolku. Beru na vědomí, že podrobné informace o mých právech a
+            povinnostech jsou k dispozici na www.pvfree.net, případně na vyžádání v sídle spolku.
+        </p>
+        @if($assocEmail || $assocPhone || $assocWww)
+        <p class="small-info">
+            @if($assocEmail){{ $assocEmail }} - správa sítě, připojování členů, pomoc s nastavením zařízení, technická podpora,<br>@endif
+            @if($assocPhone)Telefonická infolinka {{ $assocPhone }} funguje v pracovní dny.@endif
+        </p>
+        @endif
+    @endif
+
+    {{-- ── Signature ── --}}
+    <div class="sig-center">
+        podpis žadatele o členství : ........................................
     </div>
-</div>
+
+    {{-- ── Council decision ── --}}
+    <div class="sig-section-title">Rozhodnutí Rady o přijetí člena</div>
+    <div class="sig-left">Člen přijat ke dni: .........................................</div>
+    <br>
+    <div class="sig-left">Podpis a razítko: .........................................</div>
+
+@else
+    {{-- ── Refund request ── --}}
+    <p class="refund-line">
+        Žádám o vrácení přeplatku na č.ú.: :
+        &#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;
+        /&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;&#160;
+    </p>
+
+    <p class="date-line">Datum : {{ $today }}</p>
+    <br><br>
+    <p class="sig-left">Podpis : .........................................</p>
+@endif
 
 </body>
 </html>

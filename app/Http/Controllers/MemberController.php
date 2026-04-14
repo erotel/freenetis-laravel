@@ -755,18 +755,54 @@ class MemberController extends Controller
         $email = $contacts->firstWhere('type', 20)?->value ?? '';
         $phone = $contacts->firstWhere('type', 21)?->value ?? '';
 
+        // ICQ / Jabber / Skype / MSN kontakty (typy 18,19,22,23)
+        $otherContacts = $mainUser
+            ? DB::table('contacts as c')
+                ->join('users_contacts as uc', 'uc.contact_id', '=', 'c.id')
+                ->join('enum_types as et', 'et.id', '=', 'c.type')
+                ->where('uc.user_id', $mainUser->id)
+                ->whereIn('c.type', [18, 19, 22, 23])
+                ->selectRaw('et.value as type_name, c.value')
+                ->get()
+            : collect();
+
         // Variabilní symboly
         $variableSymbols = DB::table('variable_symbols as vs')
             ->join('accounts as a', 'a.id', '=', 'vs.account_id')
             ->where('a.member_id', $id)
             ->pluck('vs.variable_symbol');
 
+        // Kredit (zůstatek kreditního účtu)
+        $creditBalance = DB::table('accounts')
+            ->where('member_id', $id)
+            ->where('account_attribute_id', 221100)
+            ->value('balance') ?? 0;
+
+        // Podsíť (první subnet přes zařízení člena)
+        $subnetName = DB::table('users as u')
+            ->join('devices as d', 'd.user_id', '=', 'u.id')
+            ->join('ifaces as i', 'i.device_id', '=', 'd.id')
+            ->join('ip_addresses as ip', 'ip.iface_id', '=', 'i.id')
+            ->join('subnets as s', 's.id', '=', 'ip.subnet_id')
+            ->where('u.member_id', $id)
+            ->where('u.type', 1)
+            ->value('s.name') ?? '';
+
+        // Technici zařízení člena
+        $engineers = DB::table('device_engineers as de')
+            ->join('devices as d', 'd.id', '=', 'de.device_id')
+            ->join('users as du', 'du.id', '=', 'd.user_id')
+            ->join('users as u', 'u.id', '=', 'de.user_id')
+            ->where('du.member_id', $id)
+            ->selectRaw('CONCAT(u.name, " ", u.surname) as name')
+            ->distinct()
+            ->pluck('name');
+
         // Bankovní účet sdružení
         $bankAccountId = (int) \App\Models\Setting::get('export_header_bank_account', 1);
         $bankAccount = DB::table('bank_accounts')->where('id', $bankAccountId)->first();
 
         // Konfigurace
-        $logoPath            = \App\Models\Setting::get('registration_logo', '');
         $registrationInfo    = \App\Models\Setting::get('registration_info', '');
         $registrationLicense = \App\Models\Setting::get('registration_license', '');
 
@@ -784,8 +820,9 @@ class MemberController extends Controller
         $html = view($viewName, compact(
             'type', 'member', 'assoc', 'mainUser',
             'email', 'phone', 'variableSymbols', 'bankAccount',
-            'logoPath', 'registrationInfo', 'registrationLicense',
-            'assocWww', 'assocEmail', 'assocPhone', 'assocCourt', 'assocCourtRef'
+            'registrationInfo', 'registrationLicense',
+            'assocWww', 'assocEmail', 'assocPhone', 'assocCourt', 'assocCourtRef',
+            'otherContacts', 'creditBalance', 'subnetName', 'engineers'
         ))->render();
 
         $tmpDir = storage_path('framework/cache/mpdf');
