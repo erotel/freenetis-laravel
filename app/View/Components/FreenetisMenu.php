@@ -42,6 +42,7 @@ class FreenetisMenu extends Component
                 ['url' => route('members.index', ['types' => '2,16,18']), 'path' => 'members', 'label' => 'Seznam zákazníků', 'acl' => ['view_all', 'Members_Controller', 'members'], 'count' => $countCustomers],
                 ['url' => route('members.index', ['types' => '17,18']), 'path' => 'members/applicants', 'label' => 'Čekatelé', 'acl' => ['view_all', 'Members_Controller', 'members'], 'count' => $countApplicants],
                 ['url' => route('users.index'), 'path' => 'users', 'label' => 'Uživatelé', 'acl' => ['view_all', 'Users_Controller', 'users']],
+                ['url' => route('member_whitelists.index'), 'path' => 'member-whitelists', 'label' => 'Whitelist', 'acl' => ['view_all', 'Members_whitelists_Controller', 'whitelist']],
             ]],
             ['name' => 'network', 'label' => 'Síť', 'items' => [
                 ['url' => route('devices.index'), 'path' => 'devices', 'label' => 'Zařízení', 'acl' => ['view_all', 'Devices_Controller', 'devices']],

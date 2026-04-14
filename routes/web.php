@@ -41,6 +41,7 @@ use App\Http\Controllers\MembershipInterruptController;
 use App\Http\Controllers\CommentController;
 use App\Http\Controllers\LogQueueController;
 use App\Http\Controllers\BankAccountAutoDownloadController;
+use App\Http\Controllers\MemberWhitelistController;
 use Illuminate\Support\Facades\Route;
 
 // ── Web Interface API (machine-to-machine, IP-restricted, no session auth) ──
@@ -443,6 +444,14 @@ Route::middleware('auth')->group(function () {
     // ── Notifications ─────────────────────────────────────────────────────────
     Route::get('notifications/member/{id}',        [NotificationController::class, 'member'])->name('notifications.member');
     Route::post('notifications/member/{id}/notify',[NotificationController::class, 'notify'])->name('notifications.member.notify');
+
+    // Member whitelists
+    Route::get('member-whitelists',                              [MemberWhitelistController::class, 'index'])->name('member_whitelists.index');
+    Route::get('members/{memberId}/whitelists/create',           [MemberWhitelistController::class, 'create'])->name('member_whitelists.create');
+    Route::post('members/{memberId}/whitelists',                 [MemberWhitelistController::class, 'store'])->name('member_whitelists.store');
+    Route::get('member-whitelists/{id}/edit',                    [MemberWhitelistController::class, 'edit'])->name('member_whitelists.edit');
+    Route::put('member-whitelists/{id}',                         [MemberWhitelistController::class, 'update'])->name('member_whitelists.update');
+    Route::delete('member-whitelists/{id}',                      [MemberWhitelistController::class, 'destroy'])->name('member_whitelists.destroy');
 
     // Log queues (errors and logs)
     Route::get('log-queues',                    [LogQueueController::class, 'index'])->name('log_queues.index');

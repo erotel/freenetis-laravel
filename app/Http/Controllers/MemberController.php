@@ -195,6 +195,14 @@ class MemberController extends Controller
                 ->select('mi.*', 'mf.activation_date', 'mf.deactivation_date')
                 ->orderBy('mf.activation_date')
                 ->get(),
+            'canViewWhitelists'    => $this->aclCheck('view_all',   'Members_whitelists_Controller', 'whitelist'),
+            'canAddWhitelist'      => $this->aclCheck('new_all',    'Members_whitelists_Controller', 'whitelist'),
+            'canEditWhitelist'     => $this->aclCheck('edit_all',   'Members_whitelists_Controller', 'whitelist'),
+            'canDeleteWhitelist'   => $this->aclCheck('delete_all', 'Members_whitelists_Controller', 'whitelist'),
+            'whitelists'           => \Illuminate\Support\Facades\DB::table('members_whitelists')
+                ->where('member_id', $id)
+                ->orderBy('since')
+                ->get(),
         ]);
     }
 
