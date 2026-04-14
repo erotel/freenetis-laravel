@@ -18,12 +18,26 @@ class BankAccountController extends Controller
 
     public function index()
     {
-        $accounts = BankAccount::with('member')->orderBy('name')->get();
+        $all = BankAccount::with('member')->orderBy('id')->get();
 
-        return view('bank_accounts.index', [
-            'accounts' => $accounts,
-            'canView'  => true,
-        ]);
+        $associationAccounts = $all->where('member_id', 1)->values();
+        $memberAccounts      = $all->where('member_id', '!=', 1)->values();
+
+        $canManageAutoDown = $this->aclCheck('view_all', self::ACL_SECTION, 'bank_account_auto_down_config');
+
+        // For association accounts: check which have a FIO token or auto-download rules
+        $autoDownFlags = [];
+        if ($canManageAutoDown) {
+            foreach ($associationAccounts as $account) {
+                $hasRules = \Illuminate\Support\Facades\DB::table('bank_accounts_automatical_downloads')
+                    ->where('bank_account_id', $account->id)->exists();
+                $autoDownFlags[$account->id] = $hasRules;
+            }
+        }
+
+        return view('bank_accounts.index', compact(
+            'associationAccounts', 'memberAccounts', 'canManageAutoDown', 'autoDownFlags'
+        ));
     }
 
     public function show(int $id)
