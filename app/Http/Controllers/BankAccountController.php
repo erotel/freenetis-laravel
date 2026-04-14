@@ -32,12 +32,13 @@ class BankAccountController extends Controller
 
         $account = BankAccount::with('member')->findOrFail($id);
 
-        $canViewTransfers  = $this->aclCheck('view_all', self::ACL_SECTION, 'bank_transfers');
-        $canViewStatements = $this->aclCheck('view_all', self::ACL_SECTION, 'bank_statements');
-        $canEdit           = $this->can('edit_all');
-        $hasFioToken       = !empty(Setting::get('fio_api_token_bank_account_' . $account->id));
+        $canViewTransfers    = $this->aclCheck('view_all', self::ACL_SECTION, 'bank_transfers');
+        $canViewStatements   = $this->aclCheck('view_all', self::ACL_SECTION, 'bank_statements');
+        $canEdit             = $this->can('edit_all');
+        $hasFioToken         = !empty(Setting::get('fio_api_token_bank_account_' . $account->id));
+        $canManageAutoDown   = $this->aclCheck('view_all', self::ACL_SECTION, 'bank_account_auto_down_config');
 
-        return view('bank_accounts.show', compact('account', 'canViewTransfers', 'canViewStatements', 'canEdit', 'hasFioToken'));
+        return view('bank_accounts.show', compact('account', 'canViewTransfers', 'canViewStatements', 'canEdit', 'hasFioToken', 'canManageAutoDown'));
     }
 
     public function edit(int $id)

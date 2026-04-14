@@ -30,6 +30,10 @@
             &nbsp;|&nbsp;
             <a href="{{ route('bank_accounts.edit', $account->id) }}">Upravit</a>
         @endif
+        @if($canManageAutoDown)
+            &nbsp;|&nbsp;
+            <a href="{{ route('bank_accounts.auto_downloads', $account->id) }}">Automatické stahování</a>
+        @endif
     </div>
 
     @if($hasFioToken)

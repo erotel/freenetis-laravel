@@ -40,6 +40,7 @@ use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\MembershipInterruptController;
 use App\Http\Controllers\CommentController;
 use App\Http\Controllers\LogQueueController;
+use App\Http\Controllers\BankAccountAutoDownloadController;
 use Illuminate\Support\Facades\Route;
 
 // ── Web Interface API (machine-to-machine, IP-restricted, no session auth) ──
@@ -253,6 +254,11 @@ Route::middleware('auth')->group(function () {
         ->name('bank_accounts.edit');
     Route::put('bank-accounts/{id}', [BankAccountController::class, 'update'])
         ->name('bank_accounts.update');
+
+    // Auto-download rules per bank account
+    Route::get('bank-accounts/{bankAccountId}/auto-downloads',  [BankAccountAutoDownloadController::class, 'index'])->name('bank_accounts.auto_downloads');
+    Route::post('bank-accounts/{bankAccountId}/auto-downloads', [BankAccountAutoDownloadController::class, 'store'])->name('bank_accounts.auto_downloads.store');
+    Route::delete('bank-accounts/auto-downloads/{id}',         [BankAccountAutoDownloadController::class, 'destroy'])->name('bank_accounts.auto_downloads.destroy');
 
     Route::get('bank-transfers/unidentified', [BankTransferController::class, 'showUnidentified'])
         ->name('bank_transfers.unidentified');
