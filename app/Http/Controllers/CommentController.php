@@ -45,43 +45,80 @@ class CommentController extends Controller
     }
 
     /**
-     * Resolve member_id from a thread (only 'account' type supported for now).
+     * Resolve the back-redirect after a comment action based on thread type.
      */
-    private function getMemberIdFromThread(object $thread): int
+    private function getReturnRedirect(object $thread, string $message): \Illuminate\Http\RedirectResponse
     {
         if ($thread->type === 'account') {
             $account = DB::table('accounts')
                 ->where('comments_thread_id', $thread->id)
                 ->first();
-            return $account?->member_id ?? 0;
+            $memberId = $account?->member_id ?? 0;
+            return redirect()->route('members.show', $memberId)->with('success', $message);
         }
-        return 0;
+
+        if ($thread->type === 'log_queue') {
+            $logQueue = DB::table('log_queues')
+                ->where('comments_thread_id', $thread->id)
+                ->first();
+            if ($logQueue) {
+                return redirect()->route('log_queues.show', $logQueue->id)->with('success', $message);
+            }
+        }
+
+        return redirect()->back()->with('success', $message);
     }
 
     // ── Lazy thread creation + redirect to add ────────────────────────────────
 
     /**
-     * Create comment thread for an account if not exists, then redirect to add form.
-     * GET /comments/add-thread/account/{accountId}
+     * Create comment thread for an entity if not exists, then redirect to add form.
+     * GET /comments/add-thread/{type}/{fkId}
+     * Supported types: account, log_queue
      */
     public function addThread(string $type, int $fkId)
     {
         abort_unless($this->canAdd(), 403);
-        abort_unless($type === 'account', 404);
+        abort_unless(in_array($type, ['account', 'log_queue']), 404);
 
-        $account = DB::table('accounts')->where('id', $fkId)->first();
-        abort_if(!$account, 404);
+        if ($type === 'account') {
+            $record = DB::table('accounts')->where('id', $fkId)->first();
+            abort_if(!$record, 404);
 
-        if ($account->comments_thread_id) {
-            $threadId = $account->comments_thread_id;
-        } else {
-            $threadId = DB::table('comments_threads')->insertGetId(['type' => $type]);
-            DB::table('accounts')
-                ->where('id', $fkId)
-                ->update(['comments_thread_id' => $threadId]);
+            $threadId = $record->comments_thread_id;
+            if (!$threadId) {
+                $threadId = DB::table('comments_threads')->insertGetId(['type' => $type]);
+                DB::table('accounts')->where('id', $fkId)->update(['comments_thread_id' => $threadId]);
+            }
+        } elseif ($type === 'log_queue') {
+            $record = DB::table('log_queues')->where('id', $fkId)->first();
+            abort_if(!$record, 404);
+
+            $threadId = $record->comments_thread_id;
+            if (!$threadId) {
+                $threadId = DB::table('comments_threads')->insertGetId(['type' => $type]);
+                DB::table('log_queues')->where('id', $fkId)->update(['comments_thread_id' => $threadId]);
+            }
         }
 
         return redirect()->route('comments.add', $threadId);
+    }
+
+    /**
+     * Resolve a human-readable back URL for the comment form cancel link.
+     */
+    private function getBackUrl(object $thread): ?string
+    {
+        if ($thread->type === 'account') {
+            $account = DB::table('accounts')->where('comments_thread_id', $thread->id)->first();
+            $memberId = $account?->member_id;
+            return $memberId ? route('members.show', $memberId) : null;
+        }
+        if ($thread->type === 'log_queue') {
+            $lq = DB::table('log_queues')->where('comments_thread_id', $thread->id)->first();
+            return $lq ? route('log_queues.show', $lq->id) : null;
+        }
+        return null;
     }
 
     // ── Add comment ───────────────────────────────────────────────────────────
@@ -89,22 +126,21 @@ class CommentController extends Controller
     public function add(int $threadId)
     {
         abort_unless($this->canAdd(), 403);
-        $thread   = $this->getThread($threadId);
-        $memberId = $this->getMemberIdFromThread($thread);
+        $thread  = $this->getThread($threadId);
+        $backUrl = $this->getBackUrl($thread);
 
         return view('comments.form', [
-            'action'   => 'create',
-            'thread'   => $thread,
-            'memberId' => $memberId,
-            'comment'  => null,
+            'action'  => 'create',
+            'thread'  => $thread,
+            'backUrl' => $backUrl,
+            'comment' => null,
         ]);
     }
 
     public function store(Request $request, int $threadId)
     {
         abort_unless($this->canAdd(), 403);
-        $thread   = $this->getThread($threadId);
-        $memberId = $this->getMemberIdFromThread($thread);
+        $thread = $this->getThread($threadId);
 
         $request->validate(['text' => 'required|string|max:5000']);
 
@@ -115,8 +151,7 @@ class CommentController extends Controller
             'datetime'           => now(),
         ]);
 
-        return redirect()->route('members.show', $memberId)
-            ->with('success', 'Komentář byl přidán.');
+        return $this->getReturnRedirect($thread, 'Komentář byl přidán.');
     }
 
     // ── Edit comment ──────────────────────────────────────────────────────────
@@ -124,24 +159,23 @@ class CommentController extends Controller
     public function edit(int $id)
     {
         abort_unless($this->canEdit(), 403);
-        $comment  = $this->getComment($id);
-        $thread   = $this->getThread($comment->comments_thread_id);
-        $memberId = $this->getMemberIdFromThread($thread);
+        $comment = $this->getComment($id);
+        $thread  = $this->getThread($comment->comments_thread_id);
+        $backUrl = $this->getBackUrl($thread);
 
         return view('comments.form', [
-            'action'   => 'edit',
-            'thread'   => $thread,
-            'memberId' => $memberId,
-            'comment'  => $comment,
+            'action'  => 'edit',
+            'thread'  => $thread,
+            'backUrl' => $backUrl,
+            'comment' => $comment,
         ]);
     }
 
     public function update(Request $request, int $id)
     {
         abort_unless($this->canEdit(), 403);
-        $comment  = $this->getComment($id);
-        $thread   = $this->getThread($comment->comments_thread_id);
-        $memberId = $this->getMemberIdFromThread($thread);
+        $comment = $this->getComment($id);
+        $thread  = $this->getThread($comment->comments_thread_id);
 
         $request->validate(['text' => 'required|string|max:5000']);
 
@@ -149,8 +183,7 @@ class CommentController extends Controller
             'text' => trim($request->input('text')),
         ]);
 
-        return redirect()->route('members.show', $memberId)
-            ->with('success', 'Komentář byl upraven.');
+        return $this->getReturnRedirect($thread, 'Komentář byl upraven.');
     }
 
     // ── Delete comment ────────────────────────────────────────────────────────
@@ -158,13 +191,11 @@ class CommentController extends Controller
     public function destroy(int $id)
     {
         abort_unless($this->canDelete(), 403);
-        $comment  = $this->getComment($id);
-        $thread   = $this->getThread($comment->comments_thread_id);
-        $memberId = $this->getMemberIdFromThread($thread);
+        $comment = $this->getComment($id);
+        $thread  = $this->getThread($comment->comments_thread_id);
 
         DB::table('comments')->where('id', $id)->delete();
 
-        return redirect()->route('members.show', $memberId)
-            ->with('success', 'Komentář byl smazán.');
+        return $this->getReturnRedirect($thread, 'Komentář byl smazán.');
     }
 }

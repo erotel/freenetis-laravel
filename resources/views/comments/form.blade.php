@@ -8,9 +8,8 @@
 
 @section('breadcrumbs')
     <div id="breadcrumbs">
-        <a href="{{ route('members.index') }}">Členové</a> &raquo;
-        @if($memberId)
-            <a href="{{ route('members.show', $memberId) }}">Člen #{{ $memberId }}</a> &raquo;
+        @if($backUrl)
+            <a href="{{ $backUrl }}">Zpět</a> &raquo;
         @endif
         {{ $action === 'create' ? 'Přidat komentář' : 'Upravit komentář' }}
     </div>
@@ -50,8 +49,8 @@
 
     <p>
         <button type="submit">Uložit</button>
-        @if($memberId)
-            <a href="{{ route('members.show', $memberId) }}">Zrušit</a>
+        @if($backUrl)
+            <a href="{{ $backUrl }}">Zrušit</a>
         @endif
     </p>
     </form>

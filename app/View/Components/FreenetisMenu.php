@@ -58,10 +58,9 @@ class FreenetisMenu extends Component
                 ['url' => route('outgoing_payments.index'),  'path' => 'outgoing-payments', 'label' => 'Odchozí platby',         'acl' => ['view_all', 'Accounts_Controller', 'bank_transfers'], 'count' => $countDraftOutgoing],
                 ['url' => route('invoices.index'),           'path' => 'invoices',          'label' => 'Faktury',                'acl' => ['view_all', 'Accounts_Controller', 'invoices']],
             ]],
-            ['name' => 'logs', 'label' => 'Logy', 'items' => [
-                ['url' => route('login_logs.index'), 'path' => 'login-logs', 'label' => 'Logy přihlášení', 'acl' => ['view_all', 'Login_logs_Controller', 'logs']],
-            ]],
             ['name' => 'settings', 'label' => 'Administrace', 'items' => [
+                ['url' => route('login_logs.index'),  'path' => 'login-logs', 'label' => 'Logy přihlášení', 'acl' => ['view_all', 'Login_logs_Controller', 'logs']],
+                ['url' => route('log_queues.index'),  'path' => 'log-queues', 'label' => 'Chyby a logy',    'acl' => ['view_all', 'Log_queues_Controller', 'log_queue']],
                 ['url' => route('towns.index'), 'path' => 'towns', 'label' => 'Města', 'acl' => ['view_all', 'Address_points_Controller', 'town']],
                 ['url' => route('streets.index'), 'path' => 'streets', 'label' => 'Ulice', 'acl' => ['view_all', 'Address_points_Controller', 'street']],
                 ['url' => route('settings.index'), 'path' => 'settings', 'label' => 'Nastavení', 'acl' => ['view_all', 'Settings_Controller', 'finance_settings']],
