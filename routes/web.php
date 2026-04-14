@@ -43,6 +43,7 @@ use App\Http\Controllers\LogQueueController;
 use App\Http\Controllers\BankAccountAutoDownloadController;
 use App\Http\Controllers\MemberWhitelistController;
 use App\Http\Controllers\RedirectController;
+use App\Http\Controllers\EmailQueueController;
 use Illuminate\Support\Facades\Route;
 
 // ── Web Interface API (machine-to-machine, IP-restricted, no session auth) ──
@@ -453,6 +454,14 @@ Route::middleware('auth')->group(function () {
     Route::get('member-whitelists/{id}/edit',                    [MemberWhitelistController::class, 'edit'])->name('member_whitelists.edit');
     Route::put('member-whitelists/{id}',                         [MemberWhitelistController::class, 'update'])->name('member_whitelists.update');
     Route::delete('member-whitelists/{id}',                      [MemberWhitelistController::class, 'destroy'])->name('member_whitelists.destroy');
+
+    // ── E-mailová fronta ─────────────────────────────────────────────────────
+    Route::get('email-queues',              [EmailQueueController::class, 'unsent'])->name('email_queues.unsent');
+    Route::delete('email-queues',           [EmailQueueController::class, 'destroyUnsent'])->name('email_queues.destroy-unsent');
+    Route::get('email-queues/sent',         [EmailQueueController::class, 'sent'])->name('email_queues.sent');
+    Route::delete('email-queues/sent',      [EmailQueueController::class, 'destroySent'])->name('email_queues.destroy-sent');
+    Route::post('email-queues/{id}/resend', [EmailQueueController::class, 'resend'])->name('email_queues.resend');
+    Route::delete('email-queues/{id}',      [EmailQueueController::class, 'destroy'])->name('email_queues.destroy');
 
     // ── Přesměrování (Redirect) ───────────────────────────────────────────────
     Route::get('redirections',                                       [RedirectController::class, 'index'])->name('redirects.index');
