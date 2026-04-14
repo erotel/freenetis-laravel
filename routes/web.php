@@ -37,6 +37,7 @@ use App\Http\Controllers\WebInterfaceController;
 use App\Http\Controllers\PublicIpNat1to1Controller;
 use App\Http\Controllers\PublicPortForwardController;
 use App\Http\Controllers\NotificationController;
+use App\Http\Controllers\MembershipInterruptController;
 use Illuminate\Support\Facades\Route;
 
 // ── Web Interface API (machine-to-machine, IP-restricted, no session auth) ──
@@ -151,6 +152,7 @@ Route::middleware('auth')->group(function () {
         ->middleware('acl:view_all,Address_points_Controller,street');
     Route::resource('streets', StreetController::class)->except(['index']);
     Route::get('members/applicants', [MemberController::class, 'applicants'])->name('members.applicants');
+    Route::get('members/{id}/registration-export/{type}', [MemberController::class, 'registrationExport'])->name('members.registration-export');
     Route::get('members/{id}/end-membership', [MemberController::class, 'endMembershipForm'])->name('members.end-membership');
     Route::post('members/{id}/end-membership', [MemberController::class, 'endMembership'])->name('members.end-membership.store');
     Route::post('members/{id}/restore', [MemberController::class, 'restore'])->name('members.restore');
@@ -422,6 +424,13 @@ Route::middleware('auth')->group(function () {
     Route::get('public-port-forwards/{id}/edit', [PublicPortForwardController::class, 'edit'])->name('public-port-forwards.edit');
     Route::put('public-port-forwards/{id}',      [PublicPortForwardController::class, 'update'])->name('public-port-forwards.update');
     Route::get('public-port-forwards/{id}/delete',[PublicPortForwardController::class, 'destroy'])->name('public-port-forwards.destroy');
+
+    // ── Membership interrupts ─────────────────────────────────────────────────
+    Route::get('members/{memberId}/membership-interrupts/create', [MembershipInterruptController::class, 'create'])->name('membership-interrupts.create');
+    Route::post('members/{memberId}/membership-interrupts',       [MembershipInterruptController::class, 'store'])->name('membership-interrupts.store');
+    Route::get('membership-interrupts/{id}/edit',  [MembershipInterruptController::class, 'edit'])->name('membership-interrupts.edit');
+    Route::put('membership-interrupts/{id}',       [MembershipInterruptController::class, 'update'])->name('membership-interrupts.update');
+    Route::delete('membership-interrupts/{id}',    [MembershipInterruptController::class, 'destroy'])->name('membership-interrupts.destroy');
 
     // ── Notifications ─────────────────────────────────────────────────────────
     Route::get('notifications/member/{id}',        [NotificationController::class, 'member'])->name('notifications.member');

@@ -65,6 +65,24 @@
     &nbsp;|&nbsp;
     <a href="{{ route('notifications.member', $member->id) }}">Oznámení</a>
     @endif
+    @if($canExportRegistration && in_array($member->type, [2, 90]))
+    &nbsp;|&nbsp;
+    <form method="GET" style="display:inline;" id="export-form-{{ $member->id }}">
+        <select name="_export_type" onchange="
+            var t = this.value;
+            if(t) window.open('{{ url('members/' . $member->id . '/registration-export') }}/' + t, '_blank');
+            this.value='';
+        " style="font-size:0.9em;">
+            <option value="">— Export PDF —</option>
+            @if($member->type == 90)
+                <option value="registration">Přihláška</option>
+                <option value="end">Ukončení členství</option>
+            @elseif($member->type == 2)
+                <option value="contract_end">Výpověď smlouvy</option>
+            @endif
+        </select>
+    </form>
+    @endif
     @if($canEdit && in_array($member->type, [17, 18]) && $member->registration)
     &nbsp;|&nbsp;
     <form method="POST" action="{{ route('members.approve', $member->id) }}" style="display:inline">
@@ -380,7 +398,51 @@
     </a>
 </p>
 
-{{-- Section 6: IP adresy --}}
+{{-- Section 6: Přerušení členství --}}
+@if($canViewInterrupts && $interrupts->count() > 0)
+<h3>Přerušení členství</h3>
+<table class="extended" cellspacing="0">
+    <thead>
+        <tr>
+            <th>ID</th>
+            <th>Datum od</th>
+            <th>Datum do</th>
+            <th>Ukončit po přerušení</th>
+            <th>Komentář</th>
+            @if($canEditInterrupts) <th>Akce</th> @endif
+        </tr>
+    </thead>
+    <tbody>
+        @foreach($interrupts as $int)
+        <tr>
+            <td>{{ $int->id }}</td>
+            <td>{{ $int->activation_date }}</td>
+            <td>{{ $int->deactivation_date }}</td>
+            <td>{{ $int->end_after_interrupt_end ? 'Ano' : 'Ne' }}</td>
+            <td>{{ $int->comment }}</td>
+            @if($canEditInterrupts)
+            <td>
+                <a href="{{ route('membership-interrupts.edit', $int->id) }}">Upravit</a>
+                &nbsp;|&nbsp;
+                <form method="POST" action="{{ route('membership-interrupts.destroy', $int->id) }}" style="display:inline">
+                    @csrf @method('DELETE')
+                    <button type="submit" style="background:none;border:none;padding:0;color:#c00;cursor:pointer;"
+                            onclick="return confirm('Smazat přerušení #{{ $int->id }}?')">Smazat</button>
+                </form>
+            </td>
+            @endif
+        </tr>
+        @endforeach
+    </tbody>
+</table>
+@endif
+@if($canEditInterrupts)
+<p>
+    <a href="{{ route('membership-interrupts.create', $member->id) }}">+ Přidat přerušení členství</a>
+</p>
+@endif
+
+{{-- Section 7: IP adresy --}}
 @if($canViewIpAddresses && $member->ipAddresses->count() > 0)
 <h3>IP adresy</h3>
 <table class="extended" cellspacing="0">

@@ -36,6 +36,8 @@ class SettingController extends Controller
 
     public const SYSTEM_KEYS = [
         'title', 'ico', 'dic', 'self_registration', 'forgotten_password', 'session_expiration',
+        'association_www', 'association_email', 'association_phone',
+        'association_court', 'association_court_ref',
     ];
 
     public const USERS_KEYS = [
@@ -267,6 +269,11 @@ class SettingController extends Controller
         Setting::set('self_registration',  $request->boolean('self_registration') ? 1 : 0);
         Setting::set('forgotten_password', $request->boolean('forgotten_password') ? 1 : 0);
         Setting::set('session_expiration', $request->input('session_expiration', 7200));
+        Setting::set('association_www',      $request->input('association_www', ''));
+        Setting::set('association_email',    $request->input('association_email', ''));
+        Setting::set('association_phone',    $request->input('association_phone', ''));
+        Setting::set('association_court',    $request->input('association_court', ''));
+        Setting::set('association_court_ref',$request->input('association_court_ref', ''));
         return redirect()->route('settings.index', ['tab' => 'system'])
             ->with('success', 'Nastavení systému bylo uloženo.');
     }

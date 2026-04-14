@@ -376,6 +376,49 @@
                 </td>
             </tr>
         </table>
+        <h3>Kontaktní údaje sdružení (pro PDF výpovědi smlouvy)</h3>
+        <table class="extended" cellspacing="0">
+            <tr>
+                <th>Web (www)</th>
+                <td>
+                    <input type="text" name="association_www"
+                           value="{{ $systemSettings['association_www'] ?? '' }}"
+                           style="width:250px" placeholder="např. www.pvfree.net">
+                </td>
+            </tr>
+            <tr>
+                <th>E-mail</th>
+                <td>
+                    <input type="text" name="association_email"
+                           value="{{ $systemSettings['association_email'] ?? '' }}"
+                           style="width:250px" placeholder="např. spravci@pvfree.net">
+                </td>
+            </tr>
+            <tr>
+                <th>Telefon</th>
+                <td>
+                    <input type="text" name="association_phone"
+                           value="{{ $systemSettings['association_phone'] ?? '' }}"
+                           style="width:200px" placeholder="např. 588 207 234">
+                </td>
+            </tr>
+            <tr>
+                <th>Spolkový rejstřík — soud</th>
+                <td>
+                    <input type="text" name="association_court"
+                           value="{{ $systemSettings['association_court'] ?? '' }}"
+                           style="width:300px" placeholder="např. Krajský soud v Brně">
+                </td>
+            </tr>
+            <tr>
+                <th>Spolkový rejstřík — spisová značka</th>
+                <td>
+                    <input type="text" name="association_court_ref"
+                           value="{{ $systemSettings['association_court_ref'] ?? '' }}"
+                           style="width:150px" placeholder="např. L 10341">
+                </td>
+            </tr>
+        </table>
         <div style="margin-top:1em;"><button type="submit">Uložit nastavení systému</button></div>
     </form>
     @endif

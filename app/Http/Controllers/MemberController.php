@@ -153,6 +153,15 @@ class MemberController extends Controller
             'canViewAllowedSubnets'=> $this->aclCheck('view_all', 'Allowed_subnets_Controller', 'allowed_subnet'),
             'canViewInvoices'      => $isOwnProfile || $this->aclCheck('view_all', 'Accounts_Controller', 'invoices'),
             'canNotify'            => $this->aclCheck('new_all', 'Notifications_Controller', 'member'),
+            'canExportRegistration'=> $this->aclCheck('view_all', 'Members_Controller', 'registration_export'),
+            'canViewInterrupts'    => $this->aclCheck('view_all', 'Members_Controller', 'membership_interrupts'),
+            'canEditInterrupts'    => $this->aclCheck('edit_all', 'Members_Controller', 'membership_interrupts'),
+            'interrupts'           => \Illuminate\Support\Facades\DB::table('membership_interrupts as mi')
+                ->join('members_fees as mf', 'mf.id', '=', 'mi.members_fee_id')
+                ->where('mi.member_id', $id)
+                ->select('mi.*', 'mf.activation_date', 'mf.deactivation_date')
+                ->orderBy('mf.activation_date')
+                ->get(),
         ]);
     }
 
@@ -698,5 +707,117 @@ class MemberController extends Controller
 
         return redirect()->route('members.show', $id)
             ->with('success', 'Člen byl schválen a byl mu odeslán email.');
+    }
+
+    /**
+     * Export přihlášky nebo ukončení členství jako PDF (inline v prohlížeči).
+     * type: 'registration' = Přihláška, 'end' = Ukončení členství
+     */
+    public function registrationExport(int $id, string $type)
+    {
+        abort_unless($this->aclCheck('view_all', 'Members_Controller', 'registration_export'), 403);
+        abort_unless(in_array($type, ['registration', 'end', 'contract_end']), 404);
+
+        $member = DB::table('members as m')
+            ->join('address_points as ap', 'ap.id', '=', 'm.address_point_id')
+            ->join('towns as t', 't.id', '=', 'ap.town_id')
+            ->leftJoin('streets as s', 's.id', '=', 'ap.street_id')
+            ->where('m.id', $id)
+            ->select('m.*', 't.town', 't.zip_code', 's.street', 'ap.street_number')
+            ->first();
+        abort_if(!$member, 404);
+
+        // Sdružení (člen id=1)
+        $assoc = DB::table('members as m')
+            ->join('address_points as ap', 'ap.id', '=', 'm.address_point_id')
+            ->join('towns as t', 't.id', '=', 'ap.town_id')
+            ->leftJoin('streets as s', 's.id', '=', 'ap.street_id')
+            ->where('m.id', 1)
+            ->select('m.*', 't.town', 't.zip_code', 's.street', 'ap.street_number')
+            ->first();
+
+        // Hlavní uživatel
+        $mainUser = DB::table('users')
+            ->where('member_id', $id)
+            ->where('type', 1) // MAIN_USER
+            ->first();
+
+        // Kontakty (email=20, telefon=21) hlavního uživatele
+        $contacts = $mainUser
+            ? DB::table('contacts as c')
+                ->join('users_contacts as uc', 'uc.contact_id', '=', 'c.id')
+                ->where('uc.user_id', $mainUser->id)
+                ->whereIn('c.type', [20, 21])
+                ->select('c.type', 'c.value')
+                ->get()
+            : collect();
+
+        $email = $contacts->firstWhere('type', 20)?->value ?? '';
+        $phone = $contacts->firstWhere('type', 21)?->value ?? '';
+
+        // Variabilní symboly
+        $variableSymbols = DB::table('variable_symbols as vs')
+            ->join('accounts as a', 'a.id', '=', 'vs.account_id')
+            ->where('a.member_id', $id)
+            ->pluck('vs.variable_symbol');
+
+        // Bankovní účet sdružení
+        $bankAccountId = (int) \App\Models\Setting::get('export_header_bank_account', 1);
+        $bankAccount = DB::table('bank_accounts')->where('id', $bankAccountId)->first();
+
+        // Konfigurace
+        $logoPath            = \App\Models\Setting::get('registration_logo', '');
+        $registrationInfo    = \App\Models\Setting::get('registration_info', '');
+        $registrationLicense = \App\Models\Setting::get('registration_license', '');
+
+        // Kontaktní údaje sdružení pro contract_end footer
+        $assocWww      = \App\Models\Setting::get('association_www', '');
+        $assocEmail    = \App\Models\Setting::get('association_email', '');
+        $assocPhone    = \App\Models\Setting::get('association_phone', '');
+        $assocCourt    = \App\Models\Setting::get('association_court', '');
+        $assocCourtRef = \App\Models\Setting::get('association_court_ref', '');
+
+        $viewName = ($type === 'contract_end')
+            ? 'members.contract_end_pdf'
+            : 'members.registration_pdf';
+
+        $html = view($viewName, compact(
+            'type', 'member', 'assoc', 'mainUser',
+            'email', 'phone', 'variableSymbols', 'bankAccount',
+            'logoPath', 'registrationInfo', 'registrationLicense',
+            'assocWww', 'assocEmail', 'assocPhone', 'assocCourt', 'assocCourtRef'
+        ))->render();
+
+        $tmpDir = storage_path('framework/cache/mpdf');
+        if (!is_dir($tmpDir)) {
+            mkdir($tmpDir, 0775, true);
+        }
+
+        $mpdf = new \Mpdf\Mpdf([
+            'tempDir'           => $tmpDir,
+            'mode'              => 'utf-8',
+            'format'            => 'A4',
+            'margin_top'        => 20,
+            'margin_bottom'     => 20,
+            'margin_left'       => 15,
+            'margin_right'      => 15,
+            'default_font'      => 'dejavusans',
+            'default_font_size' => 9,
+        ]);
+        $mpdf->WriteHTML($html);
+        $pdfString = $mpdf->Output('', 'S');
+
+        $filePrefix = match($type) {
+            'registration'  => 'prihlaska',
+            'end'           => 'ukonceni-clenstvi',
+            'contract_end'  => 'vypoved-smlouvy',
+            default         => 'export',
+        };
+        $filename = $filePrefix . '-' . $id . '.pdf';
+
+        return response($pdfString, 200, [
+            'Content-Type'        => 'application/pdf',
+            'Content-Disposition' => 'inline; filename="' . $filename . '"',
+        ]);
     }
 }
