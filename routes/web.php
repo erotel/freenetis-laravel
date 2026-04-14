@@ -246,6 +246,10 @@ Route::middleware('auth')->group(function () {
     Route::resource('devices', DeviceController::class);
     Route::get('users/{userId}/devices', [DeviceController::class, 'showByUser'])
         ->name('devices.by_user');
+    Route::post('devices/{id}/engineers', [DeviceController::class, 'addEngineer'])
+        ->name('devices.engineers.add');
+    Route::delete('devices/{deviceId}/engineers/{userId}', [DeviceController::class, 'removeEngineer'])
+        ->name('devices.engineers.remove');
 
     Route::resource('accounts', AccountController::class)->except(['destroy']);
 

@@ -221,61 +221,58 @@
         </table>
     @endif
 
-    {{-- Správci zařízení --}}
-    @if($device->deviceAdmins->count() > 0)
-        <h3>Správci zařízení</h3>
-        <table class="extended" cellspacing="0">
-            <thead>
-                <tr>
-                    <th>Jméno</th>
-                    <th>Příjmení</th>
-                    <th>Login</th>
-                </tr>
-            </thead>
-            <tbody>
-                @foreach($device->deviceAdmins as $da)
-                    <tr>
-                        <td>{{ $da->user->name ?? '—' }}</td>
-                        <td>{{ $da->user->surname ?? '—' }}</td>
-                        <td>
-                            @if($da->user)
-                                <a href="{{ route('users.show', $da->user_id) }}">{{ $da->user->login }}</a>
-                            @else
-                                —
-                            @endif
-                        </td>
-                    </tr>
-                @endforeach
-            </tbody>
-        </table>
-    @endif
-
     {{-- Technici zařízení --}}
-    @if($device->deviceEngineers->count() > 0)
-        <h3>Technici zařízení</h3>
-        <table class="extended" cellspacing="0">
-            <thead>
+    @if($device->deviceEngineers->count() > 0 || $canManageEngineers)
+    <h3>Technici zařízení</h3>
+    <table class="extended" cellspacing="0">
+        <thead>
+            <tr>
+                <th>Login</th>
+                <th>Jméno</th>
+                @if($canDeleteEngineer) <th>Akce</th> @endif
+            </tr>
+        </thead>
+        <tbody>
+            @forelse($device->deviceEngineers as $de)
                 <tr>
-                    <th>Jméno</th>
-                    <th>Příjmení</th>
-                    <th>Login</th>
+                    <td>
+                        @if($de->user)
+                            <a href="{{ route('users.show', $de->user_id) }}">{{ $de->user->login }}</a>
+                        @else
+                            —
+                        @endif
+                    </td>
+                    <td>{{ trim(($de->user->name ?? '') . ' ' . ($de->user->surname ?? '')) ?: '—' }}</td>
+                    @if($canDeleteEngineer)
+                    <td>
+                        <form method="POST"
+                              action="{{ route('devices.engineers.remove', [$device->id, $de->user_id]) }}"
+                              style="display:inline">
+                            @csrf @method('DELETE')
+                            <button type="submit"
+                                    style="background:none;border:none;cursor:pointer;padding:0;color:#c00;text-decoration:underline;"
+                                    onclick="return confirm('Odebrat technika?')">Odebrat</button>
+                        </form>
+                    </td>
+                    @endif
                 </tr>
-            </thead>
-            <tbody>
-                @foreach($device->deviceEngineers as $de)
-                    <tr>
-                        <td>{{ $de->user->name ?? '—' }}</td>
-                        <td>{{ $de->user->surname ?? '—' }}</td>
-                        <td>
-                            @if($de->user)
-                                <a href="{{ route('users.show', $de->user_id) }}">{{ $de->user->login }}</a>
-                            @else
-                                —
-                            @endif
-                        </td>
-                    </tr>
-                @endforeach
-            </tbody>
-        </table>
+            @empty
+                <tr><td colspan="{{ $canDeleteEngineer ? 3 : 2 }}" style="color:#888;">Žádní technici.</td></tr>
+            @endforelse
+        </tbody>
+    </table>
+
+    @if($canManageEngineers)
+    <form method="POST" action="{{ route('devices.engineers.add', $device->id) }}" style="margin-top:6px;">
+        @csrf
+        <select name="user_id" required style="width:220px;">
+            <option value="">— vyberte technika —</option>
+            @foreach($engineerUsers as $u)
+                <option value="{{ $u->id }}">{{ $u->login }} ({{ trim($u->name . ' ' . $u->surname) }})</option>
+            @endforeach
+        </select>
+        <button type="submit" style="margin-left:4px;">+ Přidat technika</button>
+    </form>
+    @endif
     @endif
 @endsection

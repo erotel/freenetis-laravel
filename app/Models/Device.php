@@ -30,11 +30,6 @@ class Device extends Model
         return $this->hasMany(Iface::class);
     }
 
-    public function deviceAdmins()
-    {
-        return $this->hasMany(DeviceAdmin::class);
-    }
-
     public function deviceEngineers()
     {
         return $this->hasMany(DeviceEngineer::class);

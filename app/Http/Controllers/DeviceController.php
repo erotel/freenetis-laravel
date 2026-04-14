@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Http\Controllers\Concerns\SyncsIp6Address;
 use App\Models\Device;
+use App\Models\DeviceEngineer;
 use App\Models\DeviceTemplate;
 use App\Models\EnumType;
 use App\Models\Iface;
@@ -104,7 +105,6 @@ class DeviceController extends Controller
             'addressPoint.town',
             'ifaces.ipAddresses.subnet',
             'ifaces.ip6Addresses',
-            'deviceAdmins.user',
             'deviceEngineers.user',
         ])->find($id);
 
@@ -112,14 +112,63 @@ class DeviceController extends Controller
             abort(404);
         }
 
+        $canManageEngineers = $this->can('new_all', 'engineer');
+        $canDeleteEngineer  = $this->can('delete_all', 'engineer');
+
+        $assignedEngineerIds = $device->deviceEngineers->pluck('user_id')->all();
+        $engineerUsers = $canManageEngineers
+            ? User::orderBy('surname')->orderBy('name')
+                ->whereNotIn('id', $assignedEngineerIds)
+                ->get(['id', 'login', 'name', 'surname'])
+            : collect();
+
         return view('devices.show', [
-            'device'          => $device,
-            'canEdit'         => $this->can('edit_all'),
-            'canDelete'       => $this->can('delete_all'),
-            'canEditDevice'   => $this->can('edit_all'),
-            'canViewLogin'    => $this->can('view_all', 'login'),
-            'canViewPassword' => $this->can('view_all', 'password'),
+            'device'             => $device,
+            'canEdit'            => $this->can('edit_all'),
+            'canDelete'          => $this->can('delete_all'),
+            'canEditDevice'      => $this->can('edit_all'),
+            'canViewLogin'       => $this->can('view_all', 'login'),
+            'canViewPassword'    => $this->can('view_all', 'password'),
+            'canManageEngineers' => $canManageEngineers,
+            'canDeleteEngineer'  => $canDeleteEngineer,
+            'engineerUsers'      => $engineerUsers,
         ]);
+    }
+
+    // ── Engineers ─────────────────────────────────────────────────────────────
+
+    public function addEngineer(Request $request, int $deviceId)
+    {
+        abort_unless($this->can('new_all', 'engineer'), 403);
+
+        $device = Device::findOrFail($deviceId);
+
+        $data = $request->validate(['user_id' => 'required|integer|exists:users,id']);
+
+        $already = DeviceEngineer::where('device_id', $deviceId)
+            ->where('user_id', $data['user_id'])->exists();
+
+        if (!$already) {
+            DeviceEngineer::create([
+                'device_id' => $deviceId,
+                'user_id'   => $data['user_id'],
+            ]);
+        }
+
+        return redirect()->route('devices.show', $deviceId)
+            ->with('success', 'Technik byl přidán.');
+    }
+
+    public function removeEngineer(int $deviceId, int $userId)
+    {
+        abort_unless($this->can('delete_all', 'engineer'), 403);
+
+        DeviceEngineer::where('device_id', $deviceId)
+            ->where('user_id', $userId)
+            ->delete();
+
+        return redirect()->route('devices.show', $deviceId)
+            ->with('success', 'Technik byl odebrán.');
     }
 
     public function createWithTemplate(Request $request, int $userId = null)

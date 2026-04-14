@@ -8,6 +8,7 @@ class DeviceEngineer extends Model
 {
     public $timestamps = false;
     protected $table = 'device_engineers';
+    protected $guarded = [];
 
     public function device()
     {
