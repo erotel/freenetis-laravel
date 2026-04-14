@@ -50,6 +50,7 @@ class FreenetisMenu extends Component
                 ['url' => route('vlans.index'), 'path' => 'vlans', 'label' => 'VLANy', 'acl' => ['view_all', 'Vlans_Controller', 'vlan']],
                 ['url' => route('public-ip-nat.index'), 'path' => 'public-ip-nat', 'label' => 'Veřejné IP (NAT)', 'acl' => ['view_all', 'Network_Controller', 'public_ip_nat']],
                 ['url' => route('public-port-forwards.index'), 'path' => 'public-port-forwards', 'label' => 'Veřejné porty', 'acl' => ['view_all', 'Network_Controller', 'public_ports']],
+                ['url' => route('redirects.index'), 'path' => 'redirections', 'label' => 'Přesměrování', 'acl' => ['view_all', 'Redirect_Controller', 'redirect']],
             ]],
             ['name' => 'finance', 'label' => 'Finance', 'items' => [
                 ['url' => route('accounts.index'),           'path' => 'accounts',          'label' => 'Účty',                   'acl' => ['view_all', 'Accounts_Controller', 'accounts']],

@@ -42,6 +42,7 @@ use App\Http\Controllers\CommentController;
 use App\Http\Controllers\LogQueueController;
 use App\Http\Controllers\BankAccountAutoDownloadController;
 use App\Http\Controllers\MemberWhitelistController;
+use App\Http\Controllers\RedirectController;
 use Illuminate\Support\Facades\Route;
 
 // ── Web Interface API (machine-to-machine, IP-restricted, no session auth) ──
@@ -452,6 +453,13 @@ Route::middleware('auth')->group(function () {
     Route::get('member-whitelists/{id}/edit',                    [MemberWhitelistController::class, 'edit'])->name('member_whitelists.edit');
     Route::put('member-whitelists/{id}',                         [MemberWhitelistController::class, 'update'])->name('member_whitelists.update');
     Route::delete('member-whitelists/{id}',                      [MemberWhitelistController::class, 'destroy'])->name('member_whitelists.destroy');
+
+    // ── Přesměrování (Redirect) ───────────────────────────────────────────────
+    Route::get('redirections',                                       [RedirectController::class, 'index'])->name('redirects.index');
+    Route::match(['GET','POST'], 'members/{memberId}/redirections/activate', [RedirectController::class, 'activateToMember'])->name('redirects.activate-member');
+    Route::match(['GET','POST'], 'ip-addresses/{ipId}/redirections/activate', [RedirectController::class, 'activateToIp'])->name('redirects.activate-ip');
+    Route::delete('redirections/{ipId}/{msgId}',                     [RedirectController::class, 'delete'])->name('redirects.delete');
+    Route::delete('members/{memberId}/redirections/{msgId}',         [RedirectController::class, 'deleteFromMember'])->name('redirects.delete-member');
 
     // Log queues (errors and logs)
     Route::get('log-queues',                    [LogQueueController::class, 'index'])->name('log_queues.index');

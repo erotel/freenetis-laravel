@@ -196,6 +196,10 @@ class MemberController extends Controller
                 ->orderBy('mf.activation_date')
                 ->get(),
             'canViewWhitelists'    => $this->aclCheck('view_all', 'Members_whitelists_Controller', 'whitelist'),
+            'canViewRedirect'      => $this->aclCheck('view_all',   'Redirect_Controller', 'redirect'),
+            'canEditRedirect'      => $this->aclCheck('edit_all',   'Redirect_Controller', 'redirect'),
+            'canDeleteRedirect'    => $this->aclCheck('delete_all', 'Redirect_Controller', 'redirect'),
+            'memberRedirections'   => \App\Http\Controllers\RedirectController::getMemberRedirections($id),
         ]);
     }
 

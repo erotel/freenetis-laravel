@@ -69,6 +69,10 @@
     &nbsp;|&nbsp;
     <a href="{{ route('member_whitelists.index', ['member_id' => $member->id]) }}">Bílé listiny</a>
     @endif
+    @if($canEditRedirect)
+    &nbsp;|&nbsp;
+    <a href="{{ route('redirects.activate-member', $member->id) }}" style="color:#c60;">Přesměrovat</a>
+    @endif
     @if($canExportRegistration && in_array($member->type, [2, 90]))
     &nbsp;|&nbsp;
     <form method="GET" style="display:inline;" id="export-form-{{ $member->id }}">
@@ -407,7 +411,65 @@
 <div style="clear:both;"></div>
 @endif
 
-{{-- Section 5a: Přerušení členství --}}
+{{-- Section 5a: Aktivní přesměrování --}}
+@if($canViewRedirect && $memberRedirections->isNotEmpty())
+<h3>Aktivní přesměrování</h3>
+<table class="extended" cellspacing="0">
+    <thead>
+        <tr>
+            <th>IP adresa</th>
+            <th>Zpráva</th>
+            <th>Datum</th>
+            <th>Komentář</th>
+            @if($canDeleteRedirect) <th>Akce</th> @endif
+        </tr>
+    </thead>
+    <tbody>
+        @foreach($memberRedirections as $msgId => $group)
+            @foreach($group as $r)
+            <tr>
+                <td>{{ $r->ip_address }}</td>
+                <td>{{ $r->msg_name }}</td>
+                <td>{{ \Carbon\Carbon::parse($r->datetime)->format('d.m.Y H:i') }}</td>
+                <td>{{ $r->comment ?? '—' }}</td>
+                @if($canDeleteRedirect)
+                <td>
+                    <form method="POST"
+                          action="{{ route('redirects.delete', [$r->ip_address_id, $r->message_id]) }}"
+                          style="display:inline">
+                        @csrf @method('DELETE')
+                        <button type="submit"
+                                style="background:none;border:none;cursor:pointer;padding:0;color:#c00;text-decoration:underline;"
+                                onclick="return confirm('Zrušit přesměrování {{ $r->ip_address }}?')">Zrušit</button>
+                    </form>
+                </td>
+                @endif
+            </tr>
+            @endforeach
+            {{-- Hromadné zrušení celé zprávy --}}
+            @if($canDeleteRedirect && $group->count() > 1)
+            <tr style="background:#fff8f0;">
+                <td colspan="{{ $canDeleteRedirect ? 4 : 3 }}" style="text-align:right; padding-right:4px; color:#888; font-size:0.9em;">
+                    Zpráva „{{ $group->first()->msg_name }}" — {{ $group->count() }} IP adres
+                </td>
+                <td>
+                    <form method="POST"
+                          action="{{ route('redirects.delete-member', [$member->id, $msgId]) }}"
+                          style="display:inline">
+                        @csrf @method('DELETE')
+                        <button type="submit"
+                                style="background:none;border:none;cursor:pointer;padding:0;color:#c00;text-decoration:underline;"
+                                onclick="return confirm('Zrušit přesměrování pro všechny IP adresy člena?')">Zrušit vše</button>
+                    </form>
+                </td>
+            </tr>
+            @endif
+        @endforeach
+    </tbody>
+</table>
+@endif
+
+{{-- Section 5b: Přerušení členství --}}
 @if($canViewInterrupts && $interrupts->count() > 0)
 <h3>Přerušení členství</h3>
 <table class="extended" cellspacing="0">
