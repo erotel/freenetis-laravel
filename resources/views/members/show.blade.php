@@ -65,6 +65,10 @@
     &nbsp;|&nbsp;
     <a href="{{ route('notifications.member', $member->id) }}">Oznámení</a>
     @endif
+    @if($canViewWhitelists)
+    &nbsp;|&nbsp;
+    <a href="{{ route('member_whitelists.index', ['member_id' => $member->id]) }}">Bílé listiny</a>
+    @endif
     @if($canExportRegistration && in_array($member->type, [2, 90]))
     &nbsp;|&nbsp;
     <form method="GET" style="display:inline;" id="export-form-{{ $member->id }}">
@@ -447,59 +451,7 @@
 </p>
 @endif
 
-{{-- Section 5b: Whitelist --}}
-@if($canViewWhitelists && $whitelists->count() > 0)
-<h3>Whitelist</h3>
-<table class="extended" cellspacing="0">
-    <thead>
-        <tr>
-            <th>Permanentní</th>
-            <th>Od</th>
-            <th>Do</th>
-            <th>Aktivní</th>
-            <th>Komentář</th>
-            @if($canEditWhitelist || $canDeleteWhitelist) <th>Akce</th> @endif
-        </tr>
-    </thead>
-    <tbody>
-        @foreach($whitelists as $wl)
-        @php
-            $today  = now()->toDateString();
-            $active = $wl->since <= $today && ($wl->until === '9999-12-31' || $wl->until >= $today);
-        @endphp
-        <tr>
-            <td>{{ $wl->permanent ? 'Ano' : 'Ne' }}</td>
-            <td>{{ $wl->since }}</td>
-            <td>{{ $wl->until === '9999-12-31' ? 'trvale' : $wl->until }}</td>
-            <td>{{ $active ? '✓' : '—' }}</td>
-            <td>{{ $wl->comment ?? '—' }}</td>
-            @if($canEditWhitelist || $canDeleteWhitelist)
-            <td>
-                @if($canEditWhitelist)
-                    <a href="{{ route('member_whitelists.edit', $wl->id) }}">Upravit</a>
-                @endif
-                @if($canDeleteWhitelist)
-                    @if($canEditWhitelist) | @endif
-                    <form method="POST" action="{{ route('member_whitelists.destroy', $wl->id) }}" style="display:inline">
-                        @csrf @method('DELETE')
-                        <button type="submit" style="background:none;border:none;padding:0;color:#c00;cursor:pointer;"
-                                onclick="return confirm('Smazat whitelist záznam?')">Smazat</button>
-                    </form>
-                @endif
-            </td>
-            @endif
-        </tr>
-        @endforeach
-    </tbody>
-</table>
-@endif
-@if($canAddWhitelist)
-<p>
-    <a href="{{ route('member_whitelists.create', $member->id) }}">+ Přidat whitelist</a>
-</p>
-@endif
-
-{{-- Section 5c: Uživatelé --}}
+{{-- Section 5b: Uživatelé --}}
 @if($member->users->isNotEmpty())
 <h3>Uživatelé</h3>
 <table class="extended" cellspacing="0">

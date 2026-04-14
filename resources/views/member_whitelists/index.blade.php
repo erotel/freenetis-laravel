@@ -1,6 +1,6 @@
 @extends('layouts.app')
 
-@section('title', 'Whitelist členů')
+@section('title', 'Bílá listina' . ($memberName ? ' — ' . $memberName : ''))
 
 @section('menu')
     <x-freenetis-menu />
@@ -8,15 +8,22 @@
 
 @section('breadcrumbs')
     <div id="breadcrumbs">
-        Whitelist členů
+        <a href="{{ route('member_whitelists.index') }}">Bílá listina</a>
+        @if($memberName)
+            &raquo; {{ $memberName }}
+        @endif
     </div>
 @endsection
 
 @section('content')
-    <h2>Whitelist členů</h2>
+    <h2>Bílá listina{{ $memberName ? ' — ' . $memberName : '' }}</h2>
 
     @if(session('success'))
         <div class="message_ok"><p>{{ session('success') }}</p></div>
+    @endif
+
+    @if($memberId && $canAdd)
+    <p><a href="{{ route('member_whitelists.create', $memberId) }}">+ Přidat záznam</a></p>
     @endif
 
     <table class="extended" cellspacing="0">

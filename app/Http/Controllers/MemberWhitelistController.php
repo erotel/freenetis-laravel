@@ -19,18 +19,29 @@ class MemberWhitelistController extends Controller
 
     // ── Global index ──────────────────────────────────────────────────────────
 
-    public function index()
+    public function index(Request $request)
     {
         abort_unless($this->canView(), 403);
 
-        $whitelists = DB::table('members_whitelists as mw')
+        $memberId = $request->input('member_id') ? (int) $request->input('member_id') : null;
+
+        $query = DB::table('members_whitelists as mw')
             ->join('members as m', 'm.id', '=', 'mw.member_id')
-            ->select('mw.*', 'm.name as member_name')
-            ->orderByDesc('mw.id')
-            ->paginate(50);
+            ->select('mw.*', 'm.name as member_name');
+
+        if ($memberId) {
+            $query->where('mw.member_id', $memberId);
+        }
+
+        $whitelists  = $query->orderByDesc('mw.id')->paginate(50)->withQueryString();
+        $memberName  = $memberId
+            ? DB::table('members')->where('id', $memberId)->value('name')
+            : null;
 
         return view('member_whitelists.index', [
             'whitelists' => $whitelists,
+            'memberName' => $memberName,
+            'memberId'   => $memberId,
             'canAdd'     => $this->canAdd(),
             'canEdit'    => $this->canEdit(),
             'canDelete'  => $this->canDelete(),
