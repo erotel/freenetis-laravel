@@ -36,8 +36,21 @@ class MemberController extends Controller
         }
 
         $search        = trim((string) $request->query('search', ''));
-        $currentType   = $request->query('type', 'all');
         $currentLocked = $request->query('locked', 'all');
+
+        // types — čárkou oddělený seznam typů (např. "2,16,18") nebo 'all'
+        $typesParam = $request->query('types', 'all');
+        $currentTypes = 'all';
+        $typesArray   = [];
+        if ($typesParam !== 'all' && $typesParam !== '') {
+            $typesArray = array_filter(
+                array_map('intval', explode(',', $typesParam)),
+                fn($t) => $t > 0
+            );
+            if (!empty($typesArray)) {
+                $currentTypes = implode(',', $typesArray);
+            }
+        }
 
         // Paginated list with first variable symbol via subquery
         $query = Member::query()
@@ -57,8 +70,8 @@ class MemberController extends Controller
         if ($search !== '') {
             $query->where('members.name', 'like', "%{$search}%");
         }
-        if ($currentType !== 'all') {
-            $query->where('members.type', (int) $currentType);
+        if (!empty($typesArray)) {
+            $query->whereIn('members.type', $typesArray);
         }
         if ($currentLocked !== 'all') {
             $query->where('members.locked', (int) $currentLocked);
@@ -75,7 +88,7 @@ class MemberController extends Controller
             'perPage'       => $perPage,
             'search'        => $search,
             'memberTypes'   => MemberType::labels(),
-            'currentType'   => $currentType,
+            'currentTypes'  => $currentTypes,
             'currentLocked' => $currentLocked,
             'canNew'        => $this->can('new_all'),
             'canEdit'       => $this->can('edit_all'),

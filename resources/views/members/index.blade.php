@@ -35,17 +35,20 @@
     <form id="member-search" method="GET" action="{{ route('members.index') }}" style="margin-bottom:0.5em;">
         <input type="text" name="search" value="{{ $search }}" placeholder="Hledat podle jména...">
         <button type="submit">Hledat</button>
-        @if($search || $currentType !== 'all' || $currentLocked !== 'all')
+        @if($search || $currentTypes !== 'all' || $currentLocked !== 'all')
             <a href="{{ route('members.index') }}">Zrušit filtry</a>
         @endif
     </form>
 
     <form method="GET" action="{{ route('members.index') }}" style="display:inline-flex; gap:8px; margin-bottom:10px; flex-wrap:wrap;">
         @if($search)<input type="hidden" name="search" value="{{ $search }}">@endif
-        <select name="type" onchange="this.form.submit()">
-            <option value="all">— všechny typy —</option>
+        <select name="types" onchange="this.form.submit()">
+            <option value="all" @selected($currentTypes === 'all')>— všechny typy —</option>
+            <option value="1,3,15,17,90" @selected($currentTypes === '1,3,15,17,90')>Členové</option>
+            <option value="2,16,18" @selected($currentTypes === '2,16,18')>Zákazníci</option>
+            <option value="17,18" @selected($currentTypes === '17,18')>Čekatelé</option>
             @foreach($memberTypes as $typeId => $typeLabel)
-                <option value="{{ $typeId }}" @selected($currentType == $typeId)>{{ $typeLabel }}</option>
+                <option value="{{ $typeId }}" @selected($currentTypes === (string)$typeId)>{{ $typeLabel }}</option>
             @endforeach
         </select>
         <select name="locked" onchange="this.form.submit()">
@@ -133,7 +136,7 @@
         @if(request('sort'))   <input type="hidden" name="sort"   value="{{ $sort }}"> @endif
         @if(request('dir'))    <input type="hidden" name="dir"    value="{{ $dir }}">  @endif
         @if(request('search')) <input type="hidden" name="search" value="{{ $search }}"> @endif
-        @if($currentType   !== 'all') <input type="hidden" name="type"   value="{{ $currentType }}"> @endif
+        @if($currentTypes !== 'all') <input type="hidden" name="types" value="{{ $currentTypes }}"> @endif
         @if($currentLocked !== 'all') <input type="hidden" name="locked" value="{{ $currentLocked }}"> @endif
         Záznamů na stránku:
         <select name="record_per_page" onchange="this.form.submit()">
