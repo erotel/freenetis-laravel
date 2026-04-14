@@ -38,6 +38,7 @@ use App\Http\Controllers\PublicIpNat1to1Controller;
 use App\Http\Controllers\PublicPortForwardController;
 use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\MembershipInterruptController;
+use App\Http\Controllers\CommentController;
 use Illuminate\Support\Facades\Route;
 
 // ── Web Interface API (machine-to-machine, IP-restricted, no session auth) ──
@@ -435,4 +436,12 @@ Route::middleware('auth')->group(function () {
     // ── Notifications ─────────────────────────────────────────────────────────
     Route::get('notifications/member/{id}',        [NotificationController::class, 'member'])->name('notifications.member');
     Route::post('notifications/member/{id}/notify',[NotificationController::class, 'notify'])->name('notifications.member.notify');
+
+    // Comments (account financial state)
+    Route::get('comments/add-thread/{type}/{fkId}', [CommentController::class, 'addThread'])->name('comments.add-thread');
+    Route::get('comments/{threadId}/add',           [CommentController::class, 'add'])->name('comments.add');
+    Route::post('comments/{threadId}',              [CommentController::class, 'store'])->name('comments.store');
+    Route::get('comments/{id}/edit',                [CommentController::class, 'edit'])->name('comments.edit');
+    Route::put('comments/{id}',                     [CommentController::class, 'update'])->name('comments.update');
+    Route::delete('comments/{id}',                  [CommentController::class, 'destroy'])->name('comments.destroy');
 });

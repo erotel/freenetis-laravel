@@ -167,6 +167,26 @@ class MemberController extends Controller
             'canViewInvoices'      => $isOwnProfile || $this->aclCheck('view_all', 'Accounts_Controller', 'invoices'),
             'canNotify'            => $this->aclCheck('new_all', 'Notifications_Controller', 'member'),
             'canExportRegistration'=> $this->aclCheck('view_all', 'Members_Controller', 'registration_export'),
+            'canComment'           => $this->aclCheck('new_all',    'Members_Controller', 'comment'),
+            'canEditComment'       => $this->aclCheck('edit_all',   'Members_Controller', 'comment'),
+            'canDeleteComment'     => $this->aclCheck('delete_all', 'Members_Controller', 'comment'),
+            'accountCommentsList'  => $creditAccount
+                ? DB::table('comments as c')
+                    ->join('users as u', 'u.id', '=', 'c.user_id')
+                    ->where('c.comments_thread_id', $creditAccount->comments_thread_id)
+                    ->orderByDesc('c.datetime')
+                    ->selectRaw('c.id, c.text, c.datetime, CONCAT(u.surname, " ", u.name) as user_name')
+                    ->get()
+                : collect(),
+            'accountComments'      => $creditAccount && $creditAccount->comments_thread_id
+                ? DB::table('comments as c')
+                    ->join('users as u', 'u.id', '=', 'c.user_id')
+                    ->where('c.comments_thread_id', $creditAccount->comments_thread_id)
+                    ->orderByDesc('c.datetime')
+                    ->selectRaw('CONCAT(u.surname, " ", u.name, " (", DATE(c.datetime), "):\n", c.text) as line')
+                    ->pluck('line')
+                    ->implode("\n\n")
+                : '',
             'canViewInterrupts'    => $this->aclCheck('view_all', 'Members_Controller', 'membership_interrupts'),
             'canEditInterrupts'    => $this->aclCheck('edit_all', 'Members_Controller', 'membership_interrupts'),
             'interrupts'           => \Illuminate\Support\Facades\DB::table('membership_interrupts as mi')

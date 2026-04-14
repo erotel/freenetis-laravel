@@ -248,9 +248,52 @@
             <tr>
                 <th>Současný kredit</th>
                 <td style="color:{{ $creditAccount->balance >= 0 ? 'green' : 'red' }}">
-                    {{ number_format($creditAccount->balance, 2, ',', ' ') }} Kč
+                    @if($accountComments)
+                        <span title="{{ $accountComments }}" style="cursor:help; border-bottom:1px dotted #999;">
+                            {{ number_format($creditAccount->balance, 2, ',', ' ') }} Kč
+                        </span>
+                    @else
+                        {{ number_format($creditAccount->balance, 2, ',', ' ') }} Kč
+                    @endif
+                    @if($canComment)
+                        @if($creditAccount->comments_thread_id)
+                            <a href="{{ route('comments.add', $creditAccount->comments_thread_id) }}"
+                               title="Přidat komentář k finančnímu stavu">
+                                <img src="{{ asset('media/images/icons/comment_add.png') }}" width="16" height="16" alt="+">
+                            </a>
+                        @else
+                            <a href="{{ route('comments.add-thread', ['type' => 'account', 'fkId' => $creditAccount->id]) }}"
+                               title="Přidat komentář k finančnímu stavu">
+                                <img src="{{ asset('media/images/icons/comment_add.png') }}" width="16" height="16" alt="+">
+                            </a>
+                        @endif
+                    @endif
                 </td>
             </tr>
+            @if($accountCommentsList->count() && $canComment)
+            <tr>
+                <th>Komentáře k účtu</th>
+                <td style="font-size:0.85em;">
+                    @foreach($accountCommentsList as $ac)
+                        <div style="margin-bottom:4px; border-bottom:1px solid #eee; padding-bottom:3px;">
+                            <strong>{{ $ac->user_name }}</strong>
+                            <small style="color:#888;">({{ \Carbon\Carbon::parse($ac->datetime)->format('d.m.Y') }})</small>:
+                            {{ $ac->text }}
+                            @if($canEditComment)
+                                <a href="{{ route('comments.edit', $ac->id) }}" style="margin-left:4px;">Upravit</a>
+                            @endif
+                            @if($canDeleteComment)
+                                <form method="POST" action="{{ route('comments.destroy', $ac->id) }}" style="display:inline;">
+                                    @csrf @method('DELETE')
+                                    <button type="submit" style="background:none;border:none;padding:0 4px;color:#c00;cursor:pointer;"
+                                            onclick="return confirm('Smazat komentář?')">Smazat</button>
+                                </form>
+                            @endif
+                        </div>
+                    @endforeach
+                </td>
+            </tr>
+            @endif
             <tr>
                 <th>Měsíční platba</th>
                 <td>
