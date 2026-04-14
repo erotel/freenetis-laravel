@@ -162,6 +162,48 @@ class ImportController extends Controller
     }
 
     /**
+     * Run FIO import for a single bank account from the scheduler (no HTTP context).
+     * Returns ['imported' => int, 'skipped' => int] or throws RuntimeException on error.
+     */
+    public function runFioImportForScheduler(int $bankAccountId): array
+    {
+        $account = BankAccount::find($bankAccountId);
+        if (!$account) {
+            throw new \RuntimeException("Bank account #{$bankAccountId} not found.");
+        }
+
+        $token = Setting::get('fio_api_token_bank_account_' . $bankAccountId);
+        if (empty($token)) {
+            throw new \RuntimeException("No FIO API token configured for bank account #{$bankAccountId}.");
+        }
+
+        $fio    = app(FioApiService::class);
+        $parser = app(FioCsvParser::class);
+
+        // Mirror Kohana: set bookmark to last known transaction_code before fetchLast
+        $lastId = BankTransfer::whereHas('bankStatement', function ($q) use ($bankAccountId) {
+                $q->where('bank_account_id', $bankAccountId);
+            })
+            ->whereNotNull('transaction_code')
+            ->max('transaction_code');
+
+        if ($lastId) {
+            $fio->setLastId($token, (int) $lastId);
+        }
+
+        $csvContent = $fio->fetchLast($token);
+        $parsed     = $parser->parse($csvContent);
+
+        if (empty($parsed['rows'])) {
+            return ['imported' => 0, 'skipped' => 0];
+        }
+
+        [$imported, $skipped] = $this->persistParsed($account, $parsed['header'], $parsed['rows'], 'FIO API scheduler');
+
+        return ['imported' => $imported, 'skipped' => $skipped];
+    }
+
+    /**
      * Shared import logic: create BankStatement + BankTransfer + Transfer rows from parsed CSV data.
      * Mirrors Kohana's Fio_Bank_Statement_File_Importer::store() double-entry accounting logic.
      * Returns [imported, skipped].
@@ -175,7 +217,7 @@ class ImportController extends Controller
         DB::transaction(function () use ($account, $header, $rows, $type, &$imported, &$skipped, &$postImport) {
             $stmt = new BankStatement();
             $stmt->bank_account_id = $account->id;
-            $stmt->user_id         = auth()->id();
+            $stmt->user_id         = auth()->id() ?? 1;
             $stmt->type            = $type;
             $stmt->from            = $header['dateStart'] ?? null;
             $stmt->to              = $header['dateEnd']   ?? null;
@@ -196,7 +238,7 @@ class ImportController extends Controller
                 );
             }
 
-            $userId  = auth()->id();
+            $userId  = auth()->id() ?? 1;
             $now     = now()->format('Y-m-d H:i:s');
 
             foreach ($rows as $row) {

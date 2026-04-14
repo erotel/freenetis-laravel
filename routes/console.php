@@ -8,6 +8,12 @@ Artisan::command('inspire', function () {
     $this->comment(Inspiring::quote());
 })->purpose('Display an inspiring quote');
 
+// CRON failure detection — must run every minute (mirrors Kohana Scheduler_Controller cron_last_active check)
+Schedule::command('cron:heartbeat')->everyMinute();
+
+// Auto-import FIO bank statements for association accounts — every day at 00:55
+Schedule::command('bank:import-statements')->dailyAt('00:55');
+
 // Send queued emails every minute
 Schedule::command('email:send-queue')->everyMinute();
 
