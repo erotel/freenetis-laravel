@@ -61,6 +61,10 @@
     &nbsp;|&nbsp;
     <a href="{{ route('users.password', $mainUser->id) }}">Změnit heslo</a>
     @endif
+    @if($canNotify)
+    &nbsp;|&nbsp;
+    <a href="{{ route('notifications.member', $member->id) }}">Oznámení</a>
+    @endif
     @if($canEdit && in_array($member->type, [17, 18]) && $member->registration)
     &nbsp;|&nbsp;
     <form method="POST" action="{{ route('members.approve', $member->id) }}" style="display:inline">

@@ -36,6 +36,7 @@ use App\Http\Controllers\SearchController;
 use App\Http\Controllers\WebInterfaceController;
 use App\Http\Controllers\PublicIpNat1to1Controller;
 use App\Http\Controllers\PublicPortForwardController;
+use App\Http\Controllers\NotificationController;
 use Illuminate\Support\Facades\Route;
 
 // ── Web Interface API (machine-to-machine, IP-restricted, no session auth) ──
@@ -420,4 +421,8 @@ Route::middleware('auth')->group(function () {
     Route::get('public-port-forwards/{id}/edit', [PublicPortForwardController::class, 'edit'])->name('public-port-forwards.edit');
     Route::put('public-port-forwards/{id}',      [PublicPortForwardController::class, 'update'])->name('public-port-forwards.update');
     Route::get('public-port-forwards/{id}/delete',[PublicPortForwardController::class, 'destroy'])->name('public-port-forwards.destroy');
+
+    // ── Notifications ─────────────────────────────────────────────────────────
+    Route::get('notifications/member/{id}',        [NotificationController::class, 'member'])->name('notifications.member');
+    Route::post('notifications/member/{id}/notify',[NotificationController::class, 'notify'])->name('notifications.member.notify');
 });

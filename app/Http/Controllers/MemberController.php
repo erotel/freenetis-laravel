@@ -152,6 +152,7 @@ class MemberController extends Controller
             'canViewQos'           => $this->aclCheck('view_all', 'Members_Controller', 'qos_ceil'),
             'canViewAllowedSubnets'=> $this->aclCheck('view_all', 'Allowed_subnets_Controller', 'allowed_subnet'),
             'canViewInvoices'      => $isOwnProfile || $this->aclCheck('view_all', 'Accounts_Controller', 'invoices'),
+            'canNotify'            => $this->aclCheck('new_all', 'Notifications_Controller', 'member'),
         ]);
     }
 
