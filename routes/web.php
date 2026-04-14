@@ -44,6 +44,7 @@ use App\Http\Controllers\BankAccountAutoDownloadController;
 use App\Http\Controllers\MemberWhitelistController;
 use App\Http\Controllers\RedirectController;
 use App\Http\Controllers\EmailQueueController;
+use App\Http\Controllers\PohodaRefundQueueController;
 use Illuminate\Support\Facades\Route;
 
 // ── Web Interface API (machine-to-machine, IP-restricted, no session auth) ──
@@ -454,6 +455,9 @@ Route::middleware('auth')->group(function () {
     Route::get('member-whitelists/{id}/edit',                    [MemberWhitelistController::class, 'edit'])->name('member_whitelists.edit');
     Route::put('member-whitelists/{id}',                         [MemberWhitelistController::class, 'update'])->name('member_whitelists.update');
     Route::delete('member-whitelists/{id}',                      [MemberWhitelistController::class, 'destroy'])->name('member_whitelists.destroy');
+
+    // ── POHODA – fronta vratek ────────────────────────────────────────────────
+    Route::get('pohoda-refund-queue', [PohodaRefundQueueController::class, 'index'])->name('pohoda-refund-queue.index');
 
     // ── E-mailová fronta ─────────────────────────────────────────────────────
     Route::get('email-queues',              [EmailQueueController::class, 'unsent'])->name('email_queues.unsent');

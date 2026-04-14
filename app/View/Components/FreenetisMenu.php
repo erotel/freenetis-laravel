@@ -60,6 +60,7 @@ class FreenetisMenu extends Component
                 ['url' => route('bank_transfers.unidentified'), 'path' => 'bank-transfers/unidentified', 'label' => 'Neidentifikované', 'acl' => ['view_all', 'Accounts_Controller', 'unidentified_transfers'], 'count' => $countUnidentified],
                 ['url' => route('outgoing_payments.index'),  'path' => 'outgoing-payments', 'label' => 'Odchozí platby',         'acl' => ['view_all', 'Accounts_Controller', 'bank_transfers'], 'count' => $countDraftOutgoing],
                 ['url' => route('invoices.index'),           'path' => 'invoices',          'label' => 'Faktury',                'acl' => ['view_all', 'Accounts_Controller', 'invoices']],
+                ['url' => route('pohoda-refund-queue.index'), 'path' => 'pohoda-refund-queue', 'label' => 'Vratné faktury',      'acl' => ['view_all', 'Accounts_Controller', 'invoices']],
             ]],
             ['name' => 'settings', 'label' => 'Administrace', 'items' => [
                 ['url' => route('member_whitelists.index'), 'path' => 'member-whitelists', 'label' => 'Bílá listina', 'acl' => ['view_all', 'Members_whitelists_Controller', 'whitelist']],
