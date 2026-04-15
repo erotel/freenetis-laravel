@@ -14,7 +14,11 @@ class SmsMessageController extends Controller
     {
         abort_unless($this->aclCheck('view_all', self::ACL_SECTION, self::ACL_KEY), 403);
 
-        $query = SmsMessage::with('user')->orderByDesc('id');
+        $last200 = SmsMessage::select('id')->orderByDesc('id')->limit(200);
+        $query = SmsMessage::with('user')
+            ->joinSub($last200, 'last200', fn($j) => $j->on('sms_messages.id', '=', 'last200.id'))
+            ->orderByDesc('sms_messages.id')
+            ->select('sms_messages.*');
 
         if ($request->filled('type') && $request->type !== '') {
             $query->where('type', (int) $request->type);

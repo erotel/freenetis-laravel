@@ -22,12 +22,18 @@ class EmailQueueController extends Controller
     {
         abort_unless($this->canView(), 403);
 
+        $last200 = DB::table('email_queues')->select('id')
+            ->where('state', EmailQueue::STATE_NEW)
+            ->orderByDesc('id')->limit(200);
+
         $query = DB::table('email_queues')
-            ->where('state', EmailQueue::STATE_NEW);
+            ->joinSub($last200, 'last200', fn($j) => $j->on('email_queues.id', '=', 'last200.id'))
+            ->select('email_queues.*')
+            ->where('email_queues.state', EmailQueue::STATE_NEW);
 
         $this->applyFilters($query, $request);
 
-        $emails = $query->orderByDesc('id')->paginate(50)->withQueryString();
+        $emails = $query->orderByDesc('email_queues.id')->paginate(50)->withQueryString();
 
         return view('email_queues.unsent', [
             'emails'      => $emails,
@@ -45,12 +51,18 @@ class EmailQueueController extends Controller
     {
         abort_unless($this->canView(), 403);
 
+        $last200 = DB::table('email_queues')->select('id')
+            ->where('state', EmailQueue::STATE_SENT)
+            ->orderByDesc('id')->limit(200);
+
         $query = DB::table('email_queues')
-            ->where('state', EmailQueue::STATE_SENT);
+            ->joinSub($last200, 'last200', fn($j) => $j->on('email_queues.id', '=', 'last200.id'))
+            ->select('email_queues.*')
+            ->where('email_queues.state', EmailQueue::STATE_SENT);
 
         $this->applyFilters($query, $request);
 
-        $emails = $query->orderByDesc('id')->paginate(50)->withQueryString();
+        $emails = $query->orderByDesc('email_queues.id')->paginate(50)->withQueryString();
 
         return view('email_queues.sent', [
             'emails'     => $emails,
