@@ -8,6 +8,7 @@ use App\Models\EnumType;
 use App\Models\Member;
 use App\Models\Setting;
 use App\Models\Subnet;
+use App\Services\SnmpMacDetector;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 
@@ -180,9 +181,12 @@ class ConnectionRequestController extends Controller
         $canEditDevices = $canNewAll && $this->aclCheck('new_all', 'Devices_Controller', 'devices');
         $authMemberId   = auth()->user()?->member_id;
 
+        // Auto-detect MAC via SNMP on subnet gateway
+        $detectedMac = app(SnmpMacDetector::class)->detectForSubnet($subnetId, $ipAddress);
+
         return view('connection_requests.create', compact(
             'subnet', 'ipAddress', 'members', 'deviceTypes', 'templates',
-            'defaultType', 'canEditDevices', 'authMemberId'
+            'defaultType', 'canEditDevices', 'authMemberId', 'detectedMac'
         ));
     }
 

@@ -55,9 +55,16 @@
             <tr>
                 <th>MAC adresa <span style="color:#c00;">*</span></th>
                 <td>
-                    <input type="text" name="mac_address" value="{{ old('mac_address') }}"
-                           required style="width:150px;" placeholder="AA:BB:CC:DD:EE:FF">
-                    <br><small style="color:#888;">Formát: AA:BB:CC:DD:EE:FF</small>
+                    @php $macValue = old('mac_address', $detectedMac ?? ''); @endphp
+                    @if($detectedMac && !$canEditDevices)
+                        <strong>{{ $detectedMac }}</strong>
+                        <input type="hidden" name="mac_address" value="{{ $detectedMac }}">
+                        <br><small style="color:#888;">Automaticky detekováno přes SNMP.</small>
+                    @else
+                        <input type="text" name="mac_address" value="{{ $macValue }}"
+                               required style="width:150px;" placeholder="AA:BB:CC:DD:EE:FF">
+                        <br><small style="color:#888;">Formát: AA:BB:CC:DD:EE:FF</small>
+                    @endif
                 </td>
             </tr>
             <tr>
