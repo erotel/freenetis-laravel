@@ -74,6 +74,11 @@ class SmsMessageController extends Controller
             'send_date' => ['required', 'date'],
         ]);
 
+        $receiver = preg_replace('/\s+/', '', $data['receiver']);
+        if (strlen($receiver) === 9) {
+            $receiver = '420' . $receiver;
+        }
+
         $text = iconv('UTF-8', 'ASCII//TRANSLIT//IGNORE', $data['text']);
 
         SmsMessage::create([
@@ -83,7 +88,7 @@ class SmsMessageController extends Controller
             'send_date'      => $data['send_date'],
             'text'           => $text,
             'sender'         => Setting::get('sms_sender_number', ''),
-            'receiver'       => preg_replace('/\s+/', '', $data['receiver']),
+            'receiver'       => $receiver,
             'driver'         => (int) Setting::get('sms_driver', 3),
             'type'           => SmsMessage::TYPE_SENT,
             'state'          => SmsMessage::STATE_SENT_UNSENT,
