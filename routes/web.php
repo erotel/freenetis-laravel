@@ -45,6 +45,7 @@ use App\Http\Controllers\MemberWhitelistController;
 use App\Http\Controllers\RedirectController;
 use App\Http\Controllers\EmailQueueController;
 use App\Http\Controllers\PohodaRefundQueueController;
+use App\Http\Controllers\SmsMessageController;
 use Illuminate\Support\Facades\Route;
 
 // ── Web Interface API (machine-to-machine, IP-restricted, no session auth) ──
@@ -470,6 +471,11 @@ Route::middleware('auth')->group(function () {
     Route::delete('email-queues/sent',      [EmailQueueController::class, 'destroySent'])->name('email_queues.destroy-sent');
     Route::post('email-queues/{id}/resend', [EmailQueueController::class, 'resend'])->name('email_queues.resend');
     Route::delete('email-queues/{id}',      [EmailQueueController::class, 'destroy'])->name('email_queues.destroy');
+
+    // ── SMS zprávy ───────────────────────────────────────────────────────────
+    Route::get('sms-messages',             [SmsMessageController::class, 'index'])->name('sms_messages.index');
+    Route::get('sms-messages/{id}',        [SmsMessageController::class, 'show'])->name('sms_messages.show');
+    Route::delete('sms-messages/unsent',   [SmsMessageController::class, 'destroyUnsent'])->name('sms_messages.destroy-unsent');
 
     // ── Přesměrování (Redirect) ───────────────────────────────────────────────
     Route::get('redirections',                                       [RedirectController::class, 'index'])->name('redirects.index');

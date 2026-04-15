@@ -32,7 +32,8 @@ class FreenetisMenu extends Component
         $countCustomers   = fn() => (int) DB::table('members')->where('type', 2)->count();
         $countRegular     = fn() => (int) DB::table('members')->where('type', 90)->count();
         $countLogErrors   = fn() => (int) DB::table('log_queues')->whereIn('type', [0, 1])->where('state', 0)->count();
-        $countEmailUnsent = fn() => (int) DB::table('email_queues')->where('state', 0)->count();
+        $countEmailUnsent  = fn() => (int) DB::table('email_queues')->where('state', 0)->count();
+        $countSmsUnsent    = fn() => (int) DB::table('sms_messages')->where('type', 1)->where('state', 1)->count();
 
         $menuGroups = [
             ['name' => 'home', 'label' => 'Domů', 'items' => [
@@ -65,6 +66,7 @@ class FreenetisMenu extends Component
             ['name' => 'settings', 'label' => 'Administrace', 'items' => [
                 ['url' => route('member_whitelists.index'), 'path' => 'member-whitelists', 'label' => 'Bílá listina', 'acl' => ['view_all', 'Members_whitelists_Controller', 'whitelist']],
                 ['url' => route('email_queues.unsent'),    'path' => 'email-queues',       'label' => 'E-mailová fronta', 'acl' => ['view_all', 'Email_queues_Controller', 'email_queue'], 'count' => $countEmailUnsent],
+                ['url' => route('sms_messages.index'),     'path' => 'sms-messages',        'label' => 'SMS zprávy',        'acl' => ['view_all', 'Sms_Controller', 'sms'],                  'count' => $countSmsUnsent],
                 ['url' => route('login_logs.index'),  'path' => 'login-logs', 'label' => 'Logy přihlášení', 'acl' => ['view_all', 'Login_logs_Controller', 'logs']],
                 ['url' => route('log_queues.index'),  'path' => 'log-queues', 'label' => 'Chyby a logy',    'acl' => ['view_all', 'Log_queues_Controller', 'log_queue'], 'count' => $countLogErrors],
                 ['url' => route('towns.index'), 'path' => 'towns', 'label' => 'Města', 'acl' => ['view_all', 'Address_points_Controller', 'town']],
