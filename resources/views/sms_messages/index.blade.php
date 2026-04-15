@@ -15,6 +15,12 @@
 @section('content')
 <h2>SMS zprávy</h2>
 
+@if($canSend)
+<div style="margin-bottom:0.5em;">
+    <a href="{{ route('sms_messages.create') }}">+ Odeslat SMS</a>
+</div>
+@endif
+
 @if(session('success'))
     <div class="alert alert-success" style="color:green; margin-bottom:1em;">{{ session('success') }}</div>
 @endif

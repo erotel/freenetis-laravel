@@ -474,8 +474,10 @@ Route::middleware('auth')->group(function () {
 
     // ── SMS zprávy ───────────────────────────────────────────────────────────
     Route::get('sms-messages',             [SmsMessageController::class, 'index'])->name('sms_messages.index');
-    Route::get('sms-messages/{id}',        [SmsMessageController::class, 'show'])->name('sms_messages.show');
+    Route::get('sms-messages/create',      [SmsMessageController::class, 'create'])->name('sms_messages.create');
+    Route::post('sms-messages',            [SmsMessageController::class, 'store'])->name('sms_messages.store');
     Route::delete('sms-messages/unsent',   [SmsMessageController::class, 'destroyUnsent'])->name('sms_messages.destroy-unsent');
+    Route::get('sms-messages/{id}',        [SmsMessageController::class, 'show'])->name('sms_messages.show');
 
     // ── Přesměrování (Redirect) ───────────────────────────────────────────────
     Route::get('redirections',                                       [RedirectController::class, 'index'])->name('redirects.index');
