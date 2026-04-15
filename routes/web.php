@@ -45,6 +45,7 @@ use App\Http\Controllers\MemberWhitelistController;
 use App\Http\Controllers\RedirectController;
 use App\Http\Controllers\EmailQueueController;
 use App\Http\Controllers\PohodaRefundQueueController;
+use App\Http\Controllers\ConnectionRequestController;
 use App\Http\Controllers\SmsMessageController;
 use Illuminate\Support\Facades\Route;
 
@@ -478,6 +479,15 @@ Route::middleware('auth')->group(function () {
     Route::post('sms-messages',            [SmsMessageController::class, 'store'])->name('sms_messages.store');
     Route::delete('sms-messages/unsent',   [SmsMessageController::class, 'destroyUnsent'])->name('sms_messages.destroy-unsent');
     Route::get('sms-messages/{id}',        [SmsMessageController::class, 'show'])->name('sms_messages.show');
+
+    // ── Žádosti o připojení ──────────────────────────────────────────────────
+    Route::get('connection-requests',                                    [ConnectionRequestController::class, 'index'])->name('connection_requests.index');
+    Route::get('connection-requests/{id}',                               [ConnectionRequestController::class, 'show'])->name('connection_requests.show');
+    Route::get('members/{memberId}/connection-requests',                 [ConnectionRequestController::class, 'showByMember'])->name('connection_requests.by_member');
+    Route::get('connection-requests/create/{subnetId}/{ipAddress}',      [ConnectionRequestController::class, 'create'])->name('connection_requests.create');
+    Route::post('connection-requests',                                   [ConnectionRequestController::class, 'store'])->name('connection_requests.store');
+    Route::match(['GET','POST'], 'connection-requests/{id}/approve',     [ConnectionRequestController::class, 'approve'])->name('connection_requests.approve');
+    Route::delete('connection-requests/{id}/reject',                     [ConnectionRequestController::class, 'reject'])->name('connection_requests.reject');
 
     // ── Přesměrování (Redirect) ───────────────────────────────────────────────
     Route::get('redirections',                                       [RedirectController::class, 'index'])->name('redirects.index');

@@ -97,6 +97,12 @@
                 @if(session('info'))
                     <div class="message" style="background:#fff3cd; border:1px solid #ffc107; color:#856404; padding:8px 12px; margin-bottom:8px;">{{ session('info') }}</div>
                 @endif
+                @if(!empty($connectionRequestBanner) && !request()->is('connection-requests/create/*'))
+                    <div class="message" style="background:#d9edf7; border:1px solid #31708f; color:#31708f; padding:8px 12px; margin-bottom:8px;">
+                        Vaše IP adresa <strong>{{ $connectionRequestBanner['ip'] }}</strong> není registrována.
+                        <a href="{{ route('connection_requests.create', [$connectionRequestBanner['subnet_id'], $connectionRequestBanner['ip']]) }}">Zaregistrovat toto připojení</a>.
+                    </div>
+                @endif
 
                 @yield('breadcrumbs')
                 @yield('content')
