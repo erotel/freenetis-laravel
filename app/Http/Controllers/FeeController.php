@@ -51,7 +51,7 @@ class FeeController extends Controller
             'to'      => 'required|date|after_or_equal:from',
         ]);
 
-        Fee::create($data);
+        Fee::create(array_merge($data, ['readonly' => 0]));
 
         session()->flash('success', 'Tarif byl úspěšně přidán.');
         return redirect()->route('fees.index');

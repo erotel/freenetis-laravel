@@ -52,10 +52,11 @@ class RegistrationController extends Controller
                 'street_number' => $validated['street_number'],
             ]);
 
-            // 2. Celé jméno
-            $fullName = $validated['surname']
-                ? trim($validated['name'] . ' ' . $validated['surname'])
-                : $validated['name'];
+            // 2. Celé jméno — ořez na 100 znaků (DB varchar limit)
+            $fullName = mb_substr(
+                trim($validated['name'] . ($validated['surname'] ? ' ' . $validated['surname'] : '')),
+                0, 100
+            );
 
             // 3. Člen — typ 17 (čekající člen) nebo 18 (čekající zákazník)
             $memberId = DB::table('members')->insertGetId([
