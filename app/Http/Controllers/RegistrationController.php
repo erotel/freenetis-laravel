@@ -26,8 +26,8 @@ class RegistrationController extends Controller
 
         $validated = $request->validate([
             'registration_type'           => 'required|in:17,18',
-            'name'                        => 'required|string|max:100',
-            'surname'                     => 'nullable|string|max:100',
+            'name'                        => ['required', 'string', 'max:100', 'regex:/^[\p{L}\s\-\.]+$/u'],
+            'surname'                     => ['nullable', 'string', 'max:100', 'regex:/^[\p{L}\s\-\.]+$/u'],
             'birthday'                    => 'required|date',
             'login'                       => 'required|string|min:5|max:20|unique:users,login',
             'password'                    => 'required|string|min:6|confirmed',
@@ -75,8 +75,8 @@ class RegistrationController extends Controller
             // 4. Uživatelský účet
             $userId = DB::table('users')->insertGetId([
                 'member_id'            => $memberId,
-                'name'                 => $validated['name'],
-                'surname'              => $validated['surname'] ?? '',
+                'name'                 => mb_substr($validated['name'], 0, 100),
+                'surname'              => mb_substr($validated['surname'] ?? '', 0, 100),
                 'login'                => $validated['login'],
                 'password'             => bcrypt($validated['password']),
                 'application_password' => substr(str_shuffle('abcdefghijklmnopqrstuvwxyz0123456789'), 0, 8),
