@@ -521,4 +521,9 @@ Route::middleware('auth')->group(function () {
     Route::get('comments/{id}/edit',                [CommentController::class, 'edit'])->name('comments.edit');
     Route::put('comments/{id}',                     [CommentController::class, 'update'])->name('comments.update');
     Route::delete('comments/{id}',                  [CommentController::class, 'destroy'])->name('comments.destroy');
+
+    // Device DHCP export — inside auth group but device self-call bypasses auth middleware
+    Route::get('devices/{id}/export/{format}', [DeviceController::class, 'export'])
+        ->name('devices.export')
+        ->withoutMiddleware(\Illuminate\Auth\Middleware\Authenticate::class);
 });

@@ -10,6 +10,7 @@ use App\Models\DeviceTemplate;
 use App\Models\EnumType;
 use App\Models\Iface;
 use App\Models\IpAddress;
+use App\Models\Setting;
 use App\Models\Subnet;
 use App\Models\User;
 use Illuminate\Http\Request;
@@ -562,5 +563,167 @@ class DeviceController extends Controller
 
         return redirect()->route('devices.by_user', $userId)
             ->with('success', 'Zařízení bylo smazáno.');
+    }
+
+    // ── DHCP Export ───────────────────────────────────────────────────────────
+
+    public function export(Request $request, int $id, string $format)
+    {
+        $allowed = ['mikrotik-ip-dhcp-server', 'mikrotik-ip-dhcp-server-lease'];
+        if (!in_array($format, $allowed)) {
+            abort(404);
+        }
+
+        $device = Device::with(['ifaces.ipAddresses.subnet'])->find($id);
+        if (!$device) {
+            abort(request()->ip() ? 404 : 404);
+        }
+
+        // Auth: device calling from its own IP, or logged-in user with ACL
+        $fromDevice = DB::table('ip_addresses')
+            ->join('ifaces', 'ifaces.id', '=', 'ip_addresses.iface_id')
+            ->where('ifaces.device_id', $id)
+            ->where('ip_addresses.ip_address', $request->ip())
+            ->exists();
+
+        \Log::info('DHCP export auth', [
+            'device_id'   => $id,
+            'format'      => $format,
+            'client_ip'   => $request->ip(),
+            'from_device' => $fromDevice,
+            'auth_id'     => auth()->id(),
+            'is_guest'    => auth()->guest(),
+            'acl_check'   => auth()->check()
+                ? $this->aclCheck('view_all', 'Devices_Controller', 'export')
+                : null,
+        ]);
+
+        if (!$fromDevice) {
+            // Authenticated user must have export ACL
+            if (auth()->guest()) {
+                abort(403);
+            }
+            abort_unless($this->aclCheck('view_all', 'Devices_Controller', 'export'), 403);
+        }
+
+        // Update access_time if called from device itself
+        if ($fromDevice) {
+            $device->update(['access_time' => now()]);
+        }
+
+        // Build DHCP server data
+        $dhcpServers = $this->buildDhcpServers($device);
+
+        $text = $format === 'mikrotik-ip-dhcp-server'
+            ? $this->renderMikrotikFull($dhcpServers)
+            : $this->renderMikrotikLeaseOnly($dhcpServers);
+
+        return response($text, 200)->header('Content-Type', 'text/plain; charset=utf-8');
+    }
+
+    private function buildDhcpServers(Device $device): array
+    {
+        $dnsRaw     = Setting::get('dns_servers', '');
+        $dnsServers = array_values(array_filter(array_map('trim', preg_split('/[,\s]+/', $dnsRaw))));
+
+        $servers = [];
+
+        foreach ($device->ifaces as $iface) {
+            foreach ($iface->ipAddresses as $ip) {
+                if (!$ip->gateway || !$ip->subnet) continue;
+                $subnet = $ip->subnet;
+                if (!$subnet->dhcp) continue;
+
+                $network   = ip2long($subnet->network_address);
+                $mask      = ip2long($subnet->netmask);
+                $broadcast = long2ip($network | (~$mask & 0xFFFFFFFF));
+                $cidrBits  = 32 - (int) log(~$mask & 0xFFFFFFFF, 2) - 1;
+                // fix: count bits properly
+                $cidrBits  = substr_count(sprintf('%032b', $mask & 0xFFFFFFFF), '1');
+                $rangeStart = long2ip(ip2long($ip->ip_address) + 1);
+                $rangeEnd   = long2ip(ip2long($broadcast) - 1);
+
+                $dnsList = $dnsServers;
+                if ($subnet->dns ?? false) {
+                    array_unshift($dnsList, $ip->ip_address);
+                }
+
+                $hosts = [];
+                foreach ($subnet->ipAddresses as $hostIp) {
+                    if ($hostIp->ip_address === $ip->ip_address || !$hostIp->iface_id) continue;
+                    $mac = $hostIp->iface?->mac ?? '';
+                    if (!$mac || !preg_match('/^([0-9a-fA-F]{2}:){5}[0-9a-fA-F]{2}$/', $mac)) continue;
+                    $deviceName  = $hostIp->iface?->device?->name ?? '';
+                    $memberId    = $hostIp->iface?->device?->user?->member_id ?? '';
+                    $memberName  = $hostIp->iface?->device?->user?->member?->name ?? '';
+                    $hosts[$mac] = [
+                        'ip_address' => $hostIp->ip_address,
+                        'mac'        => $mac,
+                        'server'     => $this->ascii($subnet->name),
+                        'comment'    => "ID {$memberId} - {$memberName} - {$deviceName}",
+                    ];
+                }
+                ksort($hosts);
+
+                $servers[] = [
+                    'name'        => $this->ascii($subnet->name),
+                    'cidr'        => $subnet->network_address . '/' . $cidrBits,
+                    'network'     => $subnet->network_address,
+                    'netmask'     => $subnet->netmask,
+                    'gateway'     => $ip->ip_address,
+                    'interface'   => $iface->name,
+                    'range_start' => $rangeStart,
+                    'range_end'   => $rangeEnd,
+                    'dns_servers' => $dnsList,
+                    'hosts'       => array_values($hosts),
+                ];
+            }
+        }
+        return $servers;
+    }
+
+    private function renderMikrotikFull(array $servers): string
+    {
+        $leaseSeconds = (int) Setting::get('dhcp_lease_time', '10800');
+        $leaseTime    = sprintf('%02d:%02d:%02d', intdiv($leaseSeconds, 3600), intdiv($leaseSeconds % 3600, 60), $leaseSeconds % 60);
+
+        $out = '';
+        $out .= "/ip pool\r\nremove [find]\r\n";
+        foreach ($servers as $s) {
+            $out .= "add name=\"{$s['name']}\" ranges={$s['range_start']}-{$s['range_end']}\r\n";
+        }
+        $out .= "/ip dhcp-server\r\nremove [find]\r\n";
+        foreach ($servers as $s) {
+            $out .= "add name=\"{$s['name']}\" address-pool=\"{$s['name']}\" authoritative=after-2sec-delay bootp-support=static disabled=no interface=\"{$s['interface']}\" lease-time={$leaseTime}\r\n";
+        }
+        $out .= "/ip dhcp-server network\r\nremove [find]\r\n";
+        foreach ($servers as $s) {
+            $dns = implode(',', $s['dns_servers']);
+            $out .= "add address={$s['cidr']} dhcp-option=\"\" dns-server={$dns} gateway={$s['gateway']} ntp-server=\"\" wins-server=\"\"\r\n";
+        }
+        $out .= "/ip dhcp-server lease\r\nremove [find]\r\n";
+        foreach ($servers as $s) {
+            foreach ($s['hosts'] as $h) {
+                $out .= "add address={$h['ip_address']} disabled=no mac-address={$h['mac']} server=\"{$h['server']}\" comment=\"{$h['comment']}\"\r\n";
+            }
+        }
+        return $out;
+    }
+
+    private function renderMikrotikLeaseOnly(array $servers): string
+    {
+        $out = "/ip dhcp-server lease\r\n";
+        foreach ($servers as $s) {
+            $out .= "remove [find server=\"{$s['name']}\"]\r\n";
+            foreach ($s['hosts'] as $h) {
+                $out .= "add address={$h['ip_address']} disabled=no mac-address={$h['mac']} server=\"{$h['server']}\" comment=\"{$h['comment']}\"\r\n";
+            }
+        }
+        return $out;
+    }
+
+    private function ascii(string $s): string
+    {
+        return iconv('UTF-8', 'ASCII//TRANSLIT//IGNORE', $s) ?: $s;
     }
 }
