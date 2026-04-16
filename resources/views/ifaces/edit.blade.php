@@ -68,6 +68,7 @@
                     <tr>
                         <th>IP adresa</th>
                         <th>Podsíť</th>
+                        <th></th>
                     </tr>
                 </thead>
                 <tbody>
@@ -91,6 +92,9 @@
                                     @endforeach
                                 </select>
                                 @error("ip_subnet_{$n}") <span class="error">{{ $message }}</span> @enderror
+                            </td>
+                            <td>
+                                <a href="{{ route('ip_addresses.edit', $ip->id) }}">Upravit</a>
                             </td>
                         </tr>
                     @endforeach

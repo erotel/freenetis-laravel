@@ -172,8 +172,8 @@ class IfaceController extends Controller
         }
 
         // Add new IP if filled
-        $newIp     = $request->input('new_ip_address');
-        $newSubnet = $request->input('new_ip_subnet');
+        $newIp      = $request->input('new_ip_address');
+        $newSubnet  = $request->input('new_ip_subnet');
         if ($newIp && $newSubnet) {
             if (IpAddress::where('ip_address', $newIp)->where('subnet_id', $newSubnet)->exists()) {
                 return back()->withInput()->withErrors(['new_ip_address' => "IP adresa {$newIp} je již použita."]);
