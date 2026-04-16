@@ -118,6 +118,15 @@
                         <div class="password-meter-bar"></div>
                         <div class="password-meter-message" style="font-size:0.85em; color:#888;"></div>
                     </div>
+                    @php $pwdLen = (int) \App\Models\Setting::get('security_password_length', 8); @endphp
+                    <small style="color:#888;">
+                        Minimálně {{ $pwdLen }} znaků.
+                        @php $pwdLevel = (int) \App\Models\Setting::get('security_password_level', 3); @endphp
+                        @if($pwdLevel >= 4) Musí obsahovat malá i velká písmena, číslici nebo speciální znak.
+                        @elseif($pwdLevel >= 3) Musí obsahovat malá i velká písmena nebo alespoň jednu číslici.
+                        @elseif($pwdLevel >= 2) Nesmí být příliš jednoduché.
+                        @endif
+                    </small>
                     @error('password') <span style="color:red">{{ $message }}</span> @enderror
                 </td>
             </tr>
