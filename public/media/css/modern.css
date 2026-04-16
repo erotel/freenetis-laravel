@@ -1,0 +1,119 @@
+/* ── FreenetIS modern UI ── */
+*,*::before,*::after{box-sizing:border-box}
+.m-page{padding:0 0 2rem}
+/* Breadcrumb */
+.m-breadcrumb{font-size:13px;color:#888;margin-bottom:8px}
+.m-breadcrumb a{color:#555;text-decoration:none}
+.m-breadcrumb a:hover{color:#222}
+/* Nadpis */
+.m-title-row{display:flex;align-items:center;gap:10px;margin-bottom:4px;flex-wrap:wrap}
+.m-title-row h2{margin:0;font-size:22px;font-weight:500}
+.m-subtitle{font-size:13px;color:#888;margin-bottom:1.25rem}
+/* Badges */
+.m-badge{display:inline-flex;align-items:center;font-size:12px;font-weight:500;padding:3px 9px;border-radius:20px}
+.m-badge-blue,.m-badge-customer   {background:#E6F1FB;color:#185FA5}
+.m-badge-green,.m-badge-member    {background:#EAF3DE;color:#3B6D11}
+.m-badge-gray,.m-badge-former     {background:#F1EFE8;color:#5F5E5A}
+.m-badge-amber,.m-badge-applicant {background:#FAEEDA;color:#854F0B}
+.m-badge-red                      {background:#FCEBEB;color:#A32D2D}
+/* Akční tlačítka */
+.m-actions{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:1.5rem}
+.m-btn{font-size:13px;padding:6px 12px;border-radius:6px;border:1px solid #ddd;background:transparent;color:#555;cursor:pointer;text-decoration:none;display:inline-block;line-height:1.4}
+.m-btn:hover{background:#f5f5f5;color:#222;text-decoration:none}
+.m-btn-primary{border-color:#b5d4f4;color:#185FA5}
+.m-btn-primary:hover{background:#E6F1FB;color:#185FA5}
+.m-btn-success{border-color:#c3e6c3;color:#27ae60}
+.m-btn-success:hover{background:#f0faf0;color:#27ae60}
+.m-btn-danger{border-color:#f5c6c6;color:#c0392b}
+.m-btn-danger:hover{background:#fdf0f0;color:#c0392b}
+/* Metric karty */
+.m-metrics{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:16px}
+.m-metric{background:#f7f7f5;border-radius:8px;padding:12px 14px}
+.m-metric-label{font-size:12px;color:#888;margin-bottom:4px}
+.m-metric-value{font-size:20px;font-weight:500;color:#222}
+.m-metric-value.green{color:#27ae60}
+.m-metric-value.red{color:#c0392b}
+.m-metric-value.sm{font-size:15px}
+/* Grid */
+.m-grid2{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px}
+.m-grid3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px;margin-bottom:16px}
+/* Karty */
+.m-card{background:#fff;border:1px solid #e8e8e8;border-radius:10px;padding:1rem 1.25rem;margin-bottom:16px}
+.m-card-title{font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.06em;color:#aaa;margin-bottom:12px}
+/* Field rows */
+.m-field{display:flex;justify-content:space-between;align-items:baseline;padding:6px 0;border-bottom:1px solid #f0f0f0;gap:12px}
+.m-field:last-child{border-bottom:none}
+.m-field-label{font-size:13px;color:#777;white-space:nowrap;flex-shrink:0}
+.m-field-value{font-size:13px;color:#222;text-align:right;word-break:break-word}
+.m-field-value a{color:#2980b9;text-decoration:none;font-size:12px}
+.m-field-value a:hover{text-decoration:underline}
+/* Section divider */
+.m-section{font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.06em;color:#aaa;padding:4px 0 8px;border-bottom:1px solid #eee;margin:16px 0 12px}
+/* Tabulky */
+.m-table{width:100%;border-collapse:collapse;font-size:13px;margin-bottom:16px}
+.m-table th{font-size:12px;font-weight:600;color:#888;text-align:left;padding:8px 10px;border-bottom:2px solid #eee;white-space:nowrap}
+.m-table td{padding:8px 10px;border-bottom:1px solid #f0f0f0;color:#222;vertical-align:middle}
+.m-table tr:last-child td{border-bottom:none}
+.m-table tr:hover td{background:#fafafa}
+.m-table a{color:#2980b9;text-decoration:none}
+.m-table a:hover{text-decoration:underline}
+/* Avatar */
+.m-avatar{width:36px;height:36px;border-radius:50%;background:#E6F1FB;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:600;color:#185FA5;flex-shrink:0}
+/* User row */
+.m-user-row{display:flex;align-items:center;gap:12px;padding:10px 0;border-bottom:1px solid #f0f0f0}
+.m-user-row:last-child{border-bottom:none}
+.m-user-info{flex:1;min-width:0}
+.m-user-name{font-size:14px;font-weight:500;color:#222}
+.m-user-login{font-size:12px;color:#aaa}
+.m-user-actions{display:flex;flex-wrap:wrap;gap:8px}
+/* Links */
+.m-link{font-size:13px;color:#2980b9;text-decoration:none}
+.m-link:hover{text-decoration:underline}
+.m-link-sm{font-size:12px;color:#2980b9;text-decoration:none}
+.m-link-sm:hover{text-decoration:underline}
+/* IP row */
+.m-ip-row{display:flex;align-items:center;justify-content:space-between;padding:7px 0;border-bottom:1px solid #f0f0f0;font-size:13px;flex-wrap:wrap;gap:6px}
+.m-ip-row:last-child{border-bottom:none}
+.m-ip-addr{font-family:monospace;color:#222}
+/* Tags */
+.m-tag{font-size:11px;padding:2px 7px;border-radius:10px;white-space:nowrap}
+.m-tag-green{background:#EAF3DE;color:#3B6D11}
+.m-tag-amber{background:#FAEEDA;color:#854F0B}
+.m-tag-red  {background:#FCEBEB;color:#A32D2D}
+.m-tag-gray {background:#F1EFE8;color:#5F5E5A}
+.m-tag-blue {background:#E6F1FB;color:#185FA5}
+/* Notifikace */
+.m-alert{border-radius:8px;padding:10px 14px;font-size:13px;margin-bottom:1rem}
+.m-alert-warning{background:#fff8e1;border:1px solid #ffe082;color:#7a5c00}
+.m-alert-success{background:#f0faf0;border:1px solid #c3e6c3;color:#1a6b2a}
+.m-alert-danger {background:#fdf0f0;border:1px solid #f5c6c6;color:#c0392b}
+.m-alert-info   {background:#e8f4fd;border:1px solid #b5d4f4;color:#185FA5}
+/* Formuláře */
+.m-form-group{margin-bottom:14px}
+.m-form-label{display:block;font-size:13px;color:#555;margin-bottom:5px;font-weight:500}
+.m-form-input{width:100%;padding:8px 10px;font-size:13px;border:1px solid #ddd;border-radius:6px;color:#222;background:#fff}
+.m-form-input:focus{outline:none;border-color:#85b7eb;box-shadow:0 0 0 3px rgba(56,138,221,.1)}
+.m-form-select{width:100%;padding:8px 10px;font-size:13px;border:1px solid #ddd;border-radius:6px;color:#222;background:#fff}
+.m-form-hint{font-size:12px;color:#aaa;margin-top:4px}
+.m-form-row{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+/* Stránkování */
+.m-pagination{display:flex;align-items:center;gap:6px;font-size:13px;margin:16px 0}
+.m-pagination a{padding:4px 8px;border:1px solid #ddd;border-radius:4px;color:#555;text-decoration:none}
+.m-pagination a:hover{background:#f5f5f5}
+.m-pagination .active{padding:4px 8px;border:1px solid #85b7eb;border-radius:4px;background:#E6F1FB;color:#185FA5;font-weight:500}
+/* Warning alias */
+.m-warning{background:#fff8e1;border:1px solid #ffe082;border-radius:8px;padding:10px 14px;font-size:13px;color:#7a5c00;margin-bottom:1.25rem}
+/* Responsive */
+@media(max-width:900px){
+  #menu{display:none!important}
+  #content{margin-left:0!important;width:100%!important}
+}
+@media(max-width:700px){
+  .m-grid2,.m-grid3,.m-form-row{grid-template-columns:1fr}
+  .m-metrics{grid-template-columns:1fr 1fr}
+  .m-table{font-size:12px}
+  .m-table th,.m-table td{padding:6px 6px}
+}
+@media(max-width:420px){
+  .m-metrics{grid-template-columns:1fr}
+}

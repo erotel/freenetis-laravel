@@ -1,93 +1,86 @@
 @extends('layouts.app')
-
 @section('title', 'Aktivní přesměrování')
-
-@section('menu')
-    <x-freenetis-menu />
-@endsection
-
+@section('menu') <x-freenetis-menu /> @endsection
 @section('breadcrumbs')
-    <div id="breadcrumbs">
-        Aktivní přesměrování
-    </div>
+<div id="breadcrumbs">Aktivní přesměrování</div>
 @endsection
-
 @section('content')
-<h2>Aktivní přesměrování</h2>
+<div class="m-page">
+<div class="m-title-row"><h2>Aktivní přesměrování</h2></div>
+<div class="m-subtitle">Celkem: {{ $redirections->total() }} záznamů</div>
 
-@if(session('success'))
-    <div class="message_ok"><p>{{ session('success') }}</p></div>
-@endif
-@if(session('warning'))
-    <div class="message_warning"><p>{{ session('warning') }}</p></div>
-@endif
+<div class="m-card" style="margin-bottom:16px;padding:14px 1.25rem">
+    <form method="GET" style="display:flex;flex-wrap:wrap;gap:10px;align-items:flex-end">
+        <div>
+            <div class="m-form-label">IP</div>
+            <input class="m-form-input" type="text" name="ip" value="{{ $filterIp }}" style="width:140px;font-family:monospace">
+        </div>
+        <div>
+            <div class="m-form-label">Člen</div>
+            <input class="m-form-input" type="text" name="member" value="{{ $filterMember }}" style="width:160px">
+        </div>
+        <div>
+            <div class="m-form-label">Typ</div>
+            <select class="m-form-select" style="width:150px" name="type" onchange="this.form.submit()">
+                <option value="">— vše —</option>
+                @foreach($typeLabels as $val => $label)
+                    <option value="{{ $val }}" @selected($filterType == $val)>{{ $label }}</option>
+                @endforeach
+            </select>
+        </div>
+        <div style="display:flex;gap:6px;padding-bottom:1px">
+            <button class="m-btn m-btn-primary" type="submit">Filtrovat</button>
+            @if($filterIp || $filterMember || $filterType)
+            <a class="m-btn" href="{{ route('redirects.index') }}">Zrušit filtr</a>
+            @endif
+        </div>
+    </form>
+</div>
 
-{{-- Filtr --}}
-<form method="GET" style="margin-bottom:1em;">
-    <label>IP: <input type="text" name="ip" value="{{ $filterIp }}" style="width:130px;"></label>
-    &nbsp;
-    <label>Člen: <input type="text" name="member" value="{{ $filterMember }}" style="width:150px;"></label>
-    &nbsp;
-    <label>Typ:
-        <select name="type">
-            <option value="">— vše —</option>
-            @foreach($typeLabels as $val => $label)
-                <option value="{{ $val }}" @selected($filterType == $val)>{{ $label }}</option>
-            @endforeach
-        </select>
-    </label>
-    &nbsp;
-    <button type="submit">Filtrovat</button>
-    @if($filterIp || $filterMember || $filterType)
-        <a href="{{ route('redirects.index') }}" style="margin-left:6px;">Zrušit filtr</a>
-    @endif
-</form>
+<div style="margin-bottom:8px">{{ $redirections->links() }}</div>
 
-<table class="extended" cellspacing="0">
+<div class="m-card" style="padding:0;overflow-x:auto">
+<table class="m-table" style="margin-bottom:0">
     <thead>
         <tr>
-            <th>IP adresa</th>
+            <th style="width:140px">IP adresa</th>
             <th>Člen</th>
             <th>Zpráva</th>
-            <th>Typ</th>
-            <th>Datum</th>
+            <th style="width:110px">Typ</th>
+            <th style="width:130px">Datum</th>
             <th>Komentář</th>
-            @if($canDelete) <th>Akce</th> @endif
+            @if($canDelete)<th style="width:70px">Akce</th>@endif
         </tr>
     </thead>
     <tbody>
         @forelse($redirections as $r)
-            <tr>
-                <td>{{ $r->ip_address }}</td>
-                <td>
-                    @if($r->member_id)
-                        <a href="{{ route('members.show', $r->member_id) }}">{{ $r->member_name }}</a>
-                    @else
-                        —
-                    @endif
-                </td>
-                <td>{{ $r->msg_name }}</td>
-                <td><small>{{ $typeLabels[$r->msg_type] ?? $r->msg_type }}</small></td>
-                <td>{{ \Carbon\Carbon::parse($r->datetime)->format('d.m.Y H:i') }}</td>
-                <td>{{ $r->comment ?? '—' }}</td>
-                @if($canDelete)
-                    <td>
-                        <form method="POST"
-                              action="{{ route('redirects.delete', [$r->ip_address_id, $r->message_id]) }}"
-                              style="display:inline">
-                            @csrf @method('DELETE')
-                            <button type="submit"
-                                    style="background:none;border:none;cursor:pointer;padding:0;color:#c00;text-decoration:underline;"
-                                    onclick="return confirm('Zrušit přesměrování {{ $r->ip_address }}?')">Zrušit</button>
-                        </form>
-                    </td>
-                @endif
-            </tr>
+        <tr>
+            <td style="font-family:monospace;font-size:12px">{{ $r->ip_address }}</td>
+            <td>
+                @if($r->member_id) <a class="m-link" href="{{ route('members.show', $r->member_id) }}">{{ $r->member_name }}</a>
+                @else — @endif
+            </td>
+            <td>{{ $r->msg_name }}</td>
+            <td><span class="m-tag m-tag-amber" style="font-size:11px">{{ $typeLabels[$r->msg_type] ?? $r->msg_type }}</span></td>
+            <td style="font-size:12px">{{ \Carbon\Carbon::parse($r->datetime)->format('d.m.Y H:i') }}</td>
+            <td style="font-size:12px">{{ $r->comment ?? '—' }}</td>
+            @if($canDelete)
+            <td>
+                <form method="POST" action="{{ route('redirects.delete', [$r->ip_address_id, $r->message_id]) }}" style="display:inline">
+                    @csrf @method('DELETE')
+                    <button type="submit" style="background:none;border:none;cursor:pointer;padding:0;font-size:12px;color:#c0392b"
+                            onclick="return confirm('Zrušit přesměrování {{ $r->ip_address }}?')">Zrušit</button>
+                </form>
+            </td>
+            @endif
+        </tr>
         @empty
-            <tr><td colspan="{{ $canDelete ? 7 : 6 }}" style="text-align:center">Žádná aktivní přesměrování.</td></tr>
+        <tr><td colspan="{{ $canDelete ? 7 : 6 }}" style="text-align:center;color:#aaa;padding:2rem">Žádná aktivní přesměrování.</td></tr>
         @endforelse
     </tbody>
 </table>
+</div>
 
-<div style="margin-top:10px">{{ $redirections->links() }}</div>
+<div style="margin-top:12px">{{ $redirections->links() }}</div>
+</div>
 @endsection

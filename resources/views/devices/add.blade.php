@@ -1,279 +1,225 @@
 @extends('layouts.app')
-
 @section('title', 'Přidat zařízení')
-
-@section('menu')
-    <x-freenetis-menu />
-@endsection
-
+@section('menu') <x-freenetis-menu /> @endsection
 @section('breadcrumbs')
-    <div id="breadcrumbs">
-        <a href="{{ route('devices.index') }}">Zařízení</a> &raquo;
-        Přidat zařízení
-    </div>
+<div id="breadcrumbs">
+    <a href="{{ route('devices.index') }}">Zařízení</a> &raquo; Přidat zařízení
+</div>
 @endsection
-
 @section('content')
-    <h2>Přidat zařízení</h2>
+<div class="m-page">
+<div class="m-title-row"><h2>Přidat zařízení</h2></div>
 
-    <form method="POST" action="{{ route('devices.store_template') }}" class="form" id="device-add-form">
-        @csrf
-        @if(!empty($connectionRequestId))
-            <input type="hidden" name="connection_request_id" value="{{ $connectionRequestId }}">
-        @endif
+@if($errors->any())
+<div class="m-alert m-alert-danger">
+    <ul style="margin:0;padding-left:1.2em">@foreach($errors->all() as $e)<li>{{ $e }}</li>@endforeach</ul>
+</div>
+@endif
 
-        {{-- Section 1: Zařízení --}}
-        <h3>Zařízení</h3>
-        <table class="extended" cellspacing="0">
-            <tbody>
-                <tr>
-                    <th><label for="user_id">Uživatel <span class="required">*</span></label></th>
-                    <td>
-                        <select id="user_id" name="user_id">
-                            <option value="">— vyberte uživatele —</option>
-                            @foreach($users as $u)
-                                <option value="{{ $u->id }}"
-                                    @selected(old('user_id', $user?->id) == $u->id)>
-                                    {{ $u->surname }} {{ $u->name }} – {{ $u->login }}
-                                </option>
-                            @endforeach
-                        </select>
-                        @error('user_id') <span class="error">{{ $message }}</span> @enderror
-                    </td>
-                </tr>
-                <tr>
-                    <th><label for="name">Název <span class="required">*</span></label></th>
-                    <td>
-                        <input type="text" id="name" name="name"
-                               value="{{ old('name', $user ? $user->surname : '') }}" maxlength="255">
-                        @error('name') <span class="error">{{ $message }}</span> @enderror
-                    </td>
-                </tr>
-                <tr>
-                    <th><label for="type">Typ zařízení <span class="required">*</span></label></th>
-                    <td>
-                        <select id="type" name="type">
-                            <option value="">— vyberte typ —</option>
-                            @foreach($deviceTypes as $dt)
-                                <option value="{{ $dt->id }}"
-                                    @selected(old('type', $selectedTypeId) == $dt->id)>
-                                    {{ $dt->value }}
-                                </option>
-                            @endforeach
-                        </select>
-                        @error('type') <span class="error">{{ $message }}</span> @enderror
-                    </td>
-                </tr>
-                <tr>
-                    <th><label for="device_template_id">Šablona</label></th>
-                    <td>
-                        <select id="device_template_id" name="device_template_id"
-                                onchange="reloadWithTemplate(this.value)">
-                            <option value="">— bez šablony —</option>
-                            {{-- populated by JS on load --}}
-                        </select>
-                        @error('device_template_id') <span class="error">{{ $message }}</span> @enderror
-                    </td>
-                </tr>
-            </tbody>
-        </table>
+<form method="POST" action="{{ route('devices.store_template') }}" id="device-add-form">
+@csrf
+@if(!empty($connectionRequestId))
+    <input type="hidden" name="connection_request_id" value="{{ $connectionRequestId }}">
+@endif
 
-        {{-- Section 2: Rozhraní (server-rendered from template) --}}
-        @if($selectedTemplate && count($ifaceDefinitions) > 0)
-            <h3>Rozhraní</h3>
-            @foreach($ifaceDefinitions as $n => $iface)
-                @if(($iface['count'] ?? 1) > 0)
-                    @php $item = $iface['items'][0] ?? []; @endphp
-                    <fieldset style="margin-bottom:1em; border:1px solid #ccc; padding:0.8em;">
-                        <legend>Rozhraní {{ $n + 1 }}: {{ $iface['type_label'] }}
-                            ({{ $item['name'] ?? '' }})</legend>
-                        <table class="extended" cellspacing="0">
-                            <tbody>
-                                <tr>
-                                    <th><label>Název <span class="required">*</span></label></th>
-                                    <td>
-                                        <input type="text" name="iface_name_{{ $n }}"
-                                               value="{{ old("iface_name_{$n}", $item['name'] ?? '') }}"
-                                               maxlength="254">
-                                        @error("iface_name_{$n}") <span class="error">{{ $message }}</span> @enderror
-                                    </td>
-                                </tr>
-                                @if($iface['has_mac'])
-                                    <tr>
-                                        <th><label>MAC adresa</label></th>
-                                        <td>
-                                            <input type="text" name="iface_mac_{{ $n }}"
-                                                   value="{{ old("iface_mac_{$n}", $n === 0 ? ($preselectedMac ?? '') : '') }}"
-                                                   placeholder="aa:bb:cc:dd:ee:ff" maxlength="20">
-                                            @error("iface_mac_{$n}") <span class="error">{{ $message }}</span> @enderror
-                                        </td>
-                                    </tr>
-                                @endif
-                                @if($iface['has_ip'])
-                                    <tr>
-                                        <th><label>IP adresa</label></th>
-                                        <td>
-                                            <input type="text" name="iface_ip_{{ $n }}"
-                                                   value="{{ old("iface_ip_{$n}", $n === 0 ? ($preselectedIp ?? '') : '') }}"
-                                                   placeholder="10.133.23.x">
-                                            @error("iface_ip_{$n}") <span class="error">{{ $message }}</span> @enderror
-                                        </td>
-                                    </tr>
-                                    <tr>
-                                        <th><label>Podsíť</label></th>
-                                        <td>
-                                            <select name="iface_subnet_{{ $n }}">
-                                                <option value="">— vyberte podsíť —</option>
-                                                @foreach($subnets as $subnet)
-                                                    <option value="{{ $subnet->id }}"
-                                                        @selected(old("iface_subnet_{$n}", $n === 0 ? ($preselectedSubnetId ?? '') : '') == $subnet->id)>
-                                                        {{ $subnet->label }}
-                                                    </option>
-                                                @endforeach
-                                            </select>
-                                            @error("iface_subnet_{$n}") <span class="error">{{ $message }}</span> @enderror
-                                        </td>
-                                    </tr>
-                                @endif
-                            </tbody>
-                        </table>
-                    </fieldset>
-                @endif
+<div class="m-card" style="margin-bottom:16px;max-width:560px">
+    <div class="m-card-title">Zařízení</div>
+    <div class="m-form-group">
+        <label class="m-form-label" for="user_id">Uživatel <span style="color:#c0392b">*</span></label>
+        <select class="m-form-select" id="user_id" name="user_id">
+            <option value="">— vyberte uživatele —</option>
+            @foreach($users as $u)
+                <option value="{{ $u->id }}" @selected(old('user_id', $user?->id) == $u->id)>
+                    {{ $u->surname }} {{ $u->name }} – {{ $u->login }}
+                </option>
             @endforeach
-        @elseif(!$selectedTemplate)
-            <p style="color:#888; font-style:italic;">
-                Vyberte šablonu pro zobrazení polí rozhraní.
-            </p>
-        @endif
-
-        {{-- Section 3: Detail zařízení --}}
-        <h3>
-            <a href="#" onclick="this.parentElement.nextElementSibling.style.display=
-                this.parentElement.nextElementSibling.style.display==='none'?'block':'none'; return false;">
-                Detail zařízení ▾
-            </a>
-        </h3>
-        <div id="device-detail" style="display:none;">
-            <table class="extended" cellspacing="0">
-                <tbody>
-                    <tr>
-                        <th><label for="buy_date">Datum koupě</label></th>
-                        <td>
-                            <input type="date" id="buy_date" name="buy_date" value="{{ old('buy_date') }}">
-                            @error('buy_date') <span class="error">{{ $message }}</span> @enderror
-                        </td>
-                    </tr>
-                    <tr>
-                        <th><label for="comment">Komentář</label></th>
-                        <td>
-                            <textarea id="comment" name="comment" maxlength="254">{{ old('comment') }}</textarea>
-                            @error('comment') <span class="error">{{ $message }}</span> @enderror
-                        </td>
-                    </tr>
-                </tbody>
-            </table>
+        </select>
+        @error('user_id') <div class="m-form-hint" style="color:#c0392b">{{ $message }}</div> @enderror
+    </div>
+    <div class="m-form-row">
+        <div class="m-form-group">
+            <label class="m-form-label" for="name">Název <span style="color:#c0392b">*</span></label>
+            <input class="m-form-input" type="text" id="name" name="name"
+                   value="{{ old('name', $user ? $user->surname : '') }}" maxlength="255">
+            @error('name') <div class="m-form-hint" style="color:#c0392b">{{ $message }}</div> @enderror
         </div>
+        <div class="m-form-group">
+            <label class="m-form-label" for="type">Typ zařízení <span style="color:#c0392b">*</span></label>
+            <select class="m-form-select" id="type" name="type">
+                <option value="">— vyberte typ —</option>
+                @foreach($deviceTypes as $dt)
+                    <option value="{{ $dt->id }}" @selected(old('type', $selectedTypeId) == $dt->id)>
+                        {{ $dt->value }}
+                    </option>
+                @endforeach
+            </select>
+            @error('type') <div class="m-form-hint" style="color:#c0392b">{{ $message }}</div> @enderror
+        </div>
+    </div>
+    <div class="m-form-group">
+        <label class="m-form-label" for="device_template_id">Šablona</label>
+        <select class="m-form-select" id="device_template_id" name="device_template_id"
+                onchange="reloadWithTemplate(this.value)" style="max-width:280px">
+            <option value="">— bez šablony —</option>
+        </select>
+        @error('device_template_id') <div class="m-form-hint" style="color:#c0392b">{{ $message }}</div> @enderror
+    </div>
+</div>
 
-        <p><input type="submit" value="Přidat zařízení" form="device-add-form"></p>
-    </form>
+@if($selectedTemplate && count($ifaceDefinitions) > 0)
+@foreach($ifaceDefinitions as $n => $iface)
+@if(($iface['count'] ?? 1) > 0)
+@php $item = $iface['items'][0] ?? []; @endphp
+<div class="m-card" style="margin-bottom:16px;max-width:560px">
+    <div class="m-card-title">Rozhraní {{ $n + 1 }}: {{ $iface['type_label'] }} ({{ $item['name'] ?? '' }})</div>
+    <div class="m-form-group">
+        <label class="m-form-label">Název <span style="color:#c0392b">*</span></label>
+        <input class="m-form-input" type="text" name="iface_name_{{ $n }}"
+               value="{{ old("iface_name_{$n}", $item['name'] ?? '') }}" maxlength="254">
+        @error("iface_name_{$n}") <div class="m-form-hint" style="color:#c0392b">{{ $message }}</div> @enderror
+    </div>
+    @if($iface['has_mac'])
+    <div class="m-form-group">
+        <label class="m-form-label">MAC adresa</label>
+        <input class="m-form-input" type="text" name="iface_mac_{{ $n }}"
+               value="{{ old("iface_mac_{$n}", $n === 0 ? ($preselectedMac ?? '') : '') }}"
+               placeholder="aa:bb:cc:dd:ee:ff" maxlength="20" style="font-family:monospace;max-width:200px">
+        @error("iface_mac_{$n}") <div class="m-form-hint" style="color:#c0392b">{{ $message }}</div> @enderror
+    </div>
+    @endif
+    @if($iface['has_ip'])
+    <div class="m-form-row">
+        <div class="m-form-group">
+            <label class="m-form-label">IP adresa</label>
+            <input class="m-form-input" type="text" name="iface_ip_{{ $n }}"
+                   value="{{ old("iface_ip_{$n}", $n === 0 ? ($preselectedIp ?? '') : '') }}"
+                   placeholder="10.133.23.x" style="font-family:monospace">
+            @error("iface_ip_{$n}") <div class="m-form-hint" style="color:#c0392b">{{ $message }}</div> @enderror
+        </div>
+        <div class="m-form-group">
+            <label class="m-form-label">Podsíť</label>
+            <select class="m-form-select" name="iface_subnet_{{ $n }}">
+                <option value="">— vyberte podsíť —</option>
+                @foreach($subnets as $subnet)
+                    <option value="{{ $subnet->id }}"
+                        @selected(old("iface_subnet_{$n}", $n === 0 ? ($preselectedSubnetId ?? '') : '') == $subnet->id)>
+                        {{ $subnet->label }}
+                    </option>
+                @endforeach
+            </select>
+            @error("iface_subnet_{$n}") <div class="m-form-hint" style="color:#c0392b">{{ $message }}</div> @enderror
+        </div>
+    </div>
+    @endif
+</div>
+@endif
+@endforeach
+@elseif(!$selectedTemplate)
+<div class="m-alert m-alert-info" style="max-width:560px">Vyberte šablonu pro zobrazení polí rozhraní.</div>
+@endif
 
-    <script>
-    const allTemplates = @json($templates);
-    const selectedTemplateId = {{ $selectedTemplate ? $selectedTemplate->id : 'null' }};
+<div class="m-card" style="margin-bottom:16px;max-width:560px">
+    <div class="m-card-title">
+        <a href="#" onclick="this.closest('.m-card').querySelector('.detail-fields').style.display=this.closest('.m-card').querySelector('.detail-fields').style.display==='none'?'block':'none'; return false;" style="color:#aaa;text-decoration:none">
+            Detail zařízení ▾
+        </a>
+    </div>
+    <div class="detail-fields" style="display:none">
+        <div class="m-form-group">
+            <label class="m-form-label" for="buy_date">Datum koupě</label>
+            <input class="m-form-input" type="date" id="buy_date" name="buy_date" value="{{ old('buy_date') }}" style="max-width:180px">
+            @error('buy_date') <div class="m-form-hint" style="color:#c0392b">{{ $message }}</div> @enderror
+        </div>
+        <div class="m-form-group">
+            <label class="m-form-label" for="comment">Komentář</label>
+            <textarea class="m-form-input" id="comment" name="comment" rows="3" maxlength="254">{{ old('comment') }}</textarea>
+            @error('comment') <div class="m-form-hint" style="color:#c0392b">{{ $message }}</div> @enderror
+        </div>
+    </div>
+</div>
 
-    function renderTemplateOptions(typeId) {
-        const select = document.getElementById('device_template_id');
-        const current = selectedTemplateId;
-        select.innerHTML = '<option value="">— bez šablony —</option>';
-        allTemplates
-            .filter(t => !typeId || t.enum_type_id == typeId)
-            .forEach(t => {
-                const opt = document.createElement('option');
-                opt.value = t.id;
-                opt.text = t.name;
-                if (t.id == current) opt.selected = true;
-                select.appendChild(opt);
-            });
-    }
+<div class="m-actions">
+    <button class="m-btn m-btn-primary" type="submit" form="device-add-form">Přidat zařízení</button>
+    <a class="m-btn" href="{{ route('devices.index') }}">Zrušit</a>
+</div>
+</form>
 
-    // Initial render based on current type selection
-    const typeSelect = document.getElementById('type');
-    renderTemplateOptions(parseInt(typeSelect.value) || 0);
+<script>
+const allTemplates = @json($templates);
+const selectedTemplateId = {{ $selectedTemplate ? $selectedTemplate->id : 'null' }};
 
-    typeSelect.addEventListener('change', function () {
-        renderTemplateOptions(parseInt(this.value) || 0);
-    });
-
-    function reloadWithTemplate(templateId) {
-        var url = new URL(window.location.href);
-        url.searchParams.set('template_id', templateId);
-        var userId = document.getElementById('user_id').value;
-        if (userId) url.searchParams.set('user_id', userId);
-        var typeId = document.getElementById('type').value;
-        if (typeId) url.searchParams.set('type_id', typeId);
-        window.location.href = url.toString();
-    }
-
-    // Subnet data embedded from server
-    const subnetData = @json($subnetData ?? []);
-
-    function ipToLong(ip) {
-        return ip.split('.').reduce((acc, oct) => (acc << 8) + parseInt(oct), 0) >>> 0;
-    }
-
-    function findSubnetForIp(ip) {
-        const ipLong = ipToLong(ip);
-        return subnetData.find(s => {
-            const network = ipToLong(s.network);
-            const mask = ipToLong(s.mask);
-            return (ipLong & mask) === (network & mask);
+function renderTemplateOptions(typeId) {
+    const select = document.getElementById('device_template_id');
+    const current = selectedTemplateId;
+    select.innerHTML = '<option value="">— bez šablony —</option>';
+    allTemplates
+        .filter(t => !typeId || t.enum_type_id == typeId)
+        .forEach(t => {
+            const opt = document.createElement('option');
+            opt.value = t.id;
+            opt.text = t.name;
+            if (t.id == current) opt.selected = true;
+            select.appendChild(opt);
         });
-    }
+}
 
-    function setupIpAutocomplete(ipInput, subnetSelect) {
-        if (!ipInput) return;
+const typeSelect = document.getElementById('type');
+renderTemplateOptions(parseInt(typeSelect.value) || 0);
+typeSelect.addEventListener('change', function() { renderTemplateOptions(parseInt(this.value) || 0); });
 
-        const allFreeIps = [];
-        subnetData.forEach(s => s.freeIps.forEach(ip => allFreeIps.push(ip)));
+function reloadWithTemplate(templateId) {
+    var url = new URL(window.location.href);
+    url.searchParams.set('template_id', templateId);
+    var userId = document.getElementById('user_id').value;
+    if (userId) url.searchParams.set('user_id', userId);
+    var typeId = document.getElementById('type').value;
+    if (typeId) url.searchParams.set('type_id', typeId);
+    window.location.href = url.toString();
+}
 
-        const listId = 'datalist_' + ipInput.name.replace(/[^a-z0-9]/gi, '_');
-        let datalist = document.getElementById(listId);
-        if (!datalist) {
-            datalist = document.createElement('datalist');
-            datalist.id = listId;
-            document.body.appendChild(datalist);
-        }
-        ipInput.setAttribute('list', listId);
-        ipInput.setAttribute('autocomplete', 'off');
+const subnetData = @json($subnetData ?? []);
 
-        ipInput.addEventListener('input', function () {
-            const val = this.value;
-            datalist.innerHTML = '';
-            if (val.length < 3) return;
-            allFreeIps.filter(ip => ip.startsWith(val)).slice(0, 10).forEach(ip => {
-                const opt = document.createElement('option');
-                opt.value = ip;
-                datalist.appendChild(opt);
-            });
-        });
-
-        function autofillSubnet() {
-            const ip = ipInput.value;
-            if (!/^\d+\.\d+\.\d+\.\d+$/.test(ip)) return;
-            const subnet = findSubnetForIp(ip);
-            if (subnet && subnetSelect) {
-                subnetSelect.value = subnet.id;
-            }
-        }
-
-        ipInput.addEventListener('change', autofillSubnet);
-        ipInput.addEventListener('blur', autofillSubnet);
-    }
-
-    document.querySelectorAll('input[name^="iface_ip_"]').forEach(ipInput => {
-        const n = ipInput.name.replace('iface_ip_', '');
-        const subnetSelect = document.querySelector('select[name="iface_subnet_' + n + '"]');
-        setupIpAutocomplete(ipInput, subnetSelect);
+function ipToLong(ip) {
+    return ip.split('.').reduce((acc, oct) => (acc << 8) + parseInt(oct), 0) >>> 0;
+}
+function findSubnetForIp(ip) {
+    const ipLong = ipToLong(ip);
+    return subnetData.find(s => {
+        const network = ipToLong(s.network), mask = ipToLong(s.mask);
+        return (ipLong & mask) === (network & mask);
     });
-    </script>
+}
+function setupIpAutocomplete(ipInput, subnetSelect) {
+    if (!ipInput) return;
+    const allFreeIps = [];
+    subnetData.forEach(s => s.freeIps.forEach(ip => allFreeIps.push(ip)));
+    const listId = 'datalist_' + ipInput.name.replace(/[^a-z0-9]/gi, '_');
+    let datalist = document.getElementById(listId);
+    if (!datalist) { datalist = document.createElement('datalist'); datalist.id = listId; document.body.appendChild(datalist); }
+    ipInput.setAttribute('list', listId);
+    ipInput.setAttribute('autocomplete', 'off');
+    ipInput.addEventListener('input', function() {
+        const val = this.value;
+        datalist.innerHTML = '';
+        if (val.length < 3) return;
+        allFreeIps.filter(ip => ip.startsWith(val)).slice(0, 10).forEach(ip => {
+            const opt = document.createElement('option'); opt.value = ip; datalist.appendChild(opt);
+        });
+    });
+    function autofillSubnet() {
+        const ip = ipInput.value;
+        if (!/^\d+\.\d+\.\d+\.\d+$/.test(ip)) return;
+        const subnet = findSubnetForIp(ip);
+        if (subnet && subnetSelect) subnetSelect.value = subnet.id;
+    }
+    ipInput.addEventListener('change', autofillSubnet);
+    ipInput.addEventListener('blur', autofillSubnet);
+}
+document.querySelectorAll('input[name^="iface_ip_"]').forEach(ipInput => {
+    const n = ipInput.name.replace('iface_ip_', '');
+    const subnetSelect = document.querySelector('select[name="iface_subnet_' + n + '"]');
+    setupIpAutocomplete(ipInput, subnetSelect);
+});
+</script>
+</div>
 @endsection

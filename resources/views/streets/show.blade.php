@@ -1,52 +1,31 @@
 @extends('layouts.app')
-
 @section('title', 'Detail ulice')
-
-@section('menu')
-    <x-freenetis-menu />
-@endsection
-
+@section('menu') <x-freenetis-menu /> @endsection
 @section('breadcrumbs')
-    <div id="breadcrumbs">
-        <a href="{{ route('streets.index') }}">Ulice</a> &raquo;
-        {{ $street->street }}
-    </div>
+<div id="breadcrumbs">
+    <a href="{{ route('streets.index') }}">Ulice</a> &raquo; {{ $street->street }}
+</div>
 @endsection
-
 @section('content')
-    <h2>Detail ulice</h2>
+<div class="m-page">
+<div class="m-title-row"><h2>{{ $street->street }}</h2></div>
 
-    <table class="extended" cellspacing="0">
-        <tbody>
-            <tr>
-                <th>ID</th>
-                <td>{{ $street->id }}</td>
-            </tr>
-            <tr>
-                <th>Ulice</th>
-                <td>{{ $street->street }}</td>
-            </tr>
-            <tr>
-                <th>Město</th>
-                <td>
-                    @if($street->town)
-                        <a href="{{ route('towns.show', $street->town_id) }}">{{ $street->town }}</a>
-                    @endif
-                </td>
-            </tr>
-            <tr>
-                <th>Počet adresních bodů</th>
-                <td>{{ $street->addressPoints()->count() }}</td>
-            </tr>
-        </tbody>
-    </table>
+<div class="m-actions">
+    @if($canEdit) <a class="m-btn" href="{{ route('streets.edit', $street->id) }}">Upravit</a> @endif
+</div>
 
-    @if($canEdit)
-        <p>
-            <a href="{{ route('streets.edit', $street->id) }}">
-                <img src="{{ asset('media/images/icons/gtk_edit.png') }}" alt="Upravit">
-                Upravit
-            </a>
-        </p>
-    @endif
+<div class="m-card" style="max-width:360px">
+    <div class="m-card-title">Informace o ulici</div>
+    <div class="m-field"><span class="m-field-label">ID</span><span class="m-field-value">{{ $street->id }}</span></div>
+    <div class="m-field"><span class="m-field-label">Ulice</span><span class="m-field-value">{{ $street->street }}</span></div>
+    <div class="m-field">
+        <span class="m-field-label">Město</span>
+        <span class="m-field-value">
+            @if($street->town) <a href="{{ route('towns.show', $street->town_id) }}">{{ $street->town }}</a>
+            @else — @endif
+        </span>
+    </div>
+    <div class="m-field"><span class="m-field-label">Počet adresních bodů</span><span class="m-field-value">{{ $street->addressPoints()->count() }}</span></div>
+</div>
+</div>
 @endsection

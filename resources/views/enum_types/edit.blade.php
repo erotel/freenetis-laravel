@@ -2,36 +2,42 @@
 @section('title', 'Upravit typ')
 @section('menu') <x-freenetis-menu /> @endsection
 @section('breadcrumbs')
-    <div id="breadcrumbs"><a href="{{ route('enum-types.index') }}">Typy</a> &raquo; Upravit typ</div>
+<div id="breadcrumbs"><a href="{{ route('enum-types.index') }}">Typy</a> &raquo; Upravit typ</div>
 @endsection
 @section('content')
-    <h2>Upravit typ: {{ $enumType->value }}</h2>
-    <form method="POST" action="{{ route('enum-types.update', $enumType->id) }}">
-        @csrf @method('PUT')
-        <table class="extended" cellspacing="0">
-            <tr>
-                <th>Skupina</th>
-                <td>
-                    <select name="type_id">
-                        @foreach($typeNames as $tn)
-                            <option value="{{ $tn->id }}" {{ old('type_id', $enumType->type_id) == $tn->id ? 'selected' : '' }}>
-                                {{ $tn->type_name }}
-                            </option>
-                        @endforeach
-                    </select>
-                </td>
-            </tr>
-            <tr>
-                <th>Název</th>
-                <td>
-                    <input type="text" name="value" value="{{ old('value', $enumType->value) }}" style="width:250px">
-                    @error('value') <span style="color:red">{{ $message }}</span> @enderror
-                </td>
-            </tr>
-        </table>
-        <div style="margin-top:1em;">
-            <button type="submit">Uložit</button>
-            <a href="{{ route('enum-types.index') }}" style="margin-left:1em;">Zrušit</a>
-        </div>
-    </form>
+<div class="m-page">
+<div class="m-title-row"><h2>Upravit typ: {{ $enumType->value }}</h2></div>
+
+@if($errors->any())
+<div class="m-alert m-alert-danger">
+    <ul style="margin:0;padding-left:1.2em">@foreach($errors->all() as $e)<li>{{ $e }}</li>@endforeach</ul>
+</div>
+@endif
+
+<form method="POST" action="{{ route('enum-types.update', $enumType->id) }}">
+@csrf
+@method('PUT')
+<div class="m-card" style="margin-bottom:16px;max-width:420px">
+    <div class="m-form-group">
+        <label class="m-form-label">Skupina</label>
+        <select class="m-form-select" name="type_id">
+            @foreach($typeNames as $tn)
+                <option value="{{ $tn->id }}" {{ old('type_id', $enumType->type_id) == $tn->id ? 'selected' : '' }}>
+                    {{ $tn->type_name }}
+                </option>
+            @endforeach
+        </select>
+    </div>
+    <div class="m-form-group">
+        <label class="m-form-label">Název</label>
+        <input class="m-form-input" type="text" name="value" value="{{ old('value', $enumType->value) }}">
+        @error('value') <div class="m-form-hint" style="color:#c0392b">{{ $message }}</div> @enderror
+    </div>
+</div>
+<div class="m-actions">
+    <button class="m-btn m-btn-primary" type="submit">Uložit</button>
+    <a class="m-btn" href="{{ route('enum-types.index') }}">Zrušit</a>
+</div>
+</form>
+</div>
 @endsection

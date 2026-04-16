@@ -13,25 +13,19 @@
     <link rel="stylesheet" type="text/css" href="{{ asset('media/css/tables.css') }}">
     <link rel="stylesheet" type="text/css" href="{{ asset('media/css/forms.css') }}">
     <link rel="stylesheet" type="text/css" href="{{ asset('media/css/jquery-ui.css') }}">
-    <link rel="stylesheet" type="text/css" href="{{ asset('media/css/jquery.jstree.css') }}">
     <link rel="stylesheet" type="text/css" href="{{ asset('media/css/jquery.validate.password.css') }}">
-    <link rel="stylesheet" type="text/css" media="handheld" href="{{ asset('media/css/m.style.css') }}">
+    <link rel="stylesheet" type="text/css" href="{{ asset('media/css/modern.css') }}">
     <link rel="stylesheet" type="text/css" media="print" href="{{ asset('media/css/print.css') }}">
+    <meta name="csrf-token" content="{{ csrf_token() }}">
 
     <script type="text/javascript" src="{{ asset('media/js/jquery.min.js') }}"></script>
     <script type="text/javascript" src="{{ asset('media/js/jquery-ui.min.js') }}"></script>
     <script type="text/javascript" src="{{ asset('media/js/jquery.ui.datepicker-cs.js') }}"></script>
     <script type="text/javascript" src="{{ asset('media/js/jquery.validate.min.js') }}"></script>
-    <script type="text/javascript" src="{{ asset('media/js/jquery.cookie.min.js') }}"></script>
     <script type="text/javascript" src="{{ asset('media/js/jquery.validate.password.js') }}"></script>
-    <script type="text/javascript" src="{{ asset('media/js/jquery.metadata.js') }}"></script>
-    <script type="text/javascript" src="{{ asset('media/js/jquery.tablesorter.js') }}"></script>
-    <script type="text/javascript" src="{{ asset('media/js/jquery.form.min.js') }}"></script>
-    <script type="text/javascript" src="{{ asset('media/js/jquery.timer.js') }}"></script>
-    <script type="text/javascript" src="{{ asset('media/js/jquery.autoresize.js') }}"></script>
-    <script type="text/javascript" src="{{ asset('media/js/jquery.jstree.js') }}"></script>
     <script type="text/javascript" src="{{ asset('media/js/messages_cs.js') }}"></script>
     <script type="text/javascript" src="{{ asset('media/js/php.min.js') }}"></script>
+
     @yield('styles')
 </head>
 <body>
@@ -59,12 +53,12 @@
             <div>
                 <form method="POST" action="{{ route('logout') }}" style="display:inline;">
                     @csrf
-                    <button type="submit" style="background:none; border:none; cursor:pointer; padding:0; color:inherit; text-decoration:underline;">Odhlásit se</button>
+                    <button type="submit" style="background:none;border:none;cursor:pointer;padding:0;color:inherit;text-decoration:underline;">Odhlásit se</button>
                 </form>
             </div>
         </div>
         @endauth
-    </div>{{-- #header --}}
+    </div>
 
     <div id="middle">
         <div id="menu">
@@ -73,102 +67,84 @@
                 @auth
                 <div id="search-wrapper" style="position:relative;">
                     <form method="GET" action="{{ route('search') }}" class="search" autocomplete="off" id="search-form">
-                        <input type="text" name="q" id="search-input"
-                               value="{{ request('q') }}">
-                        <input type="image" id="search_submit"
-                               src="{{ asset('media/images/layout/search.gif') }}"
-                               alt="Hledat">
+                        <input type="text" name="q" id="search-input" value="{{ request('q') }}">
+                        <input type="image" id="search_submit" src="{{ asset('media/images/layout/search.gif') }}" alt="Hledat">
                     </form>
-                    <div id="whisper" style="position:absolute; top:100%; left:0; z-index:9999;"></div>
+                    <div id="whisper" style="position:absolute;top:100%;left:0;z-index:9999;"></div>
                 </div>
                 @endauth
                 @yield('menu')
             </div>
             <div class="clear"></div>
-        </div>{{-- #menu --}}
+        </div>
 
         <div id="content">
             <div id="content-padd">
                 @if(session('success'))
-                    <div class="message success" style="background:#dff0d8; border:1px solid #3c763d; color:#3c763d; padding:8px 12px; margin-bottom:10px; border-radius:2px;">{{ session('success') }}</div>
+                <div class="m-alert m-alert-success">{{ session('success') }}</div>
                 @endif
                 @if(session('error'))
-                    <div class="message error" style="background:#f2dede; border:1px solid #a94442; color:#a94442; padding:8px 12px; margin-bottom:10px; border-radius:2px;">{{ session('error') }}</div>
+                <div class="m-alert m-alert-danger">{{ session('error') }}</div>
                 @endif
                 @if(session('info'))
-                    <div class="message" style="background:#fff3cd; border:1px solid #ffc107; color:#856404; padding:8px 12px; margin-bottom:8px;">{{ session('info') }}</div>
+                <div class="m-alert m-alert-info">{{ session('info') }}</div>
                 @endif
                 @if(!empty($connectionRequestBanner) && !request()->is('connection-requests/create/*'))
-                    <div class="message" style="background:#d9edf7; border:1px solid #31708f; color:#31708f; padding:8px 12px; margin-bottom:8px;">
-                        Vaše IP adresa <strong>{{ $connectionRequestBanner['ip'] }}</strong> není registrována.
-                        <a href="{{ route('connection_requests.create', [$connectionRequestBanner['subnet_id'], $connectionRequestBanner['ip']]) }}">Zaregistrovat toto připojení</a>.
-                    </div>
+                <div class="m-alert m-alert-info">
+                    Vaše IP adresa <strong>{{ $connectionRequestBanner['ip'] }}</strong> není registrována.
+                    <a href="{{ route('connection_requests.create', [$connectionRequestBanner['subnet_id'], $connectionRequestBanner['ip']]) }}">Zaregistrovat toto připojení</a>.
+                </div>
                 @endif
-
                 @yield('breadcrumbs')
                 @yield('content')
             </div>
-        </div>{{-- #content --}}
+        </div>
         <div class="clear"></div>
-    </div>{{-- #middle --}}
+    </div>
 
     <div id="footer" class="noprint">
         <div id="footer-padd">
-            <p style="float:left; margin-left:10px;">Powered by <a href="http://www.freenetis.org/">FreenetIS</a></p>
+            <p style="float:left;margin-left:10px;">Powered by <a href="http://www.freenetis.org/">FreenetIS</a></p>
             <div class="clear"></div>
         </div>
-    </div>{{-- #footer --}}
-</div>{{-- #main --}}
+    </div>
+</div>
 
 @auth
 <script>
-(function() {
-    var timer = null;
-    var input = document.getElementById('search-input');
-    var whisper = document.getElementById('whisper');
-    if (!input || !whisper) return;
-
-    input.addEventListener('input', function() {
-        clearTimeout(timer);
-        var q = this.value.trim();
-        if (q.length < 3) { whisper.style.display = 'none'; return; }
-        timer = setTimeout(function() { fetchResults(q); }, 400);
+(function(){
+    var timer=null,input=document.getElementById('search-input'),whisper=document.getElementById('whisper');
+    if(!input||!whisper)return;
+    input.addEventListener('input',function(){
+        clearTimeout(timer);var q=this.value.trim();
+        if(q.length<3){whisper.style.display='none';return;}
+        timer=setTimeout(function(){fetchResults(q);},400);
     });
-
-    input.addEventListener('keydown', function(e) {
-        if (e.key === 'Escape') { whisper.style.display = 'none'; }
+    input.addEventListener('keydown',function(e){if(e.key==='Escape')whisper.style.display='none';});
+    document.addEventListener('click',function(e){
+        var w=document.getElementById('search-wrapper');
+        if(w&&!w.contains(e.target))whisper.style.display='none';
     });
-
-    document.addEventListener('click', function(e) {
-        var wrapper = document.getElementById('search-wrapper');
-        if (wrapper && !wrapper.contains(e.target)) {
-            whisper.style.display = 'none';
-        }
-    });
-
-    function fetchResults(q) {
-        fetch('{{ route("search.ajax") }}?q=' + encodeURIComponent(q))
-            .then(function(r) { return r.json(); })
-            .then(function(data) {
-                if (!data.length) { whisper.style.display = 'none'; return; }
-                var html = data.map(function(item) {
-                    return '<a href="' + item.url + '" class="whisper_search_result" style="display:block; padding:6px 10px; text-decoration:none; color:#333; border-bottom:1px solid #eee;">' +
-                        '<strong style="color:#c00;">' + highlight(item.title, q) + '</strong>' +
-                        (item.detail ? '<br><small style="color:#666;">' + highlight(item.detail, q) + '</small>' : '') +
+    function fetchResults(q){
+        fetch('{{ route("search.ajax") }}?q='+encodeURIComponent(q))
+            .then(function(r){return r.json();})
+            .then(function(data){
+                if(!data.length){whisper.style.display='none';return;}
+                var html=data.map(function(item){
+                    return '<a href="'+item.url+'" style="display:block;padding:6px 10px;text-decoration:none;color:#333;border-bottom:1px solid #eee;">'+
+                        '<strong style="color:#c00;">'+highlight(item.title,q)+'</strong>'+
+                        (item.detail?'<br><small style="color:#666;">'+highlight(item.detail,q)+'</small>':'')+
                         '</a>';
                 }).join('');
-                html += '<a href="{{ route("search") }}?q=' + encodeURIComponent(q) + '" style="display:block; padding:5px 10px; background:#f5f5f5; color:#666; text-decoration:none; font-size:0.85em; text-align:center;">Zobrazit všechny výsledky →</a>';
-                whisper.innerHTML = html;
-                whisper.style.display = 'block';
+                html+='<a href="{{ route("search") }}?q='+encodeURIComponent(q)+'" style="display:block;padding:5px 10px;background:#f5f5f5;color:#666;text-decoration:none;font-size:.85em;text-align:center;">Zobrazit všechny výsledky →</a>';
+                whisper.innerHTML=html;whisper.style.display='block';
             })
-            .catch(function() { whisper.style.display = 'none'; });
+            .catch(function(){whisper.style.display='none';});
     }
-
-    function highlight(text, q) {
-        if (!q || !text) return text;
-        var escaped = q.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-        return String(text).replace(new RegExp('(' + escaped + ')', 'gi'),
-            '<span style="background:#ffff00; font-weight:bold;">$1</span>');
+    function highlight(text,q){
+        if(!q||!text)return text;
+        var e=q.replace(/[.*+?^${}()|[\]\\]/g,'\\$&');
+        return String(text).replace(new RegExp('('+e+')','gi'),'<span style="background:#ffff00;font-weight:bold;">$1</span>');
     }
 })();
 </script>

@@ -2,53 +2,53 @@
 @section('title', 'Typy')
 @section('menu') <x-freenetis-menu /> @endsection
 @section('breadcrumbs')
-    <div id="breadcrumbs">Administrace &raquo; Typy</div>
+<div id="breadcrumbs">Administrace &raquo; Typy</div>
 @endsection
 @section('content')
-    <h2>Typy</h2>
+<div class="m-page">
+<div class="m-title-row"><h2>Typy</h2></div>
 
-    @if(session('success'))
-        <div class="message success">{{ session('success') }}</div>
-    @endif
-    @if(session('error'))
-        <div class="message error">{{ session('error') }}</div>
-    @endif
+<div class="m-actions">
+    <a class="m-btn m-btn-success" href="{{ route('enum-types.create') }}">+ Přidat typ</a>
+</div>
 
-    <div style="margin-bottom:1em;">
-        <a href="{{ route('enum-types.create') }}">+ Přidat typ</a>
-    </div>
-
-    @foreach($groups as $group)
-        <h3>{{ $group->type_name }}</h3>
-        <table class="extended" cellspacing="0">
-            <thead>
-                <tr>
-                    <th>ID</th>
-                    <th>Název</th>
-                    <th>Systémový</th>
-                    <th>Akce</th>
-                </tr>
-            </thead>
-            <tbody>
-                @foreach($group->enumTypes as $type)
-                    <tr>
-                        <td>{{ $type->id }}</td>
-                        <td>{{ $type->value }}</td>
-                        <td>{{ $type->read_only ? '✓' : '' }}</td>
-                        <td>
-                            @if(!$type->read_only)
-                                <a href="{{ route('enum-types.edit', $type->id) }}">Upravit</a>
-                                | <form method="POST" action="{{ route('enum-types.destroy', $type->id) }}" style="display:inline">
-                                    @csrf @method('DELETE')
-                                    <button type="submit" onclick="return confirm('Smazat typ {{ $type->value }}?')">Smazat</button>
-                                  </form>
-                            @else
-                                <span style="color:#999">systémový</span>
-                            @endif
-                        </td>
-                    </tr>
-                @endforeach
-            </tbody>
-        </table>
-    @endforeach
+@foreach($groups as $group)
+<div class="m-section">{{ $group->type_name }}</div>
+<div class="m-card" style="padding:0;overflow-x:auto;margin-bottom:16px">
+<table class="m-table" style="margin-bottom:0">
+    <thead>
+        <tr>
+            <th style="width:50px">ID</th>
+            <th>Název</th>
+            <th style="width:90px">Systémový</th>
+            <th style="width:100px">Akce</th>
+        </tr>
+    </thead>
+    <tbody>
+        @foreach($group->enumTypes as $type)
+        <tr>
+            <td>{{ $type->id }}</td>
+            <td>{{ $type->value }}</td>
+            <td>@if($type->read_only)<span class="m-tag m-tag-gray">Systémový</span>@endif</td>
+            <td>
+                @if(!$type->read_only)
+                <div style="display:flex;gap:6px">
+                    <a class="m-link-sm" href="{{ route('enum-types.edit', $type->id) }}">Upravit</a>
+                    <form method="POST" action="{{ route('enum-types.destroy', $type->id) }}" style="display:inline">
+                        @csrf @method('DELETE')
+                        <button type="submit" style="background:none;border:none;cursor:pointer;padding:0;font-size:12px;color:#c0392b"
+                                onclick="return confirm('Smazat typ {{ $type->value }}?')">Smazat</button>
+                    </form>
+                </div>
+                @else
+                <span style="color:#aaa;font-size:12px">systémový</span>
+                @endif
+            </td>
+        </tr>
+        @endforeach
+    </tbody>
+</table>
+</div>
+@endforeach
+</div>
 @endsection

@@ -3,50 +3,48 @@
 @section('menu') <x-freenetis-menu /> @endsection
 @section('breadcrumbs')
 <div id="breadcrumbs">
-    <a href="{{ route('device_templates.index') }}">Šablony zařízení</a> &raquo;
-    {{ $template->name }}
+    <a href="{{ route('device_templates.index') }}">Šablony zařízení</a> &raquo; {{ $template->name }}
 </div>
 @endsection
 @section('content')
-<h2>{{ $template->name }}</h2>
+<div class="m-page">
+<div class="m-title-row"><h2>{{ $template->name }}</h2></div>
 
-<div style="margin-bottom:1em;">
-    @if($canEdit)
-    <a href="{{ route('device_templates.edit', $template->id) }}">
-        <img src="{{ asset('media/images/icons/gtk_edit.png') }}" alt=""> Upravit
-    </a>
-    &nbsp;|&nbsp;
-    @endif
+<div class="m-actions">
+    @if($canEdit) <a class="m-btn" href="{{ route('device_templates.edit', $template->id) }}">Upravit</a> @endif
     @if($canDelete)
     <form method="POST" action="{{ route('device_templates.destroy', $template->id) }}" style="display:inline"
           onsubmit="return confirm('Smazat šablonu {{ addslashes($template->name) }}?')">
         @csrf @method('DELETE')
-        <button type="submit" style="background:none;border:none;cursor:pointer;color:#c00;">
-            <img src="{{ asset('media/images/icons/delete.png') }}" alt=""> Smazat
-        </button>
+        <button class="m-btn m-btn-danger" type="submit">Smazat</button>
     </form>
     @endif
 </div>
 
-<table class="extended" cellspacing="0">
-    <thead><tr><th colspan="2">Základní informace</th></tr></thead>
-    <tbody>
-        <tr><th>ID</th><td>{{ $template->id }}</td></tr>
-        <tr><th>Název</th><td>{{ $template->name }}</td></tr>
-        <tr><th>Typ zařízení</th><td>{{ $template->enumType?->value ?? '—' }}</td></tr>
-        <tr><th>Výchozí pro typ</th><td>{{ $template->default ? 'Ano' : 'Ne' }}</td></tr>
-    </tbody>
-</table>
+<div class="m-grid2">
+    <div class="m-card">
+        <div class="m-card-title">Základní informace</div>
+        <div class="m-field"><span class="m-field-label">ID</span><span class="m-field-value">{{ $template->id }}</span></div>
+        <div class="m-field"><span class="m-field-label">Název</span><span class="m-field-value">{{ $template->name }}</span></div>
+        <div class="m-field"><span class="m-field-label">Typ zařízení</span><span class="m-field-value">{{ $template->enumType?->value ?? '—' }}</span></div>
+        <div class="m-field">
+            <span class="m-field-label">Výchozí pro typ</span>
+            <span class="m-field-value">@if($template->default)<span class="m-tag m-tag-green">Ano</span>@else Ne@endif</span>
+        </div>
+    </div>
+    <div></div>
+</div>
 
 @if(count($ifaceDefs) > 0)
-<h3>Rozhraní</h3>
-<table class="extended" cellspacing="0">
+<div class="m-section">Rozhraní</div>
+<div class="m-card" style="padding:0;overflow-x:auto">
+<table class="m-table" style="margin-bottom:0">
     <thead>
         <tr>
             <th>Typ</th>
-            <th>Počet</th>
-            <th>MAC</th>
-            <th>IP</th>
+            <th style="width:80px">Počet</th>
+            <th style="width:60px">MAC</th>
+            <th style="width:60px">IP</th>
             <th>Pojmenovaná rozhraní</th>
         </tr>
     </thead>
@@ -62,9 +60,9 @@
                     {{ $def['count'] }}
                 @endif
             </td>
-            <td>{{ $def['has_mac'] ? '✓' : '—' }}</td>
-            <td>{{ $def['has_ip'] ? '✓' : '—' }}</td>
-            <td>
+            <td>@if($def['has_mac'])<span class="m-tag m-tag-green">Ano</span>@else —@endif</td>
+            <td>@if($def['has_ip'])<span class="m-tag m-tag-green">Ano</span>@else —@endif</td>
+            <td style="font-size:12px">
                 @if(count($def['items']) > 0)
                     {{ implode(', ', array_column($def['items'], 'name')) }}
                 @else —
@@ -75,5 +73,7 @@
         @endforeach
     </tbody>
 </table>
+</div>
 @endif
+</div>
 @endsection

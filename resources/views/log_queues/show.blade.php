@@ -1,135 +1,116 @@
 @extends('layouts.app')
-
 @section('title', 'Chyba / log #' . $log->id)
-
-@section('menu')
-    <x-freenetis-menu />
-@endsection
-
+@section('menu') <x-freenetis-menu /> @endsection
 @section('breadcrumbs')
-    <div id="breadcrumbs">
-        <a href="{{ route('log_queues.index') }}">Chyby a logy</a> &raquo;
-        {{ $log->typeName() }} ({{ $log->id }})
-    </div>
+<div id="breadcrumbs">
+    <a href="{{ route('log_queues.index') }}">Chyby a logy</a> &raquo;
+    {{ $log->typeName() }} (#{{ $log->id }})
+</div>
 @endsection
-
 @section('content')
-    <h2>Chyba / log #{{ $log->id }}</h2>
+<div class="m-page">
+<div class="m-title-row"><h2>Chyba / log #{{ $log->id }}</h2></div>
 
-    @if(session('success'))
-        <div class="message_ok"><p>{{ session('success') }}</p></div>
-    @endif
-    @if(session('error'))
-        <div class="message_error"><p>{{ session('error') }}</p></div>
-    @endif
+@if($canEdit && $log->state == \App\Models\LogQueue::STATE_NEW)
+<div class="m-actions">
+    <form method="POST" action="{{ route('log_queues.close', $log->id) }}" style="display:inline">
+        @csrf
+        <button class="m-btn m-btn-primary" type="submit">Uzavřít</button>
+    </form>
+</div>
+@endif
 
-    <p>
-        @if($canEdit && $log->state == \App\Models\LogQueue::STATE_NEW)
-            <form method="POST" action="{{ route('log_queues.close', $log->id) }}" style="display:inline">
-                @csrf
-                <button type="submit">Uzavřít</button>
-            </form>
+<div class="m-grid2">
+    <div class="m-card">
+        <div class="m-card-title">Informace o záznamu</div>
+        <div class="m-field"><span class="m-field-label">ID</span><span class="m-field-value">{{ $log->id }}</span></div>
+        <div class="m-field">
+            <span class="m-field-label">Typ</span>
+            <span class="m-field-value">
+                <span style="background:{{ $log->typeColor() }};color:#fff;font-size:11px;padding:2px 7px;border-radius:10px">
+                    {{ $log->typeName() }}
+                </span>
+            </span>
+        </div>
+        <div class="m-field"><span class="m-field-label">Zaznamenáno</span><span class="m-field-value" style="font-size:12px">{{ $log->created_at }}</span></div>
+        <div class="m-field">
+            <span class="m-field-label">Stav</span>
+            <span class="m-field-value">
+                @if($log->state == \App\Models\LogQueue::STATE_NEW)
+                    <span class="m-tag m-tag-red">Nový</span>
+                @else
+                    <span class="m-tag m-tag-gray">Uzavřený</span>
+                @endif
+            </span>
+        </div>
+        @if($log->closed_by_user_id)
+        <div class="m-field">
+            <span class="m-field-label">Uzavřel</span>
+            <span class="m-field-value" style="font-size:12px">
+                {{ $closedByUser ? $closedByUser->name . ' ' . $closedByUser->surname : '#' . $log->closed_by_user_id }}
+                ({{ $log->closed_at }})
+            </span>
+        </div>
         @endif
-    </p>
+    </div>
+    <div></div>
+</div>
 
-    <table class="extended" cellspacing="0">
-        <tbody>
-            <tr>
-                <th>ID</th>
-                <td>{{ $log->id }}</td>
-            </tr>
-            <tr>
-                <th>Typ</th>
-                <td>
-                    <b style="color:white; padding:2px 5px; border-radius:3px; background-color:{{ $log->typeColor() }}">
-                        {{ $log->typeName() }}
-                    </b>
-                </td>
-            </tr>
-            <tr>
-                <th>Zaznamenáno</th>
-                <td>{{ $log->created_at }}</td>
-            </tr>
-            <tr>
-                <th>Popis</th>
-                <td style="white-space:pre-wrap">{{ $log->description }}</td>
-            </tr>
-            @if($log->exception_backtrace)
-                <tr>
-                    <th>{{ $log->type == \App\Models\LogQueue::TYPE_INFO ? 'Zpráva' : 'Výjimka' }}</th>
-                    <td>
-                        <pre style="font-size:12px; background:#f5f5f5; padding:8px; overflow-x:auto; white-space:pre-wrap; word-break:break-all">{{ $log->exception_backtrace }}</pre>
-                    </td>
-                </tr>
-            @endif
-            <tr>
-                <th>Stav</th>
-                <td>
-                    @if($log->state == \App\Models\LogQueue::STATE_NEW)
-                        <b style="color:#c00">Nový</b>
-                    @else
-                        <b>Uzavřený</b>
-                    @endif
-                </td>
-            </tr>
-            @if($log->closed_by_user_id)
-                <tr>
-                    <th>Uzavřel</th>
-                    <td>
-                        {{ $closedByUser ? $closedByUser->name . ' ' . $closedByUser->surname : '#' . $log->closed_by_user_id }}
-                        ({{ $log->closed_at }})
-                    </td>
-                </tr>
-            @endif
-        </tbody>
-    </table>
+<div class="m-section">Popis</div>
+<div class="m-card" style="margin-bottom:16px">
+    <pre style="font-size:13px;margin:0;white-space:pre-wrap;word-break:break-word">{{ $log->description }}</pre>
+</div>
 
-    <br>
-    <h3>Komentáře</h3>
+@if($log->exception_backtrace)
+<div class="m-section">{{ $log->type == \App\Models\LogQueue::TYPE_INFO ? 'Zpráva' : 'Výjimka' }}</div>
+<div class="m-card" style="margin-bottom:16px;padding:10px">
+    <pre style="font-size:12px;margin:0;overflow-x:auto;white-space:pre-wrap;word-break:break-all;background:#f7f7f5;padding:8px;border-radius:4px">{{ $log->exception_backtrace }}</pre>
+</div>
+@endif
 
+<div class="m-section">
+    Komentáře
     @if($canAddComment)
-        @if($log->comments_thread_id)
-            <p><a href="{{ route('comments.add', $log->comments_thread_id) }}">Přidat komentář</a></p>
-        @else
-            <p><a href="{{ route('comments.add-thread', ['type' => 'log_queue', 'fkId' => $log->id]) }}">Přidat komentář</a></p>
-        @endif
-    @endif
-
-    @if($comments->isNotEmpty())
-        <table class="extended" cellspacing="0">
-            <thead>
-                <tr>
-                    <th>Komentář</th>
-                    <th>Uživatel</th>
-                    <th>Čas</th>
-                    <th>Akce</th>
-                </tr>
-            </thead>
-            <tbody>
-                @foreach($comments as $comment)
-                    <tr>
-                        <td style="white-space:pre-wrap">{{ $comment->text }}</td>
-                        <td>{{ $comment->user_name }}</td>
-                        <td>{{ $comment->datetime }}</td>
-                        <td>
-                            @if($canEditComment)
-                                <a href="{{ route('comments.edit', $comment->id) }}">Upravit</a>
-                            @endif
-                            @if($canDeleteComment)
-                                @if($canEditComment) | @endif
-                                <form method="POST" action="{{ route('comments.destroy', $comment->id) }}" style="display:inline">
-                                    @csrf
-                                    @method('DELETE')
-                                    <button type="submit" style="background:none;border:none;cursor:pointer;padding:0;color:#00c;text-decoration:underline"
-                                            onclick="return confirm('Smazat komentář?')">Smazat</button>
-                                </form>
-                            @endif
-                        </td>
-                    </tr>
-                @endforeach
-            </tbody>
-        </table>
+    @if($log->comments_thread_id)
+    <a class="m-link-sm" href="{{ route('comments.add', $log->comments_thread_id) }}" style="margin-left:10px">+ Přidat komentář</a>
     @else
-        <p>Žádné komentáře.</p>
+    <a class="m-link-sm" href="{{ route('comments.add-thread', ['type' => 'log_queue', 'fkId' => $log->id]) }}" style="margin-left:10px">+ Přidat komentář</a>
     @endif
+    @endif
+</div>
+
+@if($comments->isNotEmpty())
+<div class="m-card" style="padding:0">
+<table class="m-table" style="margin-bottom:0">
+    <thead>
+        <tr><th>Komentář</th><th style="width:120px">Uživatel</th><th style="width:140px">Čas</th><th style="width:80px">Akce</th></tr>
+    </thead>
+    <tbody>
+        @foreach($comments as $comment)
+        <tr>
+            <td style="white-space:pre-wrap;font-size:13px">{{ $comment->text }}</td>
+            <td style="font-size:12px">{{ $comment->user_name }}</td>
+            <td style="font-size:12px">{{ $comment->datetime }}</td>
+            <td>
+                <div style="display:flex;gap:6px">
+                    @if($canEditComment) <a class="m-link-sm" href="{{ route('comments.edit', $comment->id) }}">Upravit</a> @endif
+                    @if($canDeleteComment)
+                    <form method="POST" action="{{ route('comments.destroy', $comment->id) }}" style="display:inline">
+                        @csrf @method('DELETE')
+                        <button type="submit" style="background:none;border:none;cursor:pointer;padding:0;font-size:12px;color:#c0392b"
+                                onclick="return confirm('Smazat komentář?')">Smazat</button>
+                    </form>
+                    @endif
+                </div>
+            </td>
+        </tr>
+        @endforeach
+    </tbody>
+</table>
+</div>
+@else
+<div class="m-alert m-alert-info">Žádné komentáře.</div>
+@endif
+
+</div>
 @endsection

@@ -16,6 +16,17 @@ class FreenetisMenu extends Component
         $userId = $user?->id ?? 0;
         $currentPath = request()->path();
 
+        // Řadový člen/zákazník — zobrazit pouze "Můj profil"
+        $isAdmin = $acl->hasAccess($userId, 'view_all', 'Members_Controller', 'members');
+        if (!$isAdmin) {
+            $this->groups = [
+                ['name' => 'home', 'label' => 'Domů', 'items' => [
+                    ['url' => route('members.show', $user?->member_id ?? 1), 'label' => 'Můj profil', 'current' => true, 'count' => null],
+                ]],
+            ];
+            return;
+        }
+
         // Badge counts (only query if user has access, lazy via closures resolved below)
         $countUnidentified = fn() => (int) DB::table('transfers as t')
             ->join('bank_transfers as bt', 'bt.transfer_id', '=', 't.id')

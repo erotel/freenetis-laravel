@@ -5,54 +5,49 @@
 <div id="breadcrumbs">Šablony zařízení</div>
 @endsection
 @section('content')
-<h2>Šablony zařízení</h2>
+<div class="m-page">
+<div class="m-title-row"><h2>Šablony zařízení</h2></div>
 
-<div style="margin-bottom:1em;">
-    @if($canNew)
-    <a href="{{ route('device_templates.create') }}">
-        <img src="{{ asset('media/images/icons/ico_add.gif') }}" alt=""> Přidat šablonu
-    </a>
-    &nbsp;|&nbsp;
-    @endif
-    <a href="{{ route('device_templates.export') }}">Exportovat JSON</a>
+<div class="m-actions">
+    @if($canNew) <a class="m-btn m-btn-success" href="{{ route('device_templates.create') }}">+ Přidat šablonu</a> @endif
+    <a class="m-btn" href="{{ route('device_templates.export') }}">Exportovat JSON</a>
 </div>
 
-<table class="extended" cellspacing="0">
+<div class="m-card" style="padding:0;overflow-x:auto">
+<table class="m-table" style="margin-bottom:0">
     <thead>
         <tr>
-            <th>ID</th>
+            <th style="width:50px">ID</th>
             <th>Název</th>
-            <th>Typ zařízení</th>
-            <th>Výchozí</th>
-            <th>Akce</th>
+            <th style="width:150px">Typ zařízení</th>
+            <th style="width:80px">Výchozí</th>
+            <th style="width:100px">Akce</th>
         </tr>
     </thead>
     <tbody>
         @forelse($templates as $t)
         <tr>
             <td>{{ $t->id }}</td>
-            <td><a href="{{ route('device_templates.show', $t->id) }}">{{ $t->name }}</a></td>
+            <td><a class="m-link" href="{{ route('device_templates.show', $t->id) }}">{{ $t->name }}</a></td>
             <td>{{ $t->enumType?->value ?? '—' }}</td>
-            <td>{{ $t->default ? '✓' : '—' }}</td>
+            <td>@if($t->default)<span class="m-tag m-tag-green">Ano</span>@else —@endif</td>
             <td>
-                <a href="{{ route('device_templates.show', $t->id) }}">
-                    <img src="{{ asset('media/images/icons/con_info.png') }}" alt="Detail" title="Detail">
-                </a>
-                <a href="{{ route('device_templates.edit', $t->id) }}">
-                    <img src="{{ asset('media/images/icons/gtk_edit.png') }}" alt="Upravit" title="Upravit">
-                </a>
-                <form method="POST" action="{{ route('device_templates.destroy', $t->id) }}" style="display:inline"
-                      onsubmit="return confirm('Smazat šablonu {{ addslashes($t->name) }}?')">
-                    @csrf @method('DELETE')
-                    <button type="submit" style="background:none;border:none;padding:0;cursor:pointer;">
-                        <img src="{{ asset('media/images/icons/delete.png') }}" alt="Smazat" title="Smazat">
-                    </button>
-                </form>
+                <div style="display:flex;gap:6px">
+                    <a class="m-link-sm" href="{{ route('device_templates.show', $t->id) }}">Detail</a>
+                    <a class="m-link-sm" href="{{ route('device_templates.edit', $t->id) }}">Upravit</a>
+                    <form method="POST" action="{{ route('device_templates.destroy', $t->id) }}" style="display:inline"
+                          onsubmit="return confirm('Smazat šablonu {{ addslashes($t->name) }}?')">
+                        @csrf @method('DELETE')
+                        <button type="submit" style="background:none;border:none;cursor:pointer;padding:0;font-size:12px;color:#c0392b">Smazat</button>
+                    </form>
+                </div>
             </td>
         </tr>
         @empty
-        <tr><td colspan="5" style="text-align:center;">Žádné šablony.</td></tr>
+        <tr><td colspan="5" style="text-align:center;color:#aaa;padding:2rem">Žádné šablony.</td></tr>
         @endforelse
     </tbody>
 </table>
+</div>
+</div>
 @endsection

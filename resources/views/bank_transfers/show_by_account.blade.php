@@ -1,96 +1,80 @@
 @extends('layouts.app')
-
 @section('title', 'Převody: ' . $account->name)
-
-@section('menu')
-    <x-freenetis-menu />
-@endsection
-
+@section('menu') <x-freenetis-menu /> @endsection
 @section('breadcrumbs')
-    <div id="breadcrumbs">
-        <a href="{{ route('bank_accounts.index') }}">Bankovní účty</a> &raquo;
-        <a href="{{ route('bank_accounts.show', $account->id) }}">{{ $account->name }}</a> &raquo;
-        Převody
-    </div>
+<div id="breadcrumbs">
+    <a href="{{ route('bank_accounts.index') }}">Bankovní účty</a> &raquo;
+    <a href="{{ route('bank_accounts.show', $account->id) }}">{{ $account->name }}</a> &raquo;
+    Převody
+</div>
 @endsection
-
 @section('content')
-    <h2>Převody na bankovním účtu: {{ $account->name }}</h2>
+<div class="m-page">
+<div class="m-title-row"><h2>Převody na bankovním účtu: {{ $account->name }}</h2></div>
 
-    <div style="margin-bottom:1em;">
-        <a href="{{ route('bank_accounts.show', $account->id) }}">&larr; Zpět na účet</a>
-    </div>
+<div class="m-actions">
+    <a class="m-btn" href="{{ route('bank_accounts.show', $account->id) }}">&larr; Zpět na účet</a>
+</div>
 
-    <table class="extended" cellspacing="0" style="float:left; margin-right:20px;">
-        <tbody>
-            <tr><th>Číslo účtu</th><td>{{ $account->full_account_number }}</td></tr>
-            <tr><th>IBAN</th><td>{{ $account->IBAN ?: '—' }}</td></tr>
-        </tbody>
-    </table>
-    <div style="clear:both;"></div>
+<div class="m-card" style="max-width:360px;margin-bottom:16px">
+    <div class="m-field"><span class="m-field-label">Číslo účtu</span><span class="m-field-value" style="font-family:monospace">{{ $account->full_account_number }}</span></div>
+    <div class="m-field"><span class="m-field-label">IBAN</span><span class="m-field-value" style="font-family:monospace">{{ $account->IBAN ?: '—' }}</span></div>
+</div>
 
-    <div class="pagination-wrap">{{ $transfers->links() }}</div>
-    <table class="extended" cellspacing="0">
-        <thead>
-            <tr>
-                <th>ID</th>
-                <th>Výpis</th>
-                <th>Protiúčet</th>
-                <th>VS</th>
-                <th>KS</th>
-                <th>Text</th>
-                <th>Stav</th>
-                <th>Akce</th>
-            </tr>
-        </thead>
-        <tbody>
-            @forelse($transfers as $bt)
-                @php
-                    $isIncoming = $bt->destination_id == $account->id;
-                    $counterpart = $isIncoming ? $bt->originAccount : $bt->destinationAccount;
-                @endphp
-                <tr>
-                    <td>{{ $bt->id }}</td>
-                    <td>
-                        @if($bt->bankStatement)
-                            {{ $bt->bankStatement->from?->format('d.m.Y') }}
-                        @else
-                            —
-                        @endif
-                    </td>
-                    <td>
-                        @if($counterpart)
-                            <a href="{{ route('bank_accounts.show', $counterpart->id) }}">
-                                {{ $counterpart->full_account_number }}
-                            </a>
-                        @else
-                            —
-                        @endif
-                    </td>
-                    <td>{{ $bt->variable_symbol ?: '—' }}</td>
-                    <td>{{ $bt->constant_symbol ?: '—' }}</td>
-                    <td>{{ $bt->comment ?: '—' }}</td>
-                    <td>
-                        @if($bt->transfer_id)
-                            <a href="{{ route('transfers.show', $bt->transfer_id) }}"
-                               style="color:green;">Spárováno</a>
-                        @else
-                            <span style="color:#c00;">Nespárováno</span>
-                        @endif
-                    </td>
-                    <td class="action">
-                        @if($bt->transfer_id)
-                            <a href="{{ route('transfers.show', $bt->transfer_id) }}" title="Převod">
-                                <img src="{{ asset('media/images/icons/con_info.png') }}" alt="Detail">
-                            </a>
-                        @endif
-                    </td>
-                </tr>
-            @empty
-                <tr><td colspan="8">Žádné převody.</td></tr>
-            @endforelse
-        </tbody>
-    </table>
+<div style="margin-bottom:8px">{{ $transfers->links() }}</div>
 
-    <div class="pagination-wrap">{{ $transfers->links() }}</div>
+<div class="m-card" style="padding:0;overflow-x:auto">
+<table class="m-table" style="margin-bottom:0">
+    <thead>
+        <tr>
+            <th style="width:50px">ID</th>
+            <th style="width:100px">Výpis</th>
+            <th>Protiúčet</th>
+            <th style="width:110px">VS</th>
+            <th style="width:80px">KS</th>
+            <th>Text</th>
+            <th style="width:100px">Stav</th>
+            <th style="width:60px">Akce</th>
+        </tr>
+    </thead>
+    <tbody>
+        @forelse($transfers as $bt)
+        @php
+            $isIncoming = $bt->destination_id == $account->id;
+            $counterpart = $isIncoming ? $bt->originAccount : $bt->destinationAccount;
+        @endphp
+        <tr>
+            <td>{{ $bt->id }}</td>
+            <td style="font-size:12px">{{ $bt->bankStatement?->from?->format('d.m.Y') ?? '—' }}</td>
+            <td style="font-family:monospace;font-size:12px">
+                @if($counterpart)
+                    <a class="m-link" href="{{ route('bank_accounts.show', $counterpart->id) }}">{{ $counterpart->full_account_number }}</a>
+                @else —
+                @endif
+            </td>
+            <td style="font-family:monospace;font-size:12px">{{ $bt->variable_symbol ?: '—' }}</td>
+            <td style="font-size:12px">{{ $bt->constant_symbol ?: '—' }}</td>
+            <td style="font-size:12px">{{ $bt->comment ?: '—' }}</td>
+            <td>
+                @if($bt->transfer_id)
+                    <span class="m-tag m-tag-green">Spárováno</span>
+                @else
+                    <span class="m-tag m-tag-red">Nespárováno</span>
+                @endif
+            </td>
+            <td>
+                @if($bt->transfer_id)
+                <a class="m-link-sm" href="{{ route('transfers.show', $bt->transfer_id) }}">Detail</a>
+                @endif
+            </td>
+        </tr>
+        @empty
+        <tr><td colspan="8" style="text-align:center;color:#aaa;padding:2rem">Žádné převody.</td></tr>
+        @endforelse
+    </tbody>
+</table>
+</div>
+
+<div style="margin-top:12px">{{ $transfers->links() }}</div>
+</div>
 @endsection

@@ -23,3 +23,6 @@ _ide_helper.php
 Homestead.json
 Homestead.yaml
 Thumbs.db
+resources/views_kohana_backup/
+resources/views/members/show.blade.php.bak
+resources/views/members/show.blade.php.bak2

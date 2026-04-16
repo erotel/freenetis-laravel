@@ -1,123 +1,108 @@
 @extends('layouts.app')
-
 @section('title', 'Uživatelé')
-
-@section('menu')
-    <x-freenetis-menu />
-@endsection
-
+@section('menu') <x-freenetis-menu /> @endsection
 @section('breadcrumbs')
-    <div id="breadcrumbs">
-        <a href="{{ route('users.index') }}">Uživatelé</a>
-    </div>
+<div id="breadcrumbs"><a href="{{ route('users.index') }}">Uživatelé</a></div>
 @endsection
-
 @section('content')
-    <style>
-    .users-table { table-layout: fixed; width: 100%; }
-    .users-table .col-id     { width: 60px; }
-    .users-table .col-login  { width: 160px; }
-    .users-table .col-name   { max-width: 200px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-    .users-table .col-member { max-width: 200px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-    .users-table .col-type   { width: 130px; }
-    .users-table .col-akce   { width: 80px; }
-    </style>
+<div class="m-page">
+<div class="m-title-row"><h2>Uživatelé</h2></div>
+<div class="m-subtitle">Celkem: {{ $users->total() }} záznamů</div>
 
-    <h2>Uživatelé</h2>
-
-    <form id="user-search" method="GET" action="{{ route('users.index') }}" style="margin-bottom:1em;">
-        <input type="text" name="search" value="{{ $search }}" placeholder="Hledat podle jména/loginu...">
-        <button type="submit" form="user-search">Hledat</button>
-        @if($search || $memberId)
-            <a href="{{ route('users.index') }}">Zrušit filtr</a>
-        @endif
-        @if($memberId)
-            <input type="hidden" name="member_id" value="{{ $memberId }}">
-        @endif
-    </form>
-
-    @if($canNew)
-        <p>
-            <a href="{{ route('users.create') }}">
-                <img src="{{ asset('media/images/icons/ico_add.gif') }}" alt="Přidat">
-                Přidat nového uživatele
-            </a>
-        </p>
-    @endif
-
-    @php
-        $nextDir = fn(string $col) => ($sort === $col && $dir === 'asc') ? 'desc' : 'asc';
-        $arrow   = fn(string $col) => $sort === $col ? ($dir === 'asc' ? ' ↑' : ' ↓') : '';
-        $sortUrl = fn(string $col) => request()->fullUrlWithQuery(['sort' => $col, 'dir' => $nextDir($col), 'page' => 1]);
-    @endphp
-
-    {{ $users->links() }}
-    <table class="extended users-table" cellspacing="0">
-        <thead>
-            <tr>
-                <th class="col-id"><a href="{{ $sortUrl('id') }}">ID{{ $arrow('id') }}</a></th>
-                <th class="col-login"><a href="{{ $sortUrl('login') }}">Login{{ $arrow('login') }}</a></th>
-                <th class="col-name"><a href="{{ $sortUrl('surname') }}">Jméno{{ $arrow('surname') }}</a></th>
-                <th class="col-member">Člen</th>
-                <th class="col-type"><a href="{{ $sortUrl('type') }}">Typ{{ $arrow('type') }}</a></th>
-                <th class="col-akce">Akce</th>
-            </tr>
-        </thead>
-        <tbody>
-            @forelse($users as $user)
-                <tr>
-                    <td class="col-id">{{ $user->id }}</td>
-                    <td class="col-login"><a href="{{ route('users.show', $user->id) }}">{{ $user->login }}</a></td>
-                    <td class="col-name">{{ $user->full_name }}</td>
-                    <td class="col-member">
-                        @if($user->member)
-                            <a href="{{ route('members.show', $user->member_id) }}">{{ $user->member->name }}</a>
-                        @endif
-                    </td>
-                    <td class="col-type">{{ $user->type == 1 ? 'Hlavní uživatel' : 'Uživatel' }}</td>
-                    <td class="action col-akce">
-                        <a href="{{ route('users.show', $user->id) }}" title="Detail">
-                            <img src="{{ asset('media/images/icons/con_info.png') }}" alt="Detail">
-                        </a>
-                        @if($canEdit)
-                            <a href="{{ route('users.edit', $user->id) }}" title="Upravit">
-                                <img src="{{ asset('media/images/icons/gtk_edit.png') }}" alt="Upravit">
-                            </a>
-                        @endif
-                        @if($canDelete)
-                            <form method="POST" action="{{ route('users.destroy', $user->id) }}" style="display:inline;"
-                                  onsubmit="return confirm('Opravdu smazat uživatele {{ addslashes($user->login) }}?');">
-                                @csrf
-                                @method('DELETE')
-                                <button type="submit" class="icon-button" title="Smazat">
-                                    <img src="{{ asset('media/images/icons/delete.png') }}" alt="Smazat">
-                                </button>
-                            </form>
-                        @endif
-                    </td>
-                </tr>
-            @empty
-                <tr>
-                    <td colspan="6">Žádní uživatelé nebyli nalezeni.</td>
-                </tr>
-            @endforelse
-        </tbody>
-    </table>
-
-    <div class="pagination-wrap">
-        {{ $users->links() }}
-    </div>
-
-    <form method="GET" action="{{ route('users.index') }}" style="margin-top:1em;">
-        @if(request('sort'))     <input type="hidden" name="sort"      value="{{ $sort }}"> @endif
-        @if(request('dir'))      <input type="hidden" name="dir"       value="{{ $dir }}">  @endif
-        @if(request('search'))   <input type="hidden" name="search"    value="{{ $search }}"> @endif
-        @if($memberId)           <input type="hidden" name="member_id" value="{{ $memberId }}"> @endif
-        Záznamů na stránku:
-        <select name="record_per_page" onchange="this.form.submit()">
-            @foreach([50, 100, 150, 200, 250, 300, 350, 400, 450, 500] as $n)
+<div class="m-card" style="margin-bottom:16px;padding:14px 1.25rem">
+    <form method="GET" action="{{ route('users.index') }}" style="display:flex;flex-wrap:wrap;gap:10px;align-items:flex-end;">
+        @if($memberId)<input type="hidden" name="member_id" value="{{ $memberId }}">@endif
+        <div>
+            <div class="m-form-label">Hledat</div>
+            <input class="m-form-input" style="width:220px" type="text" name="search"
+                   value="{{ $search }}" placeholder="Jméno nebo login...">
+        </div>
+        <div>
+            <div class="m-form-label">Na stránku</div>
+            <select class="m-form-select" style="width:80px" name="record_per_page" onchange="this.form.submit()">
+                @foreach([50,100,150,200,250,300,350,400,450,500] as $n)
                 <option value="{{ $n }}" @selected($perPage === $n)>{{ $n }}</option>
-            @endforeach
-        </select>
+                @endforeach
+            </select>
+        </div>
+        <div style="display:flex;gap:6px;padding-bottom:1px">
+            <button class="m-btn m-btn-primary" type="submit">Hledat</button>
+            @if($search || $memberId)
+            <a class="m-btn" href="{{ route('users.index') }}">Zrušit filtr</a>
+            @endif
+        </div>
+        @if(request('sort'))<input type="hidden" name="sort" value="{{ $sort }}">@endif
+        @if(request('dir'))<input type="hidden" name="dir" value="{{ $dir }}">@endif
     </form>
+</div>
+
+@if($canNew)
+<div class="m-actions">
+    <a class="m-btn m-btn-success" href="{{ route('users.create') }}">+ Přidat uživatele</a>
+</div>
+@endif
+
+@php
+    $nextDir = fn(string $col) => ($sort === $col && $dir === 'asc') ? 'desc' : 'asc';
+    $arrow   = fn(string $col) => $sort === $col ? ($dir === 'asc' ? ' ↑' : ' ↓') : '';
+    $sortUrl = fn(string $col) => request()->fullUrlWithQuery(['sort' => $col, 'dir' => $nextDir($col), 'page' => 1]);
+@endphp
+
+<div style="margin-bottom:8px">{{ $users->links() }}</div>
+
+<div class="m-card" style="padding:0;overflow-x:auto">
+<table class="m-table" style="margin-bottom:0">
+    <thead>
+        <tr>
+            <th style="width:50px"><a class="m-link-sm" href="{{ $sortUrl('id') }}">ID{{ $arrow('id') }}</a></th>
+            <th style="width:150px"><a class="m-link-sm" href="{{ $sortUrl('login') }}">Login{{ $arrow('login') }}</a></th>
+            <th><a class="m-link-sm" href="{{ $sortUrl('surname') }}">Jméno{{ $arrow('surname') }}</a></th>
+            <th>Člen</th>
+            <th style="width:130px"><a class="m-link-sm" href="{{ $sortUrl('type') }}">Typ{{ $arrow('type') }}</a></th>
+            <th style="width:100px">Akce</th>
+        </tr>
+    </thead>
+    <tbody>
+        @forelse($users as $user)
+        <tr>
+            <td>{{ $user->id }}</td>
+            <td><a class="m-link" href="{{ route('users.show', $user->id) }}">{{ $user->login }}</a></td>
+            <td>{{ $user->full_name }}</td>
+            <td>
+                @if($user->member)
+                    <a class="m-link" href="{{ route('members.show', $user->member_id) }}">{{ $user->member->name }}</a>
+                @endif
+            </td>
+            <td>
+                @if($user->type == 1)
+                    <span class="m-tag m-tag-amber">Hlavní uživatel</span>
+                @else
+                    <span class="m-tag m-tag-gray">Uživatel</span>
+                @endif
+            </td>
+            <td>
+                <div style="display:flex;gap:6px">
+                    <a class="m-link-sm" href="{{ route('users.show', $user->id) }}">Detail</a>
+                    @if($canEdit)
+                    <a class="m-link-sm" href="{{ route('users.edit', $user->id) }}">Upravit</a>
+                    @endif
+                    @if($canDelete)
+                    <form method="POST" action="{{ route('users.destroy', $user->id) }}" style="display:inline"
+                          onsubmit="return confirm('Opravdu smazat uživatele {{ addslashes($user->login) }}?')">
+                        @csrf @method('DELETE')
+                        <button type="submit" style="background:none;border:none;cursor:pointer;padding:0;font-size:12px;color:#c0392b">Smazat</button>
+                    </form>
+                    @endif
+                </div>
+            </td>
+        </tr>
+        @empty
+        <tr><td colspan="6" style="text-align:center;color:#aaa;padding:2rem">Žádní uživatelé nebyli nalezeni.</td></tr>
+        @endforelse
+    </tbody>
+</table>
+</div>
+
+<div style="margin-top:12px">{{ $users->links() }}</div>
+</div>
 @endsection

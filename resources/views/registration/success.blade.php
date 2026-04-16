@@ -3,14 +3,13 @@
 @section('menu') @endsection
 @section('breadcrumbs') @endsection
 @section('content')
-<div style="max-width:600px; margin:3em auto; text-align:center;">
-    <div style="background:#d4edda; border:1px solid #c3e6cb; padding:2em; border-radius:8px;">
-        <h2 style="color:#155724;">✓ Registrace byla odeslána</h2>
-        <p style="margin-top:1em;">Vaše registrace byla úspěšně přijata.</p>
-        <p>Správce sítě vás bude kontaktovat ohledně dalšího postupu a podpisu smlouvy.</p>
-        <p style="margin-top:1.5em;">
-            <a href="{{ route('login') }}">← Přejít na přihlášení</a>
-        </p>
+<div class="m-page" style="max-width:560px;margin:3em auto">
+    <div class="m-alert m-alert-success" style="text-align:center;padding:2rem">
+        <div style="font-size:32px;margin-bottom:12px">✓</div>
+        <h2 style="margin:0 0 8px;font-size:20px">Registrace byla odeslána</h2>
+        <p style="margin:0 0 8px">Vaše registrace byla úspěšně přijata.</p>
+        <p style="margin:0 0 16px">Správce sítě vás bude kontaktovat ohledně dalšího postupu a podpisu smlouvy.</p>
+        <a class="m-btn" href="{{ route('login') }}">&larr; Přejít na přihlášení</a>
     </div>
 </div>
 @endsection

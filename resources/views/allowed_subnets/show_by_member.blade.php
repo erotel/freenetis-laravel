@@ -1,136 +1,107 @@
 @extends('layouts.app')
-
 @section('title', 'Povolené podsítě člena ' . $member->name)
-
-@section('menu')
-    <x-freenetis-menu />
-@endsection
-
+@section('menu') <x-freenetis-menu /> @endsection
 @section('breadcrumbs')
-    <div id="breadcrumbs">
-        <a href="{{ route('members.index') }}">Členové</a> &raquo;
-        <a href="{{ route('members.show', $member->id) }}">{{ $member->name }}</a> &raquo;
-        Povolené podsítě
-    </div>
+<div id="breadcrumbs">
+    <a href="{{ route('members.index') }}">Členové</a> &raquo;
+    <a href="{{ route('members.show', $member->id) }}">{{ $member->name }}</a> &raquo;
+    Povolené podsítě
+</div>
 @endsection
-
 @section('content')
-    <h2>Povolené podsítě člena {{ $member->name }}</h2>
+<div class="m-page">
+<div class="m-title-row"><h2>Povolené podsítě člena {{ $member->name }}</h2></div>
 
-    <p>
-        <a href="{{ route('members.show', $member->id) }}">&larr; Zpět na profil člena</a>
-    </p>
+<div class="m-actions">
+    <a class="m-btn" href="{{ route('members.show', $member->id) }}">&larr; Profil člena</a>
+</div>
 
-    @php
-        $enabledCount = $allowedSubnets->where('enabled', true)->count();
-        $maxCount = $member->allowed_subnets_count;
-    @endphp
+@php
+    $enabledCount = $allowedSubnets->where('enabled', true)->count();
+    $maxCount = $member->allowed_subnets_count;
+@endphp
 
-    <form method="POST" action="{{ route('allowed_subnets.update_count', $member->id) }}" style="display:inline;">
+<div class="m-card" style="max-width:420px;margin-bottom:16px">
+    <div class="m-card-title">Nastavení</div>
+    <form method="POST" action="{{ route('allowed_subnets.update_count', $member->id) }}" style="display:flex;align-items:center;gap:8px;padding:6px 0">
         @csrf
         @method('PUT')
-        <strong>Max. povolených podsítí:</strong>
-        <input type="number" name="allowed_subnets_count" min="0" style="width:50px;"
-               value="{{ $member->allowed_subnets_count }}">
-        <small>(0 = neomezeno)</small>
-        <button type="submit">Uložit</button>
+        <span class="m-field-label">Max. povolených podsítí:</span>
+        <input class="m-form-input" type="number" name="allowed_subnets_count" min="0"
+               value="{{ $member->allowed_subnets_count }}" style="max-width:80px">
+        <button class="m-btn m-btn-primary" type="submit" style="padding:5px 10px;font-size:12px">Uložit</button>
     </form>
-    <br>
-    <p>
-        <strong>Zapnutých podsítí:</strong> {{ $enabledCount }}
-        @if($maxCount > 0)
-            / {{ $maxCount }} (maximum)
-        @else
-            (neomezeno)
-        @endif
-    </p>
+    <div class="m-field">
+        <span class="m-field-label">Zapnutých podsítí</span>
+        <span class="m-field-value">
+            {{ $enabledCount }}
+            @if($maxCount > 0) / {{ $maxCount }} (max)
+            @else (neomezeno) @endif
+        </span>
+    </div>
+</div>
 
-    @if($canNew && $availableSubnets->count() > 0)
-        <form method="POST" action="{{ route('allowed_subnets.store', $member->id) }}"
-              style="margin-bottom:10px;">
-            @csrf
-            <select name="subnet_id" required>
-                <option value="">— vyberte podsíť —</option>
-                @foreach($availableSubnets as $subnet)
-                    <option value="{{ $subnet->id }}">
-                        {{ $subnet->name }}
-                        ({{ $subnet->network_address }}/{{ $subnet->netmask }})
-                    </option>
-                @endforeach
-            </select>
-            <button type="submit">
-                <img src="{{ asset('media/images/icons/ico_add.gif') }}" alt="">
-                Přidat novou podsíť
-            </button>
-            @error('subnet_id')
-                <span class="error">{{ $message }}</span>
-            @enderror
-        </form>
-    @endif
+@if($canNew && $availableSubnets->count() > 0)
+<form method="POST" action="{{ route('allowed_subnets.store', $member->id) }}" style="display:flex;gap:8px;margin-bottom:16px">
+    @csrf
+    <select class="m-form-select" name="subnet_id" required style="max-width:320px">
+        <option value="">— vyberte podsíť —</option>
+        @foreach($availableSubnets as $subnet)
+            <option value="{{ $subnet->id }}">
+                {{ $subnet->name }} ({{ $subnet->network_address }}/{{ $subnet->netmask }})
+            </option>
+        @endforeach
+    </select>
+    <button class="m-btn m-btn-success" type="submit">+ Přidat podsíť</button>
+    @error('subnet_id') <div class="m-form-hint" style="color:#c0392b">{{ $message }}</div> @enderror
+</form>
+@endif
 
-    <table class="extended" cellspacing="0">
-        <thead>
-            <tr>
-                <th>Název podsítě</th>
-                <th>Adresa sítě</th>
-                <th class="center">Zapnuto</th>
-                <th>Akce</th>
-            </tr>
-        </thead>
-        <tbody>
-            @forelse($allowedSubnets as $as)
-                <tr>
-                    <td>
-                        <a href="{{ route('subnets.show', $as->subnet_id) }}">
-                            {{ $as->subnet->name ?? '—' }}
-                        </a>
-                    </td>
-                    <td>
-                        {{ $as->subnet->network_address ?? '—' }}
-                        / {{ $as->subnet->netmask ?? '' }}
-                    </td>
-                    <td class="center">
-                        @if($canEdit)
-                            <form method="POST"
-                                  action="{{ route('allowed_subnets.toggle', $as->id) }}"
-                                  style="display:inline;">
-                                @csrf
-                                <button type="submit"
-                                        style="border:none;background:none;cursor:pointer;padding:0;font-size:16px;"
-                                        title="{{ $as->enabled ? 'Zapnuto — kliknutím vypnout' : 'Vypnuto — kliknutím zapnout' }}">
-                                    <span style="color:{{ $as->enabled ? 'green' : '#ccc' }};">
-                                        {{ $as->enabled ? '✓' : '✗' }}
-                                    </span>
-                                </button>
-                            </form>
-                        @else
-                            <span style="color:{{ $as->enabled ? 'green' : '#ccc' }};">
-                                {{ $as->enabled ? '✓' : '✗' }}
-                            </span>
-                        @endif
-                    </td>
-                    <td class="action">
-                        @if($canDelete)
-                            <form method="POST"
-                                  action="{{ route('allowed_subnets.destroy', $as->id) }}"
-                                  style="display:inline;"
-                                  onsubmit="return confirm('Odebrat podsíť {{ addslashes($as->subnet->name ?? '') }}?')">
-                                @csrf
-                                @method('DELETE')
-                                <button type="submit"
-                                        style="border:none;background:none;cursor:pointer;padding:0;"
-                                        title="Odebrat">
-                                    <img src="{{ asset('media/images/icons/delete.png') }}" alt="Odebrat">
-                                </button>
-                            </form>
-                        @endif
-                    </td>
-                </tr>
-            @empty
-                <tr>
-                    <td colspan="4" style="text-align:center;">Žádné povolené podsítě.</td>
-                </tr>
-            @endforelse
-        </tbody>
-    </table>
+<div class="m-card" style="padding:0;overflow-x:auto">
+<table class="m-table" style="margin-bottom:0">
+    <thead>
+        <tr>
+            <th>Název podsítě</th>
+            <th>Adresa sítě</th>
+            <th style="width:80px;text-align:center">Zapnuto</th>
+            <th style="width:70px">Akce</th>
+        </tr>
+    </thead>
+    <tbody>
+        @forelse($allowedSubnets as $as)
+        <tr>
+            <td><a class="m-link" href="{{ route('subnets.show', $as->subnet_id) }}">{{ $as->subnet->name ?? '—' }}</a></td>
+            <td style="font-family:monospace;font-size:12px">
+                {{ $as->subnet->network_address ?? '—' }}/{{ $as->subnet->netmask ?? '' }}
+            </td>
+            <td style="text-align:center">
+                @if($canEdit)
+                <form method="POST" action="{{ route('allowed_subnets.toggle', $as->id) }}" style="display:inline">
+                    @csrf
+                    <button type="submit" style="border:none;background:none;cursor:pointer;padding:0;font-size:16px"
+                            title="{{ $as->enabled ? 'Zapnuto — kliknutím vypnout' : 'Vypnuto — kliknutím zapnout' }}">
+                        <span style="color:{{ $as->enabled ? '#27ae60' : '#ddd' }}">{{ $as->enabled ? '✓' : '✗' }}</span>
+                    </button>
+                </form>
+                @else
+                <span style="color:{{ $as->enabled ? '#27ae60' : '#ddd' }}">{{ $as->enabled ? '✓' : '✗' }}</span>
+                @endif
+            </td>
+            <td>
+                @if($canDelete)
+                <form method="POST" action="{{ route('allowed_subnets.destroy', $as->id) }}" style="display:inline"
+                      onsubmit="return confirm('Odebrat podsíť {{ addslashes($as->subnet->name ?? '') }}?')">
+                    @csrf @method('DELETE')
+                    <button type="submit" style="background:none;border:none;cursor:pointer;padding:0;font-size:12px;color:#c0392b">Odebrat</button>
+                </form>
+                @endif
+            </td>
+        </tr>
+        @empty
+        <tr><td colspan="4" style="text-align:center;color:#aaa;padding:2rem">Žádné povolené podsítě.</td></tr>
+        @endforelse
+    </tbody>
+</table>
+</div>
+</div>
 @endsection

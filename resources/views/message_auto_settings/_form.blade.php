@@ -1,67 +1,55 @@
 <form method="POST" action="{{ $action }}">
-    @csrf
-    @if($method === 'PUT') @method('PUT') @endif
+@csrf
+@if($method === 'PUT') @method('PUT') @endif
 
-    <table class="extended" cellspacing="0">
-        <tr>
-            <th>Typ spouštění</th>
-            <td>
-                <select name="type" id="rule-type" onchange="updateAttributeHelp()">
-                    @foreach($typeLabels as $val => $label)
-                        <option value="{{ $val }}"
-                            {{ old('type', $rule?->type) == $val ? 'selected' : '' }}>
-                            {{ $label }}
-                        </option>
-                    @endforeach
-                </select>
-            </td>
-        </tr>
-        <tr>
-            <th>Atribut</th>
-            <td>
-                <input type="text" name="attribute"
-                       value="{{ old('attribute', $rule?->attribute) }}"
-                       style="width:100px" id="rule-attribute">
-                <small id="attribute-help" style="color:#888;"></small>
-            </td>
-        </tr>
-        <tr>
-            <th>Přesměrování</th>
-            <td>
-                <input type="checkbox" name="redirection_enabled" value="1"
-                    {{ old('redirection_enabled', $rule?->redirection_enabled ?? 0) ? 'checked' : '' }}>
-            </td>
-        </tr>
-        <tr>
-            <th>E-mail</th>
-            <td>
-                <input type="checkbox" name="email_enabled" value="1"
-                    {{ old('email_enabled', $rule?->email_enabled ?? 0) ? 'checked' : '' }}>
-            </td>
-        </tr>
-        <tr>
-            <th>SMS</th>
-            <td>
-                <input type="checkbox" name="sms_enabled" value="1"
-                    {{ old('sms_enabled', $rule?->sms_enabled ?? 0) ? 'checked' : '' }}>
-            </td>
-        </tr>
-        <tr>
-            <th>Nahlásit na email</th>
-            <td>
-                <input type="text" name="send_activation_to_email"
-                       value="{{ old('send_activation_to_email', $rule?->send_activation_to_email) }}"
-                       style="width:250px"
-                       placeholder="admin@example.com">
-                <small style="color:#888;">Při aktivaci zprávy pošle report na tuto adresu.</small>
-            </td>
-        </tr>
-    </table>
-
-    <div style="margin-top:1em;">
-        <button type="submit">Uložit</button>
-        <a href="{{ route('messages.show', request()->route('messageId')) }}" style="margin-left:1em;">Zrušit</a>
+<div class="m-card" style="margin-bottom:16px;max-width:520px">
+    <div class="m-form-group">
+        <label class="m-form-label">Typ spouštění</label>
+        <select class="m-form-select" name="type" id="rule-type" onchange="updateAttributeHelp()">
+            @foreach($typeLabels as $val => $label)
+                <option value="{{ $val }}" {{ old('type', $rule?->type) == $val ? 'selected' : '' }}>
+                    {{ $label }}
+                </option>
+            @endforeach
+        </select>
     </div>
+    <div class="m-form-group">
+        <label class="m-form-label" for="rule-attribute">Atribut</label>
+        <input class="m-form-input" type="text" name="attribute"
+               value="{{ old('attribute', $rule?->attribute) }}"
+               id="rule-attribute" style="max-width:120px;font-family:monospace">
+        <div class="m-form-hint" id="attribute-help"></div>
+    </div>
+    <div style="display:flex;gap:20px;flex-wrap:wrap;margin-bottom:12px">
+        <label style="display:flex;align-items:center;gap:6px;font-size:13px;cursor:pointer">
+            <input type="checkbox" name="redirection_enabled" value="1"
+                {{ old('redirection_enabled', $rule?->redirection_enabled ?? 0) ? 'checked' : '' }}>
+            Přesměrování
+        </label>
+        <label style="display:flex;align-items:center;gap:6px;font-size:13px;cursor:pointer">
+            <input type="checkbox" name="email_enabled" value="1"
+                {{ old('email_enabled', $rule?->email_enabled ?? 0) ? 'checked' : '' }}>
+            E-mail
+        </label>
+        <label style="display:flex;align-items:center;gap:6px;font-size:13px;cursor:pointer">
+            <input type="checkbox" name="sms_enabled" value="1"
+                {{ old('sms_enabled', $rule?->sms_enabled ?? 0) ? 'checked' : '' }}>
+            SMS
+        </label>
+    </div>
+    <div class="m-form-group">
+        <label class="m-form-label">Nahlásit na email</label>
+        <input class="m-form-input" type="text" name="send_activation_to_email"
+               value="{{ old('send_activation_to_email', $rule?->send_activation_to_email) }}"
+               placeholder="admin@example.com">
+        <div class="m-form-hint">Při aktivaci zprávy pošle report na tuto adresu.</div>
+    </div>
+</div>
+
+<div class="m-actions">
+    <button class="m-btn m-btn-primary" type="submit">Uložit</button>
+    <a class="m-btn" href="{{ route('messages.show', request()->route('messageId')) }}">Zrušit</a>
+</div>
 </form>
 
 <script>

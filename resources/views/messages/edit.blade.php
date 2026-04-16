@@ -2,12 +2,21 @@
 @section('title', 'Upravit zprávu')
 @section('menu') <x-freenetis-menu /> @endsection
 @section('breadcrumbs')
-    <div id="breadcrumbs">
-        <a href="{{ route('messages.index') }}">Zprávy</a> &raquo;
-        <a href="{{ route('messages.show', $message->id) }}">{{ $message->name }}</a> &raquo; Upravit
-    </div>
+<div id="breadcrumbs">
+    <a href="{{ route('messages.index') }}">Zprávy</a> &raquo;
+    <a href="{{ route('messages.show', $message->id) }}">{{ $message->name }}</a> &raquo; Upravit
+</div>
 @endsection
 @section('content')
-    <h2>Upravit zprávu: {{ $message->name }}</h2>
-    @include('messages._form', ['message' => $message, 'action' => route('messages.update', $message->id), 'method' => 'PUT'])
+<div class="m-page">
+<div class="m-title-row"><h2>Upravit zprávu: {{ $message->name }}</h2></div>
+
+@if($errors->any())
+<div class="m-alert m-alert-danger">
+    <ul style="margin:0;padding-left:1.2em">@foreach($errors->all() as $e)<li>{{ $e }}</li>@endforeach</ul>
+</div>
+@endif
+
+@include('messages._form', ['message' => $message, 'action' => route('messages.update', $message->id), 'method' => 'PUT'])
+</div>
 @endsection

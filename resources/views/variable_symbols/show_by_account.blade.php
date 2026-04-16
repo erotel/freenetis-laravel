@@ -1,82 +1,71 @@
 @extends('layouts.app')
-
 @section('title', 'Variabilní symboly: ' . $account->name)
-
-@section('menu')
-    <x-freenetis-menu />
-@endsection
-
+@section('menu') <x-freenetis-menu /> @endsection
 @section('breadcrumbs')
-    <div id="breadcrumbs">
-        <a href="{{ route('members.index') }}">Členové</a> &raquo;
-        @if($account->member)
-            <a href="{{ route('members.show', $account->member_id) }}">{{ $account->member->name }}</a> &raquo;
-        @endif
-        <a href="{{ route('accounts.show', $account->id) }}">{{ $account->name }}</a> &raquo;
-        Variabilní symboly
-    </div>
-@endsection
-
-@section('content')
-    <h2>Variabilní symboly: {{ $account->name }}</h2>
-
-    <div style="margin-bottom:1em;">
-        <a href="{{ route('accounts.show', $account->id) }}">&larr; Zpět na účet</a>
-    </div>
-
-    @if($canAdd)
-        <h3>Přidat variabilní symbol</h3>
-        <form method="POST" action="{{ route('variable_symbols.store', $account->id) }}" class="form" style="margin-bottom:1.5em;">
-            @csrf
-            <table class="extended" cellspacing="0">
-                <tbody>
-                    <tr>
-                        <th><label for="variable_symbol">Variabilní symbol <span class="required">*</span></label></th>
-                        <td>
-                            <input type="text" id="variable_symbol" name="variable_symbol"
-                                   value="{{ old('variable_symbol') }}" maxlength="10"
-                                   placeholder="např. 103810">
-                            <input type="submit" value="Přidat">
-                            @error('variable_symbol') <span class="error">{{ $message }}</span> @enderror
-                        </td>
-                    </tr>
-                </tbody>
-            </table>
-        </form>
+<div id="breadcrumbs">
+    <a href="{{ route('members.index') }}">Členové</a> &raquo;
+    @if($account->member)
+        <a href="{{ route('members.show', $account->member_id) }}">{{ $account->member->name }}</a> &raquo;
     @endif
+    <a href="{{ route('accounts.show', $account->id) }}">{{ $account->name }}</a> &raquo;
+    Variabilní symboly
+</div>
+@endsection
+@section('content')
+<div class="m-page">
+<div class="m-title-row"><h2>Variabilní symboly: {{ $account->name }}</h2></div>
 
-    <table class="extended" cellspacing="0">
-        <thead>
-            <tr>
-                <th>ID</th>
-                <th>Variabilní symbol</th>
-                <th>Akce</th>
-            </tr>
-        </thead>
-        <tbody>
-            @forelse($symbols as $symbol)
-                <tr>
-                    <td>{{ $symbol->id }}</td>
-                    <td>{{ $symbol->variable_symbol }}</td>
-                    <td class="action">
-                        @if($canDelete)
-                            <form method="POST" action="{{ route('variable_symbols.destroy', $symbol->id) }}"
-                                  style="display:inline;"
-                                  onsubmit="return confirm('Opravdu smazat variabilní symbol {{ $symbol->variable_symbol }}?');">
-                                @csrf
-                                @method('DELETE')
-                                <button type="submit" class="icon-button" title="Smazat">
-                                    <img src="{{ asset('media/images/icons/delete.png') }}" alt="Smazat">
-                                </button>
-                            </form>
-                        @endif
-                    </td>
-                </tr>
-            @empty
-                <tr>
-                    <td colspan="3">Žádné variabilní symboly.</td>
-                </tr>
-            @endforelse
-        </tbody>
-    </table>
+<div class="m-actions">
+    <a class="m-btn" href="{{ route('accounts.show', $account->id) }}">&larr; Zpět na účet</a>
+</div>
+
+@if($canAdd)
+<div class="m-card" style="max-width:420px;margin-bottom:16px">
+    <div class="m-card-title">Přidat variabilní symbol</div>
+    @if($errors->any())
+    <div class="m-alert m-alert-danger" style="margin-bottom:12px">
+        <ul style="margin:0;padding-left:1.2em">@foreach($errors->all() as $e)<li>{{ $e }}</li>@endforeach</ul>
+    </div>
+    @endif
+    <form method="POST" action="{{ route('variable_symbols.store', $account->id) }}" style="display:flex;gap:8px">
+        @csrf
+        <input class="m-form-input" type="text" id="variable_symbol" name="variable_symbol"
+               value="{{ old('variable_symbol') }}" maxlength="10"
+               placeholder="např. 103810" style="font-family:monospace;max-width:160px">
+        <button class="m-btn m-btn-success" type="submit">+ Přidat</button>
+    </form>
+</div>
+@endif
+
+<div class="m-card" style="padding:0;overflow-x:auto">
+<table class="m-table" style="margin-bottom:0">
+    <thead>
+        <tr>
+            <th style="width:50px">ID</th>
+            <th>Variabilní symbol</th>
+            <th style="width:70px">Akce</th>
+        </tr>
+    </thead>
+    <tbody>
+        @forelse($symbols as $symbol)
+        <tr>
+            <td>{{ $symbol->id }}</td>
+            <td style="font-family:monospace">{{ $symbol->variable_symbol }}</td>
+            <td>
+                @if($canDelete)
+                <form method="POST" action="{{ route('variable_symbols.destroy', $symbol->id) }}" style="display:inline"
+                      onsubmit="return confirm('Opravdu smazat variabilní symbol {{ $symbol->variable_symbol }}?')">
+                    @csrf @method('DELETE')
+                    <button type="submit" style="background:none;border:none;cursor:pointer;padding:0;font-size:12px;color:#c0392b">Smazat</button>
+                </form>
+                @endif
+            </td>
+        </tr>
+        @empty
+        <tr><td colspan="3" style="text-align:center;color:#aaa;padding:2rem">Žádné variabilní symboly.</td></tr>
+        @endforelse
+    </tbody>
+</table>
+</div>
+</div>
 @endsection
