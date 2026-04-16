@@ -251,7 +251,7 @@ class ConnectionRequestController extends Controller
         if ($notifyEmail) {
             $member = Member::find($memberId);
             EmailQueue::create([
-                'from'    => Setting::get('email_address', 'freenetis@localhost'),
+                'from'    => Setting::get('email_default_email', 'freenetis@localhost'),
                 'to'      => $notifyEmail,
                 'subject' => 'Nová žádost o připojení — ' . $data['ip_address'],
                 'body'    => 'Byla podána nová žádost o připojení.'
