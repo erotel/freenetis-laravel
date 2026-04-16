@@ -405,14 +405,23 @@ class DeviceController extends Controller
 
         // Approve connection request if device was created from one
         if ($crId = (int) $request->input('connection_request_id')) {
-            ConnectionRequest::where('id', $crId)
+            $cr = ConnectionRequest::with('member')
+                ->where('id', $crId)
                 ->where('state', ConnectionRequest::STATE_UNDECIDED)
-                ->update([
+                ->first();
+            if ($cr) {
+                $cr->update([
                     'device_id'       => $deviceId,
                     'state'           => ConnectionRequest::STATE_APPROVED,
                     'decided_user_id' => auth()->id(),
                     'decided_at'      => now(),
                 ]);
+                // Message 13 — notify applicant of approval
+                $this->sendMessageToMember(13, $cr->member_id, [
+                    'member_name' => $cr->member?->name ?? '',
+                    'comment'     => $cr->comment ?? '',
+                ]);
+            }
         }
 
         session()->flash('success', 'Zařízení bylo úspěšně přidáno.');

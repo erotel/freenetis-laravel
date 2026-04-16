@@ -247,6 +247,7 @@ class ConnectionRequestController extends Controller
             'comments_thread_id' => null,
         ]);
 
+        // Notify admin email
         $notifyEmail = Setting::get('connection_request_notify_email');
         if ($notifyEmail) {
             $member = Member::find($memberId);
@@ -262,6 +263,13 @@ class ConnectionRequestController extends Controller
                 'state'   => EmailQueue::STATE_NEW,
             ]);
         }
+
+        // Message 12 — notify applicant
+        $memberName = Member::find($memberId)?->name ?? '';
+        $this->sendMessageToMember(12, $memberId, [
+            'member_name' => $memberName,
+            'comment'     => $data['comment'] ?? '',
+        ]);
 
         return redirect()->route('connection_requests.by_member', $memberId)
             ->with('success', 'Žádost o připojení byla odeslána.');
@@ -291,7 +299,7 @@ class ConnectionRequestController extends Controller
         abort_unless($this->aclCheck('edit_all', self::ACL_SECTION, self::ACL_KEY), 403);
         $this->checkEnabled();
 
-        $cr = ConnectionRequest::findOrFail($id);
+        $cr = ConnectionRequest::with('member')->findOrFail($id);
 
         if ($cr->state !== ConnectionRequest::STATE_UNDECIDED) {
             abort(400, 'Žádost již byla rozhodnuta.');
@@ -301,6 +309,12 @@ class ConnectionRequestController extends Controller
             'state'           => ConnectionRequest::STATE_REJECTED,
             'decided_user_id' => auth()->id(),
             'decided_at'      => now(),
+        ]);
+
+        // Message 14 — notify applicant of rejection
+        $this->sendMessageToMember(14, $cr->member_id, [
+            'member_name' => $cr->member?->name ?? '',
+            'comment'     => $cr->comment ?? '',
         ]);
 
         return redirect()->route('connection_requests.show', $id)
