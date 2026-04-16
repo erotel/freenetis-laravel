@@ -111,7 +111,13 @@
             <tr>
                 <th><label for="reg-password">Heslo <span style="color:red">*</span></label></th>
                 <td>
-                    <input type="password" id="reg-password" name="password" style="width:200px" autocomplete="new-password">
+                    <input type="password" id="reg-password" name="password" style="width:200px" autocomplete="new-password"
+                           minlength="{{ \App\Models\Setting::get('security_password_length', 8) }}"
+                           class="main_password">
+                    <div class="password-meter" style="margin-top:4px;">
+                        <div class="password-meter-bar"></div>
+                        <div class="password-meter-message" style="font-size:0.85em; color:#888;"></div>
+                    </div>
                     @error('password') <span style="color:red">{{ $message }}</span> @enderror
                 </td>
             </tr>
@@ -267,5 +273,9 @@ async function loadFromAresReg() {
         status.style.color = 'red';
     }
 }
+</script>
+<script>
+var security_password_length = {{ (int) \App\Models\Setting::get('security_password_length', 8) }};
+var security_password_level  = {{ (int) \App\Models\Setting::get('security_password_level', 3) }};
 </script>
 @endsection

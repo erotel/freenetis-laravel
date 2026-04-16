@@ -32,7 +32,7 @@ class RegistrationController extends Controller
             'surname'                     => ['nullable', 'string', 'max:100', 'regex:/^[^<>{};]+$/u'],
             'birthday'                    => 'required|date',
             'login'                       => 'required|string|min:5|max:20|unique:users,login',
-            'password'                    => 'required|string|min:6|confirmed',
+            'password'                    => ['required', 'string', 'min:' . (int) Setting::get('security_password_length', 8), 'confirmed'],
             'email'                       => 'required|email|max:255',
             'phone'                       => 'required|string|max:30',
             'town_id'                     => 'required|integer|exists:towns,id',
