@@ -2,7 +2,7 @@
 @section('title', 'Čekatelé')
 @section('menu') <x-freenetis-menu /> @endsection
 @section('breadcrumbs')
-<div id="breadcrumbs"><a href="{{ route('members.index') }}">Členové</a> &raquo; Čekatelé</div>
+<div id="breadcrumbs"><a href="{{ route('members.index') }}">Zákazníci</a> &raquo; Čekatelé</div>
 @endsection
 @section('content')
 <div class="m-page">

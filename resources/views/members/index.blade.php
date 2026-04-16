@@ -1,6 +1,14 @@
 @extends('layouts.app')
 
-@section('title', 'Seznam členů')
+@php
+    $pageTitle = match(request('types')) {
+        '1,3,15,17,90' => 'Seznam členů',
+        '17,18'        => 'Seznam čekatelů',
+        default        => 'Seznam zákazníků',
+    };
+@endphp
+
+@section('title', $pageTitle)
 
 @section('menu')
 <x-freenetis-menu />
@@ -8,7 +16,7 @@
 
 @section('breadcrumbs')
 <div id="breadcrumbs">
-    <a href="{{ route('members.index') }}">Členové</a>
+    <a href="{{ route('members.index') }}">Zákazníci</a>
 </div>
 @endsection
 
@@ -16,7 +24,7 @@
 <div class="m-page">
 
 <div class="m-title-row">
-    <h2>Seznam členů</h2>
+    <h2>{{ $pageTitle }}</h2>
 </div>
 <div class="m-subtitle">Celkem: {{ $members->total() }} záznamů</div>
 
