@@ -20,10 +20,10 @@
     <div style="color:green; margin-bottom:1em;">{{ session('success') }}</div>
 @endif
 
-@if($canEdit)
+@if($canEdit && $cr->state === \App\Models\ConnectionRequest::STATE_UNDECIDED)
 <div style="margin-bottom:1em;">
-    <a href="{{ route('connection_requests.approve', $cr->id) }}">
-        <img src="{{ asset('media/images/icons/accept.png') }}" alt=""> Schválit
+    <a href="{{ route('devices.create_from_cr', $cr->id) }}">
+        <img src="{{ asset('media/images/icons/accept.png') }}" alt=""> Schválit a vytvořit zařízení
     </a>
     &nbsp;&nbsp;
     <form method="POST" action="{{ route('connection_requests.reject', $cr->id) }}"

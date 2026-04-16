@@ -18,6 +18,9 @@
 
     <form method="POST" action="{{ route('devices.store_template') }}" class="form" id="device-add-form">
         @csrf
+        @if(!empty($connectionRequestId))
+            <input type="hidden" name="connection_request_id" value="{{ $connectionRequestId }}">
+        @endif
 
         {{-- Section 1: Zařízení --}}
         <h3>Zařízení</h3>
@@ -100,7 +103,7 @@
                                         <th><label>MAC adresa</label></th>
                                         <td>
                                             <input type="text" name="iface_mac_{{ $n }}"
-                                                   value="{{ old("iface_mac_{$n}") }}"
+                                                   value="{{ old("iface_mac_{$n}", $n === 0 ? ($preselectedMac ?? '') : '') }}"
                                                    placeholder="aa:bb:cc:dd:ee:ff" maxlength="20">
                                             @error("iface_mac_{$n}") <span class="error">{{ $message }}</span> @enderror
                                         </td>
@@ -111,7 +114,7 @@
                                         <th><label>IP adresa</label></th>
                                         <td>
                                             <input type="text" name="iface_ip_{{ $n }}"
-                                                   value="{{ old("iface_ip_{$n}") }}"
+                                                   value="{{ old("iface_ip_{$n}", $n === 0 ? ($preselectedIp ?? '') : '') }}"
                                                    placeholder="10.133.23.x">
                                             @error("iface_ip_{$n}") <span class="error">{{ $message }}</span> @enderror
                                         </td>
@@ -123,7 +126,7 @@
                                                 <option value="">— vyberte podsíť —</option>
                                                 @foreach($subnets as $subnet)
                                                     <option value="{{ $subnet->id }}"
-                                                        @selected(old("iface_subnet_{$n}") == $subnet->id)>
+                                                        @selected(old("iface_subnet_{$n}", $n === 0 ? ($preselectedSubnetId ?? '') : '') == $subnet->id)>
                                                         {{ $subnet->label }}
                                                     </option>
                                                 @endforeach

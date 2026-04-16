@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Http\Controllers\Concerns\SyncsIp6Address;
+use App\Models\ConnectionRequest;
 use App\Models\Device;
 use App\Models\DeviceEngineer;
 use App\Models\DeviceTemplate;
@@ -230,6 +231,63 @@ class DeviceController extends Controller
         ));
     }
 
+    public function createFromConnectionRequest(Request $request, int $crId)
+    {
+        abort_unless($this->can('new_all'), 403);
+
+        $cr = ConnectionRequest::with(['member', 'deviceTemplate', 'deviceType'])->findOrFail($crId);
+
+        // Find first user of the member
+        $user = User::where('member_id', $cr->member_id)->orderBy('id')->first();
+        $users       = User::orderBy('surname')->orderBy('name')->get();
+        $deviceTypes = EnumType::where('type_id', EnumType::DEVICE_GROUP_ID)->orderBy('value')->get();
+        $rawTemplates = DeviceTemplate::with('enumType')->get();
+        $subnets     = Subnet::orderBy('name')->get();
+
+        $templates = $rawTemplates->map(fn($t) => [
+            'id'           => $t->id,
+            'name'         => $t->name . ($t->enumType ? ' (' . $t->enumType->value . ')' : ''),
+            'enum_type_id' => $t->enum_type_id,
+        ]);
+
+        $selectedTypeId   = $cr->device_type_id;
+        $selectedTemplate = $cr->device_template_id ? $rawTemplates->find($cr->device_template_id) : null;
+        $ifaceDefinitions = $selectedTemplate ? $selectedTemplate->getIfaceDefinitions() : [];
+
+        $subnetData = Subnet::with('ipAddresses')->get()->map(function ($subnet) {
+            $usedIps   = $subnet->ipAddresses->pluck('ip_address')->toArray();
+            $network   = ip2long($subnet->network_address);
+            $mask      = ip2long($subnet->netmask);
+            $broadcast = $network | (~$mask & 0xFFFFFFFF);
+            $freeIps   = [];
+            for ($ip = $network + 1; $ip < $broadcast && count($freeIps) < 30; $ip++) {
+                $ipStr = long2ip($ip);
+                if (!in_array($ipStr, $usedIps)) {
+                    $freeIps[] = $ipStr;
+                }
+            }
+            return [
+                'id'      => $subnet->id,
+                'network' => $subnet->network_address,
+                'mask'    => $subnet->netmask,
+                'label'   => $subnet->label,
+                'freeIps' => $freeIps,
+            ];
+        })->values()->toArray();
+
+        return view('devices.add', array_merge(compact(
+            'user', 'users', 'deviceTypes', 'templates',
+            'subnets', 'selectedTemplate', 'ifaceDefinitions', 'selectedTypeId',
+            'subnetData'
+        ), [
+            'preselectedUserId'   => $user?->id,
+            'preselectedMac'      => $cr->mac_address,
+            'preselectedIp'       => $cr->ip_address,
+            'preselectedSubnetId' => $cr->subnet_id,
+            'connectionRequestId' => $cr->id,
+        ]));
+    }
+
     public function storeWithTemplate(Request $request)
     {
         \Log::info('storeWithTemplate called', ['all' => $request->except(['_token'])]);
@@ -344,6 +402,18 @@ class DeviceController extends Controller
                 }
             }
         });
+
+        // Approve connection request if device was created from one
+        if ($crId = (int) $request->input('connection_request_id')) {
+            ConnectionRequest::where('id', $crId)
+                ->where('state', ConnectionRequest::STATE_UNDECIDED)
+                ->update([
+                    'device_id'       => $deviceId,
+                    'state'           => ConnectionRequest::STATE_APPROVED,
+                    'decided_user_id' => auth()->id(),
+                    'decided_at'      => now(),
+                ]);
+        }
 
         session()->flash('success', 'Zařízení bylo úspěšně přidáno.');
         return redirect()->route('devices.show', $deviceId);

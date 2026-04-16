@@ -78,19 +78,18 @@
                     </select>
                 </td>
             </tr>
-            @if($canEditDevices)
             <tr>
-                <th>Šablona zařízení</th>
+                <th>Šablona zařízení <span style="color:#c00;">*</span></th>
                 <td>
-                    <select name="device_template_id" style="width:200px;">
-                        <option value="">— bez šablony —</option>
+                    <select name="device_template_id" required style="width:200px;">
+                        <option value="">— vyberte šablonu —</option>
                         @foreach($templates as $id => $name)
                             <option value="{{ $id }}" @selected(old('device_template_id') == $id)>{{ $name }}</option>
                         @endforeach
                     </select>
+                    @error('device_template_id') <span class="error">{{ $message }}</span> @enderror
                 </td>
             </tr>
-            @endif
             <tr>
                 <th>Komentář</th>
                 <td>

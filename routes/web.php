@@ -245,6 +245,7 @@ Route::middleware('auth')->group(function () {
 
     Route::get('devices/add/{userId?}', [DeviceController::class, 'createWithTemplate'])->name('devices.add');
     Route::post('devices/add', [DeviceController::class, 'storeWithTemplate'])->name('devices.store_template');
+    Route::get('devices/create-from-cr/{crId}', [DeviceController::class, 'createFromConnectionRequest'])->name('devices.create_from_cr');
     Route::resource('devices', DeviceController::class);
     Route::get('users/{userId}/devices', [DeviceController::class, 'showByUser'])
         ->name('devices.by_user');

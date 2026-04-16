@@ -74,7 +74,7 @@
                 @if($canEdit)
                 <td style="white-space:nowrap;">
                     @if($cr->state === \App\Models\ConnectionRequest::STATE_UNDECIDED)
-                        <a href="{{ route('connection_requests.approve', $cr->id) }}">Schválit</a>
+                        <a href="{{ route('devices.create_from_cr', $cr->id) }}">Schválit</a>
                         &nbsp;|&nbsp;
                         <form method="POST" action="{{ route('connection_requests.reject', $cr->id) }}"
                               style="display:inline"

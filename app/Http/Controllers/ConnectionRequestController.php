@@ -203,15 +203,15 @@ class ConnectionRequestController extends Controller
         $canEditDevices = $canNewAll && $this->aclCheck('new_all', 'Devices_Controller', 'devices');
 
         $rules = [
-            'subnet_id'   => 'required|integer|exists:subnets,id',
-            'ip_address'  => 'required|ip',
-            'mac_address' => ['required', 'regex:/^([0-9A-Fa-f]{2}[:-]){5}([0-9A-Fa-f]{2})$/'],
-            'device_type_id' => 'required|integer|exists:enum_types,id',
-            'comment'     => 'nullable|string|max:1000',
+            'subnet_id'          => 'required|integer|exists:subnets,id',
+            'ip_address'         => 'required|ip',
+            'mac_address'        => ['required', 'regex:/^([0-9A-Fa-f]{2}[:-]){5}([0-9A-Fa-f]{2})$/'],
+            'device_type_id'     => 'required|integer|exists:enum_types,id',
+            'device_template_id' => 'required|integer|exists:device_templates,id',
+            'comment'            => 'nullable|string|max:1000',
         ];
         if ($canEditDevices) {
-            $rules['member_id']          = 'required|integer|exists:members,id';
-            $rules['device_template_id'] = 'nullable|integer|exists:device_templates,id';
+            $rules['member_id'] = 'required|integer|exists:members,id';
         }
 
         $data = $request->validate($rules);
@@ -242,7 +242,7 @@ class ConnectionRequestController extends Controller
             'mac_address'        => strtoupper($data['mac_address']),
             'device_id'          => null,
             'device_type_id'     => $data['device_type_id'],
-            'device_template_id' => $canEditDevices ? ($data['device_template_id'] ?? null) : null,
+            'device_template_id' => $data['device_template_id'],
             'comment'            => $data['comment'] ?? null,
             'comments_thread_id' => null,
         ]);
@@ -280,27 +280,8 @@ class ConnectionRequestController extends Controller
             abort(400, 'Žádost již byla rozhodnuta.');
         }
 
-        // Need template to create device
-        if (!$cr->device_template_id) {
-            if ($request->isMethod('POST')) {
-                $data = $request->validate(['device_template_id' => 'required|integer|exists:device_templates,id']);
-                $cr->device_template_id = $data['device_template_id'];
-                $cr->save();
-            } else {
-                $templates = DeviceTemplate::where('enum_type_id', $cr->device_type_id)
-                    ->orderBy('name')->pluck('name', 'id');
-                return view('connection_requests.approve', ['cr' => $cr, 'templates' => $templates]);
-            }
-        }
-
-        $cr->update([
-            'state'           => ConnectionRequest::STATE_APPROVED,
-            'decided_user_id' => auth()->id(),
-            'decided_at'      => now(),
-        ]);
-
         return redirect()->route('devices.create_from_cr', $cr->id)
-            ->with('info', 'Žádost schválena. Vytvořte zařízení pro žadatele.');
+            ->with('info', 'Vytvořte zařízení pro žadatele — po uložení bude žádost automaticky schválena.');
     }
 
     // ── Reject ────────────────────────────────────────────────────────────────
