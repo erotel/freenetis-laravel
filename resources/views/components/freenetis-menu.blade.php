@@ -16,15 +16,26 @@
     display:flex;
     align-items:center;
     justify-content:space-between;
-    padding:5px 10px;
+    padding:5px 10px 5px 8px;
     font-size:13px;
-    color:#333;
+    color:#444;
     text-decoration:none;
     border-radius:4px;
     transition:background .1s;
+    gap:6px;
 }
 #main-menu .menu-group > ul > li > a:hover { background:#f0ede8; color:#111; }
-#main-menu .menu-group > ul > li > a.bold { font-weight:600; color:#c0392b; }
+#main-menu .menu-group > ul > li > a.bold { font-weight:600; color:#e8651a; }
+#main-menu .menu-group > ul > li > a::before {
+    content:'•';
+    color:#e8651a;
+    font-size:10px;
+    flex-shrink:0;
+    opacity:.7;
+    line-height:1;
+}
+#main-menu .menu-group > ul > li > a:hover::before { opacity:1; }
+#main-menu .menu-group > ul > li > a.bold::before  { opacity:1; }
 .m-counter {
     display:inline-flex;
     align-items:center;

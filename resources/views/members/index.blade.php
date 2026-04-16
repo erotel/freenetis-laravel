@@ -84,7 +84,7 @@
 
 {{-- Tabulka --}}
 <div class="m-card" style="padding:0;overflow-x:auto">
-<table class="m-table" style="margin-bottom:0">
+<table class="m-table" style="margin-bottom:0;min-width:750px">
     <thead>
         <tr>
             <th style="width:50px"><a class="m-link-sm" href="{{ $sortUrl('id') }}">ID{{ $arrow('id') }}</a></th>
