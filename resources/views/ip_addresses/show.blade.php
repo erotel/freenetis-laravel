@@ -43,15 +43,15 @@
     <div class="m-field"><span class="m-field-label">Rozhraní</span><span class="m-field-value">{{ $ip->iface?->name ?? '—' }}</span></div>
     <div class="m-field">
         <span class="m-field-label">DHCP</span>
-        <span class="m-field-value">@if($ip->dhcp)<span class="m-tag m-tag-green">Ano</span>@else Ne@endif</span>
+        <span class="m-field-value">@if($ip->dhcp)<span class="m-tag m-tag-green">Ano</span>@else Ne @endif</span>
     </div>
     <div class="m-field">
         <span class="m-field-label">Gateway</span>
-        <span class="m-field-value">@if($ip->gateway)<span class="m-tag m-tag-blue">Ano</span>@else Ne@endif</span>
+        <span class="m-field-value">@if($ip->gateway)<span class="m-tag m-tag-blue">Ano</span>@else Ne @endif</span>
     </div>
     <div class="m-field">
         <span class="m-field-label">Služba</span>
-        <span class="m-field-value">@if($ip->service)<span class="m-tag m-tag-amber">Ano</span>@else Ne@endif</span>
+        <span class="m-field-value">@if($ip->service)<span class="m-tag m-tag-amber">Ano</span>@else Ne @endif</span>
     </div>
 </div>
 </div>

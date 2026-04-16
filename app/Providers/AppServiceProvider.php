@@ -44,19 +44,12 @@ class AppServiceProvider extends ServiceProvider
             if (auth()->check() && Setting::get('connection_request_enable')) {
                 $ip = request()->ip();
                 $row = DB::selectOne("
-                    SELECT s.subnet_id FROM (
-                        SELECT s.id AS subnet_id
-                        FROM subnets s
-                        WHERE inet_aton(s.netmask) & inet_aton(?) = inet_aton(s.network_address)
-                    ) s
-                    LEFT JOIN ip_addresses ip
-                        ON ip.subnet_id = s.subnet_id
-                        AND inet_aton(ip.ip_address) = inet_aton(?)
-                    WHERE ? NOT IN (
-                        SELECT cr.ip_address FROM connection_requests cr WHERE cr.state = 0
-                    )
-                    GROUP BY s.subnet_id
-                    HAVING COUNT(ip.id) = 0
+                    SELECT s.id AS subnet_id
+                    FROM subnets s
+                    WHERE inet_aton(s.netmask) & inet_aton(?) = inet_aton(s.network_address)
+                      AND ? NOT IN (SELECT ip_address FROM ip_addresses)
+                      AND ? NOT IN (SELECT cr.ip_address FROM connection_requests cr WHERE cr.state = 0)
+                    LIMIT 1
                 ", [$ip, $ip, $ip]);
                 if ($row) {
                     $banner = ['subnet_id' => $row->subnet_id, 'ip' => $ip];
