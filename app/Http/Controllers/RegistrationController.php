@@ -24,10 +24,12 @@ class RegistrationController extends Controller
             abort(404);
         }
 
+        $isOrg = (int) $request->input('registration_type') === 3;
+
         $validated = $request->validate([
-            'registration_type'           => 'required|in:17,18',
-            'name'                        => ['required', 'string', 'max:100', 'regex:/^[\p{L}\s\-\.]+$/u'],
-            'surname'                     => ['nullable', 'string', 'max:100', 'regex:/^[\p{L}\s\-\.]+$/u'],
+            'registration_type'           => 'required|in:3,17,18',
+            'name'                        => ['required', 'string', 'max:100', 'regex:/^[^<>{};]+$/u'],
+            'surname'                     => ['nullable', 'string', 'max:100', 'regex:/^[^<>{};]+$/u'],
             'birthday'                    => 'required|date',
             'login'                       => 'required|string|min:5|max:20|unique:users,login',
             'password'                    => 'required|string|min:6|confirmed',
@@ -53,12 +55,15 @@ class RegistrationController extends Controller
             ]);
 
             // 2. Celé jméno — ořez na 100 znaků (DB varchar limit)
+            $isOrg = (int) $validated['registration_type'] === 3;
             $fullName = mb_substr(
-                trim($validated['name'] . ($validated['surname'] ? ' ' . $validated['surname'] : '')),
+                $isOrg
+                    ? $validated['name']
+                    : trim($validated['name'] . ($validated['surname'] ? ' ' . $validated['surname'] : '')),
                 0, 100
             );
 
-            // 3. Člen — typ 17 (čekající člen) nebo 18 (čekající zákazník)
+            // 3. Člen — typ 3 (org.), 17 (čekající člen) nebo 18 (čekající zákazník)
             $memberId = DB::table('members')->insertGetId([
                 'name'                        => $fullName,
                 'type'                        => (int) $validated['registration_type'],
@@ -75,8 +80,10 @@ class RegistrationController extends Controller
             // 4. Uživatelský účet
             $userId = DB::table('users')->insertGetId([
                 'member_id'            => $memberId,
-                'name'                 => mb_substr($validated['name'], 0, 100),
-                'surname'              => mb_substr($validated['surname'] ?? '', 0, 100),
+                'name'                 => mb_substr($validated['name'], 0, 30),
+                'surname'              => $isOrg
+                    ? mb_substr(mb_substr($validated['name'], 30), 0, 60)
+                    : mb_substr($validated['surname'] ?? '', 0, 60),
                 'login'                => $validated['login'],
                 'password'             => bcrypt($validated['password']),
                 'application_password' => substr(str_shuffle('abcdefghijklmnopqrstuvwxyz0123456789'), 0, 8),
