@@ -251,8 +251,10 @@ class DeviceController extends Controller
             'enum_type_id' => $t->enum_type_id,
         ]);
 
-        $selectedTypeId   = $cr->device_type_id;
-        $selectedTemplate = $cr->device_template_id ? $rawTemplates->find($cr->device_template_id) : null;
+        // Allow admin to override type/template via query params (e.g. after reloadWithTemplate())
+        $selectedTypeId   = (int) $request->query('type_id', $cr->device_type_id) ?: $cr->device_type_id;
+        $templateId       = (int) $request->query('template_id', $cr->device_template_id) ?: $cr->device_template_id;
+        $selectedTemplate = $templateId ? $rawTemplates->find($templateId) : null;
         $ifaceDefinitions = $selectedTemplate ? $selectedTemplate->getIfaceDefinitions() : [];
 
         $subnetData = Subnet::with('ipAddresses')->get()->map(function ($subnet) {

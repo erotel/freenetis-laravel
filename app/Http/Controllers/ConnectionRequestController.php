@@ -177,7 +177,7 @@ class ConnectionRequestController extends Controller
 
         $members        = Member::orderBy('name')->pluck('name', 'id');
         $deviceTypes    = $this->deviceTypes();
-        $templates      = DeviceTemplate::orderBy('name')->pluck('name', 'id');
+        $templates      = DeviceTemplate::orderBy('name')->get(['id', 'name', 'enum_type_id']);
         $defaultType    = (int) Setting::get('connection_request_device_default_type', 0);
         $canEditDevices = $canNewAll && $this->aclCheck('new_all', 'Devices_Controller', 'devices');
         $authMemberId   = auth()->user()?->member_id;

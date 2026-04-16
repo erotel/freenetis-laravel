@@ -6,12 +6,13 @@ use Illuminate\Database\Eloquent\Model;
 
 class Iface extends Model
 {
-    const ETHERNET   = 1;
-    const WIRELESS   = 2;
-    const BRIDGE     = 3;
-    const PORT       = 4;
-    const INTERNAL   = 5;
-    const VLAN_IFACE = 6;
+    // Matches Kohana Iface_Model constants (stored in DB)
+    const WIRELESS   = 1;
+    const ETHERNET   = 2;
+    const PORT       = 3;
+    const BRIDGE     = 4;
+    const VLAN_IFACE = 5;
+    const INTERNAL   = 6;
     const VIRTUAL_AP = 7;
 
     public static function typeLabels(): array

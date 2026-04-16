@@ -40,7 +40,7 @@ class FreenetisMenu extends Component
             ['name' => 'home', 'label' => 'Domů', 'items' => [
                 ['url' => route('members.show', $user?->member_id ?? 1), 'path' => '', 'label' => 'Můj profil', 'acl' => null],
             ]],
-            ['name' => 'members', 'label' => 'Členové', 'items' => [
+            ['name' => 'members', 'label' => 'Uživatelé', 'items' => [
                 ['url' => route('members.index', ['types' => '1,3,15,17,90']), 'path' => 'members', 'label' => 'Seznam členů', 'acl' => ['view_all', 'Members_Controller', 'members'], 'count' => $countRegular],
                 ['url' => route('members.index', ['types' => '2,16,18']), 'path' => 'members', 'label' => 'Seznam zákazníků', 'acl' => ['view_all', 'Members_Controller', 'members'], 'count' => $countCustomers],
                 ['url' => route('members.index', ['types' => '17,18']), 'path' => 'members/applicants', 'label' => 'Čekatelé', 'acl' => ['view_all', 'Members_Controller', 'members'], 'count' => $countApplicants],
@@ -48,6 +48,7 @@ class FreenetisMenu extends Component
             ]],
             ['name' => 'network', 'label' => 'Síť', 'items' => [
                 ['url' => route('devices.index'), 'path' => 'devices', 'label' => 'Zařízení', 'acl' => ['view_all', 'Devices_Controller', 'devices']],
+                ['url' => route('device_templates.index'), 'path' => 'device-templates', 'label' => 'Šablony zařízení', 'acl' => ['view_all', 'Device_templates_Controller', 'device_template']],
                 ['url' => route('ip_addresses.index'), 'path' => 'ip-addresses', 'label' => 'IP adresy', 'acl' => ['view_all', 'Ip_addresses_Controller', 'ip_address']],
                 ['url' => route('subnets.index'), 'path' => 'subnets', 'label' => 'Subnety', 'acl' => ['view_all', 'Subnets_Controller', 'subnet']],
                 ['url' => route('vlans.index'), 'path' => 'vlans', 'label' => 'VLANy', 'acl' => ['view_all', 'Vlans_Controller', 'vlan']],

@@ -17,6 +17,7 @@ use App\Http\Controllers\TransferController;
 use App\Http\Controllers\Auth\LoginController;
 use App\Http\Controllers\ContactController;
 use App\Http\Controllers\DeviceController;
+use App\Http\Controllers\DeviceTemplateController;
 use App\Http\Controllers\IpAddressController;
 use App\Http\Controllers\MemberController;
 use App\Http\Controllers\SubnetController;
@@ -258,6 +259,18 @@ Route::middleware('auth')->group(function () {
     Route::post('devices/add', [DeviceController::class, 'storeWithTemplate'])->name('devices.store_template');
     Route::get('devices/create-from-cr/{crId}', [DeviceController::class, 'createFromConnectionRequest'])->name('devices.create_from_cr');
     Route::resource('devices', DeviceController::class);
+    Route::resource('device-templates', DeviceTemplateController::class)
+        ->parameters(['device-templates' => 'id'])
+        ->names([
+            'index'   => 'device_templates.index',
+            'create'  => 'device_templates.create',
+            'store'   => 'device_templates.store',
+            'show'    => 'device_templates.show',
+            'edit'    => 'device_templates.edit',
+            'update'  => 'device_templates.update',
+            'destroy' => 'device_templates.destroy',
+        ]);
+    Route::get('device-templates-export', [DeviceTemplateController::class, 'exportJson'])->name('device_templates.export');
     Route::get('users/{userId}/devices', [DeviceController::class, 'showByUser'])
         ->name('devices.by_user');
     Route::post('devices/{id}/engineers', [DeviceController::class, 'addEngineer'])

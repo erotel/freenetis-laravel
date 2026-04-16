@@ -32,6 +32,7 @@
     <script type="text/javascript" src="{{ asset('media/js/jquery.jstree.js') }}"></script>
     <script type="text/javascript" src="{{ asset('media/js/messages_cs.js') }}"></script>
     <script type="text/javascript" src="{{ asset('media/js/php.min.js') }}"></script>
+    @yield('styles')
 </head>
 <body>
 <div id="main">

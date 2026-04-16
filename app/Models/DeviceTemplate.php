@@ -22,13 +22,26 @@ class DeviceTemplate extends Model
             if ($key === 'default_iface') {
                 continue;
             }
+            $type = (int) ($val['type'] ?? $key);
+            // Wireless uses min_count/max_count; others use count
+            // Detect by presence of min_count key (robust against type numbering differences)
+            $isWireless = array_key_exists('min_count', $val);
+            $count     = $isWireless
+                ? (int) ($val['max_count'] ?? 0)
+                : (int) ($val['count'] ?? 0);
+            $minCount  = $isWireless ? (int) ($val['min_count'] ?? 0) : $count;
+            $maxCount  = $isWireless ? (int) ($val['max_count'] ?? 0) : $count;
+
             $defs[] = [
                 'key'        => $key,
-                'type'       => $val['type'],
-                'type_label' => Iface::typeLabels()[$val['type']] ?? '?',
-                'count'      => $val['count'] ?? 1,
-                'has_ip'     => $val['has_ip'] ?? false,
-                'has_mac'    => $val['has_mac'] ?? false,
+                'type'       => $type,
+                'type_label' => Iface::typeLabels()[$type] ?? '?',
+                'count'      => $count,
+                'min_count'  => $minCount,
+                'max_count'  => $maxCount,
+                'has_ip'     => (bool) ($val['has_ip'] ?? false),
+                'has_mac'    => (bool) ($val['has_mac'] ?? false),
+                'has_link'   => (bool) ($val['has_link'] ?? false),
                 'items'      => $val['items'] ?? [],
             ];
         }

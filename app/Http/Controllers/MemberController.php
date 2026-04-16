@@ -200,6 +200,7 @@ class MemberController extends Controller
             'canEditRedirect'      => $this->aclCheck('edit_all',   'Redirect_Controller', 'redirect'),
             'canDeleteRedirect'    => $this->aclCheck('delete_all', 'Redirect_Controller', 'redirect'),
             'memberRedirections'   => \App\Http\Controllers\RedirectController::getMemberRedirections($id),
+            'expirationDate'       => $creditAccount?->getExpirationDate(),
         ]);
     }
 

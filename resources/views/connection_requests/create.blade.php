@@ -70,7 +70,8 @@
             <tr>
                 <th>Typ zařízení <span style="color:#c00;">*</span></th>
                 <td>
-                    <select name="device_type_id" required style="width:200px;">
+                    <select name="device_type_id" id="device_type_id" required style="width:200px;"
+                            onchange="filterTemplates(this.value)">
                         <option value="">— vyberte typ —</option>
                         @foreach($deviceTypes as $id => $label)
                             <option value="{{ $id }}" @selected(old('device_type_id', $defaultType) == $id)>{{ $label }}</option>
@@ -81,10 +82,14 @@
             <tr>
                 <th>Šablona zařízení <span style="color:#c00;">*</span></th>
                 <td>
-                    <select name="device_template_id" required style="width:200px;">
+                    <select name="device_template_id" id="device_template_id" required style="width:200px;">
                         <option value="">— vyberte šablonu —</option>
-                        @foreach($templates as $id => $name)
-                            <option value="{{ $id }}" @selected(old('device_template_id') == $id)>{{ $name }}</option>
+                        @foreach($templates as $t)
+                            <option value="{{ $t->id }}"
+                                    data-type="{{ $t->enum_type_id }}"
+                                    @selected(old('device_template_id') == $t->id)>
+                                {{ $t->name }}
+                            </option>
                         @endforeach
                     </select>
                     @error('device_template_id') <span class="error">{{ $message }}</span> @enderror
@@ -105,4 +110,28 @@
         <a href="{{ route('connection_requests.index') }}">Zrušit</a>
     </div>
 </form>
+
+<script>
+function filterTemplates(typeId) {
+    var select = document.getElementById('device_template_id');
+    var options = select.querySelectorAll('option[data-type]');
+    var hasVisible = false;
+
+    options.forEach(function(opt) {
+        var show = !typeId || opt.getAttribute('data-type') === typeId;
+        opt.style.display = show ? '' : 'none';
+        if (show) hasVisible = true;
+        if (!show && opt.selected) {
+            opt.selected = false;
+            select.value = '';
+        }
+    });
+}
+
+// Run on load if type already selected
+document.addEventListener('DOMContentLoaded', function() {
+    var typeSelect = document.getElementById('device_type_id');
+    if (typeSelect.value) filterTemplates(typeSelect.value);
+});
+</script>
 @endsection
