@@ -103,12 +103,23 @@ Route::get('ares/lookup-public/{ico}', function (string $ico) {
         $uliceNazev   = $sidlo['nazevUlice'] ?? '';
         $cisloDomovni = $sidlo['cisloDomovni'] ?? '';
         $psc          = preg_replace('/\D/', '', $sidlo['psc'] ?? '');
+        // 1. Exact match name + zip
         $town = \Illuminate\Support\Facades\DB::table('towns')
-            ->where(function ($q) use ($mestNazev, $psc) {
-                $q->where('town', 'LIKE', '%' . $mestNazev . '%');
-                if ($psc) $q->orWhere('zip_code', $psc);
-            })
+            ->where('town', $mestNazev)
+            ->where('zip_code', $psc)
             ->first(['id', 'town', 'zip_code']);
+        // 2. Fallback: zip only
+        if (!$town && $psc) {
+            $town = \Illuminate\Support\Facades\DB::table('towns')
+                ->where('zip_code', $psc)
+                ->first(['id', 'town', 'zip_code']);
+        }
+        // 3. Fallback: name only
+        if (!$town && $mestNazev) {
+            $town = \Illuminate\Support\Facades\DB::table('towns')
+                ->where('town', 'LIKE', '%' . $mestNazev . '%')
+                ->first(['id', 'town', 'zip_code']);
+        }
         $street = null;
         if ($town && $uliceNazev) {
             $street = \Illuminate\Support\Facades\DB::table('streets')
