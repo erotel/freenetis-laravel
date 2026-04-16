@@ -524,6 +524,15 @@
                     <small style="color:#888;">Délka prefixu v bitech (např. 56).</small>
                 </td>
             </tr>
+            <tr>
+                <th>Notifikační email pro žádosti o připojení</th>
+                <td>
+                    <input type="email" name="connection_request_notify_email"
+                           value="{{ $networkSettings['connection_request_notify_email'] ?? '' }}"
+                           style="width:300px" placeholder="admin@example.com">
+                    <small style="color:#888;">Po odeslání žádosti bude na tento email odesláno upozornění. Ponechte prázdné pro deaktivaci.</small>
+                </td>
+            </tr>
         </table>
         <div style="margin-top:1em;"><button type="submit">Uložit nastavení sítě</button></div>
     </form>

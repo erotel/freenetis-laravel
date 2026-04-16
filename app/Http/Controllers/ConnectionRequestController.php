@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\ConnectionRequest;
 use App\Models\DeviceTemplate;
+use App\Models\EmailQueue;
 use App\Models\EnumType;
 use App\Models\Member;
 use App\Models\Setting;
@@ -229,7 +230,7 @@ class ConnectionRequestController extends Controller
 
         $memberId = $canEditDevices ? (int) $data['member_id'] : auth()->user()?->member_id;
 
-        ConnectionRequest::create([
+        $cr = ConnectionRequest::create([
             'member_id'          => $memberId,
             'added_user_id'      => auth()->id(),
             'decided_user_id'    => null,
@@ -245,6 +246,22 @@ class ConnectionRequestController extends Controller
             'comment'            => $data['comment'] ?? null,
             'comments_thread_id' => null,
         ]);
+
+        $notifyEmail = Setting::get('connection_request_notify_email');
+        if ($notifyEmail) {
+            $member = Member::find($memberId);
+            EmailQueue::create([
+                'from'    => Setting::get('email_address', 'freenetis@localhost'),
+                'to'      => $notifyEmail,
+                'subject' => 'Nová žádost o připojení — ' . $data['ip_address'],
+                'body'    => 'Byla podána nová žádost o připojení.'
+                    . "\n\nČlen: " . ($member?->name ?? "#{$memberId}")
+                    . "\nIP adresa: " . $data['ip_address']
+                    . "\nMAC adresa: " . strtoupper($data['mac_address'])
+                    . "\n\nDetail: " . route('connection_requests.show', $cr->id),
+                'state'   => EmailQueue::STATE_NEW,
+            ]);
+        }
 
         return redirect()->route('connection_requests.by_member', $memberId)
             ->with('success', 'Žádost o připojení byla odeslána.');

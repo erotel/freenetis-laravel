@@ -134,14 +134,25 @@ class SnmpMacDetector
             throw new \RuntimeException('DHCP SNMP returned false');
         }
 
-        // Mikrotik format: Hex-STRING: AA BB CC DD EE FF
-        if (preg_match('/Hex-STRING: (([0-9a-fA-F]{2}\s){5}[0-9a-fA-F]{2})/', $row, $m)) {
-            return strtoupper(str_replace(' ', ':', trim($m[1])));
+        // Mikrotik format: Hex-STRING: [optional type+len prefix] AA BB CC DD EE FF
+        // Response may include 2-byte prefix (e.g. "01 06") before the 6-byte MAC
+        if (preg_match('/Hex-STRING:\s*(([0-9a-fA-F]{2}\s+)+[0-9a-fA-F]{2})/', $row, $m)) {
+            $bytes = preg_split('/\s+/', trim($m[1]));
+            $bytes = array_filter($bytes, fn($b) => $b !== '');
+            // Take the last 6 bytes — strips any type/length prefix
+            $mac = array_slice(array_values($bytes), -6);
+            if (count($mac) === 6) {
+                return strtoupper(implode(':', $mac));
+            }
         }
 
         // Linux format: STRING: "AA BB CC DD EE FF"
         if (preg_match('/STRING: "(([0-9a-fA-F]{2}\s){5}[0-9a-fA-F]{2})"/', $row, $m)) {
-            return strtoupper(str_replace(' ', ':', trim($m[1])));
+            $bytes = preg_split('/\s+/', trim($m[1]));
+            $mac = array_slice(array_values(array_filter($bytes, fn($b) => $b !== '')), -6);
+            if (count($mac) === 6) {
+                return strtoupper(implode(':', $mac));
+            }
         }
 
         throw new \RuntimeException('Cannot parse DHCP SNMP response: ' . $row);

@@ -32,8 +32,9 @@ class FreenetisMenu extends Component
         $countCustomers   = fn() => (int) DB::table('members')->where('type', 2)->count();
         $countRegular     = fn() => (int) DB::table('members')->where('type', 90)->count();
         $countLogErrors   = fn() => (int) DB::table('log_queues')->whereIn('type', [0, 1])->where('state', 0)->count();
-        $countEmailUnsent  = fn() => (int) DB::table('email_queues')->where('state', 0)->count();
-        $countSmsUnsent    = fn() => (int) DB::table('sms_messages')->where('type', 1)->where('state', 1)->count();
+        $countEmailUnsent            = fn() => (int) DB::table('email_queues')->where('state', 0)->count();
+        $countSmsUnsent              = fn() => (int) DB::table('sms_messages')->where('type', 1)->where('state', 1)->count();
+        $countConnectionRequests     = fn() => (int) DB::table('connection_requests')->where('state', 0)->count();
 
         $menuGroups = [
             ['name' => 'home', 'label' => 'Domů', 'items' => [
@@ -53,7 +54,7 @@ class FreenetisMenu extends Component
                 ['url' => route('public-ip-nat.index'), 'path' => 'public-ip-nat', 'label' => 'Veřejné IP (NAT)', 'acl' => ['view_all', 'Network_Controller', 'public_ip_nat']],
                 ['url' => route('public-port-forwards.index'), 'path' => 'public-port-forwards', 'label' => 'Veřejné porty', 'acl' => ['view_all', 'Network_Controller', 'public_ports']],
                 ['url' => route('redirects.index'), 'path' => 'redirections', 'label' => 'Přesměrování', 'acl' => ['view_all', 'Redirect_Controller', 'redirect']],
-                ['url' => route('connection_requests.index'), 'path' => 'connection-requests', 'label' => 'Žádosti o připojení', 'acl' => ['view_all', 'Connection_Requests_Controller', 'request']],
+                ['url' => route('connection_requests.index'), 'path' => 'connection-requests', 'label' => 'Žádosti o připojení', 'acl' => ['view_all', 'Connection_Requests_Controller', 'request'], 'count' => $countConnectionRequests],
             ]],
             ['name' => 'finance', 'label' => 'Finance', 'items' => [
                 ['url' => route('accounts.index'),           'path' => 'accounts',          'label' => 'Účty',                   'acl' => ['view_all', 'Accounts_Controller', 'accounts']],
