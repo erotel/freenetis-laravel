@@ -40,6 +40,15 @@
         flex-shrink:0;
         position:sticky;top:0;z-index:100;
     }
+    #fn-hamburger{
+        display:none;
+        align-items:center;justify-content:center;
+        background:none;border:none;
+        color:#fff;font-size:20px;
+        cursor:pointer;padding:8px;
+        margin-right:8px;
+        line-height:1;
+    }
     #fn-logo{
         font-size:20px;font-weight:700;letter-spacing:-.5px;
         color:#fff;text-decoration:none;white-space:nowrap;
@@ -67,7 +76,7 @@
     /* BODY ROW — přirozený page scroll, sidebar sticky */
     #fn-body{display:flex;flex:1}
 
-    /* SIDEBAR — sticky, vlastní scroll pro dlouhé menu */
+    /* SIDEBAR — sticky desktop, fixed mobile */
     #fn-sidebar{
         width:210px;flex-shrink:0;
         background:#f9f8f6;
@@ -97,14 +106,21 @@
     }
     #fn-sidebar-menu{flex:1;padding:4px 0 16px}
 
-    /* CONTENT — flex:1, bez overflow (page scrolluje přirozeně) */
+    /* OVERLAY */
+    #sidebar-overlay{
+        position:fixed;inset:0;
+        background:rgba(0,0,0,.4);
+        z-index:999;
+        display:none;
+    }
+    #sidebar-overlay.visible{display:block}
+
+    /* CONTENT */
     #fn-content{
         flex:1;
         background:#fff;
         padding:20px 24px;
         min-width:0;
-        /* overflow záměrně nenastavujeme — tabulky s overflow-x:auto
-           na .m-card fungují správně když parent neklipu overflow-x */
     }
 
     /* FOOTER */
@@ -125,9 +141,21 @@
     #breadcrumbs a{color:#777;text-decoration:none}
     #breadcrumbs a:hover{color:#333;text-decoration:underline}
 
+    /* MOBILE */
     @media(max-width:760px){
-        #fn-sidebar{display:none}
+        #fn-hamburger{display:flex}
         #fn-user .fn-ip{display:none}
+        #fn-sidebar{
+            position:fixed;
+            left:-220px;
+            top:52px;
+            height:calc(100vh - 52px);
+            z-index:1000;
+            transition:left .25s ease;
+            /* přepíšeme sticky z desktopu */
+            width:210px;
+        }
+        #fn-sidebar.open{left:0}
     }
     </style>
 
@@ -136,8 +164,14 @@
 <body>
 <div id="fn-wrap">
 
+    {{-- OVERLAY --}}
+    <div id="sidebar-overlay"></div>
+
     {{-- HEADER --}}
     <header id="fn-header">
+        @auth
+        <button id="fn-hamburger" aria-label="Otevřít menu">&#9776;</button>
+        @endauth
         <a href="{{ url('/') }}" id="fn-logo">Free<em>net</em>IS</a>
         <div id="fn-header-sep"></div>
         @auth
@@ -207,40 +241,75 @@
 @auth
 <script>
 (function(){
+    /* ── Search whisper ── */
     var timer=null;
     var input=document.getElementById('search-input');
     var whisper=document.getElementById('fn-whisper');
-    if(!input||!whisper)return;
-    input.addEventListener('input',function(){
-        clearTimeout(timer);var q=this.value.trim();
-        if(q.length<3){whisper.style.display='none';return;}
-        timer=setTimeout(function(){fetchResults(q);},400);
-    });
-    input.addEventListener('keydown',function(e){if(e.key==='Escape')whisper.style.display='none';});
-    document.addEventListener('click',function(e){
-        var w=document.getElementById('fn-search-wrap');
-        if(w&&!w.contains(e.target))whisper.style.display='none';
-    });
-    function fetchResults(q){
-        fetch('{{ route("search.ajax") }}?q='+encodeURIComponent(q))
-            .then(function(r){return r.json();})
-            .then(function(data){
-                if(!data.length){whisper.style.display='none';return;}
-                var html=data.map(function(item){
-                    return '<a href="'+item.url+'" style="display:block;padding:7px 12px;text-decoration:none;color:#333;border-bottom:1px solid #f0f0f0;">'+
-                        '<strong style="color:#e8651a;">'+highlight(item.title,q)+'</strong>'+
-                        (item.detail?'<br><small style="color:#888;font-size:11px;">'+highlight(item.detail,q)+'</small>':'')+
-                        '</a>';
-                }).join('');
-                html+='<a href="{{ route("search") }}?q='+encodeURIComponent(q)+'" style="display:block;padding:6px 12px;background:#f9f8f6;color:#888;text-decoration:none;font-size:12px;text-align:center;">Zobrazit všechny výsledky →</a>';
-                whisper.innerHTML=html;whisper.style.display='block';
-            })
-            .catch(function(){whisper.style.display='none';});
+    if(input&&whisper){
+        input.addEventListener('input',function(){
+            clearTimeout(timer);var q=this.value.trim();
+            if(q.length<3){whisper.style.display='none';return;}
+            timer=setTimeout(function(){fetchResults(q);},400);
+        });
+        input.addEventListener('keydown',function(e){if(e.key==='Escape')whisper.style.display='none';});
+        document.addEventListener('click',function(e){
+            var w=document.getElementById('fn-search-wrap');
+            if(w&&!w.contains(e.target))whisper.style.display='none';
+        });
+        function fetchResults(q){
+            fetch('{{ route("search.ajax") }}?q='+encodeURIComponent(q))
+                .then(function(r){return r.json();})
+                .then(function(data){
+                    if(!data.length){whisper.style.display='none';return;}
+                    var html=data.map(function(item){
+                        return '<a href="'+item.url+'" style="display:block;padding:7px 12px;text-decoration:none;color:#333;border-bottom:1px solid #f0f0f0;">'+
+                            '<strong style="color:#e8651a;">'+highlight(item.title,q)+'</strong>'+
+                            (item.detail?'<br><small style="color:#888;font-size:11px;">'+highlight(item.detail,q)+'</small>':'')+
+                            '</a>';
+                    }).join('');
+                    html+='<a href="{{ route("search") }}?q='+encodeURIComponent(q)+'" style="display:block;padding:6px 12px;background:#f9f8f6;color:#888;text-decoration:none;font-size:12px;text-align:center;">Zobrazit všechny výsledky →</a>';
+                    whisper.innerHTML=html;whisper.style.display='block';
+                })
+                .catch(function(){whisper.style.display='none';});
+        }
+        function highlight(text,q){
+            if(!q||!text)return text;
+            var e=q.replace(/[.*+?^${}()|[\]\\]/g,'\\$&');
+            return String(text).replace(new RegExp('('+e+')','gi'),'<span style="background:#fff3cd;font-weight:600;">$1</span>');
+        }
     }
-    function highlight(text,q){
-        if(!q||!text)return text;
-        var e=q.replace(/[.*+?^${}()|[\]\\]/g,'\\$&');
-        return String(text).replace(new RegExp('('+e+')','gi'),'<span style="background:#fff3cd;font-weight:600;">$1</span>');
+
+    /* ── Hamburger menu ── */
+    var hamburger=document.getElementById('fn-hamburger');
+    var sidebar=document.getElementById('fn-sidebar');
+    var overlay=document.getElementById('sidebar-overlay');
+
+    function openSidebar(){
+        sidebar.classList.add('open');
+        overlay.classList.add('visible');
+        document.body.style.overflow='hidden';
+    }
+    function closeSidebar(){
+        sidebar.classList.remove('open');
+        overlay.classList.remove('visible');
+        document.body.style.overflow='';
+    }
+
+    if(hamburger){
+        hamburger.addEventListener('click',function(){
+            sidebar.classList.contains('open') ? closeSidebar() : openSidebar();
+        });
+    }
+    if(overlay){
+        overlay.addEventListener('click',closeSidebar);
+    }
+    /* Zavřít sidebar po kliku na odkaz (mobil) */
+    if(sidebar){
+        sidebar.querySelectorAll('a[href]').forEach(function(link){
+            link.addEventListener('click',function(){
+                if(window.innerWidth<=760) closeSidebar();
+            });
+        });
     }
 })();
 </script>
