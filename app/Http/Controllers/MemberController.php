@@ -568,11 +568,13 @@ class MemberController extends Controller
     {
         abort_unless($this->can('edit_all'), 403);
 
+        $isRefundMode = (int) $request->input('end_mode') === 3;
+
         $validated = $request->validate([
             'leaving_date'   => 'required|date',
             'end_mode'       => 'required|integer|in:1,2,3,4',
-            'refund_account' => 'nullable|string|max:50',
-            'refund_amount'  => 'nullable|numeric|min:0',
+            'refund_account' => $isRefundMode ? 'required|string|max:50' : 'nullable',
+            'refund_amount'  => $isRefundMode ? 'required|numeric|min:0' : 'nullable',
         ]);
 
         $member = DB::table('members')->where('id', $id)->first();

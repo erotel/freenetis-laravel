@@ -14,7 +14,7 @@
 @endsection
 
 @section('content')
-<h2>{{ $member->name }}</h2>
+<h2>{{ $member->typeLabel() }} {{ $member->name }}</h2>
 
 @if(in_array($member->type, [1, 17, 18]))
 <div style="background:#fff3cd; border:1px solid #ffc107; padding:8px 12px; margin-bottom:1em; border-radius:4px;">

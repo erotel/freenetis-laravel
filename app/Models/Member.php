@@ -46,6 +46,11 @@ class Member extends Model
         return MemberType::label((int) $this->type);
     }
 
+    public function typeLabel(): string
+    {
+        return MemberType::label((int) $this->type) ?? '';
+    }
+
     // --- Relations ---
 
     public function users()
