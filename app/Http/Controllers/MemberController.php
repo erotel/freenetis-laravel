@@ -592,6 +592,23 @@ class MemberController extends Controller
                 'leaving_date' => $validated['leaving_date'],
             ]);
 
+            // Přidat +U k variabilnímu symbolu (jako Kohana)
+            $accountId = DB::table('accounts')
+                ->where('member_id', $id)
+                ->where('account_attribute_id', 221100)
+                ->value('id');
+            if ($accountId) {
+                $vsRow = DB::table('variable_symbols')
+                    ->where('account_id', $accountId)
+                    ->orderBy('id')
+                    ->first();
+                if ($vsRow && !str_ends_with($vsRow->variable_symbol, '+U')) {
+                    DB::table('variable_symbols')
+                        ->where('id', $vsRow->id)
+                        ->update(['variable_symbol' => $vsRow->variable_symbol . '+U']);
+                }
+            }
+
             // Mód 3: vratka — vložit do outgoing_payments
             if ($endMode === 3 && !empty($validated['refund_account']) && ($validated['refund_amount'] ?? 0) > 0) {
                 $configKey     = 'bank_account_member_type_' . $member->type;
