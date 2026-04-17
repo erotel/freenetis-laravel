@@ -54,7 +54,7 @@ $isDark = ($userSettings['dark_mode'] ?? 0) == 1;
         --fn-table-hover:#1a1a1a;
     }
 
-    /* ── Dark mode — sidebar background override (Kohana #menu přebíjí var) ── */
+    /* ── Dark mode — sidebar background override ── */
     [data-theme="dark"] #fn-sidebar,
     [data-theme="dark"] #menu,
     [data-theme="dark"] #menu-padd{background:#1a1a1a !important}
