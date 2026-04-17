@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Helpers\MemberType;
 use App\Models\AccountAttribute;
 use App\Models\AddressPoint;
+use App\Http\Filters\MemberFilter;
 use App\Models\Member;
 use App\Models\MemberFee;
 use App\Models\Street;
@@ -78,22 +79,29 @@ class MemberController extends Controller
             $query->where('members.locked', (int) $currentLocked);
         }
 
+        $advancedFilters = $request->input('filters', []);
+        if (!empty($advancedFilters)) {
+            MemberFilter::apply($query, $advancedFilters);
+        }
+
         $members = $query->orderBy('members.' . $sort, $dir)
             ->paginate($perPage)
             ->withQueryString();
 
         return view('members.index', [
-            'members'       => $members,
-            'sort'          => $sort,
-            'dir'           => $dir,
-            'perPage'       => $perPage,
-            'search'        => $search,
-            'memberTypes'   => MemberType::labels(),
-            'currentTypes'  => $currentTypes,
-            'currentLocked' => $currentLocked,
-            'canNew'        => $this->can('new_all'),
-            'canEdit'       => $this->can('edit_all'),
-            'canDelete'     => $this->can('delete_all'),
+            'members'         => $members,
+            'sort'            => $sort,
+            'dir'             => $dir,
+            'perPage'         => $perPage,
+            'search'          => $search,
+            'memberTypes'     => MemberType::labels(),
+            'currentTypes'    => $currentTypes,
+            'currentLocked'   => $currentLocked,
+            'filterFields'    => MemberFilter::fields(),
+            'currentFilters'  => $advancedFilters,
+            'canNew'          => $this->can('new_all'),
+            'canEdit'         => $this->can('edit_all'),
+            'canDelete'       => $this->can('delete_all'),
         ]);
     }
 
