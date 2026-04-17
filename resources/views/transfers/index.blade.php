@@ -24,6 +24,10 @@
     $sortUrl = fn(string $col) => request()->fullUrlWithQuery(['sort' => $col, 'dir' => $nextDir($col), 'page' => 1]);
 @endphp
 
+<div class="m-card" style="margin-bottom:16px;padding:14px 1.25rem">
+    <x-filter-bar :fields="$filterFields" :action="route('transfers.index')" :current="$currentFilters" />
+</div>
+
 <div style="margin-bottom:8px">{{ $transfers->links() }}</div>
 
 <div class="m-card" style="padding:0;overflow-x:auto">

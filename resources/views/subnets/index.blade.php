@@ -33,6 +33,10 @@
     </form>
 </div>
 
+<div class="m-card" style="margin-bottom:16px;padding:14px 1.25rem">
+    <x-filter-bar :fields="$filterFields" :action="route('subnets.index')" :current="$currentFilters" />
+</div>
+
 @if($canNew)
 <div class="m-actions">
     <a class="m-btn m-btn-success" href="{{ route('subnets.create') }}">+ Přidat subnet</a>

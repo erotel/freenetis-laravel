@@ -28,6 +28,7 @@ use App\Http\Controllers\UserController;
 use App\Http\Controllers\AroGroupController;
 use App\Http\Controllers\SpeedClassController;
 use App\Http\Controllers\AllowedSubnetController;
+use App\Http\Controllers\SavedFilterController;
 use App\Http\Controllers\StatsController;
 use App\Http\Controllers\EnumTypeController;
 use App\Http\Controllers\MessageAutoSettingController;
@@ -541,6 +542,9 @@ Route::middleware('auth')->group(function () {
 
     Route::post('user/dark-mode', [UserController::class, 'toggleDarkMode'])->name('user.dark-mode');
     Route::get('stats', [StatsController::class, 'index'])->name('stats.index');
+    Route::get('saved-filters',       [SavedFilterController::class, 'index'])->name('saved-filters.index');
+    Route::post('saved-filters',      [SavedFilterController::class, 'store'])->name('saved-filters.store');
+    Route::delete('saved-filters/{id}', [SavedFilterController::class, 'destroy'])->name('saved-filters.destroy');
 
     // Device DHCP export — inside auth group but device self-call bypasses auth middleware
     Route::get('devices/{id}/export/{format}', [DeviceController::class, 'export'])

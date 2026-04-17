@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Filters\TransferFilter;
 use App\Models\Account;
 use App\Models\Transfer;
 use Illuminate\Http\Request;
@@ -36,9 +37,21 @@ class TransferController extends Controller
             $query->where('member_id', $memberId);
         }
 
+        $advancedFilters = $request->input('filters', []);
+        if (!empty($advancedFilters)) {
+            TransferFilter::apply($query, $advancedFilters);
+        }
+
         $transfers = $query->paginate($perPage)->withQueryString();
 
-        return view('transfers.index', compact('transfers', 'sort', 'dir', 'perPage'));
+        return view('transfers.index', [
+            'transfers'      => $transfers,
+            'sort'           => $sort,
+            'dir'            => $dir,
+            'perPage'        => $perPage,
+            'filterFields'   => TransferFilter::fields(),
+            'currentFilters' => $advancedFilters,
+        ]);
     }
 
     public function showByAccount(Request $request, int $accountId)

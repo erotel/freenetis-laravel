@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Filters\SubnetFilter;
 use App\Models\Subnet;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
@@ -40,22 +41,29 @@ class SubnetController extends Controller
             });
         }
 
+        $advancedFilters = $request->input('filters', []);
+        if (!empty($advancedFilters)) {
+            SubnetFilter::apply($query, $advancedFilters);
+        }
+
         $subnets = $query->orderBy($sort, $dir)
             ->paginate($perPage)
             ->withQueryString();
 
         return view('subnets.index', [
-            'subnets'     => $subnets,
-            'sort'        => $sort,
-            'dir'         => $dir,
-            'perPage'     => $perPage,
-            'search'      => $search,
-            'canNew'      => $this->can('new_all'),
-            'canEdit'     => $this->can('edit_all'),
-            'canDelete'   => $this->can('delete_all'),
-            'showDhcp'    => $this->can('view_all', 'dhcp'),
-            'showDns'     => $this->can('view_all', 'dns'),
-            'showQos'     => $this->can('view_all', 'qos'),
+            'subnets'        => $subnets,
+            'sort'           => $sort,
+            'dir'            => $dir,
+            'perPage'        => $perPage,
+            'search'         => $search,
+            'filterFields'   => SubnetFilter::fields(),
+            'currentFilters' => $advancedFilters,
+            'canNew'         => $this->can('new_all'),
+            'canEdit'        => $this->can('edit_all'),
+            'canDelete'      => $this->can('delete_all'),
+            'showDhcp'       => $this->can('view_all', 'dhcp'),
+            'showDns'        => $this->can('view_all', 'dns'),
+            'showQos'        => $this->can('view_all', 'qos'),
         ]);
     }
 

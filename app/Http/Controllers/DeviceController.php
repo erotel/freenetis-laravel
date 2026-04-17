@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Http\Controllers\Concerns\SyncsIp6Address;
+use App\Http\Filters\DeviceFilter;
 use App\Models\ConnectionRequest;
 use App\Models\Device;
 use App\Models\DeviceEngineer;
@@ -52,19 +53,26 @@ class DeviceController extends Controller
             $query->where('name', 'like', "%{$search}%");
         }
 
+        $advancedFilters = $request->input('filters', []);
+        if (!empty($advancedFilters)) {
+            DeviceFilter::apply($query, $advancedFilters);
+        }
+
         $devices = $query->orderBy($sort, $dir)
             ->paginate($perPage)
             ->withQueryString();
 
         return view('devices.index', [
-            'devices'   => $devices,
-            'sort'      => $sort,
-            'dir'       => $dir,
-            'perPage'   => $perPage,
-            'search'    => $search,
-            'canNew'    => $this->can('new_all'),
-            'canEdit'   => $this->can('edit_all'),
-            'canDelete' => $this->can('delete_all'),
+            'devices'        => $devices,
+            'sort'           => $sort,
+            'dir'            => $dir,
+            'perPage'        => $perPage,
+            'search'         => $search,
+            'filterFields'   => DeviceFilter::fields(),
+            'currentFilters' => $advancedFilters,
+            'canNew'         => $this->can('new_all'),
+            'canEdit'        => $this->can('edit_all'),
+            'canDelete'      => $this->can('delete_all'),
         ]);
     }
 

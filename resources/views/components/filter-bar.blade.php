@@ -97,15 +97,40 @@ if (empty($rows)) $rows = [['field'=>'','op'=>'eq','value'=>'','active'=>'1']];
 @endforeach
 </div>
 
-<div style="margin-top:8px">
+@php $pageKey = trim(parse_url($action, PHP_URL_PATH), '/'); @endphp
+<div style="margin-top:10px;display:flex;flex-wrap:wrap;gap:8px;align-items:center">
     <button type="submit" class="m-btn m-btn-primary" style="font-size:12px;padding:4px 14px">Filtrovat</button>
+
+    {{-- Uložit filtr --}}
+    <div style="display:flex;gap:4px;align-items:center" id="fnf-save-wrap">
+        <input type="text" id="fnf-save-name" class="m-form-input"
+               placeholder="Název filtru..." style="width:150px;font-size:12px;padding:3px 8px">
+        <button type="button" class="m-btn" style="font-size:12px;padding:4px 10px"
+                id="fnf-save-btn">Uložit</button>
+    </div>
+
+    {{-- Uložené filtry --}}
+    <div style="position:relative" id="fnf-saved-wrap">
+        <button type="button" class="m-btn" style="font-size:12px;padding:4px 10px"
+                id="fnf-saved-btn">Uložené filtry ▾</button>
+        <div id="fnf-saved-dropdown" style="display:none;position:absolute;top:100%;left:0;z-index:500;
+             background:var(--fn-card-bg);border:1px solid var(--fn-border);border-radius:6px;
+             box-shadow:0 4px 12px rgba(0,0,0,.15);min-width:220px;margin-top:2px">
+            <div id="fnf-saved-list" style="padding:4px 0;max-height:240px;overflow-y:auto;font-size:13px">
+                <div style="padding:8px 12px;color:var(--fn-text-muted)">Načítám…</div>
+            </div>
+        </div>
+    </div>
 </div>
 </form>
 
 <script>
 (function(){
-var FIELDS = @json($fieldDefs);
-var OPS    = @json($opsByType);
+var FIELDS     = @json($fieldDefs);
+var OPS        = @json($opsByType);
+var FNF_PAGE   = @json($pageKey);
+var FNF_ACTION = @json($action);
+var CSRF = document.querySelector('meta[name=csrf-token]')?.content||'';
 
 function fieldByKey(key){ return FIELDS.find(function(f){return f.key===key;})||null; }
 
@@ -194,5 +219,114 @@ document.getElementById('fnf-add').addEventListener('click', function(){
     container.insertAdjacentHTML('beforeend', html);
     rebindRow(container.lastElementChild);
 });
+
+// ── Uložit filtr ─────────────────────────────────────────────────────────────
+document.getElementById('fnf-save-btn').addEventListener('click', function(){
+    var name = document.getElementById('fnf-save-name').value.trim();
+    if (!name) { alert('Zadejte název filtru.'); return; }
+    var filters = [];
+    document.querySelectorAll('#fnf-rows .fnf-row').forEach(function(row){
+        var active = row.querySelector('[name*="[active]"]');
+        var field  = row.querySelector('.fnf-field');
+        var op     = row.querySelector('.fnf-op');
+        var val    = row.querySelector('.fnf-value');
+        if (field && field.value) {
+            filters.push({
+                active: active && active.checked ? '1' : '',
+                field: field.value, op: op ? op.value : 'contains', value: val ? val.value : ''
+            });
+        }
+    });
+    fetch('{{ route("saved-filters.store") }}', {
+        method: 'POST',
+        headers: {'Content-Type':'application/json','X-CSRF-TOKEN': CSRF},
+        body: JSON.stringify({name: name, page: FNF_PAGE, filters: filters})
+    }).then(function(r){ return r.json(); }).then(function(data){
+        document.getElementById('fnf-save-name').value = '';
+        appendSavedItem(data.id, data.name, data.filters || filters);
+        var msg = document.createElement('div');
+        msg.textContent = 'Filtr "'+name+'" byl uložen.';
+        msg.style.cssText = 'background:#1a4a1a;color:#7dbb7d;padding:6px 12px;border-radius:6px;font-size:12px;margin-top:6px;';
+        document.getElementById('fnf-save-wrap').appendChild(msg);
+        setTimeout(function(){ msg.remove(); }, 3000);
+    });
+});
+
+// ── Uložené filtry dropdown ───────────────────────────────────────────────────
+var savedLoaded = false;
+var savedBtn  = document.getElementById('fnf-saved-btn');
+var savedDrop = document.getElementById('fnf-saved-dropdown');
+var savedList = document.getElementById('fnf-saved-list');
+if (savedBtn) {
+    savedBtn.addEventListener('click', function(e){
+        e.stopPropagation();
+        var open = savedDrop.style.display !== 'none';
+        savedDrop.style.display = open ? 'none' : 'block';
+        if (!open && !savedLoaded) loadSaved();
+    });
+    document.addEventListener('click', function(){ savedDrop.style.display='none'; });
+    savedDrop.addEventListener('click', function(e){ e.stopPropagation(); });
+}
+function loadSaved(){
+    savedLoaded = true;
+    fetch('{{ route("saved-filters.index") }}?page='+encodeURIComponent(FNF_PAGE))
+    .then(function(r){ return r.json(); }).then(function(items){
+        savedList.innerHTML = '';
+        if (!items.length){
+            savedList.innerHTML='<div style="padding:8px 12px;color:#aaa;font-size:12px">Žádné uložené filtry</div>';
+            return;
+        }
+        items.forEach(function(item){ appendSavedItem(item.id, item.name, item.filters); });
+    });
+}
+function appendSavedItem(id, name, filters){
+    if (savedList.querySelector('[data-sfid="'+id+'"]')) return;
+    var row = document.createElement('div');
+    row.setAttribute('data-sfid', id);
+    row.style.cssText='display:flex;align-items:center;padding:4px 8px 4px 12px;gap:4px';
+    row.innerHTML='<span style="flex:1;font-size:13px;cursor:pointer" class="sf-label">'+escH(name)+'</span>'
+        +'<button type="button" style="background:none;border:none;cursor:pointer;color:#c0392b;font-size:14px;padding:0 2px" title="Smazat">×</button>';
+    row.querySelector('.sf-label').addEventListener('click', function(){
+        applySavedFilter(filters); savedDrop.style.display='none';
+    });
+    row.querySelector('button').addEventListener('click', function(e){
+        e.stopPropagation(); deleteSaved(id, row);
+    });
+    savedList.appendChild(row);
+}
+function applySavedFilter(filters){
+    document.querySelectorAll('#fnf-rows .fnf-row').forEach(function(r){ r.remove(); });
+    filters.forEach(function(f){
+        document.getElementById('fnf-add').click();
+        var rows = document.querySelectorAll('#fnf-rows .fnf-row');
+        var row  = rows[rows.length-1];
+        var fieldSel = row.querySelector('.fnf-field');
+        if (fieldSel){ fieldSel.value=f.field; fieldSel.dispatchEvent(new Event('change')); }
+        setTimeout(function(){
+            var opSel  = row.querySelector('.fnf-op');
+            var valEl  = row.querySelector('.fnf-value');
+            var active = row.querySelector('[name*="[active]"]');
+            if (opSel)  opSel.value  = f.op||'contains';
+            if (valEl)  valEl.value  = f.value||'';
+            if (active) active.checked = f.active==='1'||f.active===1||f.active===true;
+        }, 10);
+    });
+    setTimeout(function(){
+        var form = document.querySelector('.fn-filter-bar'); if(form) form.submit();
+    }, 60);
+}
+function deleteSaved(id, rowEl){
+    fetch('{{ url("saved-filters") }}/'+id, {
+        method:'DELETE', headers:{'X-CSRF-TOKEN':CSRF,'Content-Type':'application/json'}
+    }).then(function(r){ return r.json(); }).then(function(){
+        rowEl.remove();
+        var msg = document.createElement('div');
+        msg.textContent = 'Filtr byl smazán.';
+        msg.style.cssText = 'background:#4a1a1a;color:#bb7d7d;padding:6px 12px;border-radius:6px;font-size:12px;margin-top:6px;';
+        document.getElementById('fnf-save-wrap').appendChild(msg);
+        setTimeout(function(){ msg.remove(); }, 3000);
+    });
+}
+
 })();
 </script>
