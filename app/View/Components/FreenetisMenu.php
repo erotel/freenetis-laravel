@@ -78,6 +78,7 @@ class FreenetisMenu extends Component
             ]],
             ['name' => 'settings', 'label' => 'Administrace', 'items' => [
                 ['url' => route('notifications.members.select'), 'path' => 'notifications/members', 'label' => 'Hromadné notifikace', 'acl' => ['new_all', 'Notifications_Controller', 'member']],
+                ['url' => route('stats.index'),              'path' => 'stats',             'label' => 'Statistiky',       'acl' => ['view_all', 'Stats_Controller', 'members_growth']],
                 ['url' => route('log_queues.index'),        'path' => 'log-queues',        'label' => 'Chyby a logy',     'acl' => ['view_all', 'Log_queues_Controller', 'log_queue'],           'count' => $countLogErrors],
                 ['url' => route('email_queues.unsent'),     'path' => 'email-queues',      'label' => 'E-mailová fronta', 'acl' => ['view_all', 'Email_queues_Controller', 'email_queue'],       'count' => $countEmailUnsent],
                 ['url' => route('settings.index'),          'path' => 'settings',          'label' => 'Nastavení',        'acl' => ['view_all', 'Settings_Controller', 'finance_settings']],
