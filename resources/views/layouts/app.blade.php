@@ -29,7 +29,7 @@
     <style>
     /* ── Layout shell ── */
     html,body{margin:0;padding:0;background:#f0ede8}
-    #fn-wrap{display:flex;flex-direction:column;min-height:100vh}
+    #fn-wrap{display:flex;flex-direction:column;min-height:100vh;max-width:1400px;margin:0 auto}
 
     /* HEADER */
     #fn-header{
