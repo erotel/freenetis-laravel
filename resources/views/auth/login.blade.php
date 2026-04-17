@@ -28,10 +28,10 @@
         </div>
     @endif
     @if(session('error'))
-        <div class="error">{{ session('error') }}</div>
+        <div class="m-alert m-alert-danger">{{ session('error') }}</div>
     @endif
     @if ($errors->any())
-        <div class="error">{{ $errors->first() }}</div>
+        <div class="m-alert m-alert-danger">{{ $errors->first() }}</div>
     @endif
 
     <form method="POST" action="{{ route('login') }}">

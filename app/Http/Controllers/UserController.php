@@ -316,4 +316,14 @@ class UserController extends Controller
 
         return redirect()->route('members.show', $user->member_id);
     }
+
+    public function toggleDarkMode(Request $request): \Illuminate\Http\JsonResponse
+    {
+        $user = auth()->user();
+        $settings = json_decode($user->settings ?? '{}', true) ?: [];
+        $settings['dark_mode'] = $request->input('dark_mode', 0) ? 1 : 0;
+        $user->settings = json_encode($settings);
+        $user->save();
+        return response()->json(['ok' => true]);
+    }
 }

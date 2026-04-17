@@ -22,7 +22,7 @@
     <h1>Nastavit nové heslo</h1>
 
     @if($errors->any())
-        <div class="error">{{ $errors->first() }}</div>
+        <div class="m-alert m-alert-danger">{{ $errors->first() }}</div>
     @endif
 
     <form method="POST" action="{{ route('forgotten-password.update') }}">

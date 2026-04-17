@@ -538,6 +538,8 @@ Route::middleware('auth')->group(function () {
     Route::put('comments/{id}',                     [CommentController::class, 'update'])->name('comments.update');
     Route::delete('comments/{id}',                  [CommentController::class, 'destroy'])->name('comments.destroy');
 
+    Route::post('user/dark-mode', [UserController::class, 'toggleDarkMode'])->name('user.dark-mode');
+
     // Device DHCP export — inside auth group but device self-call bypasses auth middleware
     Route::get('devices/{id}/export/{format}', [DeviceController::class, 'export'])
         ->name('devices.export')

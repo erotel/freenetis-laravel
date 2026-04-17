@@ -1,40 +1,115 @@
-@php $popup = session('popup', false); @endphp
+@php
+$popup = session('popup', false);
+$userSettings = json_decode(auth()->user()?->settings ?? '{}', true);
+$isDark = ($userSettings['dark_mode'] ?? 0) == 1;
+@endphp
 @if($popup)
     @yield('content')
 @else
 <!DOCTYPE html>
-<html lang="cs">
+<html lang="cs" data-theme="{{ $isDark ? 'dark' : 'light' }}">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>@yield('title') | FreenetIS</title>
 
-    <link rel="stylesheet" type="text/css" href="{{ asset('media/css/style.css') }}">
-    <link rel="stylesheet" type="text/css" href="{{ asset('media/css/tables.css') }}">
-    <link rel="stylesheet" type="text/css" href="{{ asset('media/css/forms.css') }}">
-    <link rel="stylesheet" type="text/css" href="{{ asset('media/css/jquery-ui.css') }}">
-    <link rel="stylesheet" type="text/css" href="{{ asset('media/css/jquery.validate.password.css') }}">
-    <link rel="stylesheet" type="text/css" href="{{ asset('media/css/modern.css') }}">
-    <link rel="stylesheet" type="text/css" media="print" href="{{ asset('media/css/print.css') }}">
+    <link rel="stylesheet" type="text/css" href="{{ asset('css/modern.css') }}">
+    <style media="print">
+    #fn-header,#fn-sidebar,#fn-hamburger,#sidebar-overlay{display:none!important}
+    #fn-content{padding:0;background:#fff}
+    a[href]::after{content:" ("attr(href)")"}
+    </style>
     <meta name="csrf-token" content="{{ csrf_token() }}">
 
-    <script type="text/javascript" src="{{ asset('media/js/jquery.min.js') }}"></script>
-    <script type="text/javascript" src="{{ asset('media/js/jquery-ui.min.js') }}"></script>
-    <script type="text/javascript" src="{{ asset('media/js/jquery.ui.datepicker-cs.js') }}"></script>
-    <script type="text/javascript" src="{{ asset('media/js/jquery.validate.min.js') }}"></script>
-    <script type="text/javascript" src="{{ asset('media/js/jquery.validate.password.js') }}"></script>
-    <script type="text/javascript" src="{{ asset('media/js/messages_cs.js') }}"></script>
-    <script type="text/javascript" src="{{ asset('media/js/php.min.js') }}"></script>
-
     <style>
+    /* ── CSS proměnné — světlý režim ── */
+    :root{
+        --fn-header-bg:#1a1a1a;
+        --fn-sidebar-bg:#f9f8f6;
+        --fn-sidebar-border:#e8e4de;
+        --fn-sidebar-text:#444;
+        --fn-sidebar-hover:#f0ede8;
+        --fn-content-bg:#fff;
+        --fn-body-bg:#f0ede8;
+        --fn-text:#222;
+        --fn-text-muted:#888;
+        --fn-border:#e8e4de;
+        --fn-card-bg:#fff;
+        --fn-input-bg:#fff;
+        --fn-table-hover:#fafafa;
+    }
+    [data-theme="dark"]{
+        --fn-header-bg:#111;
+        --fn-sidebar-bg:#1a1a1a;
+        --fn-sidebar-border:#2a2a2a;
+        --fn-sidebar-text:#ccc;
+        --fn-sidebar-hover:#252525;
+        --fn-content-bg:#141414;
+        --fn-body-bg:#0d0d0d;
+        --fn-text:#e0e0e0;
+        --fn-text-muted:#888;
+        --fn-border:#2a2a2a;
+        --fn-card-bg:#1e1e1e;
+        --fn-input-bg:#252525;
+        --fn-table-hover:#1a1a1a;
+    }
+
+    /* ── Dark mode — sidebar background override (Kohana #menu přebíjí var) ── */
+    [data-theme="dark"] #fn-sidebar,
+    [data-theme="dark"] #menu,
+    [data-theme="dark"] #menu-padd{background:#1a1a1a !important}
+    [data-theme="dark"] #fn-sidebar a,
+    [data-theme="dark"] #menu a,
+    [data-theme="dark"] #menu-padd a{color:#e0e0e0 !important}
+    [data-theme="dark"] #fn-sidebar a:hover,
+    [data-theme="dark"] #menu a:hover{color:#fff !important;background:#2a2a2a !important}
+
+    /* ── Dark mode — m-* komponenty ── */
+    [data-theme="dark"] .m-card{background:var(--fn-card-bg);border-color:var(--fn-border)}
+    [data-theme="dark"] .m-table{background:var(--fn-card-bg)}
+    [data-theme="dark"] .m-table th{color:var(--fn-text-muted);border-color:var(--fn-border)}
+    [data-theme="dark"] .m-table td{border-color:var(--fn-border);color:var(--fn-text)}
+    [data-theme="dark"] .m-table tr:hover td{background:var(--fn-table-hover)}
+    [data-theme="dark"] .m-metric{background:var(--fn-input-bg)}
+    [data-theme="dark"] .m-metric-label{color:var(--fn-text-muted)}
+    [data-theme="dark"] .m-metric-value{color:var(--fn-text)}
+    [data-theme="dark"] .m-field{border-color:var(--fn-border)}
+    [data-theme="dark"] .m-field-label{color:var(--fn-text-muted)}
+    [data-theme="dark"] .m-field-value{color:var(--fn-text)}
+    [data-theme="dark"] .m-section{color:var(--fn-text-muted);border-color:var(--fn-border)}
+    [data-theme="dark"] .m-btn{border-color:var(--fn-border);color:var(--fn-text-muted)}
+    [data-theme="dark"] .m-btn:hover{background:var(--fn-table-hover);color:var(--fn-text)}
+    [data-theme="dark"] .m-form-input,
+    [data-theme="dark"] .m-form-select{background:var(--fn-input-bg);border-color:var(--fn-border);color:var(--fn-text)}
+    [data-theme="dark"] .m-card-title{color:var(--fn-text-muted)}
+    [data-theme="dark"] .m-subtitle{color:var(--fn-text-muted)}
+    [data-theme="dark"] .m-user-name{color:var(--fn-text)}
+    [data-theme="dark"] .m-user-login{color:var(--fn-text-muted)}
+    [data-theme="dark"] .m-avatar{background:#1e3a5f;color:#85b7eb}
+    [data-theme="dark"] .m-ip-addr{color:var(--fn-text)}
+    [data-theme="dark"] input,[data-theme="dark"] select,[data-theme="dark"] textarea{background:var(--fn-input-bg) !important;border-color:var(--fn-border) !important;color:var(--fn-text) !important}
+    [data-theme="dark"] h2,[data-theme="dark"] h3{color:var(--fn-text)}
+    [data-theme="dark"] #breadcrumbs{color:var(--fn-text-muted)}
+    [data-theme="dark"] #breadcrumbs a{color:var(--fn-text-muted)}
+    [data-theme="dark"] .fn-page{background:#1e1e1e !important;border-color:#333 !important;color:#ccc !important}
+    [data-theme="dark"] .fn-page:hover{background:#2a2a2a !important;color:#fff !important}
+    [data-theme="dark"] .fn-page-active{background:#e8651a !important;border-color:#e8651a !important;color:#fff !important}
+    [data-theme="dark"] .fn-page-disabled{background:#141414 !important;border-color:#222 !important;color:#555 !important}
+    [data-theme="dark"] #fn-sidebar a{color:#ccc}
+    [data-theme="dark"] #fn-sidebar a:hover{color:#fff;background:#2a2a2a}
+    [data-theme="dark"] #fn-sidebar a.bold{color:#e8651a}
+    [data-theme="dark"] #fn-sidebar .menu-group-label{color:#e8651a}
+    [data-theme="dark"] #fn-sidebar a::before{color:#666;opacity:1}
+    [data-theme="dark"] #fn-sidebar a:hover::before{color:#e8651a}
+
     /* ── Layout shell ── */
-    html,body{margin:0;padding:0;background:#f0ede8}
+    html,body{margin:0;padding:0;background:var(--fn-body-bg)}
     #fn-wrap{display:flex;flex-direction:column;min-height:100vh;max-width:1400px;margin:0 auto}
 
     /* HEADER */
     #fn-header{
         display:flex;align-items:center;
-        background:#1a1a1a;
+        background:var(--fn-header-bg);
         height:52px;
         padding:0 20px;
         flex-shrink:0;
@@ -72,15 +147,21 @@
         white-space:nowrap;
     }
     #fn-logout-btn:hover{background:#d45a14;color:#fff}
+    #dark-toggle{
+        background:none;border:1px solid rgba(255,255,255,.25);border-radius:20px;
+        color:rgba(255,255,255,.7);font-size:16px;cursor:pointer;
+        padding:3px 9px;line-height:1;transition:border-color .15s,color .15s;
+    }
+    #dark-toggle:hover{border-color:rgba(255,255,255,.6);color:#fff}
 
-    /* BODY ROW — přirozený page scroll, sidebar sticky */
+    /* BODY ROW */
     #fn-body{display:flex;flex:1}
 
-    /* SIDEBAR — sticky desktop, fixed mobile */
+    /* SIDEBAR */
     #fn-sidebar{
         width:210px;flex-shrink:0;
-        background:#f9f8f6;
-        border-right:1px solid #e8e4de;
+        background:var(--fn-sidebar-bg);
+        border-right:1px solid var(--fn-sidebar-border);
         display:flex;flex-direction:column;
         position:sticky;top:52px;
         height:calc(100vh - 52px);
@@ -90,8 +171,8 @@
     #fn-search-wrap input[type=text]{
         width:100%;box-sizing:border-box;
         padding:7px 10px;font-size:13px;
-        border:1px solid #ddd;border-radius:6px;
-        background:#fff;color:#222;outline:none;
+        border:1px solid var(--fn-border);border-radius:6px;
+        background:var(--fn-input-bg);color:var(--fn-text);outline:none;
         transition:border-color .15s,box-shadow .15s;
     }
     #fn-search-wrap input[type=text]:focus{
@@ -100,8 +181,8 @@
     }
     #fn-whisper{
         position:absolute;top:100%;left:12px;right:12px;z-index:9999;
-        background:#fff;border:1px solid #ddd;border-radius:6px;
-        box-shadow:0 4px 12px rgba(0,0,0,.12);
+        background:var(--fn-card-bg);border:1px solid var(--fn-border);border-radius:6px;
+        box-shadow:0 4px 12px rgba(0,0,0,.2);
         overflow:hidden;
     }
     #fn-sidebar-menu{flex:1;padding:4px 0 16px}
@@ -110,36 +191,36 @@
     #sidebar-overlay{
         position:fixed;inset:0;
         background:rgba(0,0,0,.4);
-        z-index:999;
-        display:none;
+        z-index:999;display:none;
     }
     #sidebar-overlay.visible{display:block}
 
     /* CONTENT */
     #fn-content{
         flex:1;
-        background:#fff;
+        background:var(--fn-content-bg);
+        color:var(--fn-text);
         padding:20px 24px;
         min-width:0;
     }
 
     /* FOOTER */
     #fn-footer{
-        background:#f0ede8;border-top:1px solid #e8e4de;
+        background:var(--fn-body-bg);border-top:1px solid var(--fn-border);
         padding:8px 20px;
-        font-size:12px;color:#aaa;
+        font-size:12px;color:var(--fn-text-muted);
         flex-shrink:0;
     }
-    #fn-footer a{color:#aaa;text-decoration:none}
-    #fn-footer a:hover{color:#666}
+    #fn-footer a{color:var(--fn-text-muted);text-decoration:none}
+    #fn-footer a:hover{color:var(--fn-text)}
 
     /* Breadcrumbs */
     #breadcrumbs{
-        font-size:13px;color:#999;
+        font-size:13px;color:var(--fn-text-muted);
         margin-bottom:14px;
     }
-    #breadcrumbs a{color:#777;text-decoration:none}
-    #breadcrumbs a:hover{color:#333;text-decoration:underline}
+    #breadcrumbs a{color:var(--fn-text-muted);text-decoration:none}
+    #breadcrumbs a:hover{color:var(--fn-text);text-decoration:underline}
 
     /* MOBILE */
     @media(max-width:760px){
@@ -152,7 +233,6 @@
             height:calc(100vh - 52px);
             z-index:1000;
             transition:left .25s ease;
-            /* přepíšeme sticky z desktopu */
             width:210px;
         }
         #fn-sidebar.open{left:0}
@@ -181,6 +261,9 @@
                 <span style="color:rgba(255,255,255,.45)"> / {{ auth()->user()->login }}</span>
             </span>
             <span class="fn-ip" id="user_ip_address">{{ request()->ip() }}</span>
+            <button id="dark-toggle" onclick="toggleDark()" title="Přepnout tmavý/světlý režim">
+                {{ $isDark ? '☀️' : '🌙' }}
+            </button>
             <form method="POST" action="{{ route('logout') }}" style="margin:0">
                 @csrf
                 <button type="submit" id="fn-logout-btn">Odhlásit se</button>
@@ -278,6 +361,21 @@
             return String(text).replace(new RegExp('('+e+')','gi'),'<span style="background:#fff3cd;font-weight:600;">$1</span>');
         }
     }
+
+    /* ── Dark mode toggle ── */
+    window.toggleDark=function(){
+        var html=document.documentElement;
+        var isDark=html.getAttribute('data-theme')==='dark';
+        var newTheme=isDark?'light':'dark';
+        html.setAttribute('data-theme',newTheme);
+        var btn=document.getElementById('dark-toggle');
+        if(btn)btn.textContent=isDark?'🌙':'☀️';
+        fetch('{{ route("user.dark-mode") }}',{
+            method:'POST',
+            headers:{'Content-Type':'application/json','X-CSRF-TOKEN':document.querySelector('meta[name=csrf-token]').content},
+            body:JSON.stringify({dark_mode:isDark?0:1})
+        });
+    };
 
     /* ── Hamburger menu ── */
     var hamburger=document.getElementById('fn-hamburger');

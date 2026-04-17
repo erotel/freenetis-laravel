@@ -1,32 +1,32 @@
 @if ($paginator->hasPages())
-<div style="margin:8px 0;">
-    «
+<nav class="fn-pagination" aria-label="Stránkování">
+    {{-- Předchozí --}}
     @if ($paginator->onFirstPage())
-        <span style="color:#999;">předchozí</span>
+        <span class="fn-page fn-page-disabled">«</span>
     @else
-        <a href="{{ $paginator->previousPageUrl() }}">předchozí</a>
+        <a class="fn-page" href="{{ $paginator->previousPageUrl() }}" rel="prev" aria-label="Předchozí">«</a>
     @endif
 
     @foreach ($elements as $element)
         @if (is_string($element))
-            <span style="color:#999;">{{ $element }}</span>
+            <span class="fn-page fn-page-disabled">{{ $element }}</span>
         @endif
         @if (is_array($element))
             @foreach ($element as $page => $url)
                 @if ($page == $paginator->currentPage())
-                    <span style="border:1px solid #c00; padding:1px 5px; font-weight:bold;">{{ $page }}</span>
+                    <span class="fn-page fn-page-active" aria-current="page">{{ $page }}</span>
                 @else
-                    <a href="{{ $url }}" style="padding:1px 5px;">{{ $page }}</a>
+                    <a class="fn-page" href="{{ $url }}">{{ $page }}</a>
                 @endif
             @endforeach
         @endif
     @endforeach
 
+    {{-- Další --}}
     @if ($paginator->hasMorePages())
-        <a href="{{ $paginator->nextPageUrl() }}">další</a>
+        <a class="fn-page" href="{{ $paginator->nextPageUrl() }}" rel="next" aria-label="Další">»</a>
     @else
-        <span style="color:#999;">další</span>
+        <span class="fn-page fn-page-disabled">»</span>
     @endif
-    »
-</div>
+</nav>
 @endif

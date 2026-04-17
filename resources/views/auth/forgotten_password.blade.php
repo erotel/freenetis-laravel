@@ -34,7 +34,7 @@
         </div>
     @endif
     @if($errors->any())
-        <div class="error">{{ $errors->first() }}</div>
+        <div class="m-alert m-alert-danger">{{ $errors->first() }}</div>
     @endif
 
     <p class="hint">Zadejte váš login, e-mail nebo variabilní symbol. Pošleme vám odkaz pro reset hesla.</p>
