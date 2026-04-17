@@ -361,7 +361,7 @@
 @endif
 
 {{-- Uživatelé --}}
-@if($member->users->isNotEmpty())
+@if($member->users->count() > 1)
 <div class="m-section">Uživatelé</div>
 <div class="m-card" style="margin-bottom:16px">
     @foreach($member->users as $u)

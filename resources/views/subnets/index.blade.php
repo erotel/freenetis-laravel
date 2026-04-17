@@ -53,7 +53,7 @@
     <thead>
         <tr>
             <th style="width:50px"><a class="m-link-sm" href="{{ $sortUrl('id') }}">ID{{ $arrow('id') }}</a></th>
-            <th><a class="m-link-sm" href="{{ $sortUrl('name') }}">Název{{ $arrow('name') }}</a></th>
+            <th style="text-align:left"><a class="m-link-sm" href="{{ $sortUrl('name') }}">Název{{ $arrow('name') }}</a></th>
             <th><a class="m-link-sm" href="{{ $sortUrl('network_address') }}">Síť/Maska{{ $arrow('network_address') }}</a></th>
             <th style="width:80px">Počet IP</th>
             @if($showDhcp)<th style="width:60px">DHCP</th>@endif
@@ -66,7 +66,7 @@
         @forelse($subnets as $subnet)
         <tr>
             <td>{{ $subnet->id }}</td>
-            <td><a class="m-link" href="{{ route('subnets.show', $subnet->id) }}">{{ $subnet->name ?: '—' }}</a></td>
+            <td style="text-align:left"><a class="m-link" href="{{ route('subnets.show', $subnet->id) }}">{{ $subnet->name ?: '—' }}</a></td>
             <td style="font-family:monospace;font-size:12px">{{ $subnet->network_address }}/{{ $subnet->netmask }}</td>
             <td>{{ $subnet->ip_addresses_count }}</td>
             @if($showDhcp)<td>@if($subnet->dhcp)<span class="m-tag m-tag-green">Ano</span>@else —@endif</td>@endif

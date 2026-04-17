@@ -90,74 +90,94 @@
 {{-- Stránkování nahoře --}}
 <div style="margin-bottom:8px">{{ $members->links() }}</div>
 
+@php
+$redirectLabels = [
+    0=>'Uživat. zpráva', 4=>'Přerušení', 5=>'Dlužník', 6=>'Upoz. placení',
+    7=>'Nepovolené PM', 16=>'Exp. test', 20=>'Velký dlužník', 25=>'Dlužník (člen)', 26=>'Upoz. (člen)',
+];
+@endphp
+
 {{-- Tabulka --}}
 <div class="m-card" style="padding:0;overflow-x:auto">
-<table class="m-table" style="margin-bottom:0;min-width:750px">
+<table class="m-table" style="margin-bottom:0;white-space:nowrap">
     <thead>
         <tr>
-            <th style="width:50px"><a class="m-link-sm" href="{{ $sortUrl('id') }}">ID{{ $arrow('id') }}</a></th>
-            <th><a class="m-link-sm" href="{{ $sortUrl('name') }}">Jméno{{ $arrow('name') }}</a></th>
-            <th style="width:140px"><a class="m-link-sm" href="{{ $sortUrl('type') }}">Typ{{ $arrow('type') }}</a></th>
-            <th style="width:120px">Město</th>
-            <th style="width:110px">VS</th>
-            <th style="width:50px"><a class="m-link-sm" href="{{ $sortUrl('registration') }}">Reg.{{ $arrow('registration') }}</a></th>
-            <th style="width:90px">Stav</th>
-            <th style="width:70px">Akce</th>
+            <th><a class="m-link-sm" href="{{ $sortUrl('id') }}">ID{{ $arrow('id') }}</a></th>
+            <th>Přih.</th>
+            <th>Typ</th>
+            <th style="text-align:left"><a class="m-link-sm" href="{{ $sortUrl('name') }}">Jméno{{ $arrow('name') }}</a></th>
+            <th>Ulice</th>
+            <th>Čp.</th>
+            <th>Město</th>
+            <th>Stav (kredit)</th>
+            <th>Bílá listina</th>
+            <th>Akce</th>
         </tr>
     </thead>
     <tbody>
         @forelse($members as $member)
+        @php
+            $balance = $member->credit_balance;
+            $wlLabel = match($member->whitelist_type) {
+                'permanent' => 'Trvalá',
+                'temporary' => 'Dočasná',
+                default     => 'Žádná',
+            };
+            $rdLabel = $member->redirect_type !== null
+                ? ($redirectLabels[(int)$member->redirect_type] ?? 'Typ '.$member->redirect_type)
+                : '—';
+            $badgeClass = match($member->type) {
+                2, 18   => 'm-badge-blue',
+                90, 3   => 'm-badge-green',
+                15, 16  => 'm-badge-gray',
+                1, 17   => 'm-badge-amber',
+                default => 'm-badge-gray',
+            };
+        @endphp
         <tr>
             <td>{{ $member->id }}</td>
-            <td style="max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">
+            <td>
+                @if($member->registration)
+                    <span class="m-tag m-tag-green">ano</span>
+                @else
+                    <span class="m-tag m-tag-red">ne</span>
+                @endif
+            </td>
+            <td><span class="m-badge {{ $badgeClass }}" style="font-size:11px">{{ $member->type_label }}</span></td>
+            <td style="text-align:left;max-width:200px;overflow:hidden;text-overflow:ellipsis">
                 <a class="m-link" href="{{ route('members.show', $member->id) }}">{{ $member->name }}</a>
             </td>
-            <td>
-                @php
-                    $badgeClass = match($member->type) {
-                        2, 18   => 'm-badge-blue',
-                        90, 3   => 'm-badge-green',
-                        15, 16  => 'm-badge-gray',
-                        1,17    => 'm-badge-amber',
-                        default => 'm-badge-gray',
-                    };
-                @endphp
-                <span class="m-badge {{ $badgeClass }}" style="font-size:11px">{{ $member->type_label }}</span>
-            </td>
+            <td>{{ $member->addressPoint?->street?->street ?? '—' }}</td>
+            <td>{{ $member->addressPoint?->street_number ?? '—' }}</td>
             <td>{{ $member->addressPoint?->town?->town ?? '—' }}</td>
-            <td style="font-family:monospace;font-size:12px">{{ $member->variable_symbol ?? '—' }}</td>
-            <td style="text-align:center">
-                @if($member->registration)
-                    <span class="m-tag m-tag-green">Ano</span>
+            <td style="text-align:right;font-family:monospace;font-size:12px">
+                @if($balance !== null)
+                    <span style="color:{{ $balance >= 0 ? '#27ae60' : '#c0392b' }}">
+                        {{ number_format($balance, 2, ',', ' ') }} Kč
+                    </span>
                 @else
-                    <span class="m-tag m-tag-gray">Ne</span>
+                    <span style="color:#aaa">—</span>
                 @endif
             </td>
-            <td>
-                @if($member->locked)
-                    <span class="m-tag m-tag-red">Zamčen</span>
-                @else
-                    <span class="m-tag m-tag-green">Odemčen</span>
-                @endif
-            </td>
+            <td>{{ $wlLabel }}</td>
             <td>
                 <div style="display:flex;gap:6px;align-items:center">
-                    <a class="m-link-sm" href="{{ route('members.show', $member->id) }}" title="Detail">Detail</a>
+                    <a class="m-link-sm" href="{{ route('members.show', $member->id) }}">Detail</a>
                     @if($canEdit)
-                    <a class="m-link-sm" href="{{ route('members.edit', $member->id) }}" title="Upravit">Upravit</a>
+                    <a class="m-link-sm" href="{{ route('members.edit', $member->id) }}">Upravit</a>
                     @endif
                     @if($canDelete)
                     <form method="POST" action="{{ route('members.destroy', $member->id) }}" style="display:inline"
                           onsubmit="return confirm('Opravdu smazat člena {{ addslashes($member->name) }}?')">
                         @csrf @method('DELETE')
-                        <button type="submit" style="background:none;border:none;cursor:pointer;padding:0;font-size:12px;color:#c0392b" title="Smazat">Smazat</button>
+                        <button type="submit" style="background:none;border:none;cursor:pointer;padding:0;font-size:12px;color:#c0392b">Smazat</button>
                     </form>
                     @endif
                 </div>
             </td>
         </tr>
         @empty
-        <tr><td colspan="8" style="text-align:center;color:#aaa;padding:2rem">Žádní členové nebyli nalezeni.</td></tr>
+        <tr><td colspan="10" style="text-align:center;color:#aaa;padding:2rem">Žádní členové nebyli nalezeni.</td></tr>
         @endforelse
     </tbody>
 </table>

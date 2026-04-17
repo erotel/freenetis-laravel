@@ -23,22 +23,41 @@
     <div style="text-align:center;color:#aaa;padding:2rem">Žádná zařízení.</div>
 </div>
 @else
+@php
+    $nextDir = fn(string $col) => ($sort === $col && $dir === 'asc') ? 'desc' : 'asc';
+    $arrow   = fn(string $col) => $sort === $col ? ($dir === 'asc' ? ' ↑' : ' ↓') : '';
+    $sortUrl = fn(string $col) => request()->fullUrlWithQuery(['sort' => $col, 'dir' => $nextDir($col)]);
+@endphp
 <div class="m-card" style="padding:0;overflow-x:auto">
-<table class="m-table" style="margin-bottom:0">
+<table class="m-table" style="margin-bottom:0;table-layout:auto">
     <thead>
-        <tr>
-            <th style="width:50px">ID</th>
-            <th>Název</th>
-            <th style="width:130px">Typ</th>
-            <th style="width:100px">Akce</th>
+        <tr style="white-space:nowrap">
+            <th><a class="m-link-sm" href="{{ $sortUrl('id') }}">ID{{ $arrow('id') }}</a></th>
+            <th><a class="m-link-sm" href="{{ $sortUrl('name') }}">Název{{ $arrow('name') }}</a></th>
+            <th>Typ</th>
+            <th>MAC adresa</th>
+            <th>IP adresa</th>
+            <th>Podsíť</th>
+            <th>Akce</th>
         </tr>
     </thead>
     <tbody>
         @foreach($devices as $device)
+        @php
+            $firstIface  = $device->ifaces->first();
+            $firstIp     = $firstIface?->ipAddresses->first();
+            $subnet      = $firstIp?->subnet;
+            $subnetLabel = $subnet ? ($subnet->name ?? $subnet->network_address) : '—';
+        @endphp
         <tr>
             <td>{{ $device->id }}</td>
-            <td><a class="m-link" href="{{ route('devices.show', $device->id) }}">{{ $device->name }}</a></td>
+            <td style="max-width:150px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">
+                <a class="m-link" href="{{ route('devices.show', $device->id) }}">{{ $device->name }}</a>
+            </td>
             <td>{{ $device->enumType?->value ?? '—' }}</td>
+            <td style="font-family:monospace;font-size:12px">{{ $firstIface?->mac ?? '—' }}</td>
+            <td style="font-family:monospace;font-size:12px">{{ $firstIp?->ip_address ?? '—' }}</td>
+            <td>{{ $subnetLabel }}</td>
             <td>
                 <div style="display:flex;gap:6px">
                     <a class="m-link-sm" href="{{ route('devices.show', $device->id) }}">Detail</a>

@@ -52,7 +52,6 @@ class MemberController extends Controller
             }
         }
 
-        // Paginated list with first variable symbol via subquery
         $query = Member::query()
             ->select([
                 'members.id',
@@ -63,9 +62,11 @@ class MemberController extends Controller
                 'members.leaving_date',
                 'members.locked',
                 'members.address_point_id',
-                DB::raw('(SELECT vs.variable_symbol FROM accounts a JOIN variable_symbols vs ON vs.account_id = a.id WHERE a.member_id = members.id ORDER BY vs.id LIMIT 1) AS variable_symbol'),
+                DB::raw('(SELECT a.balance FROM accounts a WHERE a.member_id = members.id AND a.account_attribute_id = 221100 LIMIT 1) AS credit_balance'),
+                DB::raw('(SELECT msg.type FROM messages_ip_addresses mia JOIN ip_addresses ip ON ip.id = mia.ip_address_id JOIN messages msg ON msg.id = mia.message_id WHERE ip.member_id = members.id LIMIT 1) AS redirect_type'),
+                DB::raw("(SELECT CASE WHEN mw.permanent = 1 OR mw.until = '9999-12-31' THEN 'permanent' ELSE 'temporary' END FROM members_whitelists mw WHERE mw.member_id = members.id AND mw.since <= CURDATE() AND mw.until >= CURDATE() LIMIT 1) AS whitelist_type"),
             ])
-            ->with('addressPoint.town');
+            ->with(['addressPoint.town', 'addressPoint.street']);
 
         if ($search !== '') {
             $query->where('members.name', 'like', "%{$search}%");

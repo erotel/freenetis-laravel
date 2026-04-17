@@ -79,15 +79,19 @@ class DeviceController extends Controller
             abort(404);
         }
 
-        $devices = Device::with('enumType')
-            ->withCount('ifaces')
+        $sort = in_array(request('sort'), ['id', 'name'], true) ? request('sort') : 'name';
+        $dir  = request('dir') === 'desc' ? 'desc' : 'asc';
+
+        $devices = Device::with(['enumType', 'ifaces.ipAddresses.subnet'])
             ->where('user_id', $userId)
-            ->orderBy('name')
+            ->orderBy($sort, $dir)
             ->get();
 
         return view('devices.show_by_user', [
             'user'      => $user,
             'devices'   => $devices,
+            'sort'      => $sort,
+            'dir'       => $dir,
             'canNew'    => $this->can('new_all'),
             'canEdit'   => $this->can('edit_all'),
             'canDelete' => $this->can('delete_all'),

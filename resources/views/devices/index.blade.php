@@ -52,7 +52,7 @@
     <thead>
         <tr>
             <th style="width:50px"><a class="m-link-sm" href="{{ $sortUrl('id') }}">ID{{ $arrow('id') }}</a></th>
-            <th><a class="m-link-sm" href="{{ $sortUrl('name') }}">Název{{ $arrow('name') }}</a></th>
+            <th style="text-align:left"><a class="m-link-sm" href="{{ $sortUrl('name') }}">Název{{ $arrow('name') }}</a></th>
             <th style="width:130px"><a class="m-link-sm" href="{{ $sortUrl('type') }}">Typ{{ $arrow('type') }}</a></th>
             <th style="width:160px"><a class="m-link-sm" href="{{ $sortUrl('user_id') }}">Uživatel{{ $arrow('user_id') }}</a></th>
             <th style="width:140px"><a class="m-link-sm" href="{{ $sortUrl('access_time') }}">Poslední přístup{{ $arrow('access_time') }}</a></th>
@@ -63,7 +63,7 @@
         @forelse($devices as $device)
         <tr>
             <td>{{ $device->id }}</td>
-            <td><a class="m-link" href="{{ route('devices.show', $device->id) }}">{{ $device->name }}</a></td>
+            <td style="text-align:left"><a class="m-link" href="{{ route('devices.show', $device->id) }}">{{ $device->name }}</a></td>
             <td>{{ $device->enumType?->value ?? '—' }}</td>
             <td>
                 @if($device->user)
