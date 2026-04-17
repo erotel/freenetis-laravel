@@ -78,6 +78,7 @@
 @if($canNew)
 <div class="m-actions">
     <a class="m-btn m-btn-success" href="{{ route('members.create') }}">+ Přidat nového člena</a>
+    <a class="m-btn" href="{{ route('notifications.members.select') }}">Hromadné notifikace</a>
 </div>
 @endif
 

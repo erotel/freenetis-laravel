@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Helpers\MemberType;
 use App\Models\Setting;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -20,6 +21,207 @@ class NotificationController extends Controller
     private function can(string $action = 'new_all'): bool
     {
         return $this->aclCheck($action, 'Notifications_Controller', 'member');
+    }
+
+    /**
+     * Step 1: select message for bulk member notification.
+     */
+    public function membersSelect()
+    {
+        abort_unless($this->can(), 403);
+
+        $messages = DB::table('messages')->orderBy('name')->pluck('name', 'id');
+
+        return view('notifications.members_select', [
+            'messages' => $messages,
+        ]);
+    }
+
+    /**
+     * Show bulk notification form for all members.
+     */
+    public function members(int $messageId)
+    {
+        abort_unless($this->can(), 403);
+
+        $message = DB::table('messages')->where('id', $messageId)->first();
+        abort_if(!$message, 404);
+
+        $today = now()->toDateString();
+        $mid   = (int) $messageId;
+
+        $members = DB::table('members as m')
+            ->select([
+                'm.id', 'm.name', 'm.type', 'm.locked',
+                'm.notification_by_redirection',
+                'm.notification_by_email',
+                'm.notification_by_sms',
+                DB::raw('(SELECT a.balance FROM accounts a WHERE a.member_id = m.id AND a.account_attribute_id = 221100 LIMIT 1) AS credit_balance'),
+                DB::raw("(SELECT 1 FROM members_whitelists mw WHERE mw.member_id = m.id AND mw.since <= '{$today}' AND mw.until >= '{$today}' LIMIT 1) AS whitelisted"),
+                DB::raw('(SELECT 1 FROM membership_interrupts mi WHERE mi.member_id = m.id LIMIT 1) AS interrupted'),
+                DB::raw("(SELECT 1 FROM messages_ip_addresses mia JOIN ip_addresses ia ON ia.id = mia.ip_address_id JOIN ifaces i ON i.id = ia.iface_id JOIN devices d ON d.id = i.device_id JOIN users u ON u.id = d.user_id WHERE mia.message_id = {$mid} AND u.member_id = m.id LIMIT 1) AS has_redirection"),
+            ])
+            ->whereNotIn('m.type', [MemberType::FORMER, MemberType::FORMER_CUSTOMER])
+            ->orderBy('m.name')
+            ->get();
+
+        return view('notifications.members', [
+            'message'    => $message,
+            'members'    => $members,
+            'ACTIVATE'   => self::ACTIVATE,
+            'KEEP'       => self::KEEP,
+            'DEACTIVATE' => self::DEACTIVATE,
+        ]);
+    }
+
+    /**
+     * Process bulk notification for all members.
+     */
+    public function membersNotify(Request $request, int $messageId)
+    {
+        abort_unless($this->can(), 403);
+
+        $message = DB::table('messages')->where('id', $messageId)->first();
+        abort_if(!$message, 404);
+
+        $comment     = trim((string) $request->input('comment', ''));
+        $userId      = Auth::id();
+        $now         = now()->format('Y-m-d H:i:s');
+        $redirections = $request->input('redirection', []);
+        $emails       = $request->input('email', []);
+        $smss         = $request->input('sms', []);
+
+        $stats = ['redir_activated' => 0, 'redir_deactivated' => 0, 'emails_sent' => 0, 'smss_sent' => 0];
+
+        $allMemberIds = array_unique(array_map('intval', array_merge(
+            array_keys($redirections), array_keys($emails), array_keys($smss)
+        )));
+
+        $whitelistedIds = DB::table('members_whitelists')
+            ->whereIn('member_id', $allMemberIds)
+            ->where('since', '<=', now()->toDateString())
+            ->where('until', '>=', now()->toDateString())
+            ->pluck('member_id')
+            ->flip()
+            ->toArray();
+
+        DB::transaction(function () use (
+            $messageId, $message, $comment, $userId, $now,
+            $redirections, $emails, $smss, $whitelistedIds, &$stats
+        ) {
+            // ── Přesměrování ─────────────────────────────────────────────────
+            foreach ($redirections as $memberId => $action) {
+                $memberId = (int) $memberId;
+                $action   = (int) $action;
+                if ($action === self::KEEP) continue;
+
+                $ipIds = DB::table('ip_addresses as ia')
+                    ->join('ifaces as i', 'i.id', '=', 'ia.iface_id')
+                    ->join('devices as d', 'd.id', '=', 'i.device_id')
+                    ->join('users as u', 'u.id', '=', 'd.user_id')
+                    ->where('u.member_id', $memberId)
+                    ->pluck('ia.id');
+
+                if ($ipIds->isEmpty()) continue;
+
+                if ($action === self::DEACTIVATE) {
+                    $stats['redir_deactivated'] += DB::table('messages_ip_addresses')
+                        ->where('message_id', $messageId)
+                        ->whereIn('ip_address_id', $ipIds)
+                        ->delete();
+                } elseif ($action === self::ACTIVATE) {
+                    if (!$message->ignore_whitelist && isset($whitelistedIds[$memberId])) continue;
+
+                    DB::table('messages_ip_addresses')
+                        ->where('message_id', $messageId)
+                        ->whereIn('ip_address_id', $ipIds)
+                        ->delete();
+
+                    foreach ($ipIds as $ipId) {
+                        DB::statement(
+                            'INSERT INTO messages_ip_addresses (message_id, ip_address_id, user_id, comment, datetime)
+                             VALUES (?, ?, ?, ?, ?)
+                             ON DUPLICATE KEY UPDATE user_id=VALUES(user_id), comment=VALUES(comment), datetime=VALUES(datetime)',
+                            [$messageId, $ipId, $userId, $comment ?: null, $now]
+                        );
+                        $stats['redir_activated']++;
+                    }
+                }
+            }
+
+            // ── E-mail ────────────────────────────────────────────────────────
+            if ($message->email_text) {
+                $from    = Setting::get('email_default_email', 'noreply@freenetis.org');
+                $prefix  = Setting::get('email_subject_prefix', '');
+                $subject = ($prefix ? $prefix . ' :: ' : '') . $message->name;
+
+                foreach ($emails as $memberId => $action) {
+                    if ((int) $action !== self::ACTIVATE) continue;
+
+                    $body = str_replace('{comment}', $comment, $message->email_text);
+
+                    $contacts = DB::table('contacts as c')
+                        ->join('users_contacts as uc', 'uc.contact_id', '=', 'c.id')
+                        ->join('users as u', 'u.id', '=', 'uc.user_id')
+                        ->where('u.member_id', (int) $memberId)
+                        ->where('c.type', self::CONTACT_EMAIL)
+                        ->pluck('c.value');
+
+                    foreach ($contacts as $to) {
+                        DB::table('email_queues')->insert([
+                            'from' => $from, 'to' => $to,
+                            'subject' => $subject, 'body' => $body,
+                            'state' => 0, 'access_time' => $now,
+                        ]);
+                        $stats['emails_sent']++;
+                    }
+                }
+            }
+
+            // ── SMS ───────────────────────────────────────────────────────────
+            if ($message->sms_text) {
+                $smsEnabled = Setting::get('sms_enabled', '0');
+                $smsDriver  = Setting::get('sms_driver', '');
+                $smsSender  = Setting::get('sms_sender_number', '');
+
+                if ($smsEnabled && $smsDriver && $smsSender) {
+                    foreach ($smss as $memberId => $action) {
+                        if ((int) $action !== self::ACTIVATE) continue;
+
+                        $text = str_replace('{comment}', $comment, $message->sms_text);
+
+                        $contacts = DB::table('contacts as c')
+                            ->join('users_contacts as uc', 'uc.contact_id', '=', 'c.id')
+                            ->join('users as u', 'u.id', '=', 'uc.user_id')
+                            ->where('u.member_id', (int) $memberId)
+                            ->where('c.type', self::CONTACT_PHONE)
+                            ->pluck('c.value');
+
+                        foreach ($contacts as $phone) {
+                            DB::table('sms_messages')->insert([
+                                'user_id' => $userId, 'sms_message_id' => null,
+                                'stamp' => $now, 'send_date' => $now,
+                                'text' => $text, 'sender' => $smsSender,
+                                'receiver' => $phone, 'driver' => (int) $smsDriver,
+                                'type' => 1, 'state' => 1,
+                            ]);
+                            $stats['smss_sent']++;
+                        }
+                    }
+                }
+            }
+        });
+
+        $parts = [];
+        if ($stats['redir_activated'])   $parts[] = "Přesměrování aktivováno pro {$stats['redir_activated']} IP.";
+        if ($stats['redir_deactivated']) $parts[] = "Přesměrování deaktivováno pro {$stats['redir_deactivated']} IP.";
+        if ($stats['emails_sent'])       $parts[] = "Odesláno {$stats['emails_sent']} e-mailů.";
+        if ($stats['smss_sent'])         $parts[] = "Odesláno {$stats['smss_sent']} SMS.";
+        if (empty($parts))               $parts[] = 'Žádná akce nebyla provedena.';
+
+        return redirect()
+            ->route('notifications.members', $messageId)
+            ->with('success', implode(' ', $parts));
     }
 
     /**
@@ -63,7 +265,7 @@ class NotificationController extends Controller
         $email       = (int) $request->input('email', self::KEEP);
         $sms         = (int) $request->input('sms', self::KEEP);
 
-        $message = DB::table('messages')->where('id', $messageId)->where('type', 0)->first();
+        $message = DB::table('messages')->where('id', $messageId)->first();
         if (!$message) {
             return back()->withInput()->withErrors(['message_id' => 'Vyberte zprávu.']);
         }

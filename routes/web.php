@@ -478,6 +478,9 @@ Route::middleware('auth')->group(function () {
     // ── Notifications ─────────────────────────────────────────────────────────
     Route::get('notifications/member/{id}',        [NotificationController::class, 'member'])->name('notifications.member');
     Route::post('notifications/member/{id}/notify',[NotificationController::class, 'notify'])->name('notifications.member.notify');
+    Route::get('notifications/members',               [NotificationController::class, 'membersSelect'])->name('notifications.members.select');
+    Route::get('notifications/members/{message_id}', [NotificationController::class, 'members'])->name('notifications.members');
+    Route::post('notifications/members/{message_id}',[NotificationController::class, 'membersNotify'])->name('notifications.members.notify');
 
     // Member whitelists
     Route::get('member-whitelists',                              [MemberWhitelistController::class, 'index'])->name('member_whitelists.index');
