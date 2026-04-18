@@ -12,7 +12,8 @@ return Application::configure(basePath: dirname(__DIR__))
     )
     ->withMiddleware(function (Middleware $middleware): void {
         $middleware->alias([
-            'acl' => \App\Http\Middleware\AclMiddleware::class,
+            'acl'          => \App\Http\Middleware\AclMiddleware::class,
+            'gpon_enabled' => \App\Http\Middleware\GponEnabled::class,
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {

@@ -50,6 +50,11 @@ class SettingController extends Controller
         'dhcp_lease_time',
     ];
 
+    public const GPON_KEYS = [
+        'gpon_enabled', 'gpon_olt_ip', 'gpon_snmp_user',
+        'gpon_snmp_auth_proto', 'gpon_snmp_priv_proto',
+    ];
+
     // SMS drivers: id → config
     // has_hostname: true = admin can override hostname (Klikniavolej only)
     // has_test_mode: true = show test mode toggle (Klikniavolej only)
@@ -168,12 +173,21 @@ class SettingController extends Controller
             ];
         }
 
+        // GPON settings
+        $gponSettings = [];
+        foreach (self::GPON_KEYS as $key) {
+            $gponSettings[$key] = Setting::get($key, '');
+        }
+        // Password fields loaded separately (not in GPON_KEYS to avoid logging)
+        $gponSettings['gpon_snmp_auth_pass'] = Setting::get('gpon_snmp_auth_pass', '');
+        $gponSettings['gpon_snmp_priv_pass'] = Setting::get('gpon_snmp_priv_pass', '');
+
         return view('settings.index', compact(
             'bankAccounts', 'memberTypes', 'routing', 'defaultBaId',
             'emailSettings', 'bccRules', 'messages', 'activeTab',
             'pohodaEmail', 'financeSettings', 'feesForSelect',
             'systemSettings', 'usersSettings', 'networkSettings',
-            'smsSettings', 'smsDriverSettings'
+            'smsSettings', 'smsDriverSettings', 'gponSettings'
         ));
     }
 
@@ -306,6 +320,27 @@ class SettingController extends Controller
         Setting::set('dhcp_lease_time', $request->input('dhcp_lease_time', '10800'));
         return redirect()->route('settings.index', ['tab' => 'network'])
             ->with('success', 'Nastavení sítě bylo uloženo.');
+    }
+
+    public function updateGpon(Request $request)
+    {
+        abort_unless($this->can('edit_all'), 403);
+
+        $request->validate([
+            'gpon_olt_ip'   => 'nullable|string|max:45',
+            'gpon_snmp_user' => 'nullable|string|max:64',
+        ]);
+
+        Setting::set('gpon_enabled',        $request->boolean('gpon_enabled') ? 1 : 0);
+        Setting::set('gpon_olt_ip',         trim((string) $request->input('gpon_olt_ip', '10.133.67.99')));
+        Setting::set('gpon_snmp_user',      trim((string) $request->input('gpon_snmp_user', '')));
+        Setting::set('gpon_snmp_auth_pass', (string) $request->input('gpon_snmp_auth_pass', ''));
+        Setting::set('gpon_snmp_priv_pass', (string) $request->input('gpon_snmp_priv_pass', ''));
+        Setting::set('gpon_snmp_auth_proto', in_array($request->input('gpon_snmp_auth_proto'), ['SHA', 'MD5']) ? $request->input('gpon_snmp_auth_proto') : 'SHA');
+        Setting::set('gpon_snmp_priv_proto', in_array($request->input('gpon_snmp_priv_proto'), ['AES', 'DES']) ? $request->input('gpon_snmp_priv_proto') : 'AES');
+
+        return redirect()->route('settings.index', ['tab' => 'gpon'])
+            ->with('success', 'Nastavení GPON bylo uloženo.');
     }
 
     public function updateSms(Request $request)

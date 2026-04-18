@@ -2,6 +2,7 @@
 
 namespace App\View\Components;
 
+use App\Models\Setting;
 use App\Services\AclService;
 use Illuminate\Support\Facades\DB;
 use Illuminate\View\Component;
@@ -57,7 +58,7 @@ class FreenetisMenu extends Component
                 ['url' => route('members.index', ['types' => '17,18']), 'path' => 'members/applicants', 'label' => 'Čekatelé', 'acl' => ['view_all', 'Members_Controller', 'members'], 'count' => $countApplicants],
                 ['url' => route('users.index'), 'path' => 'users', 'label' => 'Uživatelé', 'acl' => ['view_all', 'Users_Controller', 'users']],
             ]],
-            ['name' => 'network', 'label' => 'Síť', 'items' => [
+            ['name' => 'network', 'label' => 'Síť', 'items' => array_filter([
                 ['url' => route('devices.index'), 'path' => 'devices', 'label' => 'Zařízení', 'acl' => ['view_all', 'Devices_Controller', 'devices']],
                 ['url' => route('ip_addresses.index'), 'path' => 'ip-addresses', 'label' => 'IP adresy', 'acl' => ['view_all', 'Ip_addresses_Controller', 'ip_address']],
                 ['url' => route('subnets.index'), 'path' => 'subnets', 'label' => 'Subnety', 'acl' => ['view_all', 'Subnets_Controller', 'subnet']],
@@ -66,7 +67,8 @@ class FreenetisMenu extends Component
                 ['url' => route('public-port-forwards.index'), 'path' => 'public-port-forwards', 'label' => 'Veřejné porty', 'acl' => ['view_all', 'Network_Controller', 'public_ports']],
                 ['url' => route('redirects.index'), 'path' => 'redirections', 'label' => 'Přesměrování', 'acl' => ['view_all', 'Redirect_Controller', 'redirect']],
                 ['url' => route('connection_requests.index'), 'path' => 'connection-requests', 'label' => 'Žádosti o připojení', 'acl' => ['view_all', 'Connection_Requests_Controller', 'request'], 'count' => $countConnectionRequests],
-            ]],
+                Setting::get('gpon_enabled', '0') ? ['url' => route('gpon.index'), 'path' => 'gpon', 'label' => 'GPON', 'acl' => ['view_all', 'Settings_Controller', 'finance_settings']] : null,
+            ])],
             ['name' => 'finance', 'label' => 'Finance', 'items' => [
                 ['url' => route('accounts.index'),           'path' => 'accounts',          'label' => 'Účty',                   'acl' => ['view_all', 'Accounts_Controller', 'accounts']],
                 ['url' => route('transfers.index'),          'path' => 'transfers',         'label' => 'Převody',                'acl' => ['view_all', 'Accounts_Controller', 'transfers']],

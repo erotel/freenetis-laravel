@@ -50,6 +50,7 @@ use App\Http\Controllers\EmailQueueController;
 use App\Http\Controllers\PohodaRefundQueueController;
 use App\Http\Controllers\ConnectionRequestController;
 use App\Http\Controllers\SmsMessageController;
+use App\Http\Controllers\GponController;
 use Illuminate\Support\Facades\Route;
 
 // ── Web Interface API (machine-to-machine, IP-restricted, no session auth) ──
@@ -369,6 +370,7 @@ Route::middleware('auth')->group(function () {
 
     Route::get('settings', [SettingController::class, 'index'])->name('settings.index')
         ->middleware('acl:view_all,Settings_Controller,finance_settings');
+    Route::put('settings/gpon',     [SettingController::class, 'updateGpon'])->name('settings.update-gpon');
     Route::put('settings/finance',  [SettingController::class, 'updateFinance'])->name('settings.update-finance');
     Route::put('settings/email',    [SettingController::class, 'updateEmail'])->name('settings.update-email');
     Route::put('settings/system',   [SettingController::class, 'updateSystem'])->name('settings.update-system');
@@ -545,6 +547,15 @@ Route::middleware('auth')->group(function () {
     Route::get('saved-filters',       [SavedFilterController::class, 'index'])->name('saved-filters.index');
     Route::post('saved-filters',      [SavedFilterController::class, 'store'])->name('saved-filters.store');
     Route::delete('saved-filters/{id}', [SavedFilterController::class, 'destroy'])->name('saved-filters.destroy');
+
+    // ── GPON modul ────────────────────────────────────────────────────────────
+    Route::middleware('gpon_enabled')->group(function () {
+        Route::get('gpon',              [GponController::class, 'index'])->name('gpon.index');
+        Route::get('gpon/{id}',         [GponController::class, 'show'])->name('gpon.show');
+        Route::post('gpon/scan',        [GponController::class, 'scan'])->name('gpon.scan');
+        Route::post('gpon/{id}/register', [GponController::class, 'register'])->name('gpon.register');
+        Route::post('gpon/{id}/remove',   [GponController::class, 'remove'])->name('gpon.remove');
+    });
 
     // Device DHCP export — inside auth group but device self-call bypasses auth middleware
     Route::get('devices/{id}/export/{format}', [DeviceController::class, 'export'])

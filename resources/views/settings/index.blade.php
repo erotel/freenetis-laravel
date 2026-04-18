@@ -10,7 +10,7 @@
 
 {{-- Tabs --}}
 <div style="display:flex;gap:4px;margin-bottom:20px;flex-wrap:wrap">
-    @foreach(['banka' => 'Banka', 'email' => 'Email', 'finance' => 'Finance', 'system' => 'Systém', 'users' => 'Uživatelé', 'network' => 'Síť', 'sms' => 'SMS'] as $tabKey => $tabLabel)
+    @foreach(['banka' => 'Banka', 'email' => 'Email', 'finance' => 'Finance', 'system' => 'Systém', 'users' => 'Uživatelé', 'network' => 'Síť', 'sms' => 'SMS', 'gpon' => 'GPON'] as $tabKey => $tabLabel)
     <a class="m-btn @if($activeTab === $tabKey) m-btn-primary @endif"
        href="{{ route('settings.index', ['tab' => $tabKey]) }}">{{ $tabLabel }}</a>
     @endforeach
@@ -567,6 +567,75 @@ function addBccRow() {
 
 <div class="m-actions">
     <button class="m-btn m-btn-primary" type="submit">Uložit nastavení SMS</button>
+</div>
+</form>
+@endif
+
+@if($activeTab === 'gpon')
+<form method="POST" action="{{ route('settings.update-gpon') }}">
+@csrf @method('PUT')
+
+<div class="m-card" style="margin-bottom:16px;max-width:520px">
+    <div class="m-card-title">GPON modul</div>
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:16px">
+        <label style="display:flex;align-items:center;gap:6px;font-size:13px;cursor:pointer">
+            <input type="checkbox" name="gpon_enabled" value="1"
+                {{ ($gponSettings['gpon_enabled'] ?? '0') == '1' ? 'checked' : '' }}>
+            Povolit GPON modul
+        </label>
+    </div>
+    <div class="m-form-group">
+        <label class="m-form-label">IP adresa OLT</label>
+        <input class="m-form-input" type="text" name="gpon_olt_ip"
+            value="{{ $gponSettings['gpon_olt_ip'] ?? '10.133.67.99' }}"
+            placeholder="10.133.67.99" style="max-width:200px">
+    </div>
+</div>
+
+<div class="m-card" style="margin-bottom:16px;max-width:520px">
+    <div class="m-card-title">SNMPv3 přihlašovací údaje</div>
+    <div class="m-form-group">
+        <label class="m-form-label">SNMPv3 uživatel</label>
+        <input class="m-form-input" type="text" name="gpon_snmp_user"
+            value="{{ $gponSettings['gpon_snmp_user'] ?? '' }}" placeholder="admin">
+    </div>
+    <div class="m-form-row">
+        <div class="m-form-group">
+            <label class="m-form-label">Auth protokol</label>
+            <select class="m-form-select" name="gpon_snmp_auth_proto">
+                @foreach(['SHA', 'MD5'] as $proto)
+                <option value="{{ $proto }}" {{ ($gponSettings['gpon_snmp_auth_proto'] ?? 'SHA') === $proto ? 'selected' : '' }}>{{ $proto }}</option>
+                @endforeach
+            </select>
+        </div>
+        <div class="m-form-group">
+            <label class="m-form-label">Priv protokol</label>
+            <select class="m-form-select" name="gpon_snmp_priv_proto">
+                @foreach(['AES', 'DES'] as $proto)
+                <option value="{{ $proto }}" {{ ($gponSettings['gpon_snmp_priv_proto'] ?? 'AES') === $proto ? 'selected' : '' }}>{{ $proto }}</option>
+                @endforeach
+            </select>
+        </div>
+    </div>
+    <div class="m-form-row">
+        <div class="m-form-group">
+            <label class="m-form-label">Auth heslo</label>
+            <input class="m-form-input" type="password" name="gpon_snmp_auth_pass"
+                value="{{ $gponSettings['gpon_snmp_auth_pass'] ?? '' }}" autocomplete="new-password">
+        </div>
+        <div class="m-form-group">
+            <label class="m-form-label">Priv heslo</label>
+            <input class="m-form-input" type="password" name="gpon_snmp_priv_pass"
+                value="{{ $gponSettings['gpon_snmp_priv_pass'] ?? '' }}" autocomplete="new-password">
+        </div>
+    </div>
+</div>
+
+<div class="m-actions">
+    <button class="m-btn m-btn-primary" type="submit">Uložit nastavení GPON</button>
+    @if(($gponSettings['gpon_enabled'] ?? '0') == '1')
+    <a class="m-btn" href="{{ route('gpon.index') }}">Přejít na GPON</a>
+    @endif
 </div>
 </form>
 @endif
