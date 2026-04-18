@@ -74,6 +74,121 @@
     </table>
 </div>
 
+{{-- Live SNMP data --}}
+<div style="flex:1;min-width:260px;max-width:420px">
+@if($ont->reg_status === 'registered')
+
+{{-- Základní info z .52 — vždy dostupné --}}
+@if($details)
+<div class="m-card" style="margin-bottom:16px">
+    <div class="m-card-title">Info ONT</div>
+    <table style="width:100%;border-collapse:collapse;font-size:13px">
+        <tr>
+            <td style="padding:4px 0;color:var(--fn-text-muted);width:90px">Stav</td>
+            <td>
+                @if($details['status'] === 'Working' || $details['status'] === 'Online')
+                    <span class="m-tag m-tag-green">{{ $details['status'] }}</span>
+                @else
+                    <span class="m-tag" style="background:#fee2e2;color:#b91c1c">{{ $details['status'] }}</span>
+                @endif
+            </td>
+        </tr>
+        <tr>
+            <td style="padding:4px 0;color:var(--fn-text-muted)">Firmware</td>
+            <td style="font-family:monospace;font-size:12px">{{ $details['firmware'] }}</td>
+        </tr>
+        <tr>
+            <td style="padding:4px 0;color:var(--fn-text-muted)">Model</td>
+            <td>{{ $details['model'] }}</td>
+        </tr>
+    </table>
+</div>
+@endif
+
+<div class="m-card">
+    <div class="m-card-title">Stav ONT (live)</div>
+
+    @if($details)
+    {{-- Online badge --}}
+    <div style="margin-bottom:14px">
+        @if($details['online'])
+            <span class="m-tag m-tag-green" style="font-size:13px">● Online</span>
+        @else
+            <span class="m-tag" style="background:#fee2e2;color:#b91c1c;font-size:13px">● Offline</span>
+        @endif
+    </div>
+
+    {{-- Metrics grid --}}
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px">
+        @php
+            $rxVal  = $details['rx_power'];
+            $txVal  = $details['tx_power'];
+            $rxColor = ($rxVal !== 'DOWN' && (float)$rxVal >= -27) ? '#16a34a' : '#dc2626';
+            $txColor = ($txVal !== 'DOWN' && (float)$txVal >= -27) ? '#16a34a' : '#dc2626';
+        @endphp
+        <div style="background:var(--fn-bg,#f9fafb);border-radius:6px;padding:10px 12px">
+            <div style="font-size:11px;color:var(--fn-text-muted);margin-bottom:2px">Rx výkon</div>
+            <div style="font-size:18px;font-weight:700;color:{{ $rxVal === 'DOWN' ? '#dc2626' : $rxColor }}">
+                {{ $rxVal }}{{ $rxVal !== 'DOWN' ? ' dBm' : '' }}
+            </div>
+        </div>
+        <div style="background:var(--fn-bg,#f9fafb);border-radius:6px;padding:10px 12px">
+            <div style="font-size:11px;color:var(--fn-text-muted);margin-bottom:2px">Tx výkon</div>
+            <div style="font-size:18px;font-weight:700;color:{{ $txVal === 'DOWN' ? '#dc2626' : $txColor }}">
+                {{ $txVal }}{{ $txVal !== 'DOWN' ? ' dBm' : '' }}
+            </div>
+        </div>
+        <div style="background:var(--fn-bg,#f9fafb);border-radius:6px;padding:10px 12px">
+            <div style="font-size:11px;color:var(--fn-text-muted);margin-bottom:2px">Teplota</div>
+            <div style="font-size:18px;font-weight:700">
+                {{ $details['temperature'] }}{{ $details['temperature'] !== 'DOWN' ? ' °C' : '' }}
+            </div>
+        </div>
+        <div style="background:var(--fn-bg,#f9fafb);border-radius:6px;padding:10px 12px">
+            <div style="font-size:11px;color:var(--fn-text-muted);margin-bottom:2px">Vzdálenost</div>
+            <div style="font-size:18px;font-weight:700">
+                {{ $details['distance'] }}{{ $details['distance'] !== 'DOWN' ? ' m' : '' }}
+            </div>
+        </div>
+    </div>
+
+    {{-- Detail fields --}}
+    <table style="width:100%;border-collapse:collapse;font-size:13px">
+        <tr>
+            <td style="padding:4px 0;color:var(--fn-text-muted);width:110px">Napětí</td>
+            <td>{{ $details['voltage'] }}{{ $details['voltage'] !== 'DOWN' ? ' V' : '' }}</td>
+        </tr>
+        <tr>
+            <td style="padding:4px 0;color:var(--fn-text-muted)">Proud</td>
+            <td>{{ $details['current'] }}{{ $details['current'] !== 'DOWN' ? ' mA' : '' }}</td>
+        </tr>
+        <tr>
+            <td style="padding:4px 0;color:var(--fn-text-muted)">ETH status</td>
+            <td>
+                @if($details['eth_status'] === 'UP')
+                    <span class="m-tag m-tag-green">UP</span>
+                @else
+                    <span class="m-tag" style="background:#fee2e2;color:#b91c1c">DOWN</span>
+                @endif
+            </td>
+        </tr>
+        <tr>
+            <td style="padding:4px 0;color:var(--fn-text-muted)">Duplex</td>
+            <td>{{ $details['eth_duplex'] }}</td>
+        </tr>
+        <tr>
+            <td style="padding:4px 0;color:var(--fn-text-muted)">Rychlost</td>
+            <td>{{ $details['eth_speed'] }}</td>
+        </tr>
+    </table>
+
+    @else
+    <p style="color:var(--fn-text-muted);font-size:13px;margin:0">SNMP data nejsou dostupná.</p>
+    @endif
+</div>
+@endif
+</div>
+
 {{-- Akce --}}
 <div style="display:flex;flex-direction:column;gap:16px;min-width:240px">
 
@@ -86,15 +201,102 @@
                 <label class="m-form-label">Číslo domu</label>
                 <input class="m-form-input" type="text" name="house_no" value="{{ $ont->house_no }}" maxlength="32" placeholder="např. 123">
             </div>
-            <div class="m-form-group">
-                <label class="m-form-label">Jméno uživatele</label>
-                <input class="m-form-input" type="text" name="user_name" value="{{ $ont->user_name }}" maxlength="128" placeholder="Příjmení Jméno">
+
+            {{-- Member autocomplete --}}
+            <div class="m-form-group" style="position:relative">
+                <label class="m-form-label">Hledat člena</label>
+                <input id="gpon-member-search" class="m-form-input" type="text"
+                       autocomplete="off" placeholder="Hledat člena..."
+                       value="{{ $ont->member ? $ont->member->name : '' }}">
+                <input type="hidden" name="member_id" id="gpon-member-id"
+                       value="{{ $ont->member_id }}">
+                <div id="gpon-member-dropdown"
+                     style="display:none;position:absolute;top:100%;left:0;right:0;z-index:100;
+                            background:var(--fn-card-bg,#fff);border:1px solid var(--fn-border,#e5e7eb);
+                            border-radius:6px;box-shadow:0 4px 12px rgba(0,0,0,.1);max-height:220px;overflow-y:auto"></div>
+                <div class="m-form-hint">Nebo vyplňte jméno níže bez propojení se členem.</div>
             </div>
+
+            <div class="m-form-group">
+                <label class="m-form-label">Jméno uživatele <span style="font-weight:400;color:var(--fn-text-muted)">(bez propojení se členem)</span></label>
+                <input class="m-form-input" type="text" name="user_name" id="gpon-user-name"
+                       value="{{ $ont->user_name }}" maxlength="128" placeholder="Příjmení Jméno">
+            </div>
+
             <div class="m-actions" style="margin-top:12px">
                 <button class="m-btn m-btn-success" type="submit">Registrovat</button>
+                <button type="button" id="gpon-clear-member" class="m-btn"
+                        style="font-size:12px;display:{{ $ont->member_id ? 'inline-flex' : 'none' }}">
+                    × Odebrat propojení se členem
+                </button>
             </div>
         </form>
     </div>
+
+    <script>
+    (function () {
+        const searchInput  = document.getElementById('gpon-member-search');
+        const memberIdInput = document.getElementById('gpon-member-id');
+        const dropdown     = document.getElementById('gpon-member-dropdown');
+        const userNameInput = document.getElementById('gpon-user-name');
+        const clearBtn     = document.getElementById('gpon-clear-member');
+        let debounceTimer;
+
+        searchInput.addEventListener('input', function () {
+            clearTimeout(debounceTimer);
+            const q = this.value.trim();
+            if (q.length < 2) { dropdown.style.display = 'none'; return; }
+            debounceTimer = setTimeout(() => fetchMembers(q), 250);
+        });
+
+        searchInput.addEventListener('blur', function () {
+            setTimeout(() => { dropdown.style.display = 'none'; }, 200);
+        });
+
+        clearBtn.addEventListener('click', function () {
+            memberIdInput.value = '';
+            searchInput.value = '';
+            clearBtn.style.display = 'none';
+        });
+
+        function fetchMembers(q) {
+            fetch('/new/search/ajax?q=' + encodeURIComponent(q))
+                .then(r => r.json())
+                .then(data => {
+                    const members = data.filter(r => r.url && r.url.includes('/members/'));
+                    renderDropdown(members);
+                })
+                .catch(() => { dropdown.style.display = 'none'; });
+        }
+
+        function renderDropdown(items) {
+            if (!items.length) { dropdown.style.display = 'none'; return; }
+            dropdown.innerHTML = items.map(item => {
+                const idMatch = item.url.match(/\/members\/(\d+)/);
+                const id = idMatch ? idMatch[1] : '';
+                return `<div class="gpon-ac-item" data-id="${id}" data-name="${escHtml(item.title)}"
+                             style="padding:8px 12px;cursor:pointer;font-size:13px;border-bottom:1px solid var(--fn-border,#f3f4f6)">
+                            <strong>${escHtml(item.title)}</strong>
+                            ${item.detail ? '<span style="color:#888;margin-left:6px">' + escHtml(item.detail) + '</span>' : ''}
+                        </div>`;
+            }).join('');
+            dropdown.style.display = 'block';
+            dropdown.querySelectorAll('.gpon-ac-item').forEach(el => {
+                el.addEventListener('mousedown', function () {
+                    memberIdInput.value = this.dataset.id;
+                    searchInput.value   = this.dataset.name;
+                    userNameInput.value = '';
+                    clearBtn.style.display = 'inline-flex';
+                    dropdown.style.display = 'none';
+                });
+            });
+        }
+
+        function escHtml(s) {
+            return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+        }
+    })();
+    </script>
     @endif
 
     @if($ont->reg_status === 'registered')

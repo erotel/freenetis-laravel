@@ -384,6 +384,22 @@
 @endif
 
 {{-- IP adresy --}}
+@if(isset($gponOnts) && $gponOnts->count() > 0)
+<div class="m-section">GPON ONT</div>
+<div class="m-card" style="margin-bottom:16px">
+    @foreach($gponOnts as $ont)
+    <div class="m-field">
+        <span class="m-field-label" style="font-family:monospace;font-size:12px">{{ $ont->serial }}</span>
+        <span class="m-field-value" style="display:flex;align-items:center;gap:8px">
+            <span class="m-tag m-tag-green">{{ $ont->gpon_port }}</span>
+            <span style="font-size:12px;color:var(--fn-text-muted)">VLAN {{ $ont->vlan }}</span>
+            <a class="m-link-sm" href="{{ route('gpon.show', $ont->id) }}">Detail</a>
+        </span>
+    </div>
+    @endforeach
+</div>
+@endif
+
 @if($canViewIpAddresses && $member->ipAddresses->count() > 0)
 <div class="m-section">IP adresy</div>
 <div class="m-card" style="margin-bottom:16px">

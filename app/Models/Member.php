@@ -93,6 +93,11 @@ class Member extends Model
         return $this->hasMany(AllowedSubnet::class);
     }
 
+    public function onts()
+    {
+        return $this->hasMany(\App\Models\Ont::class);
+    }
+
     // --- Helpers ---
 
     public function __toString(): string

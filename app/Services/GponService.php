@@ -91,9 +91,10 @@ class GponService
     /**
      * Registruje ONT na OLT podle ID záznamu v DB.
      */
-    public function registerOntById(int $id, string $houseNo = '', string $userName = ''): void
+    public function registerOntById(int $id, string $houseNo = '', ?string $userName = null): void
     {
         $ont = Ont::findOrFail($id);
+        $userName = $userName ?? '';
 
         $ontData  = $ont->toArray();
         $serial   = $ont->serial;
@@ -220,6 +221,103 @@ class GponService
         $servicePort = $pr + $offset;
 
         return [$ontId, $servicePort, $vlan];
+    }
+
+    /**
+     * Vrací live SNMP data (SNMPv3) pro registrovanou ONT.
+     * Sentinel hodnota 2147483647 (INT_MAX) = data nejsou dostupná.
+     */
+    public function getOntDetails(Ont $ont): array
+    {
+        $olt = $this->host;
+        $pi  = (int) $ont->port_index;
+        $oi  = (int) $ont->ont_id;
+
+        $base = '1.3.6.1.4.1.2011.6.128.1.1.2';
+        $oids = implode(' ', [
+            "{$base}.51.1.4.{$pi}.{$oi}",    // rx_power   (/100 = dBm)
+            "{$base}.51.1.3.{$pi}.{$oi}",    // tx_power   (/100 = dBm)
+            "{$base}.51.1.5.{$pi}.{$oi}",    // voltage    (/1000 = V)
+            "{$base}.51.1.2.{$pi}.{$oi}",    // current    (mA)
+            "{$base}.51.1.1.{$pi}.{$oi}",    // temperature (°C)
+            "{$base}.46.1.20.{$pi}.{$oi}",   // distance   (m)
+            "{$base}.62.1.22.{$pi}.{$oi}.1", // eth_status
+            "{$base}.62.1.3.{$pi}.{$oi}.1",  // eth_duplex
+            "{$base}.62.1.4.{$pi}.{$oi}.1",  // eth_speed
+        ]);
+
+        // ── Optické parametry (.51, .46, .62) — dostupné jen na MA5800 ──────────
+        $optCmd    = "snmpget " . $this->snmpOpt() . " -Oqv " . escapeshellarg($olt) . " {$oids} 2>&1";
+        $optOutput = [];
+        exec($optCmd, $optOutput);
+
+        // Vrátí null pokud řádek není čistě numerický (např. "No Such Instance...")
+        $val = function(int $i) use ($optOutput): ?int {
+            if (!isset($optOutput[$i])) return null;
+            $s = trim($optOutput[$i]);
+            return preg_match('/^-?\d+$/', $s) ? (int) $s : null;
+        };
+
+        $rxRaw   = $val(0);
+        $txRaw   = $val(1);
+        $voltRaw = $val(2);
+        $currRaw = $val(3);
+        $tempRaw = $val(4);
+        $distRaw = $val(5);
+        $ethSt   = $val(6);
+        $ethDup  = $val(7);
+        $ethSpd  = $val(8);
+
+        $na = 2147483647; // Huawei sentinel: "no data"
+
+        $rx      = ($rxRaw   === null || $rxRaw   === $na) ? 'DOWN' : round($rxRaw   / 100, 2);
+        $tx      = ($txRaw   === null || $txRaw   === $na) ? 'DOWN' : round($txRaw   / 100, 2);
+        $voltage = ($voltRaw === null || $voltRaw === $na) ? 'DOWN' : round($voltRaw / 1000, 3);
+        $current = ($currRaw === null || $currRaw === $na) ? 'DOWN' : $currRaw;
+        $temp    = ($tempRaw === null || $tempRaw === $na) ? 'DOWN' : $tempRaw;
+        $dist    = ($distRaw === null || $distRaw < 0)     ? 'DOWN' : $distRaw;
+
+        $ethStatus = $ethSt  === 1 ? 'UP' : 'DOWN';
+        $duplex    = match($ethDup) { 5 => 'Full', 4 => 'Half', default => 'DOWN' };
+        $speed     = match($ethSpd) { 5 => '10Mbit', 6 => '100Mbit', 7 => '1Gbit', default => 'DOWN' };
+
+        // ── Základní info z .52 — funguje na obou OLT ────────────────────────
+        $infoOids = implode(' ', [
+            "{$base}.52.1.3.{$pi}.{$oi}",  // stav ONT (INTEGER)
+            "{$base}.52.1.10.{$pi}.{$oi}", // firmware (Hex-STRING → ASCII)
+            "{$base}.52.1.11.{$pi}.{$oi}", // model    (Hex-STRING → ASCII)
+        ]);
+
+        // -Oa: zobraz OctetString jako ASCII místo hex bajtů
+        $infoCmd    = "snmpget " . $this->snmpOpt() . " -Oqav " . escapeshellarg($olt) . " {$infoOids} 2>&1";
+        $infoOutput = [];
+        exec($infoCmd, $infoOutput);
+
+        $ontStatusRaw = isset($infoOutput[0]) ? (int) trim($infoOutput[0]) : null;
+        $ontStatus    = match($ontStatusRaw) {
+            9  => 'Working',
+            10 => 'Online',
+            5  => 'Offline',
+            default => $ontStatusRaw !== null ? "Stav {$ontStatusRaw}" : '—',
+        };
+        $firmware = isset($infoOutput[1]) ? rtrim(trim($infoOutput[1], "\" \t\n\r\x0B"), "\x00.") : '—';
+        $model    = isset($infoOutput[2]) ? rtrim(trim($infoOutput[2], "\" \t\n\r\x0B"), "\x00.") : '—';
+
+        return [
+            'rx_power'    => $rx,
+            'tx_power'    => $tx,
+            'voltage'     => $voltage,
+            'current'     => $current,
+            'temperature' => $temp,
+            'distance'    => $dist,
+            'eth_status'  => $ethStatus,
+            'eth_duplex'  => $duplex,
+            'eth_speed'   => $speed,
+            'online'      => $ethStatus === 'UP',
+            'status'      => $ontStatus,
+            'firmware'    => $firmware,
+            'model'       => $model,
+        ];
     }
 
     // ── privátní pomocné metody ──────────────────────────────────────────────

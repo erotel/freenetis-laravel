@@ -8,6 +8,8 @@ use Illuminate\Http\Request;
 
 class GponController extends Controller
 {
+    public function __construct(private GponService $gponService) {}
+
     public function index(Request $request)
     {
         $status = $request->input('status');
@@ -31,14 +33,24 @@ class GponController extends Controller
 
     public function show(int $id)
     {
-        $ont = Ont::with(['member', 'device'])->findOrFail($id);
-        return view('gpon.show', compact('ont'));
+        $ont     = Ont::with(['member', 'device'])->findOrFail($id);
+        $details = null;
+
+        if ($ont->reg_status === 'registered') {
+            try {
+                $details = $this->gponService->getOntDetails($ont);
+            } catch (\Exception $e) {
+                $details = null;
+            }
+        }
+
+        return view('gpon.show', compact('ont', 'details'));
     }
 
     public function scan(Request $request)
     {
         try {
-            $count = app(GponService::class)->scanNewOnts();
+            $count = $this->gponService->scanNewOnts();
             return back()->with('success', "Skenování dokončeno. Nalezeno {$count} nových ONT.");
         } catch (\Exception $e) {
             return back()->with('error', 'Chyba při skenování: ' . $e->getMessage());
@@ -50,14 +62,20 @@ class GponController extends Controller
         $request->validate([
             'house_no'  => 'nullable|string|max:32',
             'user_name' => 'nullable|string|max:128',
+            'member_id' => 'nullable|integer|exists:members,id',
         ]);
 
+        $memberId = $request->input('member_id') ? (int) $request->input('member_id') : null;
+        $houseNo  = $request->input('house_no', '');
+        $userName = $request->input('user_name', '');
+
         try {
-            app(GponService::class)->registerOntById(
-                $id,
-                $request->input('house_no', ''),
-                $request->input('user_name', '')
-            );
+            $this->gponService->registerOntById($id, $houseNo, $userName);
+
+            if ($memberId) {
+                Ont::findOrFail($id)->update(['member_id' => $memberId, 'user_name' => null]);
+            }
+
             return redirect()->route('gpon.show', $id)->with('success', 'ONT byla úspěšně zaregistrována.');
         } catch (\Exception $e) {
             return redirect()->route('gpon.show', $id)->with('error', 'Chyba při registraci: ' . $e->getMessage());
@@ -67,7 +85,7 @@ class GponController extends Controller
     public function remove(int $id)
     {
         try {
-            app(GponService::class)->removeOntById($id);
+            $this->gponService->removeOntById($id);
             return redirect()->route('gpon.index')->with('success', 'ONT byla odebrána.');
         } catch (\Exception $e) {
             return redirect()->route('gpon.show', $id)->with('error', 'Chyba při odebrání: ' . $e->getMessage());

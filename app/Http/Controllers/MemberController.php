@@ -196,6 +196,9 @@ class MemberController extends Controller
                     ->pluck('line')
                     ->implode("\n\n")
                 : '',
+            'gponOnts'             => \App\Models\Setting::get('gpon_enabled', '0')
+                ? $member->onts()->where('reg_status', 'registered')->get()
+                : collect(),
             'canViewInterrupts'    => $this->aclCheck('view_all', 'Members_Controller', 'membership_interrupts'),
             'canEditInterrupts'    => $this->aclCheck('edit_all', 'Members_Controller', 'membership_interrupts'),
             'interrupts'           => \Illuminate\Support\Facades\DB::table('membership_interrupts as mi')
