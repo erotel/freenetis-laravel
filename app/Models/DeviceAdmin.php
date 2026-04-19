@@ -8,7 +8,7 @@ class DeviceAdmin extends Model
 {
     public $timestamps = false;
     protected $table = 'device_admins';
-    protected $guarded = [];
+    protected $fillable = ['device_id', 'user_id'];
 
     public function device()
     {

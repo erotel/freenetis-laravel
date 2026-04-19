@@ -8,7 +8,12 @@ class ConnectionRequest extends Model
 {
     public $timestamps = false;
     protected $table = 'connection_requests';
-    protected $guarded = [];
+    protected $fillable = [
+        'member_id', 'added_user_id', 'decided_user_id', 'state',
+        'created_at', 'decided_at', 'ip_address', 'subnet_id',
+        'mac_address', 'device_id', 'device_type_id', 'device_template_id',
+        'comment', 'comments_thread_id',
+    ];
 
     const STATE_UNDECIDED = 0;
     const STATE_REJECTED  = 1;

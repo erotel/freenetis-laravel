@@ -8,7 +8,10 @@ class SmsMessage extends Model
 {
     public $timestamps = false;
     protected $table = 'sms_messages';
-    protected $guarded = [];
+    protected $fillable = [
+        'user_id', 'sms_message_id', 'stamp', 'send_date',
+        'text', 'sender', 'receiver', 'driver', 'type', 'state', 'message',
+    ];
 
     // type
     const TYPE_RECEIVED = 0;

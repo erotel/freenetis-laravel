@@ -62,11 +62,12 @@ class GponService
             throw new RuntimeException('Nepodařilo se zjistit port index pro ONT ' . $serial);
         }
 
-        $dum   = $houseNo !== '' ? $houseNo : $userName;
-        $snHex = strtoupper(preg_replace('/[^0-9A-Fa-f]/', '', $serial));
-        $port  = $portIndex;
-        $opt   = $this->snmpOptForOlt($olt, '-M ' . base_path('resources/mibs') . ' -Ir');
-        $SP1   = $servPort + 1;
+        $dum    = $houseNo !== '' ? $houseNo : $userName;
+        $snHex  = strtoupper(preg_replace('/[^0-9A-Fa-f]/', '', $serial));
+        $port   = $portIndex;
+        $opt    = $this->snmpOptForOlt($olt, '-M ' . escapeshellarg(base_path('resources/mibs')) . ' -Ir');
+        $SP1    = $servPort + 1;
+        $eOltIp = escapeshellarg($oltIp);
 
         // Registrace ONT
         $dat =
@@ -74,22 +75,23 @@ class GponService
             "hwGponDeviceOntSn.{$port}.{$ontId} x {$snHex} " .
             "hwGponDeviceOntManagementMode.{$port}.{$ontId} = omci " .
             "hwGponDeviceOntEntryStatus.{$port}.{$ontId} = createAndGo " .
-            "hwGponDeviceOntLineProfName.{$port}.{$ontId} = {$olt->line_prof} " .
-            "hwGponDeviceOntServiceProfName.{$port}.{$ontId} = {$olt->service_prof} " .
-            "hwGponDeviceOntDespt.{$port}.{$ontId} = \"{$dum}\"";
+            "hwGponDeviceOntLineProfName.{$port}.{$ontId} = " . escapeshellarg($olt->line_prof) . " " .
+            "hwGponDeviceOntServiceProfName.{$port}.{$ontId} = " . escapeshellarg($olt->service_prof) . " " .
+            "hwGponDeviceOntDespt.{$port}.{$ontId} = " . escapeshellarg($dum);
 
-        $out = shell_exec("snmpset {$opt} -m HUAWEI-XPON-MIB {$oltIp} {$dat} 2>&1; echo $?");
-        $this->logGpon('/tmp/gpon_register.log', 'ONT REGISTER', "snmpset {$opt} -m HUAWEI-XPON-MIB {$oltIp} {$dat}", $out);
+        $out = shell_exec("snmpset {$opt} -m HUAWEI-XPON-MIB {$eOltIp} {$dat} 2>&1; echo $?");
+        $this->logGpon('/tmp/gpon_register.log', 'ONT REGISTER', "snmpset {$opt} -m HUAWEI-XPON-MIB {$eOltIp} {$dat}", $out);
         $this->assertNoSnmpError($out, 'Chyba při ONT registraci');
 
         // Ověření registrace – OLT musí vrátit active(1)
-        $verifyOut = shell_exec("snmpget {$opt} -Oqv -m HUAWEI-XPON-MIB {$oltIp} hwGponDeviceOntEntryStatus.{$port}.{$ontId} 2>&1");
+        $verifyOut = shell_exec("snmpget {$opt} -Oqv -m HUAWEI-XPON-MIB {$eOltIp} hwGponDeviceOntEntryStatus.{$port}.{$ontId} 2>&1");
         $this->logGpon('/tmp/gpon_register.log', 'ONT VERIFY', "snmpget hwGponDeviceOntEntryStatus.{$port}.{$ontId}", $verifyOut);
         if ($verifyOut === null || !str_contains(trim($verifyOut), 'active')) {
             throw new RuntimeException('Registrace ONT se nepodařila ověřit – OLT nevrátil stav active. Výstup: ' . trim((string) $verifyOut));
         }
 
         // Service-flow
+        $eTrafficTable = escapeshellarg($olt->traffic_table);
         $dat1 =
             "hwExtSrvFlowPara1.{$SP1} = {$olt->getFrame()} " .
             "hwExtSrvFlowPara2.{$SP1} = {$olt->getSlot()} " .
@@ -101,11 +103,11 @@ class GponService
             "hwExtSrvFlowMultiServiceType.{$SP1} = byUserVlan " .
             "hwExtSrvFlowMultiServiceUserPara.{$SP1} = 1 " .
             "hwExtSrvFlowRowStatus.{$SP1} = createAndGo " .
-            "hwExtSrvFlowInboundTrafficTableName.{$SP1} = \"{$olt->traffic_table}\" " .
-            "hwExtSrvFlowOutboundTrafficTableName.{$SP1} = \"{$olt->traffic_table}\"";
+            "hwExtSrvFlowInboundTrafficTableName.{$SP1} = {$eTrafficTable} " .
+            "hwExtSrvFlowOutboundTrafficTableName.{$SP1} = {$eTrafficTable}";
 
-        $out1 = shell_exec("snmpset {$opt} -m HUAWEI-ETHERLIKE-EXT-MIB {$oltIp} {$dat1} 2>&1; echo $?");
-        $this->logGpon('/tmp/gpon_register.log', 'ONT SERVICE-FLOW', "snmpset {$opt} -m HUAWEI-ETHERLIKE-EXT-MIB {$oltIp} {$dat1}", $out1);
+        $out1 = shell_exec("snmpset {$opt} -m HUAWEI-ETHERLIKE-EXT-MIB {$eOltIp} {$dat1} 2>&1; echo $?");
+        $this->logGpon('/tmp/gpon_register.log', 'ONT SERVICE-FLOW', "snmpset {$opt} -m HUAWEI-ETHERLIKE-EXT-MIB {$eOltIp} {$dat1}", $out1);
         $this->assertNoSnmpError($out1, 'Chyba při vytváření service-flow');
 
         $updateData = [
@@ -148,18 +150,19 @@ class GponService
             throw new RuntimeException('Nepodařilo se zjistit port index pro ONT ' . $serial);
         }
 
-        $port = $portIndex;
-        $SP1  = $servPort + 1;
-        $opt  = $this->snmpOptForOlt($olt, '-M ' . base_path('resources/mibs') . ' -Ir');
+        $port   = $portIndex;
+        $SP1    = $servPort + 1;
+        $opt    = $this->snmpOptForOlt($olt, '-M ' . escapeshellarg(base_path('resources/mibs')) . ' -Ir');
+        $eOltIp = escapeshellarg($oltIp);
 
         $dat1 = "hwExtSrvFlowRowStatus.{$SP1} = destroy";
-        $out1 = shell_exec("snmpset {$opt} -m HUAWEI-ETHERLIKE-EXT-MIB {$oltIp} {$dat1} 2>&1; echo $?");
-        $this->logGpon('/tmp/gpon_remove.log', 'ONT REMOVE SERVICE-FLOW', "snmpset {$opt} -m HUAWEI-ETHERLIKE-EXT-MIB {$oltIp} {$dat1}", $out1);
+        $out1 = shell_exec("snmpset {$opt} -m HUAWEI-ETHERLIKE-EXT-MIB {$eOltIp} {$dat1} 2>&1; echo $?");
+        $this->logGpon('/tmp/gpon_remove.log', 'ONT REMOVE SERVICE-FLOW', "snmpset {$opt} -m HUAWEI-ETHERLIKE-EXT-MIB {$eOltIp} {$dat1}", $out1);
         $this->assertNoSnmpError($out1, 'Chyba při mazání service-flow');
 
         $dat = "hwGponDeviceOntEntryStatus.{$port}.{$ontId} = destroy";
-        $out = shell_exec("snmpset {$opt} -m HUAWEI-XPON-MIB {$oltIp} {$dat} 2>&1; echo $?");
-        $this->logGpon('/tmp/gpon_remove.log', 'ONT REMOVE', "snmpset {$opt} -m HUAWEI-XPON-MIB {$oltIp} {$dat}", $out);
+        $out = shell_exec("snmpset {$opt} -m HUAWEI-XPON-MIB {$eOltIp} {$dat} 2>&1; echo $?");
+        $this->logGpon('/tmp/gpon_remove.log', 'ONT REMOVE', "snmpset {$opt} -m HUAWEI-XPON-MIB {$eOltIp} {$dat}", $out);
         $this->assertNoSnmpError($out, 'Chyba při mazání ONT');
 
         $ont->update(['reg_status' => 'removed']);

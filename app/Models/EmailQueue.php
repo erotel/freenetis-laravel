@@ -7,7 +7,7 @@ use Illuminate\Database\Eloquent\Model;
 class EmailQueue extends Model
 {
     protected $table = 'email_queues';
-    protected $guarded = [];
+    protected $fillable = ['from', 'to', 'subject', 'body', 'state', 'access_time'];
     public $timestamps = false;
 
     const STATE_NEW    = 0;
