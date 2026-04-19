@@ -16,11 +16,10 @@
     <div id="gpon-map" style="height:600px;width:100%"></div>
 </div>
 
-<div style="margin-top:10px;font-size:13px;color:var(--fn-text-muted)">
-    Zobrazeno {{ $onts->count() }} ONT s GPS souřadnicemi.
-    <span style="margin-left:16px">
-        <span style="display:inline-block;width:12px;height:12px;background:#16a34a;border-radius:50%;vertical-align:middle"></span> Registrovaná
-    </span>
+<div style="margin-top:10px;font-size:13px;color:var(--fn-text-muted);display:flex;gap:20px;flex-wrap:wrap">
+    <span>Zobrazeno {{ $onts->count() }} ONT s GPS souřadnicemi.</span>
+    <span><span style="display:inline-block;width:12px;height:12px;background:#16a34a;border-radius:50%;vertical-align:middle;margin-right:4px"></span>Online</span>
+    <span><span style="display:inline-block;width:12px;height:12px;background:#dc2626;border-radius:50%;vertical-align:middle;margin-right:4px"></span>Offline</span>
 </div>
 
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
@@ -36,6 +35,7 @@ $ontsJson = $onts->map(fn($o) => [
     'lat'      => (float) $o->gps_lat,
     'lng'      => (float) $o->gps_lng,
     'url'      => route('gpon.show', $o->id),
+    'online'   => $onlineStatus["{$o->port_index}.{$o->ont_id}"] ?? false,
 ])->values();
 @endphp
 
@@ -59,20 +59,26 @@ $ontsJson = $onts->map(fn($o) => [
         maxZoom: 19
     }).addTo(map);
 
-    var greenIcon = L.divIcon({
-        className: '',
-        html: '<div style="width:14px;height:14px;background:#16a34a;border:2px solid #fff;border-radius:50%;box-shadow:0 1px 4px rgba(0,0,0,.4)"></div>',
-        iconSize: [14, 14],
-        iconAnchor: [7, 7],
-    });
+    function makeIcon(online) {
+        var color = online ? '#16a34a' : '#dc2626';
+        return L.divIcon({
+            className: '',
+            html: '<div style="width:14px;height:14px;background:' + color + ';border:2px solid #fff;border-radius:50%;box-shadow:0 1px 4px rgba(0,0,0,.4)"></div>',
+            iconSize: [14, 14],
+            iconAnchor: [7, 7],
+        });
+    }
 
     onts.forEach(function(o) {
-        var popup = '<strong>' + (o.house_no || o.serial) + '</strong>';
+        var stav = o.online
+            ? '<span style="color:#16a34a;font-weight:600">● Online</span>'
+            : '<span style="color:#dc2626;font-weight:600">● Offline</span>';
+        var popup = '<strong>' + (o.house_no || o.serial) + '</strong> ' + stav;
         if (o.name) popup += '<br>' + o.name;
         if (o.port) popup += '<br><span style="color:#888;font-size:12px">' + o.port + '</span>';
         popup += '<br><a href="' + o.url + '" style="font-size:12px">Detail →</a>';
 
-        L.marker([o.lat, o.lng], { icon: greenIcon })
+        L.marker([o.lat, o.lng], { icon: makeIcon(o.online) })
             .addTo(map)
             .bindPopup(popup);
     });

@@ -342,6 +342,48 @@ class GponService
         ];
     }
 
+    /**
+     * Batch online stav — jeden snmpwalk na .46.1.15 per OLT.
+     * Vrací pole ["{port_index}.{ont_id}" => true/false].
+     */
+    public function getBatchOnlineStatus(\Illuminate\Support\Collection $onts): array
+    {
+        $base    = '1.3.6.1.4.1.2011.6.128.1.1.2.46.1.15';
+        $status  = [];
+        $grouped = $onts->groupBy('olt_ip');
+
+        foreach ($grouped as $oltIp => $group) {
+            $output = [];
+            $cmd    = sprintf(
+                'snmpwalk -v3 -l %s -u %s -a %s -A %s -x %s -X %s -On %s %s 2>&1',
+                escapeshellarg($this->secLevel),
+                escapeshellarg($this->secName),
+                escapeshellarg($this->authProtocol),
+                escapeshellarg($this->authPass),
+                escapeshellarg($this->privProtocol),
+                escapeshellarg($this->privPass),
+                escapeshellarg($oltIp),
+                $base
+            );
+            exec($cmd, $output);
+
+            foreach ($output as $line) {
+                if (preg_match('/\.46\.1\.15\.(\d+)\.(\d+)\s*=\s*\S+\s*(\d+)/', $line, $m)) {
+                    $status["{$m[1]}.{$m[2]}"] = $m[3] === '1';
+                }
+            }
+
+            foreach ($group as $ont) {
+                $key = "{$ont->port_index}.{$ont->ont_id}";
+                if (!isset($status[$key])) {
+                    $status[$key] = false;
+                }
+            }
+        }
+
+        return $status;
+    }
+
     // ── privátní pomocné metody ──────────────────────────────────────────────
 
     private function getOntSerials(): array

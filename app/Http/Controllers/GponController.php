@@ -97,8 +97,10 @@ class GponController extends Controller
         $onts = \App\Models\Ont::whereNotNull('gps_lat')
             ->whereNotNull('gps_lng')
             ->where('reg_status', 'registered')
-            ->get(['id', 'serial', 'house_no', 'user_name', 'gps_lat', 'gps_lng', 'gpon_port']);
+            ->get(['id', 'serial', 'house_no', 'user_name', 'gps_lat', 'gps_lng', 'gpon_port', 'port_index', 'ont_id', 'olt_ip']);
 
-        return view('gpon.map', compact('onts'));
+        $onlineStatus = $this->gponService->getBatchOnlineStatus($onts);
+
+        return view('gpon.map', compact('onts', 'onlineStatus'));
     }
 }
