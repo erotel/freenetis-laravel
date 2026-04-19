@@ -618,10 +618,12 @@ function addBccRow() {
             <td>{{ $golt->onts_count }}</td>
             <td style="white-space:nowrap">
                 <button class="m-btn" style="font-size:11px;padding:3px 8px"
-                    onclick="gponOltEdit({{ $golt->id }}, @json($golt))">Upravit</button>
+                    data-olt-id="{{ $golt->id }}"
+                    data-olt='{!! json_encode($golt->toArray(), JSON_HEX_QUOT | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_TAG) !!}'
+                    onclick="gponOltEdit(this)">Upravit</button>
                 <form method="POST" action="{{ route('settings.gpon-olts.destroy', $golt->id) }}"
                     style="display:inline"
-                    onsubmit="return confirm('Smazat OLT {{ $golt->name }}?')">
+                    onsubmit="return confirm('Smazat OLT {{ addslashes($golt->name) }}?')">
                     @csrf @method('DELETE')
                     <button class="m-btn" style="font-size:11px;padding:3px 8px;background:#fee2e2;color:#b91c1c;border-color:#fca5a5"
                         type="submit">Smazat</button>
@@ -640,7 +642,6 @@ function addBccRow() {
         <div class="m-card-title" style="margin-bottom:12px" id="gpon-olt-form-title">Přidat OLT</div>
         <form id="gpon-olt-form" method="POST" action="{{ route('settings.gpon-olts.store') }}">
             @csrf
-            <span id="gpon-olt-method-field"></span>
             <div class="m-form-row">
                 <div class="m-form-group">
                     <label class="m-form-label">Název</label>
@@ -701,6 +702,11 @@ function addBccRow() {
                     <input class="m-form-input" type="number" name="base_vlan" id="golt-base-vlan" placeholder="200" style="max-width:90px">
                     <div class="m-form-hint">Použije se pokud není vlan_map</div>
                 </div>
+                <div class="m-form-group">
+                    <label class="m-form-label">Počet portů</label>
+                    <input class="m-form-input" type="number" name="port_count" placeholder="např. 8" min="1" max="128" style="max-width:90px">
+                    <div class="m-form-hint">Počet GPON portů na OLT</div>
+                </div>
                 <div class="m-form-group" style="flex:2">
                     <label class="m-form-label">VLAN mapa (JSON, volitelné)</label>
                     <input class="m-form-input" type="text" name="vlan_map" id="golt-vlan-map"
@@ -722,34 +728,52 @@ function addBccRow() {
 </div>
 
 <script>
-function gponOltEdit(id, olt) {
+function gponOltEdit(btn) {
+    const olt = JSON.parse(btn.dataset.olt);
+    console.log('edit olt:', olt);
+
     document.getElementById('gpon-olt-form-title').textContent = 'Upravit OLT: ' + olt.name;
-    document.getElementById('gpon-olt-form').action = '/new/settings/gpon-olts/' + id;
-    document.getElementById('gpon-olt-method-field').innerHTML = '<input type="hidden" name="_method" value="PUT">';
-    document.getElementById('golt-name').value         = olt.name || '';
-    document.getElementById('golt-ip').value           = olt.ip || '';
-    document.getElementById('golt-gpon-port').value    = olt.gpon_port || '';
-    document.getElementById('golt-snmp-user').value    = olt.snmp_user || '';
-    document.getElementById('golt-auth-pass').value    = olt.snmp_auth_pass || '';
-    document.getElementById('golt-priv-pass').value    = olt.snmp_priv_pass || '';
-    document.getElementById('golt-auth-proto').value   = olt.snmp_auth_proto || 'SHA';
-    document.getElementById('golt-priv-proto').value   = olt.snmp_priv_proto || 'AES';
-    document.getElementById('golt-line-prof').value    = olt.line_prof || '';
-    document.getElementById('golt-service-prof').value = olt.service_prof || '';
-    document.getElementById('golt-traffic-table').value= olt.traffic_table || '';
-    document.getElementById('golt-base-vlan').value     = olt.base_vlan || '';
-    document.getElementById('golt-vlan-map').value      = olt.vlan_map ? JSON.stringify(olt.vlan_map) : '';
-    document.getElementById('golt-geocode-city').value  = olt.geocode_city || '';
-    document.getElementById('golt-submit-btn').textContent = 'Uložit změny';
+
+    const form = document.getElementById('gpon-olt-form');
+    form.action = '/new/settings/gpon-olts/' + olt.id;
+
+    let method = form.querySelector('input[name="_method"]');
+    if (!method) {
+        method = document.createElement('input');
+        method.type = 'hidden';
+        method.name = '_method';
+        form.appendChild(method);
+    }
+    method.value = 'PUT';
+
+    form.querySelector('[name="name"]').value          = olt.name          || '';
+    form.querySelector('[name="ip"]').value            = olt.ip            || '';
+    form.querySelector('[name="gpon_port"]').value     = olt.gpon_port     || '';
+    form.querySelector('[name="snmp_user"]').value     = olt.snmp_user     || '';
+    form.querySelector('[name="snmp_auth_pass"]').value = olt.snmp_auth_pass || '';
+    form.querySelector('[name="snmp_priv_pass"]').value = olt.snmp_priv_pass || '';
+    form.querySelector('[name="snmp_auth_proto"]').value = olt.snmp_auth_proto || 'SHA';
+    form.querySelector('[name="snmp_priv_proto"]').value = olt.snmp_priv_proto || 'AES';
+    form.querySelector('[name="line_prof"]').value     = olt.line_prof     || '';
+    form.querySelector('[name="service_prof"]').value  = olt.service_prof  || '';
+    form.querySelector('[name="traffic_table"]').value = olt.traffic_table || '';
+    form.querySelector('[name="base_vlan"]').value     = olt.base_vlan     || '';
+    form.querySelector('[name="port_count"]').value    = olt.port_count    || '';
+    form.querySelector('[name="vlan_map"]').value      = olt.vlan_map ? JSON.stringify(olt.vlan_map) : '';
+    form.querySelector('[name="geocode_city"]').value  = olt.geocode_city  || '';
+
+    document.getElementById('golt-submit-btn').textContent   = 'Uložit změny';
     document.getElementById('golt-cancel-btn').style.display = 'inline-flex';
-    document.getElementById('gpon-olt-form-wrap').scrollIntoView({behavior:'smooth'});
+    form.scrollIntoView({behavior: 'smooth'});
 }
 function gponOltReset() {
+    const form = document.getElementById('gpon-olt-form');
     document.getElementById('gpon-olt-form-title').textContent = 'Přidat OLT';
-    document.getElementById('gpon-olt-form').action = '{{ route("settings.gpon-olts.store") }}';
-    document.getElementById('gpon-olt-method-field').innerHTML = '';
-    document.getElementById('gpon-olt-form').reset();
-    document.getElementById('golt-submit-btn').textContent = 'Přidat OLT';
+    form.action = '{{ route("settings.gpon-olts.store") }}';
+    const method = form.querySelector('input[name="_method"]');
+    if (method) method.remove();
+    form.reset();
+    document.getElementById('golt-submit-btn').textContent   = 'Přidat OLT';
     document.getElementById('golt-cancel-btn').style.display = 'none';
 }
 </script>
