@@ -242,15 +242,16 @@ class GponService
 
         $base = '1.3.6.1.4.1.2011.6.128.1.1.2';
         $oids = implode(' ', [
-            "{$base}.51.1.4.{$pi}.{$oi}",    // rx_power   (/100 = dBm)
-            "{$base}.51.1.3.{$pi}.{$oi}",    // tx_power   (/100 = dBm)
-            "{$base}.51.1.5.{$pi}.{$oi}",    // voltage    (/1000 = V)
-            "{$base}.51.1.2.{$pi}.{$oi}",    // current    (mA)
-            "{$base}.51.1.1.{$pi}.{$oi}",    // temperature (°C)
-            "{$base}.46.1.20.{$pi}.{$oi}",   // distance   (m)
-            "{$base}.62.1.22.{$pi}.{$oi}.1", // eth_status
-            "{$base}.62.1.3.{$pi}.{$oi}.1",  // eth_duplex
-            "{$base}.62.1.4.{$pi}.{$oi}.1",  // eth_speed
+            "{$base}.51.1.4.{$pi}.{$oi}",    // [0] rx_power   (/100 = dBm)
+            "{$base}.51.1.3.{$pi}.{$oi}",    // [1] tx_power   (/100 = dBm)
+            "{$base}.51.1.5.{$pi}.{$oi}",    // [2] voltage    (/1000 = V)
+            "{$base}.51.1.2.{$pi}.{$oi}",    // [3] current    (mA)
+            "{$base}.51.1.1.{$pi}.{$oi}",    // [4] temperature (°C)
+            "{$base}.46.1.20.{$pi}.{$oi}",   // [5] distance   (m)
+            "{$base}.62.1.22.{$pi}.{$oi}.1", // [6] eth_status
+            "{$base}.62.1.3.{$pi}.{$oi}.1",  // [7] eth_duplex
+            "{$base}.62.1.4.{$pi}.{$oi}.1",  // [8] eth_speed
+            "{$base}.46.1.15.{$pi}.{$oi}",   // [9] online status (1=online)
         ]);
 
         // ── Optické parametry (.51, .46, .62) — dostupné jen na MA5800 ──────────
@@ -271,9 +272,10 @@ class GponService
         $currRaw = $val(3);
         $tempRaw = $val(4);
         $distRaw = $val(5);
-        $ethSt   = $val(6);
-        $ethDup  = $val(7);
-        $ethSpd  = $val(8);
+        $ethSt    = $val(6);
+        $ethDup   = $val(7);
+        $ethSpd   = $val(8);
+        $onlineRaw = $val(9);
 
         $na = 2147483647; // Huawei sentinel: "no data"
 
@@ -320,7 +322,7 @@ class GponService
             'eth_status'  => $ethStatus,
             'eth_duplex'  => $duplex,
             'eth_speed'   => $speed,
-            'online'      => $ethStatus === 'UP',
+            'online'      => $onlineRaw === 1,
             'status'      => $ontStatus,
             'firmware'    => $firmware,
             'model'       => $model,
