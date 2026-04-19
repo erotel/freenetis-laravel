@@ -147,7 +147,7 @@ Route::get('ares/lookup-public/{ico}', function (string $ico) {
     } catch (\Exception $e) {
         return response()->json(['error' => 'Nepodařilo se kontaktovat ARES.'], 500);
     }
-})->name('ares.lookup-public');
+})->name('ares.lookup-public')->middleware('throttle:10,1');
 
 // Public streets by town (for registration form - no auth required)
 Route::get('streets/by-town-public/{townId}', function (int $townId) {
