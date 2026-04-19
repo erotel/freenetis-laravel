@@ -9,10 +9,13 @@
 
 <div class="m-title-row">
     <h2>GPON – správa ONT</h2>
-    <form method="POST" action="{{ route('gpon.scan') }}" style="margin:0">
-        @csrf
-        <button class="m-btn m-btn-primary" type="submit">Skenovat nové ONT</button>
-    </form>
+    <div style="display:flex;gap:8px;align-items:center">
+        <a class="m-btn" href="{{ route('gpon.map') }}">🗺 Mapa</a>
+        <form method="POST" action="{{ route('gpon.scan') }}" style="margin:0">
+            @csrf
+            <button class="m-btn m-btn-primary" type="submit">Skenovat nové ONT</button>
+        </form>
+    </div>
 </div>
 
 @if(session('success'))

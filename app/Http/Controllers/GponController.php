@@ -91,4 +91,14 @@ class GponController extends Controller
             return redirect()->route('gpon.show', $id)->with('error', 'Chyba při odebrání: ' . $e->getMessage());
         }
     }
+
+    public function map()
+    {
+        $onts = \App\Models\Ont::whereNotNull('gps_lat')
+            ->whereNotNull('gps_lng')
+            ->where('reg_status', 'registered')
+            ->get(['id', 'serial', 'house_no', 'user_name', 'gps_lat', 'gps_lng', 'gpon_port']);
+
+        return view('gpon.map', compact('onts'));
+    }
 }

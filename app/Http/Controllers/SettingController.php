@@ -52,7 +52,7 @@ class SettingController extends Controller
 
     public const GPON_KEYS = [
         'gpon_enabled', 'gpon_olt_ip', 'gpon_snmp_user',
-        'gpon_snmp_auth_proto', 'gpon_snmp_priv_proto',
+        'gpon_snmp_auth_proto', 'gpon_snmp_priv_proto', 'gpon_geocode_city',
     ];
 
     // SMS drivers: id → config
@@ -338,6 +338,7 @@ class SettingController extends Controller
         Setting::set('gpon_snmp_priv_pass', (string) $request->input('gpon_snmp_priv_pass', ''));
         Setting::set('gpon_snmp_auth_proto', in_array($request->input('gpon_snmp_auth_proto'), ['SHA', 'MD5']) ? $request->input('gpon_snmp_auth_proto') : 'SHA');
         Setting::set('gpon_snmp_priv_proto', in_array($request->input('gpon_snmp_priv_proto'), ['AES', 'DES']) ? $request->input('gpon_snmp_priv_proto') : 'AES');
+        Setting::set('gpon_geocode_city',   trim((string) $request->input('gpon_geocode_city', 'Určice')));
 
         return redirect()->route('settings.index', ['tab' => 'gpon'])
             ->with('success', 'Nastavení GPON bylo uloženo.');

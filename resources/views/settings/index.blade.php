@@ -629,6 +629,13 @@ function addBccRow() {
                 value="{{ $gponSettings['gpon_snmp_priv_pass'] ?? '' }}" autocomplete="new-password">
         </div>
     </div>
+    <div class="m-form-group">
+        <label class="m-form-label">Obec pro geokódování</label>
+        <input class="m-form-input" type="text" name="gpon_geocode_city"
+            value="{{ $gponSettings['gpon_geocode_city'] ?? 'Určice' }}"
+            placeholder="Určice" style="max-width:200px">
+        <div class="m-form-hint">Název obce použitý při geokódování adresy ONT přes Nominatim.</div>
+    </div>
 </div>
 
 <div class="m-actions">

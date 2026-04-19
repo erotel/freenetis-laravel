@@ -551,6 +551,7 @@ Route::middleware('auth')->group(function () {
     // ── GPON modul ────────────────────────────────────────────────────────────
     Route::middleware('gpon_enabled')->group(function () {
         Route::get('gpon',              [GponController::class, 'index'])->name('gpon.index');
+        Route::get('gpon/map',          [GponController::class, 'map'])->name('gpon.map');
         Route::get('gpon/{id}',         [GponController::class, 'show'])->name('gpon.show');
         Route::post('gpon/scan',        [GponController::class, 'scan'])->name('gpon.scan');
         Route::post('gpon/{id}/register', [GponController::class, 'register'])->name('gpon.register');

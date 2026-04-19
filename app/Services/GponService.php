@@ -154,12 +154,25 @@ class GponService
         $this->logGpon('/tmp/gpon_register.log', 'ONT SERVICE-FLOW', "snmpset {$opt} -m HUAWEI-ETHERLIKE-EXT-MIB {$this->host} {$dat1}", $out1);
         $this->assertNoSnmpError($out1, 'Chyba při vytváření service-flow');
 
-        $ont->update([
+        $updateData = [
             'house_no'   => $houseNo,
             'user_name'  => $userName,
             'reg_status' => 'registered',
             'port_index' => $portIndex,
-        ]);
+        ];
+
+        if ($houseNo !== '') {
+            $city = Setting::get('gpon_geocode_city', 'Určice');
+            $url  = 'https://nominatim.openstreetmap.org/search?q=' . urlencode($city . ' ' . $houseNo) . '&format=json&limit=1';
+            $ctx  = stream_context_create(['http' => ['header' => "User-Agent: freenetis-laravel/1.0\r\n", 'timeout' => 5]]);
+            $geo  = @json_decode(@file_get_contents($url, false, $ctx), true);
+            if (!empty($geo[0]['lat'])) {
+                $updateData['gps_lat'] = $geo[0]['lat'];
+                $updateData['gps_lng'] = $geo[0]['lon'];
+            }
+        }
+
+        $ont->update($updateData);
     }
 
     /**
