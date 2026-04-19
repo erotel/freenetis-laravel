@@ -111,7 +111,7 @@ class GponService
         $dum    = $houseNo !== '' ? $houseNo : $userName;
         $snHex  = strtoupper(preg_replace('/[^0-9A-Fa-f]/', '', $serial));
         $port   = $portIndex;
-        $opt    = $this->snmpOpt('-M /var/www/gpon-app/mibs -Ir');
+        $opt    = $this->snmpOpt('-M ' . base_path('resources/mibs') . ' -Ir');
         $SP1    = $servPort + 1;
 
         // Registrace ONT
@@ -127,6 +127,13 @@ class GponService
         $out = shell_exec("snmpset {$opt} -m HUAWEI-XPON-MIB {$this->host} {$dat} 2>&1; echo $?");
         $this->logGpon('/tmp/gpon_register.log', 'ONT REGISTER', "snmpset {$opt} -m HUAWEI-XPON-MIB {$this->host} {$dat}", $out);
         $this->assertNoSnmpError($out, 'Chyba při ONT registraci');
+
+        // Ověření registrace – OLT musí vrátit active(1)
+        $verifyOut = shell_exec("snmpget {$opt} -Oqv -m HUAWEI-XPON-MIB {$this->host} hwGponDeviceOntEntryStatus.{$port}.{$ontId} 2>&1");
+        $this->logGpon('/tmp/gpon_register.log', 'ONT VERIFY', "snmpget hwGponDeviceOntEntryStatus.{$port}.{$ontId}", $verifyOut);
+        if ($verifyOut === null || !str_contains(trim($verifyOut), 'active')) {
+            throw new RuntimeException('Registrace ONT se nepodařila ověřit – OLT nevrátil stav active. Výstup: ' . trim((string)$verifyOut));
+        }
 
         // Service-flow
         $dat1 =
@@ -172,7 +179,7 @@ class GponService
         }
         $port = $portIndex;
         $SP1  = $servPort + 1;
-        $opt  = $this->snmpOpt('-M /var/www/gpon-app/mibs -Ir');
+        $opt  = $this->snmpOpt('-M ' . base_path('resources/mibs') . ' -Ir');
 
         // Smazání service-flow
         $dat1 = "hwExtSrvFlowRowStatus.{$SP1} = destroy";

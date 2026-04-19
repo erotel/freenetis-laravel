@@ -78,33 +78,6 @@
 <div style="flex:1;min-width:260px;max-width:420px">
 @if($ont->reg_status === 'registered')
 
-{{-- Základní info z .52 — vždy dostupné --}}
-@if($details)
-<div class="m-card" style="margin-bottom:16px">
-    <div class="m-card-title">Info ONT</div>
-    <table style="width:100%;border-collapse:collapse;font-size:13px">
-        <tr>
-            <td style="padding:4px 0;color:var(--fn-text-muted);width:90px">Stav</td>
-            <td>
-                @if($details['status'] === 'Working' || $details['status'] === 'Online')
-                    <span class="m-tag m-tag-green">{{ $details['status'] }}</span>
-                @else
-                    <span class="m-tag" style="background:#fee2e2;color:#b91c1c">{{ $details['status'] }}</span>
-                @endif
-            </td>
-        </tr>
-        <tr>
-            <td style="padding:4px 0;color:var(--fn-text-muted)">Firmware</td>
-            <td style="font-family:monospace;font-size:12px">{{ $details['firmware'] }}</td>
-        </tr>
-        <tr>
-            <td style="padding:4px 0;color:var(--fn-text-muted)">Model</td>
-            <td>{{ $details['model'] }}</td>
-        </tr>
-    </table>
-</div>
-@endif
-
 <div class="m-card">
     <div class="m-card-title">Stav ONT (live)</div>
 
@@ -126,27 +99,27 @@
             $rxColor = ($rxVal !== 'DOWN' && (float)$rxVal >= -27) ? '#16a34a' : '#dc2626';
             $txColor = ($txVal !== 'DOWN' && (float)$txVal >= -27) ? '#16a34a' : '#dc2626';
         @endphp
-        <div style="background:var(--fn-bg,#f9fafb);border-radius:6px;padding:10px 12px">
+        <div class="m-metric" style="border-radius:6px;padding:10px 12px">
             <div style="font-size:11px;color:var(--fn-text-muted);margin-bottom:2px">Rx výkon</div>
             <div style="font-size:18px;font-weight:700;color:{{ $rxVal === 'DOWN' ? '#dc2626' : $rxColor }}">
                 {{ $rxVal }}{{ $rxVal !== 'DOWN' ? ' dBm' : '' }}
             </div>
         </div>
-        <div style="background:var(--fn-bg,#f9fafb);border-radius:6px;padding:10px 12px">
+        <div class="m-metric" style="border-radius:6px;padding:10px 12px">
             <div style="font-size:11px;color:var(--fn-text-muted);margin-bottom:2px">Tx výkon</div>
             <div style="font-size:18px;font-weight:700;color:{{ $txVal === 'DOWN' ? '#dc2626' : $txColor }}">
                 {{ $txVal }}{{ $txVal !== 'DOWN' ? ' dBm' : '' }}
             </div>
         </div>
-        <div style="background:var(--fn-bg,#f9fafb);border-radius:6px;padding:10px 12px">
+        <div class="m-metric" style="border-radius:6px;padding:10px 12px">
             <div style="font-size:11px;color:var(--fn-text-muted);margin-bottom:2px">Teplota</div>
-            <div style="font-size:18px;font-weight:700">
+            <div class="m-metric-value" style="font-size:18px;font-weight:700">
                 {{ $details['temperature'] }}{{ $details['temperature'] !== 'DOWN' ? ' °C' : '' }}
             </div>
         </div>
-        <div style="background:var(--fn-bg,#f9fafb);border-radius:6px;padding:10px 12px">
+        <div class="m-metric" style="border-radius:6px;padding:10px 12px">
             <div style="font-size:11px;color:var(--fn-text-muted);margin-bottom:2px">Vzdálenost</div>
-            <div style="font-size:18px;font-weight:700">
+            <div class="m-metric-value" style="font-size:18px;font-weight:700">
                 {{ $details['distance'] }}{{ $details['distance'] !== 'DOWN' ? ' m' : '' }}
             </div>
         </div>

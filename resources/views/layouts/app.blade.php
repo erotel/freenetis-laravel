@@ -70,9 +70,10 @@ $isDark = ($userSettings['dark_mode'] ?? 0) == 1;
     [data-theme="dark"] .m-table th{color:var(--fn-text-muted);border-color:var(--fn-border)}
     [data-theme="dark"] .m-table td{border-color:var(--fn-border);color:var(--fn-text)}
     [data-theme="dark"] .m-table tr:hover td{background:var(--fn-table-hover)}
-    [data-theme="dark"] .m-metric{background:var(--fn-input-bg)}
+    [data-theme="dark"] .m-card .m-metric,
+    [data-theme="dark"] div.m-metric{background:#2a2a2a !important;border:1px solid #333 !important}
     [data-theme="dark"] .m-metric-label{color:var(--fn-text-muted)}
-    [data-theme="dark"] .m-metric-value{color:var(--fn-text)}
+    [data-theme="dark"] .m-metric-value{color:#e0e0e0 !important}
     [data-theme="dark"] .m-field{border-color:var(--fn-border)}
     [data-theme="dark"] .m-field-label{color:var(--fn-text-muted)}
     [data-theme="dark"] .m-field-value{color:var(--fn-text)}
