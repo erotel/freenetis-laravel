@@ -305,7 +305,7 @@ class DeviceController extends Controller
 
     public function storeWithTemplate(Request $request)
     {
-        \Log::info('storeWithTemplate called', ['all' => $request->except(['_token'])]);
+        \Log::info('storeWithTemplate called', ['device_name' => $request->input('name'), 'user_id' => auth()->id()]);
 
         try {
 

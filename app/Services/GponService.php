@@ -122,10 +122,18 @@ class GponService
         if ($houseNo !== '' && !empty($city)) {
             $url  = 'https://nominatim.openstreetmap.org/search?q=' . urlencode($city . ' ' . $houseNo) . '&format=json&limit=1';
             $ctx  = stream_context_create(['http' => ['header' => "User-Agent: freenetis-laravel/1.0\r\n", 'timeout' => 5]]);
-            $geo  = @json_decode(@file_get_contents($url, false, $ctx), true);
-            if (!empty($geo[0]['lat'])) {
-                $updateData['gps_lat'] = $geo[0]['lat'];
-                $updateData['gps_lng'] = $geo[0]['lon'];
+            try {
+                $raw = file_get_contents($url, false, $ctx);
+                $geo = $raw !== false ? json_decode($raw, true) : null;
+            } catch (\Exception $e) {
+                Log::warning('GPON geocode failed: ' . $e->getMessage());
+                $geo = null;
+            }
+            $lat = isset($geo[0]['lat']) ? (float) $geo[0]['lat'] : null;
+            $lng = isset($geo[0]['lon']) ? (float) $geo[0]['lon'] : null;
+            if ($lat !== null && $lat >= -90 && $lat <= 90 && $lng !== null && $lng >= -180 && $lng <= 180) {
+                $updateData['gps_lat'] = $lat;
+                $updateData['gps_lng'] = $lng;
             }
         }
 
@@ -509,6 +517,10 @@ class GponService
     private function logGpon(string $file, string $label, string $cmd, ?string $out): void
     {
         $entry = "==== {$label} ====\nTIME: " . date('Y-m-d H:i:s') . "\nCMD:  {$cmd}\nOUT:\n{$out}\n\n";
-        @file_put_contents($file, $entry, FILE_APPEND);
+        try {
+            file_put_contents($file, $entry, FILE_APPEND);
+        } catch (\Exception $e) {
+            Log::warning('GPON log write failed: ' . $e->getMessage());
+        }
     }
 }

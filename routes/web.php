@@ -240,7 +240,7 @@ Route::middleware('auth')->group(function () {
         } catch (\Exception $e) {
             return response()->json(['error' => 'Nepodařilo se kontaktovat ARES.'], 500);
         }
-    })->name('ares.lookup')->middleware('auth');
+    })->name('ares.lookup')->middleware(['auth', 'throttle:10,1']);
 
     Route::get('streets/by-town/{townId}', function (int $townId) {
         return response()->json(
