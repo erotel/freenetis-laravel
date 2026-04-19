@@ -53,17 +53,47 @@
             </td></tr>
         <tr><td style="padding:5px 0;color:var(--fn-text-muted)">Č. domu</td>
             <td>{{ $ont->house_no ?: '—' }}</td></tr>
-        <tr><td style="padding:5px 0;color:var(--fn-text-muted)">Jméno</td>
-            <td>{{ $ont->user_name ?: '—' }}</td></tr>
-        <tr><td style="padding:5px 0;color:var(--fn-text-muted)">Člen</td>
+        <tr><td style="padding:5px 0;color:var(--fn-text-muted)">Přidal</td>
             <td>
-                @if($ont->member)
-                    <a href="{{ route('members.show', $ont->member_id) }}">
-                        {{ $ont->member->name ?? ('Člen #' . $ont->member_id) }}
-                    </a>
+                @if($ont->addedBy)
+                    <a href="{{ route('users.show', $ont->addedBy->id) }}">{{ $ont->addedBy->login }}</a>
                 @else
-                    <span style="color:var(--fn-text-muted)">—</span>
+                    {{ $ont->user_name ?? '—' }}
                 @endif
+            </td></tr>
+        <tr><td style="padding:5px 0;color:var(--fn-text-muted);vertical-align:top">Zákazník</td>
+            <td>
+                {{-- Zobrazení --}}
+                <div id="member-display" style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+                    @if($ont->member)
+                        <a href="{{ route('members.show', $ont->member_id) }}">
+                            {{ $ont->member->name ?? ('Zákazník #' . $ont->member_id) }}
+                        </a>
+                    @else
+                        <span id="member-display-text" style="color:var(--fn-text-muted)">—</span>
+                    @endif
+                    <button type="button" class="m-btn" style="font-size:11px;padding:2px 8px"
+                            onclick="memberEditShow()">Upravit</button>
+                </div>
+                {{-- Inline edit --}}
+                <form id="member-edit-form" method="POST"
+                      action="{{ route('gpon.update-member', $ont->id) }}"
+                      style="display:none;margin-top:6px">
+                    @csrf
+                    <select name="member_id" class="m-form-select" style="max-width:260px;font-size:13px;margin-bottom:6px">
+                        <option value="">— žádný zákazník —</option>
+                        @foreach($customers as $c)
+                            <option value="{{ $c->id }}" {{ $ont->member_id == $c->id ? 'selected' : '' }}>
+                                {{ $c->name }}
+                            </option>
+                        @endforeach
+                    </select>
+                    <div style="display:flex;gap:6px">
+                        <button type="submit" class="m-btn m-btn-primary" style="font-size:12px;padding:3px 10px">Uložit</button>
+                        <button type="button" class="m-btn" style="font-size:12px;padding:3px 10px"
+                                onclick="memberEditHide()">Zrušit</button>
+                    </div>
+                </form>
             </td></tr>
         @if($ont->device)
         <tr><td style="padding:5px 0;color:var(--fn-text-muted)">Zařízení</td>
@@ -287,5 +317,16 @@
 </div>
 </div>
 
+
+<script>
+function memberEditShow() {
+    document.getElementById('member-display').style.display = 'none';
+    document.getElementById('member-edit-form').style.display = 'block';
+}
+function memberEditHide() {
+    document.getElementById('member-edit-form').style.display = 'none';
+    document.getElementById('member-display').style.display = 'flex';
+}
+</script>
 </div>
 @endsection

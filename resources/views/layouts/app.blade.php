@@ -92,6 +92,8 @@ $isDark = ($userSettings['dark_mode'] ?? 0) == 1;
     [data-theme="dark"] h2,[data-theme="dark"] h3{color:var(--fn-text)}
     [data-theme="dark"] #breadcrumbs{color:var(--fn-text-muted)}
     [data-theme="dark"] #breadcrumbs a{color:var(--fn-text-muted)}
+    [data-theme="dark"] .m-page a{color:#e8a96a}
+    [data-theme="dark"] .m-page a:hover{color:#f0c080}
     [data-theme="dark"] .fn-page{background:#1e1e1e !important;border-color:#333 !important;color:#ccc !important}
     [data-theme="dark"] .fn-page:hover{background:#2a2a2a !important;color:#fff !important}
     [data-theme="dark"] .fn-page-active{background:#e8651a !important;border-color:#e8651a !important;color:#fff !important}

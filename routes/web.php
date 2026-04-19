@@ -559,8 +559,9 @@ Route::middleware('auth')->group(function () {
         Route::get('gpon/map',          [GponController::class, 'map'])->name('gpon.map');
         Route::get('gpon/{id}',         [GponController::class, 'show'])->name('gpon.show');
         Route::post('gpon/scan',        [GponController::class, 'scan'])->name('gpon.scan');
-        Route::post('gpon/{id}/register', [GponController::class, 'register'])->name('gpon.register');
-        Route::post('gpon/{id}/remove',   [GponController::class, 'remove'])->name('gpon.remove');
+        Route::post('gpon/{id}/register',      [GponController::class, 'register'])->name('gpon.register');
+        Route::post('gpon/{id}/remove',        [GponController::class, 'remove'])->name('gpon.remove');
+        Route::post('gpon/{id}/update-member', [GponController::class, 'updateMember'])->name('gpon.update-member');
     });
 
     // Device DHCP export — inside auth group but device self-call bypasses auth middleware

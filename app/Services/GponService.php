@@ -110,10 +110,10 @@ class GponService
 
         $updateData = [
             'house_no'   => $houseNo,
-            'user_name'  => $userName,
             'reg_status' => 'registered',
             'port_index' => $portIndex,
             'vlan'       => $vlan,
+            'user_name'  => $ont->user_name ?? auth()->user()?->login ?? null,
         ];
 
         $city = $olt->geocode_city ?? '';
@@ -365,6 +365,7 @@ class GponService
                     'service_port' => $servicePort,
                     'vlan'         => $vlan,
                     'reg_status'   => 'new',
+                    'user_name'    => auth()->user()?->login ?? null,
                 ]);
                 $countNew++;
             }

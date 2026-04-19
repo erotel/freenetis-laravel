@@ -67,6 +67,7 @@
             <th>Stav</th>
             <th>Člen</th>
             <th>Č. domu / jméno</th>
+            <th>Přidal</th>
             <th>OLT IP</th>
             <th></th>
         </tr>
@@ -95,7 +96,14 @@
                     <span class="m-form-hint">—</span>
                 @endif
             </td>
-            <td>{{ $ont->house_no ?: $ont->user_name ?: '—' }}</td>
+            <td>{{ $ont->house_no ?: '—' }}</td>
+            <td style="font-size:12px">
+                @if($ont->addedBy)
+                    <a href="{{ route('users.show', $ont->addedBy->id) }}">{{ $ont->addedBy->login }}</a>
+                @else
+                    <span class="m-form-hint">{{ $ont->user_name ?? '—' }}</span>
+                @endif
+            </td>
             <td style="font-size:12px;color:var(--fn-text-muted)">{{ $ont->olt_ip }}</td>
             <td>
                 <a class="m-btn" style="font-size:12px;padding:3px 10px"

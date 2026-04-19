@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Member;
 use App\Models\Ont;
 use App\Services\GponService;
 use Illuminate\Http\Request;
@@ -14,7 +15,7 @@ class GponController extends Controller
     {
         $status = $request->input('status');
 
-        $query = Ont::with('member')->orderByDesc('created_at');
+        $query = Ont::with(['member', 'addedBy'])->orderByDesc('created_at');
 
         if ($status && in_array($status, ['new', 'registered', 'removed'])) {
             $query->where('reg_status', $status);
@@ -33,7 +34,7 @@ class GponController extends Controller
 
     public function show(int $id)
     {
-        $ont     = Ont::with(['member', 'device'])->findOrFail($id);
+        $ont     = Ont::with(['member', 'device', 'addedBy'])->findOrFail($id);
         $details = null;
 
         if ($ont->reg_status === 'registered') {
@@ -44,7 +45,24 @@ class GponController extends Controller
             }
         }
 
-        return view('gpon.show', compact('ont', 'details'));
+        $customers = Member::whereIn('type', [2, 18])
+            ->orderBy('name')
+            ->get(['id', 'name']);
+
+        return view('gpon.show', compact('ont', 'details', 'customers'));
+    }
+
+    public function updateMember(int $id, Request $request)
+    {
+        $request->validate([
+            'member_id' => 'nullable|integer|exists:members,id',
+        ]);
+
+        $ont = Ont::findOrFail($id);
+        $ont->member_id = $request->input('member_id') ?: null;
+        $ont->save();
+
+        return redirect()->route('gpon.show', $id)->with('success', 'Zákazník upraven.');
     }
 
     public function scan(Request $request)
