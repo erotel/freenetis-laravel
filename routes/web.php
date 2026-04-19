@@ -548,6 +548,11 @@ Route::middleware('auth')->group(function () {
     Route::post('saved-filters',      [SavedFilterController::class, 'store'])->name('saved-filters.store');
     Route::delete('saved-filters/{id}', [SavedFilterController::class, 'destroy'])->name('saved-filters.destroy');
 
+    // ── GPON OLT konfigurace ─────────────────────────────────────────────────
+    Route::post('settings/gpon-olts',         [SettingController::class, 'storeGponOlt'])->name('settings.gpon-olts.store');
+    Route::put('settings/gpon-olts/{id}',     [SettingController::class, 'updateGponOlt'])->name('settings.gpon-olts.update');
+    Route::delete('settings/gpon-olts/{id}',  [SettingController::class, 'destroyGponOlt'])->name('settings.gpon-olts.destroy');
+
     // ── GPON modul ────────────────────────────────────────────────────────────
     Route::middleware('gpon_enabled')->group(function () {
         Route::get('gpon',              [GponController::class, 'index'])->name('gpon.index');

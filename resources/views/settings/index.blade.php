@@ -584,58 +584,6 @@ function addBccRow() {
             Povolit GPON modul
         </label>
     </div>
-    <div class="m-form-group">
-        <label class="m-form-label">IP adresa OLT</label>
-        <input class="m-form-input" type="text" name="gpon_olt_ip"
-            value="{{ $gponSettings['gpon_olt_ip'] ?? '10.133.67.99' }}"
-            placeholder="10.133.67.99" style="max-width:200px">
-    </div>
-</div>
-
-<div class="m-card" style="margin-bottom:16px;max-width:520px">
-    <div class="m-card-title">SNMPv3 přihlašovací údaje</div>
-    <div class="m-form-group">
-        <label class="m-form-label">SNMPv3 uživatel</label>
-        <input class="m-form-input" type="text" name="gpon_snmp_user"
-            value="{{ $gponSettings['gpon_snmp_user'] ?? '' }}" placeholder="admin">
-    </div>
-    <div class="m-form-row">
-        <div class="m-form-group">
-            <label class="m-form-label">Auth protokol</label>
-            <select class="m-form-select" name="gpon_snmp_auth_proto">
-                @foreach(['SHA', 'MD5'] as $proto)
-                <option value="{{ $proto }}" {{ ($gponSettings['gpon_snmp_auth_proto'] ?? 'SHA') === $proto ? 'selected' : '' }}>{{ $proto }}</option>
-                @endforeach
-            </select>
-        </div>
-        <div class="m-form-group">
-            <label class="m-form-label">Priv protokol</label>
-            <select class="m-form-select" name="gpon_snmp_priv_proto">
-                @foreach(['AES', 'DES'] as $proto)
-                <option value="{{ $proto }}" {{ ($gponSettings['gpon_snmp_priv_proto'] ?? 'AES') === $proto ? 'selected' : '' }}>{{ $proto }}</option>
-                @endforeach
-            </select>
-        </div>
-    </div>
-    <div class="m-form-row">
-        <div class="m-form-group">
-            <label class="m-form-label">Auth heslo</label>
-            <input class="m-form-input" type="password" name="gpon_snmp_auth_pass"
-                value="{{ $gponSettings['gpon_snmp_auth_pass'] ?? '' }}" autocomplete="new-password">
-        </div>
-        <div class="m-form-group">
-            <label class="m-form-label">Priv heslo</label>
-            <input class="m-form-input" type="password" name="gpon_snmp_priv_pass"
-                value="{{ $gponSettings['gpon_snmp_priv_pass'] ?? '' }}" autocomplete="new-password">
-        </div>
-    </div>
-    <div class="m-form-group">
-        <label class="m-form-label">Obec pro geokódování</label>
-        <input class="m-form-input" type="text" name="gpon_geocode_city"
-            value="{{ $gponSettings['gpon_geocode_city'] ?? 'Určice' }}"
-            placeholder="Určice" style="max-width:200px">
-        <div class="m-form-hint">Název obce použitý při geokódování adresy ONT přes Nominatim.</div>
-    </div>
 </div>
 
 <div class="m-actions">
@@ -645,6 +593,167 @@ function addBccRow() {
     @endif
 </div>
 </form>
+
+{{-- OLT zařízení --}}
+<div class="m-card" style="margin-top:24px;margin-bottom:16px">
+    <div class="m-card-title">OLT zařízení</div>
+
+    @if($gponOlts->count())
+    <table class="m-table" style="font-size:13px;margin-bottom:16px">
+        <thead>
+            <tr>
+                <th>Název</th><th>IP</th><th>Port</th><th>Line profil</th>
+                <th>Service profil</th><th>Traffic table</th><th>ONT</th><th>Akce</th>
+            </tr>
+        </thead>
+        <tbody>
+        @foreach($gponOlts as $golt)
+        <tr>
+            <td>{{ $golt->name }}</td>
+            <td><code>{{ $golt->ip }}</code></td>
+            <td>{{ $golt->gpon_port }}</td>
+            <td>{{ $golt->line_prof }}</td>
+            <td>{{ $golt->service_prof }}</td>
+            <td>{{ $golt->traffic_table }}</td>
+            <td>{{ $golt->onts_count }}</td>
+            <td style="white-space:nowrap">
+                <button class="m-btn" style="font-size:11px;padding:3px 8px"
+                    onclick="gponOltEdit({{ $golt->id }}, @json($golt))">Upravit</button>
+                <form method="POST" action="{{ route('settings.gpon-olts.destroy', $golt->id) }}"
+                    style="display:inline"
+                    onsubmit="return confirm('Smazat OLT {{ $golt->name }}?')">
+                    @csrf @method('DELETE')
+                    <button class="m-btn" style="font-size:11px;padding:3px 8px;background:#fee2e2;color:#b91c1c;border-color:#fca5a5"
+                        type="submit">Smazat</button>
+                </form>
+            </td>
+        </tr>
+        @endforeach
+        </tbody>
+    </table>
+    @else
+    <p style="color:var(--fn-text-muted);font-size:13px;margin:0 0 16px">Žádné OLT zatím není nakonfigurováno.</p>
+    @endif
+
+    {{-- Formulář přidat/upravit OLT --}}
+    <div id="gpon-olt-form-wrap">
+        <div class="m-card-title" style="margin-bottom:12px" id="gpon-olt-form-title">Přidat OLT</div>
+        <form id="gpon-olt-form" method="POST" action="{{ route('settings.gpon-olts.store') }}">
+            @csrf
+            <span id="gpon-olt-method-field"></span>
+            <div class="m-form-row">
+                <div class="m-form-group">
+                    <label class="m-form-label">Název</label>
+                    <input class="m-form-input" type="text" name="name" id="golt-name" placeholder="Produkce MA5800" required>
+                </div>
+                <div class="m-form-group">
+                    <label class="m-form-label">IP adresa</label>
+                    <input class="m-form-input" type="text" name="ip" id="golt-ip" placeholder="10.0.0.1" required>
+                </div>
+                <div class="m-form-group">
+                    <label class="m-form-label">GPON port (frame/slot/X)</label>
+                    <input class="m-form-input" type="text" name="gpon_port" id="golt-gpon-port" placeholder="0/1/0" required style="max-width:100px">
+                </div>
+            </div>
+            <div class="m-form-row">
+                <div class="m-form-group">
+                    <label class="m-form-label">SNMP uživatel</label>
+                    <input class="m-form-input" type="text" name="snmp_user" id="golt-snmp-user" placeholder="admin" required>
+                </div>
+                <div class="m-form-group">
+                    <label class="m-form-label">Auth heslo</label>
+                    <input class="m-form-input" type="password" name="snmp_auth_pass" id="golt-auth-pass" autocomplete="new-password" required>
+                </div>
+                <div class="m-form-group">
+                    <label class="m-form-label">Priv heslo</label>
+                    <input class="m-form-input" type="password" name="snmp_priv_pass" id="golt-priv-pass" autocomplete="new-password" required>
+                </div>
+                <div class="m-form-group">
+                    <label class="m-form-label">Auth proto</label>
+                    <select class="m-form-select" name="snmp_auth_proto" id="golt-auth-proto">
+                        <option>SHA</option><option>MD5</option>
+                    </select>
+                </div>
+                <div class="m-form-group">
+                    <label class="m-form-label">Priv proto</label>
+                    <select class="m-form-select" name="snmp_priv_proto" id="golt-priv-proto">
+                        <option>AES</option><option>DES</option>
+                    </select>
+                </div>
+            </div>
+            <div class="m-form-row">
+                <div class="m-form-group">
+                    <label class="m-form-label">Line profil</label>
+                    <input class="m-form-input" type="text" name="line_prof" id="golt-line-prof" value="line-profile_default_0" required>
+                </div>
+                <div class="m-form-group">
+                    <label class="m-form-label">Service profil</label>
+                    <input class="m-form-input" type="text" name="service_prof" id="golt-service-prof" value="sfu-aio-dmc" required>
+                </div>
+                <div class="m-form-group">
+                    <label class="m-form-label">Traffic table</label>
+                    <input class="m-form-input" type="text" name="traffic_table" id="golt-traffic-table" value="int" required style="max-width:100px">
+                </div>
+            </div>
+            <div class="m-form-row">
+                <div class="m-form-group">
+                    <label class="m-form-label">Base VLAN</label>
+                    <input class="m-form-input" type="number" name="base_vlan" id="golt-base-vlan" placeholder="200" style="max-width:90px">
+                    <div class="m-form-hint">Použije se pokud není vlan_map</div>
+                </div>
+                <div class="m-form-group" style="flex:2">
+                    <label class="m-form-label">VLAN mapa (JSON, volitelné)</label>
+                    <input class="m-form-input" type="text" name="vlan_map" id="golt-vlan-map"
+                        placeholder='{"0":200,"1":200,...}' style="font-family:monospace;font-size:12px">
+                </div>
+                <div class="m-form-group">
+                    <label class="m-form-label">Název obce (geokódování)</label>
+                    <input class="m-form-input" type="text" name="geocode_city" id="golt-geocode-city"
+                        placeholder="např. Určice" style="max-width:160px">
+                    <div class="m-form-hint">Nominatim — prázdné = geokódování přeskočeno</div>
+                </div>
+            </div>
+            <div class="m-actions" style="margin-top:8px">
+                <button class="m-btn m-btn-primary" type="submit" id="golt-submit-btn">Přidat OLT</button>
+                <button type="button" class="m-btn" id="golt-cancel-btn" style="display:none" onclick="gponOltReset()">Zrušit</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<script>
+function gponOltEdit(id, olt) {
+    document.getElementById('gpon-olt-form-title').textContent = 'Upravit OLT: ' + olt.name;
+    document.getElementById('gpon-olt-form').action = '/new/settings/gpon-olts/' + id;
+    document.getElementById('gpon-olt-method-field').innerHTML = '<input type="hidden" name="_method" value="PUT">';
+    document.getElementById('golt-name').value         = olt.name || '';
+    document.getElementById('golt-ip').value           = olt.ip || '';
+    document.getElementById('golt-gpon-port').value    = olt.gpon_port || '';
+    document.getElementById('golt-snmp-user').value    = olt.snmp_user || '';
+    document.getElementById('golt-auth-pass').value    = olt.snmp_auth_pass || '';
+    document.getElementById('golt-priv-pass').value    = olt.snmp_priv_pass || '';
+    document.getElementById('golt-auth-proto').value   = olt.snmp_auth_proto || 'SHA';
+    document.getElementById('golt-priv-proto').value   = olt.snmp_priv_proto || 'AES';
+    document.getElementById('golt-line-prof').value    = olt.line_prof || '';
+    document.getElementById('golt-service-prof').value = olt.service_prof || '';
+    document.getElementById('golt-traffic-table').value= olt.traffic_table || '';
+    document.getElementById('golt-base-vlan').value     = olt.base_vlan || '';
+    document.getElementById('golt-vlan-map').value      = olt.vlan_map ? JSON.stringify(olt.vlan_map) : '';
+    document.getElementById('golt-geocode-city').value  = olt.geocode_city || '';
+    document.getElementById('golt-submit-btn').textContent = 'Uložit změny';
+    document.getElementById('golt-cancel-btn').style.display = 'inline-flex';
+    document.getElementById('gpon-olt-form-wrap').scrollIntoView({behavior:'smooth'});
+}
+function gponOltReset() {
+    document.getElementById('gpon-olt-form-title').textContent = 'Přidat OLT';
+    document.getElementById('gpon-olt-form').action = '{{ route("settings.gpon-olts.store") }}';
+    document.getElementById('gpon-olt-method-field').innerHTML = '';
+    document.getElementById('gpon-olt-form').reset();
+    document.getElementById('golt-submit-btn').textContent = 'Přidat OLT';
+    document.getElementById('golt-cancel-btn').style.display = 'none';
+}
+</script>
+
 @endif
 
 </div>

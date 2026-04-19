@@ -51,8 +51,7 @@ class SettingController extends Controller
     ];
 
     public const GPON_KEYS = [
-        'gpon_enabled', 'gpon_olt_ip', 'gpon_snmp_user',
-        'gpon_snmp_auth_proto', 'gpon_snmp_priv_proto', 'gpon_geocode_city',
+        'gpon_enabled',
     ];
 
     // SMS drivers: id → config
@@ -178,16 +177,14 @@ class SettingController extends Controller
         foreach (self::GPON_KEYS as $key) {
             $gponSettings[$key] = Setting::get($key, '');
         }
-        // Password fields loaded separately (not in GPON_KEYS to avoid logging)
-        $gponSettings['gpon_snmp_auth_pass'] = Setting::get('gpon_snmp_auth_pass', '');
-        $gponSettings['gpon_snmp_priv_pass'] = Setting::get('gpon_snmp_priv_pass', '');
+        $gponOlts = \App\Models\GponOlt::withCount('onts')->get();
 
         return view('settings.index', compact(
             'bankAccounts', 'memberTypes', 'routing', 'defaultBaId',
             'emailSettings', 'bccRules', 'messages', 'activeTab',
             'pohodaEmail', 'financeSettings', 'feesForSelect',
             'systemSettings', 'usersSettings', 'networkSettings',
-            'smsSettings', 'smsDriverSettings', 'gponSettings'
+            'smsSettings', 'smsDriverSettings', 'gponSettings', 'gponOlts'
         ));
     }
 
@@ -326,19 +323,7 @@ class SettingController extends Controller
     {
         abort_unless($this->can('edit_all'), 403);
 
-        $request->validate([
-            'gpon_olt_ip'   => 'nullable|string|max:45',
-            'gpon_snmp_user' => 'nullable|string|max:64',
-        ]);
-
-        Setting::set('gpon_enabled',        $request->boolean('gpon_enabled') ? 1 : 0);
-        Setting::set('gpon_olt_ip',         trim((string) $request->input('gpon_olt_ip', '10.133.67.99')));
-        Setting::set('gpon_snmp_user',      trim((string) $request->input('gpon_snmp_user', '')));
-        Setting::set('gpon_snmp_auth_pass', (string) $request->input('gpon_snmp_auth_pass', ''));
-        Setting::set('gpon_snmp_priv_pass', (string) $request->input('gpon_snmp_priv_pass', ''));
-        Setting::set('gpon_snmp_auth_proto', in_array($request->input('gpon_snmp_auth_proto'), ['SHA', 'MD5']) ? $request->input('gpon_snmp_auth_proto') : 'SHA');
-        Setting::set('gpon_snmp_priv_proto', in_array($request->input('gpon_snmp_priv_proto'), ['AES', 'DES']) ? $request->input('gpon_snmp_priv_proto') : 'AES');
-        Setting::set('gpon_geocode_city',   trim((string) $request->input('gpon_geocode_city', 'Určice')));
+        Setting::set('gpon_enabled', $request->boolean('gpon_enabled') ? 1 : 0);
 
         return redirect()->route('settings.index', ['tab' => 'gpon'])
             ->with('success', 'Nastavení GPON bylo uloženo.');
@@ -367,5 +352,93 @@ class SettingController extends Controller
 
         return redirect()->route('settings.index', ['tab' => 'sms'])
             ->with('success', 'Nastavení SMS bylo uloženo.');
+    }
+
+    public function storeGponOlt(Request $request)
+    {
+        abort_unless($this->can('edit_all'), 403);
+
+        $data = $request->validate([
+            'name'            => 'required|string|max:100',
+            'ip'              => 'required|ip|unique:gpon_olts,ip',
+            'snmp_user'       => 'required|string|max:100',
+            'snmp_auth_pass'  => 'required|string|max:100',
+            'snmp_priv_pass'  => 'required|string|max:100',
+            'snmp_auth_proto' => 'required|in:SHA,MD5',
+            'snmp_priv_proto' => 'required|in:AES,DES',
+            'line_prof'       => 'required|string|max:100',
+            'service_prof'    => 'required|string|max:100',
+            'traffic_table'   => 'required|string|max:100',
+            'gpon_port'       => 'required|string|max:20',
+            'base_vlan'       => 'nullable|integer|min:1|max:4094',
+            'port_count'      => 'nullable|integer|min:1',
+            'vlan_map'        => 'nullable|string',
+            'geocode_city'    => 'nullable|string|max:100',
+        ]);
+
+        if (!empty($data['vlan_map'])) {
+            $decoded = json_decode($data['vlan_map'], true);
+            $data['vlan_map'] = is_array($decoded) ? $decoded : null;
+        } else {
+            $data['vlan_map'] = null;
+        }
+
+        \App\Models\GponOlt::create($data);
+
+        return redirect()->route('settings.index', ['tab' => 'gpon'])
+            ->with('success', 'OLT byl přidán.');
+    }
+
+    public function updateGponOlt(Request $request, int $id)
+    {
+        abort_unless($this->can('edit_all'), 403);
+
+        $olt  = \App\Models\GponOlt::findOrFail($id);
+        $data = $request->validate([
+            'name'            => 'required|string|max:100',
+            'ip'              => 'required|ip|unique:gpon_olts,ip,' . $id,
+            'snmp_user'       => 'required|string|max:100',
+            'snmp_auth_pass'  => 'required|string|max:100',
+            'snmp_priv_pass'  => 'required|string|max:100',
+            'snmp_auth_proto' => 'required|in:SHA,MD5',
+            'snmp_priv_proto' => 'required|in:AES,DES',
+            'line_prof'       => 'required|string|max:100',
+            'service_prof'    => 'required|string|max:100',
+            'traffic_table'   => 'required|string|max:100',
+            'gpon_port'       => 'required|string|max:20',
+            'base_vlan'       => 'nullable|integer|min:1|max:4094',
+            'port_count'      => 'nullable|integer|min:1',
+            'vlan_map'        => 'nullable|string',
+            'geocode_city'    => 'nullable|string|max:100',
+        ]);
+
+        if (!empty($data['vlan_map'])) {
+            $decoded = json_decode($data['vlan_map'], true);
+            $data['vlan_map'] = is_array($decoded) ? $decoded : null;
+        } else {
+            $data['vlan_map'] = null;
+        }
+
+        $olt->update($data);
+
+        return redirect()->route('settings.index', ['tab' => 'gpon'])
+            ->with('success', 'OLT byl aktualizován.');
+    }
+
+    public function destroyGponOlt(int $id)
+    {
+        abort_unless($this->can('edit_all'), 403);
+
+        $olt = \App\Models\GponOlt::findOrFail($id);
+
+        if ($olt->onts()->whereIn('reg_status', ['registered', 'new'])->exists()) {
+            return redirect()->route('settings.index', ['tab' => 'gpon'])
+                ->with('error', 'OLT nelze smazat — má přiřazené ONT.');
+        }
+
+        $olt->delete();
+
+        return redirect()->route('settings.index', ['tab' => 'gpon'])
+            ->with('success', 'OLT byl smazán.');
     }
 }

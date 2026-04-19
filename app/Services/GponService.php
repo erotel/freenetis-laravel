@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Models\GponOlt;
 use App\Models\Ont;
 use App\Models\Setting;
 use Illuminate\Support\Facades\Log;
@@ -9,80 +10,32 @@ use RuntimeException;
 
 class GponService
 {
-    private string $host;
-    private string $secName;
-    private string $authProtocol;
-    private string $authPass;
-    private string $privProtocol;
-    private string $privPass;
     private string $secLevel = 'authPriv';
 
-    // OIDs (stejné jako v gpon-app)
     private const OID_ONT_SERIALS = '1.3.6.1.4.1.2011.6.128.1.1.2.48.1.2';
     private const OID_IF_NAME     = '1.3.6.1.2.1.31.1.1.1.1';
 
-    public function __construct()
+    // ── Veřejné metody ──────────────────────────────────────────────────────
+
+    public function getOltConfig(string $ip): GponOlt
     {
-        $this->host         = Setting::get('gpon_olt_ip', '10.133.67.99');
-        $this->secName      = Setting::get('gpon_snmp_user', 'admin');
-        $this->authProtocol = Setting::get('gpon_snmp_auth_proto', 'SHA');
-        $this->authPass     = Setting::get('gpon_snmp_auth_pass', '');
-        $this->privProtocol = Setting::get('gpon_snmp_priv_proto', 'AES');
-        $this->privPass     = Setting::get('gpon_snmp_priv_pass', '');
+        $olt = GponOlt::where('ip', $ip)->first();
+        if (!$olt) {
+            throw new RuntimeException("OLT {$ip} nebyl nalezen v konfiguraci.");
+        }
+        return $olt;
     }
 
     /**
-     * Skenuje OLT pro nové ONT a uloží je do DB.
-     * Vrací počet nově nalezených ONT.
+     * Skenuje všechny OLT z gpon_olts tabulky a ukládá nové ONT.
      */
     public function scanNewOnts(): int
     {
-        $serials = $this->getOntSerials();
+        $olts     = GponOlt::all();
         $countNew = 0;
 
-        foreach ($serials as $serial) {
-            if (substr($serial, 0, 2) !== '48') {
-                continue;
-            }
-
-            $existing = Ont::where('serial', $serial)->first();
-            if ($existing && $existing->reg_status === 'registered') {
-                continue;
-            }
-
-            $portIndex = $this->getPortIndexForSerial($serial);
-            if ($portIndex === null) {
-                continue;
-            }
-
-            $ifName   = $this->getIfNameByIndex($portIndex);
-            $gponPort = $ifName;
-
-            if (str_contains($gponPort, 'No Such') || str_contains($gponPort, 'error') || strlen($gponPort) > 64) {
-                $gponPort = 'unknown';
-            }
-
-            $portNum = $this->extractPortNum($gponPort);
-
-            Log::debug('GPON scan', ['serial' => $serial, 'port' => $gponPort, 'portIndex' => $portIndex]);
-
-            $lastOntId = Ont::where('gpon_port', $gponPort)->max('ont_id') ?? 0;
-            [$ontId, $servicePort, $vlan] = $this->computeOntIdServicePortVlan($portNum, (int) $lastOntId);
-
-            if (!$existing) {
-                Ont::create([
-                    'olt_ip'       => $this->host,
-                    'serial'       => $serial,
-                    'gpon_port'    => $gponPort,
-                    'port_num'     => $portNum,
-                    'port_index'   => $portIndex,
-                    'ont_id'       => $ontId,
-                    'service_port' => $servicePort,
-                    'vlan'         => $vlan,
-                    'reg_status'   => 'new',
-                ]);
-                $countNew++;
-            }
+        foreach ($olts as $olt) {
+            $countNew += $this->scanOlt($olt);
         }
 
         return $countNew;
@@ -93,26 +46,27 @@ class GponService
      */
     public function registerOntById(int $id, string $houseNo = '', ?string $userName = null): void
     {
-        $ont = Ont::findOrFail($id);
+        $ont      = Ont::findOrFail($id);
         $userName = $userName ?? '';
+        $oltIp    = $ont->olt_ip ?? Setting::get('gpon_olt_ip', '10.133.67.99');
+        $olt      = $this->getOltConfig($oltIp);
 
-        $ontData  = $ont->toArray();
         $serial   = $ont->serial;
         $ontId    = $ont->ont_id;
         $servPort = $ont->service_port;
-        $vlan     = $ont->vlan;
         $portNum  = $ont->port_num;
+        $vlan     = $olt->getVlan($portNum);
 
-        $portIndex = $ont->port_index ?? $this->getPortIndexForSerial($serial);
+        $portIndex = $ont->port_index ?? $this->getPortIndexForSerialOnOlt($serial, $olt);
         if (!$portIndex) {
             throw new RuntimeException('Nepodařilo se zjistit port index pro ONT ' . $serial);
         }
 
-        $dum    = $houseNo !== '' ? $houseNo : $userName;
-        $snHex  = strtoupper(preg_replace('/[^0-9A-Fa-f]/', '', $serial));
-        $port   = $portIndex;
-        $opt    = $this->snmpOpt('-M ' . base_path('resources/mibs') . ' -Ir');
-        $SP1    = $servPort + 1;
+        $dum   = $houseNo !== '' ? $houseNo : $userName;
+        $snHex = strtoupper(preg_replace('/[^0-9A-Fa-f]/', '', $serial));
+        $port  = $portIndex;
+        $opt   = $this->snmpOptForOlt($olt, '-M ' . base_path('resources/mibs') . ' -Ir');
+        $SP1   = $servPort + 1;
 
         // Registrace ONT
         $dat =
@@ -120,25 +74,25 @@ class GponService
             "hwGponDeviceOntSn.{$port}.{$ontId} x {$snHex} " .
             "hwGponDeviceOntManagementMode.{$port}.{$ontId} = omci " .
             "hwGponDeviceOntEntryStatus.{$port}.{$ontId} = createAndGo " .
-            "hwGponDeviceOntLineProfName.{$port}.{$ontId} = line-profile_default_0 " .
-            "hwGponDeviceOntServiceProfName.{$port}.{$ontId} = sfu-aio-dmc " .
+            "hwGponDeviceOntLineProfName.{$port}.{$ontId} = {$olt->line_prof} " .
+            "hwGponDeviceOntServiceProfName.{$port}.{$ontId} = {$olt->service_prof} " .
             "hwGponDeviceOntDespt.{$port}.{$ontId} = \"{$dum}\"";
 
-        $out = shell_exec("snmpset {$opt} -m HUAWEI-XPON-MIB {$this->host} {$dat} 2>&1; echo $?");
-        $this->logGpon('/tmp/gpon_register.log', 'ONT REGISTER', "snmpset {$opt} -m HUAWEI-XPON-MIB {$this->host} {$dat}", $out);
+        $out = shell_exec("snmpset {$opt} -m HUAWEI-XPON-MIB {$oltIp} {$dat} 2>&1; echo $?");
+        $this->logGpon('/tmp/gpon_register.log', 'ONT REGISTER', "snmpset {$opt} -m HUAWEI-XPON-MIB {$oltIp} {$dat}", $out);
         $this->assertNoSnmpError($out, 'Chyba při ONT registraci');
 
         // Ověření registrace – OLT musí vrátit active(1)
-        $verifyOut = shell_exec("snmpget {$opt} -Oqv -m HUAWEI-XPON-MIB {$this->host} hwGponDeviceOntEntryStatus.{$port}.{$ontId} 2>&1");
+        $verifyOut = shell_exec("snmpget {$opt} -Oqv -m HUAWEI-XPON-MIB {$oltIp} hwGponDeviceOntEntryStatus.{$port}.{$ontId} 2>&1");
         $this->logGpon('/tmp/gpon_register.log', 'ONT VERIFY', "snmpget hwGponDeviceOntEntryStatus.{$port}.{$ontId}", $verifyOut);
         if ($verifyOut === null || !str_contains(trim($verifyOut), 'active')) {
-            throw new RuntimeException('Registrace ONT se nepodařila ověřit – OLT nevrátil stav active. Výstup: ' . trim((string)$verifyOut));
+            throw new RuntimeException('Registrace ONT se nepodařila ověřit – OLT nevrátil stav active. Výstup: ' . trim((string) $verifyOut));
         }
 
         // Service-flow
         $dat1 =
-            "hwExtSrvFlowPara1.{$SP1} = 0 " .
-            "hwExtSrvFlowPara2.{$SP1} = 1 " .
+            "hwExtSrvFlowPara1.{$SP1} = {$olt->getFrame()} " .
+            "hwExtSrvFlowPara2.{$SP1} = {$olt->getSlot()} " .
             "hwExtSrvFlowPara3.{$SP1} = {$portNum} " .
             "hwExtSrvFlowPara4.{$SP1} = {$ontId} " .
             "hwExtSrvFlowPara5.{$SP1} = 1 " .
@@ -147,11 +101,11 @@ class GponService
             "hwExtSrvFlowMultiServiceType.{$SP1} = byUserVlan " .
             "hwExtSrvFlowMultiServiceUserPara.{$SP1} = 1 " .
             "hwExtSrvFlowRowStatus.{$SP1} = createAndGo " .
-            "hwExtSrvFlowInboundTrafficTableName.{$SP1} = \"int\" " .
-            "hwExtSrvFlowOutboundTrafficTableName.{$SP1} = \"int\"";
+            "hwExtSrvFlowInboundTrafficTableName.{$SP1} = \"{$olt->traffic_table}\" " .
+            "hwExtSrvFlowOutboundTrafficTableName.{$SP1} = \"{$olt->traffic_table}\"";
 
-        $out1 = shell_exec("snmpset {$opt} -m HUAWEI-ETHERLIKE-EXT-MIB {$this->host} {$dat1} 2>&1; echo $?");
-        $this->logGpon('/tmp/gpon_register.log', 'ONT SERVICE-FLOW', "snmpset {$opt} -m HUAWEI-ETHERLIKE-EXT-MIB {$this->host} {$dat1}", $out1);
+        $out1 = shell_exec("snmpset {$opt} -m HUAWEI-ETHERLIKE-EXT-MIB {$oltIp} {$dat1} 2>&1; echo $?");
+        $this->logGpon('/tmp/gpon_register.log', 'ONT SERVICE-FLOW', "snmpset {$opt} -m HUAWEI-ETHERLIKE-EXT-MIB {$oltIp} {$dat1}", $out1);
         $this->assertNoSnmpError($out1, 'Chyba při vytváření service-flow');
 
         $updateData = [
@@ -159,10 +113,11 @@ class GponService
             'user_name'  => $userName,
             'reg_status' => 'registered',
             'port_index' => $portIndex,
+            'vlan'       => $vlan,
         ];
 
-        if ($houseNo !== '') {
-            $city = Setting::get('gpon_geocode_city', 'Určice');
+        $city = $olt->geocode_city ?? '';
+        if ($houseNo !== '' && !empty($city)) {
             $url  = 'https://nominatim.openstreetmap.org/search?q=' . urlencode($city . ' ' . $houseNo) . '&format=json&limit=1';
             $ctx  = stream_context_create(['http' => ['header' => "User-Agent: freenetis-laravel/1.0\r\n", 'timeout' => 5]]);
             $geo  = @json_decode(@file_get_contents($url, false, $ctx), true);
@@ -180,78 +135,57 @@ class GponService
      */
     public function removeOntById(int $id): void
     {
-        $ont = Ont::findOrFail($id);
+        $ont   = Ont::findOrFail($id);
+        $oltIp = $ont->olt_ip ?? Setting::get('gpon_olt_ip', '10.133.67.99');
+        $olt   = $this->getOltConfig($oltIp);
 
         $ontId    = $ont->ont_id;
         $servPort = $ont->service_port;
         $serial   = $ont->serial;
 
-        $portIndex = $ont->port_index ?? $this->getPortIndexForSerial($serial);
+        $portIndex = $ont->port_index ?? $this->getPortIndexForSerialOnOlt($serial, $olt);
         if (!$portIndex) {
             throw new RuntimeException('Nepodařilo se zjistit port index pro ONT ' . $serial);
         }
+
         $port = $portIndex;
         $SP1  = $servPort + 1;
-        $opt  = $this->snmpOpt('-M ' . base_path('resources/mibs') . ' -Ir');
+        $opt  = $this->snmpOptForOlt($olt, '-M ' . base_path('resources/mibs') . ' -Ir');
 
-        // Smazání service-flow
         $dat1 = "hwExtSrvFlowRowStatus.{$SP1} = destroy";
-        $out1 = shell_exec("snmpset {$opt} -m HUAWEI-ETHERLIKE-EXT-MIB {$this->host} {$dat1} 2>&1; echo $?");
-        $this->logGpon('/tmp/gpon_remove.log', 'ONT REMOVE SERVICE-FLOW', "snmpset {$opt} -m HUAWEI-ETHERLIKE-EXT-MIB {$this->host} {$dat1}", $out1);
+        $out1 = shell_exec("snmpset {$opt} -m HUAWEI-ETHERLIKE-EXT-MIB {$oltIp} {$dat1} 2>&1; echo $?");
+        $this->logGpon('/tmp/gpon_remove.log', 'ONT REMOVE SERVICE-FLOW', "snmpset {$opt} -m HUAWEI-ETHERLIKE-EXT-MIB {$oltIp} {$dat1}", $out1);
         $this->assertNoSnmpError($out1, 'Chyba při mazání service-flow');
 
-        // Smazání ONT
         $dat = "hwGponDeviceOntEntryStatus.{$port}.{$ontId} = destroy";
-        $out = shell_exec("snmpset {$opt} -m HUAWEI-XPON-MIB {$this->host} {$dat} 2>&1; echo $?");
-        $this->logGpon('/tmp/gpon_remove.log', 'ONT REMOVE', "snmpset {$opt} -m HUAWEI-XPON-MIB {$this->host} {$dat}", $out);
+        $out = shell_exec("snmpset {$opt} -m HUAWEI-XPON-MIB {$oltIp} {$dat} 2>&1; echo $?");
+        $this->logGpon('/tmp/gpon_remove.log', 'ONT REMOVE', "snmpset {$opt} -m HUAWEI-XPON-MIB {$oltIp} {$dat}", $out);
         $this->assertNoSnmpError($out, 'Chyba při mazání ONT');
 
         $ont->update(['reg_status' => 'removed']);
     }
 
     /**
-     * Výpočet ont_id, service_port a vlan pro daný port (0-15).
+     * Výpočet ont_id, service_port a vlan pro daný port.
      */
-    public function computeOntIdServicePortVlan(int $portNum, int $lastOntId): array
+    public function computeOntIdServicePortVlan(int $portNum, int $lastOntId, GponOlt $olt): array
     {
-        $pr    = $lastOntId;
-        $ontId = $pr + 1;
-        $vlan  = 200;
-
-        $offsets = [
-            0  => [1,     200],
-            1  => [1001,  200],
-            2  => [2001,  200],
-            3  => [3001,  200],
-            4  => [4001,  201],
-            5  => [5001,  201],
-            6  => [6001,  202],
-            7  => [7001,  202],
-            8  => [8001,  202],
-            9  => [9001,  201],
-            10 => [10001, 203],
-            11 => [11001, 203],
-            12 => [12001, 212],
-            13 => [13001, 213],
-            14 => [14001, 214],
-            15 => [15001, 215],
-        ];
-
-        [$offset, $vlan] = $offsets[$portNum] ?? [1, 200];
-        $servicePort = $pr + $offset;
+        $ontId       = $lastOntId + 1;
+        $vlan        = $olt->getVlan($portNum);
+        $servicePort = $lastOntId + ($portNum * 1000) + 1;
 
         return [$ontId, $servicePort, $vlan];
     }
 
     /**
      * Vrací live SNMP data (SNMPv3) pro registrovanou ONT.
-     * Sentinel hodnota 2147483647 (INT_MAX) = data nejsou dostupná.
      */
     public function getOntDetails(Ont $ont): array
     {
-        $olt = $this->host;
-        $pi  = (int) $ont->port_index;
-        $oi  = (int) $ont->ont_id;
+        $oltIp = $ont->olt_ip ?? Setting::get('gpon_olt_ip', '10.133.67.99');
+        $olt   = $this->getOltConfig($oltIp);
+        $pi    = (int) $ont->port_index;
+        $oi    = (int) $ont->ont_id;
 
         $base = '1.3.6.1.4.1.2011.6.128.1.1.2';
         $oids = implode(' ', [
@@ -267,30 +201,28 @@ class GponService
             "{$base}.46.1.15.{$pi}.{$oi}",   // [9] online status (1=online)
         ]);
 
-        // ── Optické parametry (.51, .46, .62) — dostupné jen na MA5800 ──────────
-        $optCmd    = "snmpget " . $this->snmpOpt() . " -Oqv " . escapeshellarg($olt) . " {$oids} 2>&1";
+        $optCmd    = "snmpget " . $this->snmpOptForOlt($olt) . " -Oqv " . escapeshellarg($oltIp) . " {$oids} 2>&1";
         $optOutput = [];
         exec($optCmd, $optOutput);
 
-        // Vrátí null pokud řádek není čistě numerický (např. "No Such Instance...")
-        $val = function(int $i) use ($optOutput): ?int {
+        $val = function (int $i) use ($optOutput): ?int {
             if (!isset($optOutput[$i])) return null;
             $s = trim($optOutput[$i]);
             return preg_match('/^-?\d+$/', $s) ? (int) $s : null;
         };
 
-        $rxRaw   = $val(0);
-        $txRaw   = $val(1);
-        $voltRaw = $val(2);
-        $currRaw = $val(3);
-        $tempRaw = $val(4);
-        $distRaw = $val(5);
+        $rxRaw    = $val(0);
+        $txRaw    = $val(1);
+        $voltRaw  = $val(2);
+        $currRaw  = $val(3);
+        $tempRaw  = $val(4);
+        $distRaw  = $val(5);
         $ethSt    = $val(6);
         $ethDup   = $val(7);
         $ethSpd   = $val(8);
         $onlineRaw = $val(9);
 
-        $na = 2147483647; // Huawei sentinel: "no data"
+        $na = 2147483647;
 
         $rx      = ($rxRaw   === null || $rxRaw   === $na) ? 'DOWN' : round($rxRaw   / 100, 2);
         $tx      = ($txRaw   === null || $txRaw   === $na) ? 'DOWN' : round($txRaw   / 100, 2);
@@ -303,15 +235,13 @@ class GponService
         $duplex    = match($ethDup) { 5 => 'Full', 4 => 'Half', default => 'DOWN' };
         $speed     = match($ethSpd) { 5 => '10Mbit', 6 => '100Mbit', 7 => '1Gbit', default => 'DOWN' };
 
-        // ── Základní info z .52 — funguje na obou OLT ────────────────────────
         $infoOids = implode(' ', [
-            "{$base}.52.1.3.{$pi}.{$oi}",  // stav ONT (INTEGER)
-            "{$base}.52.1.10.{$pi}.{$oi}", // firmware (Hex-STRING → ASCII)
-            "{$base}.52.1.11.{$pi}.{$oi}", // model    (Hex-STRING → ASCII)
+            "{$base}.52.1.3.{$pi}.{$oi}",
+            "{$base}.52.1.10.{$pi}.{$oi}",
+            "{$base}.52.1.11.{$pi}.{$oi}",
         ]);
 
-        // -Oa: zobraz OctetString jako ASCII místo hex bajtů
-        $infoCmd    = "snmpget " . $this->snmpOpt() . " -Oqav " . escapeshellarg($olt) . " {$infoOids} 2>&1";
+        $infoCmd    = "snmpget " . $this->snmpOptForOlt($olt) . " -Oqav " . escapeshellarg($oltIp) . " {$infoOids} 2>&1";
         $infoOutput = [];
         exec($infoCmd, $infoOutput);
 
@@ -353,19 +283,26 @@ class GponService
         $grouped = $onts->groupBy('olt_ip');
 
         foreach ($grouped as $oltIp => $group) {
+            try {
+                $olt  = $this->getOltConfig($oltIp);
+                $sOpt = sprintf(
+                    '-v3 -l %s -u %s -a %s -A %s -x %s -X %s',
+                    escapeshellarg($this->secLevel),
+                    escapeshellarg($olt->snmp_user),
+                    escapeshellarg($olt->snmp_auth_proto),
+                    escapeshellarg($olt->snmp_auth_pass),
+                    escapeshellarg($olt->snmp_priv_proto),
+                    escapeshellarg($olt->snmp_priv_pass)
+                );
+            } catch (RuntimeException) {
+                foreach ($group as $ont) {
+                    $status["{$ont->port_index}.{$ont->ont_id}"] = false;
+                }
+                continue;
+            }
+
             $output = [];
-            $cmd    = sprintf(
-                'snmpwalk -v3 -l %s -u %s -a %s -A %s -x %s -X %s -On %s %s 2>&1',
-                escapeshellarg($this->secLevel),
-                escapeshellarg($this->secName),
-                escapeshellarg($this->authProtocol),
-                escapeshellarg($this->authPass),
-                escapeshellarg($this->privProtocol),
-                escapeshellarg($this->privPass),
-                escapeshellarg($oltIp),
-                $base
-            );
-            exec($cmd, $output);
+            exec("snmpwalk {$sOpt} -On " . escapeshellarg($oltIp) . " {$base} 2>&1", $output);
 
             foreach ($output as $line) {
                 if (preg_match('/\.46\.1\.15\.(\d+)\.(\d+)\s*=\s*\S+\s*(\d+)/', $line, $m)) {
@@ -384,145 +321,172 @@ class GponService
         return $status;
     }
 
-    // ── privátní pomocné metody ──────────────────────────────────────────────
+    // ── Privátní pomocné metody ──────────────────────────────────────────────
 
-    private function getOntSerials(): array
+    private function scanOlt(GponOlt $olt): int
+    {
+        $serials  = $this->getOntSerialsForOlt($olt);
+        $countNew = 0;
+
+        foreach ($serials as $serial) {
+            if (substr($serial, 0, 2) !== '48') {
+                continue;
+            }
+
+            $existing = Ont::where('serial', $serial)->first();
+            if ($existing && $existing->reg_status === 'registered') {
+                continue;
+            }
+
+            $portIndex = $this->getPortIndexForSerialOnOlt($serial, $olt);
+            if ($portIndex === null) {
+                continue;
+            }
+
+            $ifName   = $this->getIfNameByIndexOnOlt($portIndex, $olt);
+            $gponPort = (str_contains($ifName, 'No Such') || str_contains($ifName, 'error') || strlen($ifName) > 64)
+                ? 'unknown'
+                : $ifName;
+
+            $portNum   = $this->extractPortNum($gponPort);
+            $lastOntId = Ont::where('gpon_port', $gponPort)->max('ont_id') ?? 0;
+            [$ontId, $servicePort, $vlan] = $this->computeOntIdServicePortVlan($portNum, (int) $lastOntId, $olt);
+
+            Log::debug('GPON scan', ['serial' => $serial, 'olt' => $olt->ip, 'port' => $gponPort]);
+
+            if (!$existing) {
+                Ont::create([
+                    'olt_ip'       => $olt->ip,
+                    'serial'       => $serial,
+                    'gpon_port'    => $gponPort,
+                    'port_num'     => $portNum,
+                    'port_index'   => $portIndex,
+                    'ont_id'       => $ontId,
+                    'service_port' => $servicePort,
+                    'vlan'         => $vlan,
+                    'reg_status'   => 'new',
+                ]);
+                $countNew++;
+            }
+        }
+
+        return $countNew;
+    }
+
+    private function getOntSerialsForOlt(GponOlt $olt): array
     {
         $cmd = sprintf(
             'snmpwalk -v3 -l %s -u %s -a %s -A %s -x %s -X %s %s %s 2>&1',
             escapeshellarg($this->secLevel),
-            escapeshellarg($this->secName),
-            escapeshellarg($this->authProtocol),
-            escapeshellarg($this->authPass),
-            escapeshellarg($this->privProtocol),
-            escapeshellarg($this->privPass),
-            escapeshellarg($this->host),
+            escapeshellarg($olt->snmp_user),
+            escapeshellarg($olt->snmp_auth_proto),
+            escapeshellarg($olt->snmp_auth_pass),
+            escapeshellarg($olt->snmp_priv_proto),
+            escapeshellarg($olt->snmp_priv_pass),
+            escapeshellarg($olt->ip),
             escapeshellarg(self::OID_ONT_SERIALS)
         );
 
         $output = shell_exec($cmd);
         if ($output === null) {
-            throw new RuntimeException('snmpwalk nevrátil žádný výstup');
+            return [];
         }
 
         $serials = [];
         foreach (preg_split('/\r\n|\r|\n/', trim($output)) as $line) {
             $pos = stripos($line, 'Hex-STRING:');
-            if ($pos === false) {
-                continue;
-            }
+            if ($pos === false) continue;
             $hex = strtoupper(str_replace(' ', '', trim(substr($line, $pos + 11))));
-            if ($hex !== '') {
-                $serials[] = $hex;
-            }
+            if ($hex !== '') $serials[] = $hex;
         }
 
         return array_values(array_unique($serials));
     }
 
-    private function getPortIndexForSerial(string $serial): ?int
+    private function getPortIndexForSerialOnOlt(string $serial, GponOlt $olt): ?int
     {
         $cmd = sprintf(
             'snmpwalk -v3 -l %s -u %s -a %s -A %s -x %s -X %s -On %s %s 2>&1',
             escapeshellarg($this->secLevel),
-            escapeshellarg($this->secName),
-            escapeshellarg($this->authProtocol),
-            escapeshellarg($this->authPass),
-            escapeshellarg($this->privProtocol),
-            escapeshellarg($this->privPass),
-            escapeshellarg($this->host),
+            escapeshellarg($olt->snmp_user),
+            escapeshellarg($olt->snmp_auth_proto),
+            escapeshellarg($olt->snmp_auth_pass),
+            escapeshellarg($olt->snmp_priv_proto),
+            escapeshellarg($olt->snmp_priv_pass),
+            escapeshellarg($olt->ip),
             escapeshellarg(self::OID_ONT_SERIALS)
         );
 
         $output = shell_exec($cmd);
-        if ($output === null) {
-            return null;
-        }
+        if ($output === null) return null;
 
         $serial = strtoupper($serial);
         foreach (preg_split('/\r\n|\r|\n/', trim($output)) as $line) {
             $pos = stripos($line, 'Hex-STRING:');
-            if ($pos === false) {
-                continue;
-            }
+            if ($pos === false) continue;
             $hex = strtoupper(str_replace(' ', '', trim(substr($line, $pos + 11))));
-            if ($hex !== $serial) {
-                continue;
-            }
+            if ($hex !== $serial) continue;
             $eqPos = strpos($line, '=');
-            if ($eqPos === false) {
-                continue;
-            }
+            if ($eqPos === false) continue;
             $parts = explode('.', ltrim(trim(substr($line, 0, $eqPos)), '.'));
             $nums  = array_values(array_filter(array_map('trim', $parts), 'ctype_digit'));
-            if (count($nums) < 2) {
-                continue;
-            }
+            if (count($nums) < 2) continue;
             return (int) $nums[count($nums) - 2];
         }
 
         return null;
     }
 
-    private function getIfNameByIndex(int $index): string
+    private function getIfNameByIndexOnOlt(int $index, GponOlt $olt): string
     {
         $oid = self::OID_IF_NAME . '.' . $index;
         $cmd = sprintf(
             'snmpget -v3 -l %s -u %s -a %s -A %s -x %s -X %s %s %s 2>&1',
             escapeshellarg($this->secLevel),
-            escapeshellarg($this->secName),
-            escapeshellarg($this->authProtocol),
-            escapeshellarg($this->authPass),
-            escapeshellarg($this->privProtocol),
-            escapeshellarg($this->privPass),
-            escapeshellarg($this->host),
+            escapeshellarg($olt->snmp_user),
+            escapeshellarg($olt->snmp_auth_proto),
+            escapeshellarg($olt->snmp_auth_pass),
+            escapeshellarg($olt->snmp_priv_proto),
+            escapeshellarg($olt->snmp_priv_pass),
+            escapeshellarg($olt->ip),
             escapeshellarg($oid)
         );
 
         $output = shell_exec($cmd);
-        if ($output === null) {
-            throw new RuntimeException('snmpget nevrátil žádný výstup');
-        }
+        if ($output === null) return 'unknown';
 
         $line = trim($output);
-
         if (str_contains($line, 'No Such Instance') || str_contains($line, 'No Such Object')) {
             return 'unknown';
         }
 
         $pos = strpos($line, '=');
-        if ($pos === false) {
-            throw new RuntimeException('Neznámý formát odpovědi snmpget: ' . $line);
-        }
-        $right = trim(substr($line, $pos + 1));
-        $colonPos = strpos($right, ':');
-        if ($colonPos !== false) {
-            $right = substr($right, $colonPos + 1);
-        }
+        if ($pos === false) return 'unknown';
+        $right     = trim(substr($line, $pos + 1));
+        $colonPos  = strpos($right, ':');
+        if ($colonPos !== false) $right = substr($right, $colonPos + 1);
         return trim($right, " \t\n\r\0\x0B\"'");
     }
 
     private function extractPortNum(string $ifName): int
     {
-        // Handles formats: "GPON0/2/7", "GPON 0/1/0", "0/2/7", etc.
-        // Extract the last integer in the string.
         if (preg_match('/(\d+)\s*$/', $ifName, $m)) {
             return (int) $m[1];
         }
         return 0;
     }
 
-    private function snmpOpt(string $extra = ''): string
+    private function snmpOptForOlt(GponOlt $olt, string $extra = ''): string
     {
         return trim(sprintf(
             '%s -v 3 -a %s -x %s -l %s -u %s -A %s -X %s',
             $extra,
-            escapeshellarg($this->authProtocol),
-            escapeshellarg($this->privProtocol),
+            escapeshellarg($olt->snmp_auth_proto),
+            escapeshellarg($olt->snmp_priv_proto),
             escapeshellarg($this->secLevel),
-            escapeshellarg($this->secName),
-            escapeshellarg($this->authPass),
-            escapeshellarg($this->privPass)
+            escapeshellarg($olt->snmp_user),
+            escapeshellarg($olt->snmp_auth_pass),
+            escapeshellarg($olt->snmp_priv_pass)
         ));
     }
 
