@@ -89,7 +89,7 @@ class SnmpMacDetector
     private function isCompatible(string $driver, string $gatewayIp): bool
     {
         try {
-            $row = @snmp2_get(
+            $row = snmp2_get(
                 $gatewayIp, $this->community,
                 'iso.3.6.1.2.1.1.1.0',
                 $this->timeout, $this->retries
@@ -121,7 +121,7 @@ class SnmpMacDetector
     {
         // Both Mikrotik and Linux use the same OID (Mikrotik-specific DHCP MIB)
         try {
-            $row = @snmp2_get(
+            $row = snmp2_get(
                 $gatewayIp, $this->community,
                 'iso.3.6.1.2.1.9999.1.1.6.4.1.8.' . $targetIp,
                 $this->timeout, $this->retries
@@ -168,7 +168,7 @@ class SnmpMacDetector
             ? 'iso.3.6.1.2.1.4.22.1.2'
             : 'iso.3.6.1.2.1.3.1.1.2';
 
-        $table = @snmp2_real_walk(
+        $table = snmp2_real_walk(
             $gatewayIp, $this->community,
             $oid,
             $this->timeout, $this->retries

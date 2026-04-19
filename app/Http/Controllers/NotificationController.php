@@ -57,10 +57,11 @@ class NotificationController extends Controller
                 'm.notification_by_email',
                 'm.notification_by_sms',
                 DB::raw('(SELECT a.balance FROM accounts a WHERE a.member_id = m.id AND a.account_attribute_id = 221100 LIMIT 1) AS credit_balance'),
-                DB::raw("(SELECT 1 FROM members_whitelists mw WHERE mw.member_id = m.id AND mw.since <= '{$today}' AND mw.until >= '{$today}' LIMIT 1) AS whitelisted"),
+                DB::raw('(SELECT 1 FROM members_whitelists mw WHERE mw.member_id = m.id AND mw.since <= ? AND mw.until >= ? LIMIT 1) AS whitelisted'),
                 DB::raw('(SELECT 1 FROM membership_interrupts mi WHERE mi.member_id = m.id LIMIT 1) AS interrupted'),
-                DB::raw("(SELECT 1 FROM messages_ip_addresses mia JOIN ip_addresses ia ON ia.id = mia.ip_address_id JOIN ifaces i ON i.id = ia.iface_id JOIN devices d ON d.id = i.device_id JOIN users u ON u.id = d.user_id WHERE mia.message_id = {$mid} AND u.member_id = m.id LIMIT 1) AS has_redirection"),
+                DB::raw('(SELECT 1 FROM messages_ip_addresses mia JOIN ip_addresses ia ON ia.id = mia.ip_address_id JOIN ifaces i ON i.id = ia.iface_id JOIN devices d ON d.id = i.device_id JOIN users u ON u.id = d.user_id WHERE mia.message_id = ? AND u.member_id = m.id LIMIT 1) AS has_redirection'),
             ])
+            ->addBinding([$today, $today, $mid], 'select')
             ->whereNotIn('m.type', [MemberType::FORMER, MemberType::FORMER_CUSTOMER])
             ->orderBy('m.name')
             ->get();

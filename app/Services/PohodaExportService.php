@@ -172,7 +172,7 @@ class PohodaExportService
         $xml->endDocument();
 
         $filename = $this->exportDir . sprintf('pohoda_%04d_%02d.xml', $year, $month);
-        @mkdir($this->exportDir, 0755, true);
+        is_dir($this->exportDir) || mkdir($this->exportDir, 0755, true);
         file_put_contents($filename, $xml->outputMemory());
 
         return $filename;
@@ -289,7 +289,7 @@ class PohodaExportService
         $xml->endDocument();
 
         $filename = $this->exportDir . sprintf('pohoda_refunds_%04d_%02d_%s.xml', $year, $month, date('His'));
-        @mkdir($this->exportDir, 0755, true);
+        is_dir($this->exportDir) || mkdir($this->exportDir, 0755, true);
         file_put_contents($filename, $xml->outputMemory());
 
         DB::table('pohoda_refund_queue')
