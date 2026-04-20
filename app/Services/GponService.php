@@ -120,10 +120,14 @@ class GponService
 
         $city = $olt->geocode_city ?? '';
         if ($houseNo !== '' && !empty($city)) {
-            $url  = 'https://nominatim.openstreetmap.org/search?q=' . urlencode($city . ' ' . $houseNo) . '&format=json&limit=1';
+            $url  = 'https://nominatim.openstreetmap.org/search?q=' . urlencode($city . ' ' . $houseNo . ', Czech Republic') . '&format=json&limit=1&countrycodes=cz';
             $ctx  = stream_context_create(['http' => ['header' => "User-Agent: freenetis-laravel/1.0\r\n", 'timeout' => 5]]);
+            Log::debug('GPON geocode request', ['url' => $url]);
             try {
                 $raw = file_get_contents($url, false, $ctx);
+                if ($raw === false) {
+                    Log::warning('GPON geocode failed: file_get_contents returned false', ['url' => $url]);
+                }
                 $geo = $raw !== false ? json_decode($raw, true) : null;
             } catch (\Exception $e) {
                 Log::warning('GPON geocode failed: ' . $e->getMessage());
@@ -131,10 +135,13 @@ class GponService
             }
             $lat = isset($geo[0]['lat']) ? (float) $geo[0]['lat'] : null;
             $lng = isset($geo[0]['lon']) ? (float) $geo[0]['lon'] : null;
+            Log::debug('GPON geocode result', ['lat' => $lat, 'lng' => $lng, 'raw' => $raw ?? null]);
             if ($lat !== null && $lat >= -90 && $lat <= 90 && $lng !== null && $lng >= -180 && $lng <= 180) {
                 $updateData['gps_lat'] = $lat;
                 $updateData['gps_lng'] = $lng;
             }
+        } else {
+            Log::debug('GPON geocode skipped', ['houseNo' => $houseNo, 'city' => $city]);
         }
 
         $ont->update($updateData);

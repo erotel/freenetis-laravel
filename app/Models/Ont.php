@@ -15,6 +15,7 @@ class Ont extends Model
         'serial', 'gpon_port', 'port_num', 'port_index',
         'ont_id', 'service_port', 'vlan', 'reg_status',
         'house_no', 'user_name', 'olt_ip', 'member_id', 'device_id',
+        'gps_lat', 'gps_lng',
     ];
 
     protected $casts = [
