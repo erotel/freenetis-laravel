@@ -376,6 +376,7 @@ Route::middleware('auth')->group(function () {
     Route::put('settings/system',   [SettingController::class, 'updateSystem'])->name('settings.update-system');
     Route::put('settings/users',    [SettingController::class, 'updateUsers'])->name('settings.update-users');
     Route::put('settings/network',  [SettingController::class, 'updateNetwork'])->name('settings.update-network');
+    Route::post('settings/regenerate-dhcp-token', [SettingController::class, 'regenerateDhcpToken'])->name('settings.regenerate-dhcp-token');
     Route::put('settings/sms',      [SettingController::class, 'updateSms'])->name('settings.update-sms');
     Route::put('settings',          [SettingController::class, 'update'])->name('settings.update');
 
@@ -568,5 +569,9 @@ Route::middleware('auth')->group(function () {
     // Device DHCP export — inside auth group but device self-call bypasses auth middleware
     Route::get('devices/{id}/export/{format}', [DeviceController::class, 'export'])
         ->name('devices.export')
+        ->withoutMiddleware(\Illuminate\Auth\Middleware\Authenticate::class);
+
+    // Kohana legacy URL compatibility
+    Route::get('index.php/en/devices/export/{id}/{format}/text', [DeviceController::class, 'export'])
         ->withoutMiddleware(\Illuminate\Auth\Middleware\Authenticate::class);
 });

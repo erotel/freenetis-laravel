@@ -44,9 +44,10 @@ class GponService
     /**
      * Registruje ONT na OLT podle ID záznamu v DB.
      */
-    public function registerOntById(int $id, string $houseNo = '', ?string $userName = null): void
+    public function registerOntById(int $id, ?string $houseNo = null, ?string $userName = null): void
     {
         $ont      = Ont::findOrFail($id);
+        $houseNo  = $houseNo ?? '';
         $userName = $userName ?? '';
         $oltIp    = $ont->olt_ip ?? Setting::get('gpon_olt_ip', '10.133.67.99');
         $olt      = $this->getOltConfig($oltIp);

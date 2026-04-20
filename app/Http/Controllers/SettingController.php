@@ -6,6 +6,7 @@ use App\Models\BankAccount;
 use App\Models\Message;
 use App\Models\Setting;
 use Illuminate\Http\Request;
+use Illuminate\Support\Str;
 
 class SettingController extends Controller
 {
@@ -155,6 +156,11 @@ class SettingController extends Controller
             $networkSettings[$key] = Setting::get($key, '');
         }
 
+        if (!Setting::get('dhcp_api_token')) {
+            Setting::set('dhcp_api_token', Str::random(32));
+        }
+        $dhcpApiToken = Setting::get('dhcp_api_token');
+
         // SMS settings
         $smsSettings = [
             'sms_enabled'       => Setting::get('sms_enabled', '0'),
@@ -184,7 +190,8 @@ class SettingController extends Controller
             'emailSettings', 'bccRules', 'messages', 'activeTab',
             'pohodaEmail', 'financeSettings', 'feesForSelect',
             'systemSettings', 'usersSettings', 'networkSettings',
-            'smsSettings', 'smsDriverSettings', 'gponSettings', 'gponOlts'
+            'smsSettings', 'smsDriverSettings', 'gponSettings', 'gponOlts',
+            'dhcpApiToken'
         ));
     }
 
@@ -317,6 +324,14 @@ class SettingController extends Controller
         Setting::set('dhcp_lease_time', $request->input('dhcp_lease_time', '10800'));
         return redirect()->route('settings.index', ['tab' => 'network'])
             ->with('success', 'Nastavení sítě bylo uloženo.');
+    }
+
+    public function regenerateDhcpToken()
+    {
+        abort_unless($this->can('edit_all'), 403);
+        Setting::set('dhcp_api_token', Str::random(32));
+        return redirect()->route('settings.index', ['tab' => 'network'])
+            ->with('success', 'DHCP API token byl regenerován.');
     }
 
     public function updateGpon(Request $request)

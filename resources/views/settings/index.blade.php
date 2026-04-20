@@ -487,6 +487,22 @@ function addBccRow() {
     <button class="m-btn m-btn-primary" type="submit">Uložit nastavení sítě</button>
 </div>
 </form>
+
+<div class="m-card" style="margin-top:16px;max-width:560px">
+    <div class="m-card-title">DHCP API token</div>
+    <div class="m-form-group">
+        <label class="m-form-label">Token</label>
+        <input class="m-form-input" type="text" readonly value="{{ $dhcpApiToken }}" style="font-family:monospace">
+        <div class="m-form-hint">
+            Použití: <code>/devices/{id}/export/mikrotik-ip-dhcp-server?token={{ $dhcpApiToken }}</code>
+        </div>
+    </div>
+    <form method="POST" action="{{ route('settings.regenerate-dhcp-token') }}"
+          onsubmit="return confirm('Regenerovat token? Stávající token přestane fungovat.')">
+        @csrf
+        <button type="submit" class="m-btn">Regenerovat token</button>
+    </form>
+</div>
 @endif
 
 @if($activeTab === 'sms')

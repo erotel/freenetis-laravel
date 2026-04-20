@@ -612,8 +612,11 @@ class DeviceController extends Controller
                 : null,
         ]);
 
-        if (!$fromDevice) {
-            // Authenticated user must have export ACL
+        $token      = $request->input('token') ?? $request->bearerToken();
+        $validToken = Setting::get('dhcp_api_token');
+        $tokenValid = $token && $validToken && hash_equals($validToken, $token);
+
+        if (!$fromDevice && !$tokenValid) {
             if (auth()->guest()) {
                 abort(403);
             }
