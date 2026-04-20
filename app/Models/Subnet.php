@@ -20,6 +20,21 @@ class Subnet extends Model
         'qos'          => 'boolean',
     ];
 
+    public function setExpired(): void
+    {
+        $this->update(['dhcp_expired' => 1]);
+    }
+
+    public function setNotExpired(): void
+    {
+        $this->update(['dhcp_expired' => 0]);
+    }
+
+    public function scopeExpired($query)
+    {
+        return $query->where('dhcp_expired', 1);
+    }
+
     public function ipAddresses()
     {
         return $this->hasMany(IpAddress::class);

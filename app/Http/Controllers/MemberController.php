@@ -6,6 +6,7 @@ use App\Helpers\MemberType;
 use App\Models\AccountAttribute;
 use App\Models\AddressPoint;
 use App\Http\Filters\MemberFilter;
+use App\Models\IpAddress;
 use App\Models\Member;
 use App\Models\MemberFee;
 use App\Models\Street;
@@ -420,6 +421,11 @@ class MemberController extends Controller
                 $member->save();
             }
         }
+
+        IpAddress::where('member_id', $id)
+            ->with('subnet')
+            ->get()
+            ->each(fn($ip) => $ip->subnet?->setExpired());
 
         session()->flash('success', 'Člen byl úspěšně upraven.');
 

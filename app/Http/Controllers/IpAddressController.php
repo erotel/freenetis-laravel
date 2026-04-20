@@ -109,6 +109,7 @@ class IpAddressController extends Controller
 
         $ip = IpAddress::create($data);
         $this->syncIp6Add($ip->iface_id, $ip->ip_address);
+        $ip->subnet?->setExpired();
 
         session()->flash('success', 'IP adresa byla úspěšně přidána.');
         return redirect()->route('ip_addresses.show', $ip->id);
@@ -149,9 +150,15 @@ class IpAddressController extends Controller
                 ->withErrors(['gateway' => 'V tomto subnetu již existuje gateway.']);
         }
 
+        $oldSubnetId = $ip->subnet_id;
         $this->syncIp6Delete($ip->ip_address);
         $ip->update($data);
         $this->syncIp6Add($ip->iface_id, $ip->ip_address);
+
+        $ip->subnet?->setExpired();
+        if ($oldSubnetId !== $ip->subnet_id) {
+            Subnet::find($oldSubnetId)?->setExpired();
+        }
 
         session()->flash('success', 'IP adresa byla úspěšně upravena.');
         return redirect()->route('ip_addresses.show', $id);
@@ -168,8 +175,10 @@ class IpAddressController extends Controller
             abort(404);
         }
 
+        $subnet = $ip->subnet;
         $this->syncIp6Delete($ip->ip_address);
         $ip->delete();
+        $subnet?->setExpired();
 
         session()->flash('success', 'IP adresa byla úspěšně smazána.');
         return redirect()->route('ip_addresses.index');

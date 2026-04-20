@@ -616,6 +616,13 @@ class DeviceController extends Controller
         $validToken = Setting::get('dhcp_api_token');
         $tokenValid = $token && $validToken && hash_equals($validToken, $token);
 
+        \Log::info('DHCP export token check', [
+            'token_present' => !empty($token),
+            'token_valid'   => $tokenValid,
+            'token_length'  => $token ? strlen($token) : 0,
+            'valid_length'  => $validToken ? strlen($validToken) : 0,
+        ]);
+
         if (!$fromDevice && !$tokenValid) {
             if (auth()->guest()) {
                 abort(403);
@@ -623,9 +630,23 @@ class DeviceController extends Controller
             abort_unless($this->aclCheck('view_all', 'Devices_Controller', 'export'), 403);
         }
 
-        // Update access_time if called from device itself
-        if ($fromDevice) {
-            $device->update(['access_time' => now()]);
+        // DHCP expired check — skip if forced
+        if ($format === 'mikrotik-ip-dhcp-server' || $format === 'mikrotik-ip-dhcp-server-lease') {
+            $forced = $request->boolean('forced');
+            if (!$forced) {
+                $hasExpired = false;
+                foreach ($device->ifaces as $iface) {
+                    foreach ($iface->ipAddresses as $ip) {
+                        if ($ip->subnet && $ip->subnet->dhcp && $ip->subnet->dhcp_expired) {
+                            $hasExpired = true;
+                            break 2;
+                        }
+                    }
+                }
+                if (!$hasExpired && ($fromDevice || $tokenValid)) {
+                    return response('', 204);
+                }
+            }
         }
 
         // Build DHCP server data
@@ -634,6 +655,18 @@ class DeviceController extends Controller
         $text = $format === 'mikrotik-ip-dhcp-server'
             ? $this->renderMikrotikFull($dhcpServers)
             : $this->renderMikrotikLeaseOnly($dhcpServers);
+
+        // Reset expired flag and update access_time
+        if ($fromDevice || $tokenValid) {
+            foreach ($device->ifaces as $iface) {
+                foreach ($iface->ipAddresses as $ip) {
+                    if ($ip->subnet && $ip->subnet->dhcp) {
+                        $ip->subnet->setNotExpired();
+                    }
+                }
+            }
+            $device->update(['access_time' => now()]);
+        }
 
         return response($text, 200)->header('Content-Type', 'text/plain; charset=utf-8');
     }
@@ -647,6 +680,12 @@ class DeviceController extends Controller
 
         foreach ($device->ifaces as $iface) {
             foreach ($iface->ipAddresses as $ip) {
+                \Log::debug('DHCP export ip check', [
+                    'ip'      => $ip->ip_address,
+                    'gateway' => $ip->gateway,
+                    'subnet'  => $ip->subnet?->network_address,
+                    'dhcp'    => $ip->subnet?->dhcp,
+                ]);
                 if (!$ip->gateway || !$ip->subnet) continue;
                 $subnet = $ip->subnet;
                 if (!$subnet->dhcp) continue;

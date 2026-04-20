@@ -191,6 +191,13 @@ class IfaceController extends Controller
             $this->syncIp6Add($iface->id, $newIp);
         }
 
+        $iface->load('ipAddresses.subnet');
+        foreach ($iface->ipAddresses as $ip) {
+            if ($ip->subnet && $ip->subnet->dhcp) {
+                $ip->subnet->setExpired();
+            }
+        }
+
         session()->flash('success', 'Rozhraní bylo úspěšně upraveno.');
         return redirect()->route('devices.show', $iface->device_id);
     }
@@ -199,8 +206,14 @@ class IfaceController extends Controller
     {
         abort_unless($this->can('delete_all'), 403);
 
-        $iface = Iface::findOrFail($id);
+        $iface = Iface::with('ipAddresses.subnet')->findOrFail($id);
         $deviceId = $iface->device_id;
+
+        foreach ($iface->ipAddresses as $ip) {
+            if ($ip->subnet && $ip->subnet->dhcp) {
+                $ip->subnet->setExpired();
+            }
+        }
 
         $iface->ip6Addresses()->delete();
         $iface->ipAddresses()->delete();
