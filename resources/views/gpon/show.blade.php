@@ -302,6 +302,18 @@
     </script>
     @endif
 
+    @if($ont->reg_status === 'removed')
+    <div class="m-card">
+        <div class="m-card-title">Smazat ONT</div>
+        <p class="m-form-hint">ONT bude trvale smazána z evidence.</p>
+        <form method="POST" action="{{ route('gpon.destroy', $ont->id) }}"
+              onsubmit="return confirm('Opravdu smazat ONT {{ $ont->serial }}?')">
+            @csrf @method('DELETE')
+            <button type="submit" class="m-btn m-btn-danger">Smazat z evidence</button>
+        </form>
+    </div>
+    @endif
+
     @if($ont->reg_status === 'registered')
     <div class="m-card">
         <div class="m-card-title">Odebrat ONT</div>

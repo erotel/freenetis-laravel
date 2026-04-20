@@ -561,6 +561,7 @@ Route::middleware('auth')->group(function () {
         Route::post('gpon/scan',        [GponController::class, 'scan'])->name('gpon.scan');
         Route::post('gpon/{id}/register',      [GponController::class, 'register'])->name('gpon.register');
         Route::post('gpon/{id}/remove',        [GponController::class, 'remove'])->name('gpon.remove');
+        Route::delete('gpon/{id}',             [GponController::class, 'destroy'])->name('gpon.destroy');
         Route::post('gpon/{id}/update-member', [GponController::class, 'updateMember'])->name('gpon.update-member');
     });
 

@@ -110,6 +110,19 @@ class GponController extends Controller
         }
     }
 
+    public function destroy(int $id)
+    {
+        $ont = Ont::findOrFail($id);
+
+        if ($ont->reg_status !== 'removed') {
+            return redirect()->route('gpon.show', $id)->with('error', 'ONT lze smazat pouze ve stavu Odebrána.');
+        }
+
+        $ont->delete();
+
+        return redirect()->route('gpon.index')->with('success', 'ONT byla smazána z evidence.');
+    }
+
     public function map()
     {
         $onts = \App\Models\Ont::whereNotNull('gps_lat')

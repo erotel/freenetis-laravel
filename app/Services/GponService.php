@@ -347,7 +347,8 @@ class GponService
         $countNew = 0;
 
         foreach ($serials as $serial) {
-            if (substr($serial, 0, 2) !== '48') {
+            if (!preg_match('/^48[0-9A-Fa-f]{14}$/', $serial)) {
+                Log::warning('GPON scan: neplatné sériové číslo přeskočeno', ['serial' => $serial, 'olt' => $olt->ip]);
                 continue;
             }
 

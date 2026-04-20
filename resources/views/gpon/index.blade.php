@@ -86,7 +86,7 @@
                 @elseif($ont->reg_status === 'registered')
                     <span class="m-tag m-tag-green">Registrovaná</span>
                 @else
-                    <span class="m-tag" style="background:#f3f4f6;color:#6b7280">Odebraná</span>
+                    <span class="m-tag m-tag-red">Odebraná</span>
                 @endif
             </td>
             <td>
