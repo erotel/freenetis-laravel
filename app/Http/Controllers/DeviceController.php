@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use Carbon\Carbon;
 use App\Http\Controllers\Concerns\SyncsIp6Address;
 use App\Http\Filters\DeviceFilter;
 use App\Models\ConnectionRequest;
@@ -579,6 +580,37 @@ class DeviceController extends Controller
             ->with('success', 'Zařízení bylo smazáno.');
     }
 
+    // ── DHCP Servers overview ─────────────────────────────────────────────────
+
+    public function dhcpServers()
+    {
+        abort_unless($this->aclCheck('view_all', 'Devices_Controller', 'devices'), 403);
+
+        $devices = DB::select("
+            SELECT DISTINCT d.id, d.name, d.access_time,
+                GROUP_CONCAT(DISTINCT s.name ORDER BY s.name SEPARATOR ', ') AS subnets,
+                MAX(s.dhcp_expired) AS has_expired
+            FROM devices d
+            JOIN ifaces i ON i.device_id = d.id
+            JOIN ip_addresses ip ON ip.iface_id = i.id
+            JOIN subnets s ON s.id = ip.subnet_id
+            WHERE ip.gateway = 1 AND ip.dhcp = 1
+            GROUP BY d.id, d.name, d.access_time
+            ORDER BY d.access_time ASC
+        ");
+
+        $devices = array_map(function ($device) {
+            $device->error = $device->access_time &&
+                $device->access_time !== '0000-00-00 00:00:00' &&
+                Carbon::parse($device->access_time)->diffInMinutes(now()) > 5;
+            return $device;
+        }, $devices);
+
+        $token = Setting::get('dhcp_api_token');
+
+        return view('devices.dhcp_servers', compact('devices', 'token'));
+    }
+
     // ── DHCP Export ───────────────────────────────────────────────────────────
 
     public function export(Request $request, int $id, string $format)
@@ -630,6 +662,11 @@ class DeviceController extends Controller
             abort_unless($this->aclCheck('view_all', 'Devices_Controller', 'export'), 403);
         }
 
+        // Update access_time on every authorized call
+        if ($fromDevice || $tokenValid) {
+            $device->update(['access_time' => now()]);
+        }
+
         // DHCP expired check — skip if forced
         if ($format === 'mikrotik-ip-dhcp-server' || $format === 'mikrotik-ip-dhcp-server-lease') {
             $forced = $request->boolean('forced');
@@ -656,7 +693,7 @@ class DeviceController extends Controller
             ? $this->renderMikrotikFull($dhcpServers)
             : $this->renderMikrotikLeaseOnly($dhcpServers);
 
-        // Reset expired flag and update access_time
+        // Reset expired flag after successful export
         if ($fromDevice || $tokenValid) {
             foreach ($device->ifaces as $iface) {
                 foreach ($iface->ipAddresses as $ip) {
@@ -665,7 +702,6 @@ class DeviceController extends Controller
                     }
                 }
             }
-            $device->update(['access_time' => now()]);
         }
 
         return response($text, 200)->header('Content-Type', 'text/plain; charset=utf-8');

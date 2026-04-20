@@ -109,6 +109,7 @@ class IpAddressController extends Controller
 
         $ip = IpAddress::create($data);
         $this->syncIp6Add($ip->iface_id, $ip->ip_address);
+        $this->syncSubnetDhcp($ip->subnet);
         $ip->subnet?->setExpired();
 
         session()->flash('success', 'IP adresa byla úspěšně přidána.');
@@ -155,9 +156,12 @@ class IpAddressController extends Controller
         $ip->update($data);
         $this->syncIp6Add($ip->iface_id, $ip->ip_address);
 
+        $this->syncSubnetDhcp($ip->subnet);
         $ip->subnet?->setExpired();
         if ($oldSubnetId !== $ip->subnet_id) {
-            Subnet::find($oldSubnetId)?->setExpired();
+            $oldSubnet = Subnet::find($oldSubnetId);
+            $this->syncSubnetDhcp($oldSubnet);
+            $oldSubnet?->setExpired();
         }
 
         session()->flash('success', 'IP adresa byla úspěšně upravena.');
@@ -178,6 +182,7 @@ class IpAddressController extends Controller
         $subnet = $ip->subnet;
         $this->syncIp6Delete($ip->ip_address);
         $ip->delete();
+        $this->syncSubnetDhcp($subnet);
         $subnet?->setExpired();
 
         session()->flash('success', 'IP adresa byla úspěšně smazána.');
@@ -185,6 +190,13 @@ class IpAddressController extends Controller
     }
 
     // -------------------------------------------------------------------------
+
+    private function syncSubnetDhcp(?Subnet $subnet): void
+    {
+        if (!$subnet) return;
+        $hasDhcpGateway = $subnet->ipAddresses()->where('gateway', 1)->where('dhcp', 1)->exists();
+        $subnet->update(['dhcp' => $hasDhcpGateway ? 1 : 0]);
+    }
 
     private function formData(?int $deviceId = null, ?int $ifaceId = null): array
     {

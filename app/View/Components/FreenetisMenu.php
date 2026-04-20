@@ -47,6 +47,16 @@ class FreenetisMenu extends Component
         $countEmailUnsent            = fn() => (int) DB::table('email_queues')->where('state', 0)->count();
         $countSmsUnsent              = fn() => (int) DB::table('sms_messages')->where('type', 1)->where('state', 1)->count();
         $countConnectionRequests     = fn() => (int) DB::table('connection_requests')->where('state', 0)->count();
+        $countDhcpErrors = fn() => (int) DB::table('devices as d')
+            ->join('ifaces as i', 'i.device_id', '=', 'd.id')
+            ->join('ip_addresses as ip', 'ip.iface_id', '=', 'i.id')
+            ->where('ip.gateway', 1)
+            ->where('ip.dhcp', 1)
+            ->whereNotNull('d.access_time')
+            ->where('d.access_time', '!=', '0000-00-00 00:00:00')
+            ->where('d.access_time', '<', now()->subMinutes(5))
+            ->distinct('d.id')
+            ->count('d.id');
 
         $menuGroups = [
             ['name' => 'home', 'label' => 'Domů', 'items' => [
@@ -60,6 +70,7 @@ class FreenetisMenu extends Component
             ]],
             ['name' => 'network', 'label' => 'Síť', 'items' => array_filter([
                 ['url' => route('devices.index'), 'path' => 'devices', 'label' => 'Zařízení', 'acl' => ['view_all', 'Devices_Controller', 'devices']],
+                ['url' => route('devices.dhcp-servers'), 'path' => 'devices/dhcp-servers', 'label' => 'DHCP servery', 'acl' => ['view_all', 'Devices_Controller', 'devices'], 'count' => $countDhcpErrors],
                 ['url' => route('ip_addresses.index'), 'path' => 'ip-addresses', 'label' => 'IP adresy', 'acl' => ['view_all', 'Ip_addresses_Controller', 'ip_address']],
                 ['url' => route('subnets.index'), 'path' => 'subnets', 'label' => 'Subnety', 'acl' => ['view_all', 'Subnets_Controller', 'subnet']],
                 ['url' => route('vlans.index'), 'path' => 'vlans', 'label' => 'VLANy', 'acl' => ['view_all', 'Vlans_Controller', 'vlan']],

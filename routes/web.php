@@ -258,6 +258,7 @@ Route::middleware('auth')->group(function () {
         ->middleware('acl:view_all,Users_Controller,users');
     Route::resource('users', UserController::class)->except(['index']);
 
+    Route::get('devices/dhcp-servers', [DeviceController::class, 'dhcpServers'])->name('devices.dhcp-servers');
     Route::get('devices/add/{userId?}', [DeviceController::class, 'createWithTemplate'])->name('devices.add');
     Route::post('devices/add', [DeviceController::class, 'storeWithTemplate'])->name('devices.store_template');
     Route::get('devices/create-from-cr/{crId}', [DeviceController::class, 'createFromConnectionRequest'])->name('devices.create_from_cr');
