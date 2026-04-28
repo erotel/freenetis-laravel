@@ -11,6 +11,7 @@ use App\Models\Member;
 use App\Models\MemberFee;
 use App\Models\Street;
 use App\Models\Town;
+use App\Services\ContractService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 
@@ -214,6 +215,7 @@ class MemberController extends Controller
             'canDeleteRedirect'    => $this->aclCheck('delete_all', 'Redirect_Controller', 'redirect'),
             'memberRedirections'   => \App\Http\Controllers\RedirectController::getMemberRedirections($id),
             'expirationDate'       => $creditAccount?->getExpirationDate(),
+            'memberContract'       => app(ContractService::class)->getByMemberId($id),
         ]);
     }
 

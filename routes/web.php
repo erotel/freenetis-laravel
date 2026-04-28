@@ -51,6 +51,7 @@ use App\Http\Controllers\PohodaRefundQueueController;
 use App\Http\Controllers\ConnectionRequestController;
 use App\Http\Controllers\SmsMessageController;
 use App\Http\Controllers\GponController;
+use App\Http\Controllers\ContractController;
 use Illuminate\Support\Facades\Route;
 
 // ── Web Interface API (machine-to-machine, IP-restricted, no session auth) ──
@@ -566,6 +567,17 @@ Route::middleware('auth')->group(function () {
         Route::delete('gpon/{id}',             [GponController::class, 'destroy'])->name('gpon.destroy');
         Route::post('gpon/{id}/update-member', [GponController::class, 'updateMember'])->name('gpon.update-member');
     });
+
+    // ── Smlouvy ───────────────────────────────────────────────────────────────
+    Route::get('contracts',                              [ContractController::class, 'index'])->name('contracts.index');
+    Route::get('members/{id}/contract',                  [ContractController::class, 'show'])->name('contracts.show');
+    Route::post('members/{id}/contract',                 [ContractController::class, 'create'])->name('contracts.create');
+    Route::post('members/{id}/contract/send-link',       [ContractController::class, 'sendLink'])->name('contracts.send-link');
+    Route::get('contracts/{id}/download',                [ContractController::class, 'download'])->name('contracts.download');
+    Route::post('members/{id}/contract/addon',           [ContractController::class, 'createAddon'])->name('contracts.addon.create');
+    Route::post('members/{id}/contract/addon/send-link', [ContractController::class, 'sendAddonLink'])->name('contracts.addon.send-link');
+    Route::get('contracts/{id}/download-addon',          [ContractController::class, 'downloadAddon'])->name('contracts.addon.download');
+    Route::delete('contracts/{id}/addon',                [ContractController::class, 'deleteAddon'])->name('contracts.addon.delete');
 
     // Device DHCP export — inside auth group but device self-call bypasses auth middleware
     Route::get('devices/{id}/export/{format}', [DeviceController::class, 'export'])

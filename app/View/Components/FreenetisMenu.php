@@ -4,6 +4,7 @@ namespace App\View\Components;
 
 use App\Models\Setting;
 use App\Services\AclService;
+use App\Services\ContractService;
 use Illuminate\Support\Facades\DB;
 use Illuminate\View\Component;
 
@@ -47,6 +48,8 @@ class FreenetisMenu extends Component
         $countEmailUnsent            = fn() => (int) DB::table('email_queues')->where('state', 0)->count();
         $countSmsUnsent              = fn() => (int) DB::table('sms_messages')->where('type', 1)->where('state', 1)->count();
         $countConnectionRequests     = fn() => (int) DB::table('connection_requests')->where('state', 0)->count();
+        $countUnsignedContracts = fn() => app(ContractService::class)->countUnsigned();
+
         $countDhcpErrors = fn() => (int) DB::table('devices as d')
             ->join('ifaces as i', 'i.device_id', '=', 'd.id')
             ->join('ip_addresses as ip', 'ip.iface_id', '=', 'i.id')
@@ -90,6 +93,7 @@ class FreenetisMenu extends Component
                 ['url' => route('pohoda-refund-queue.index'), 'path' => 'pohoda-refund-queue', 'label' => 'Vratné faktury',      'acl' => ['view_all', 'Accounts_Controller', 'invoices']],
             ]],
             ['name' => 'settings', 'label' => 'Administrace', 'items' => [
+                ['url' => route('contracts.index'), 'path' => 'contracts', 'label' => 'Smlouvy', 'acl' => ['view_all', 'Members_Controller', 'members'], 'count' => $countUnsignedContracts],
                 ['url' => route('notifications.members.select'), 'path' => 'notifications/members', 'label' => 'Hromadné notifikace', 'acl' => ['new_all', 'Notifications_Controller', 'member']],
                 ['url' => route('stats.index'),              'path' => 'stats',             'label' => 'Statistiky',       'acl' => ['view_all', 'Stats_Controller', 'members_growth']],
                 ['url' => route('log_queues.index'),        'path' => 'log-queues',        'label' => 'Chyby a logy',     'acl' => ['view_all', 'Log_queues_Controller', 'log_queue'],           'count' => $countLogErrors],

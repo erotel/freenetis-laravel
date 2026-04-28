@@ -99,6 +99,20 @@ return [
             'sslmode' => env('DB_SSLMODE', 'prefer'),
         ],
 
+        'contracts' => [
+            'driver'    => 'mysql',
+            'host'      => '127.0.0.1',
+            'port'      => '3306',
+            'database'  => 'contractsdb',
+            'username'  => env('CONTRACTS_DB_USER', 'root'),
+            'password'  => env('CONTRACTS_DB_PASS', ''),
+            'charset'   => 'utf8mb4',
+            'collation' => 'utf8mb4_czech_ci',
+            'prefix'    => '',
+            'strict'    => true,
+            'engine'    => null,
+        ],
+
         'sqlsrv' => [
             'driver' => 'sqlsrv',
             'url' => env('DB_URL'),
