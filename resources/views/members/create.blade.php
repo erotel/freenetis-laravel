@@ -164,7 +164,7 @@ function loadStreets(townId, selectedId) {
     const sel = document.getElementById('street_id');
     sel.innerHTML = '<option value="">— vyberte ulici —</option>';
     if (!townId) return;
-    fetch('/new/streets/by-town/' + townId)
+    fetch('{{ url('streets/by-town') }}/' + townId)
         .then(r => r.json())
         .then(streets => {
             streets.forEach(s => {
@@ -196,7 +196,7 @@ async function loadFromAres() {
     status.style.color = '#666';
 
     try {
-        const res  = await fetch('/new/ares/lookup/' + ico);
+        const res  = await fetch('{{ url('ares/lookup') }}/' + ico);
         const data = await res.json();
 
         if (data.error) {

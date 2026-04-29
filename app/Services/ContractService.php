@@ -5,7 +5,9 @@ namespace App\Services;
 use App\Models\Contract;
 use App\Models\ContractEvent;
 use App\Models\ContractParty;
+use App\Models\EmailQueue;
 use App\Models\Member;
+use App\Models\Setting;
 use App\Models\User;
 use Illuminate\Support\Facades\DB;
 
@@ -96,7 +98,7 @@ class ContractService
         return $contract;
     }
 
-    public function issueAccessLink(int $contractId): string
+    public function issueAccessLink(int $contractId): array
     {
         $payload = [
             'cid' => $contractId,
@@ -117,7 +119,10 @@ class ContractService
             ]),
         ]);
 
-        return $this->smlouvyUrl . '/contract.html?t=' . $token;
+        $url   = $this->smlouvyUrl . '/contract.html?t=' . $token;
+        $email = $this->queueSignLinkEmail($contractId, $url, false);
+
+        return ['url' => $url, 'email_sent' => $email !== null, 'email' => $email];
     }
 
     public function createAddon(int $contractId): bool
@@ -138,7 +143,7 @@ class ContractService
         return $updated > 0;
     }
 
-    public function sendAddonLink(int $contractId): string
+    public function sendAddonLink(int $contractId): array
     {
         $payload = [
             'cid' => $contractId,
@@ -159,7 +164,68 @@ class ContractService
             ]),
         ]);
 
-        return $this->smlouvyUrl . '/addon.html?t=' . $token;
+        $url   = $this->smlouvyUrl . '/addon.html?t=' . $token;
+        $email = $this->queueSignLinkEmail($contractId, $url, true);
+
+        return ['url' => $url, 'email_sent' => $email !== null, 'email' => $email];
+    }
+
+    /**
+     * Look up the member's email and enqueue the sign-link email.
+     * Returns the recipient email if queued, otherwise null.
+     */
+    private function queueSignLinkEmail(int $contractId, string $url, bool $isAddon): ?string
+    {
+        $contract = Contract::find($contractId);
+        if (!$contract) {
+            return null;
+        }
+
+        $mainUser = Member::find($contract->member_id)
+            ?->users()
+            ->where('type', User::MAIN_USER)
+            ->first();
+
+        [, $email] = $this->extractContacts($mainUser);
+        if (!$email) {
+            return null;
+        }
+
+        $subject = $isAddon
+            ? 'Odkaz pro podpis dodatku smlouvy - PVfree.net'
+            : 'Odkaz pro podpis smlouvy - PVfree.net';
+
+        $what = $isAddon ? 'dodatku smlouvy' : 'smlouvy';
+        $body = "Dobrý den,\n\n"
+            . "zasíláme Vám odkaz pro elektronický podpis {$what}:\n\n"
+            . "{$url}\n\n"
+            . "Odkaz je platný 7 dní.\n\n"
+            . "S pozdravem\nPVfree.net";
+
+        try {
+            EmailQueue::create([
+                'from'        => Setting::get('email_default_email', 'noreply@pvfree.net'),
+                'to'          => $email,
+                'subject'     => $subject,
+                'body'        => $body,
+                'state'       => EmailQueue::STATE_NEW,
+                'access_time' => now(),
+            ]);
+
+            ContractEvent::create([
+                'contract_id' => $contractId,
+                'event'       => 'email_sent',
+                'meta_json'   => json_encode([
+                    'by'    => auth()->user()?->login,
+                    'to'    => $email,
+                    'addon' => $isAddon,
+                ]),
+            ]);
+
+            return $email;
+        } catch (\Throwable $e) {
+            return null;
+        }
     }
 
     public function deleteAddon(Contract $contract): bool

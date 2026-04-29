@@ -193,7 +193,7 @@
 <script>
 function loadStreetsReg(townId, selectedId) {
     if (!townId) return;
-    fetch('/new/streets/by-town-public/' + townId)
+    fetch('{{ url('streets/by-town-public') }}/' + townId)
         .then(r => r.json())
         .then(streets => {
             const sel = document.getElementById('reg-street');
@@ -217,7 +217,7 @@ async function loadFromAresReg() {
     if (!ico || ico.length !== 8) { status.textContent = '⚠ Zadejte 8místné IČO.'; status.style.color = 'orange'; return; }
     status.textContent = '⏳ Načítám...'; status.style.color = '#666';
     try {
-        const res = await fetch('/new/ares/lookup-public/' + ico);
+        const res = await fetch('{{ url('ares/lookup-public') }}/' + ico);
         const data = await res.json();
         if (data.error) { status.textContent = '✗ ' + data.error; status.style.color = 'red'; return; }
         if (data.nazev) { document.getElementById('reg-name').value = data.nazev; document.getElementById('reg-surname').value = ''; document.getElementById('reg-surname').placeholder = '(firma)'; }

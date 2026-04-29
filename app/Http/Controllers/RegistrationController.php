@@ -1,6 +1,8 @@
 <?php
 namespace App\Http\Controllers;
 
+use App\Models\EmailQueue;
+use App\Models\EmailQueueAttachment;
 use App\Models\Setting;
 use App\Models\SpeedClass;
 use Illuminate\Http\Request;
@@ -44,8 +46,9 @@ class RegistrationController extends Controller
         ]);
 
         $memberId = null;
+        $userId   = null;
 
-        DB::transaction(function () use ($validated, &$memberId) {
+        DB::transaction(function () use ($validated, &$memberId, &$userId) {
             // 1. Adresní bod
             $addressPointId = DB::table('address_points')->insertGetId([
                 'town_id'       => $validated['town_id'],
@@ -136,7 +139,67 @@ class RegistrationController extends Controller
             ]);
         });
 
+        $this->sendRegistrationSummary($userId);
+
         return redirect()->route('registration.success');
+    }
+
+    /**
+     * Queue a registration-summary email with a PDF attachment to the new member.
+     * Silently no-op if disabled, no email on file, or attachment missing.
+     */
+    private function sendRegistrationSummary(?int $userId): void
+    {
+        if (!$userId || !Setting::get('registration_summary_enabled', 0)) {
+            return;
+        }
+
+        $pdfSetting = trim((string) Setting::get('registration_summary_pdf', ''));
+        if ($pdfSetting === '') {
+            return;
+        }
+
+        $pdfPath = str_starts_with($pdfSetting, '/')
+            ? $pdfSetting
+            : storage_path('app/private/' . ltrim($pdfSetting, '/'));
+
+        if (!is_file($pdfPath)) {
+            return;
+        }
+
+        $email = DB::table('contacts as c')
+            ->join('users_contacts as uc', 'uc.contact_id', '=', 'c.id')
+            ->where('uc.user_id', $userId)
+            ->where('c.type', 20)
+            ->orderBy('c.id')
+            ->value('c.value');
+
+        if (!$email) {
+            return;
+        }
+
+        try {
+            $emailQueue = EmailQueue::create([
+                'from'        => Setting::get('email_default_email', 'noreply@pvfree.net'),
+                'to'          => $email,
+                'subject'     => 'Shrnutí smlouvy - PVfree.net',
+                'body'        => "<p>Dobrý den,</p>"
+                    . "<p>děkujeme za registraci. V příloze posíláme shrnutí Vaší smlouvy ve formátu PDF.</p>"
+                    . "<p>S pozdravem,<br>PVfree.net, z.s.</p>",
+                'state'       => EmailQueue::STATE_NEW,
+                'access_time' => now(),
+            ]);
+
+            EmailQueueAttachment::create([
+                'email_queue_id' => $emailQueue->id,
+                'path'           => $pdfPath,
+                'name'           => 'smlouva_shrnuti.pdf',
+                'mime'           => 'application/pdf',
+                'created_at'     => now(),
+            ]);
+        } catch (\Throwable $e) {
+            // Silent: registration must succeed even if email queueing fails
+        }
     }
 
     public function success()

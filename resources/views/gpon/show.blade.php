@@ -263,7 +263,7 @@
         });
 
         function fetchMembers(q) {
-            fetch('/new/search/ajax?q=' + encodeURIComponent(q))
+            fetch('{{ url('search/ajax') }}?q=' + encodeURIComponent(q))
                 .then(r => r.json())
                 .then(data => {
                     const members = data.filter(r => r.url && r.url.includes('/members/'));

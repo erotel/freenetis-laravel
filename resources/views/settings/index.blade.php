@@ -197,6 +197,30 @@
     </div>
 </div>
 
+<div class="m-card" style="margin-bottom:16px;max-width:600px">
+    <div class="m-card-title">Shrnutí registrace (PDF příloha)</div>
+    <p class="m-form-hint" style="margin-bottom:12px">
+        Po úspěšné registraci nového člena bude na jeho email odesláno PDF se shrnutím.
+    </p>
+    <div style="margin-bottom:12px">
+        <label style="display:flex;align-items:center;gap:6px;font-size:13px;cursor:pointer">
+            <input type="checkbox" name="registration_summary_enabled" value="1"
+                {{ ($emailSettings['registration_summary_enabled'] ?? '') == '1' ? 'checked' : '' }}>
+            Odesílat shrnutí registrace
+        </label>
+    </div>
+    <div class="m-form-group">
+        <label class="m-form-label">Cesta k PDF souboru</label>
+        <input class="m-form-input" type="text" name="registration_summary_pdf"
+            value="{{ $emailSettings['registration_summary_pdf'] ?? '' }}"
+            placeholder="smlouva_shrnuti.pdf">
+        <div class="m-form-hint">
+            Relativní cesta vůči <code>storage/app/private/</code>, nebo absolutní cesta začínající <code>/</code>.
+            Pokud soubor neexistuje, email se neodešle.
+        </div>
+    </div>
+</div>
+
 <div class="m-actions">
     <button class="m-btn m-btn-primary" type="submit">Uložit nastavení emailu</button>
 </div>
@@ -751,7 +775,7 @@ function gponOltEdit(btn) {
     document.getElementById('gpon-olt-form-title').textContent = 'Upravit OLT: ' + olt.name;
 
     const form = document.getElementById('gpon-olt-form');
-    form.action = '/new/settings/gpon-olts/' + olt.id;
+    form.action = '{{ url('settings/gpon-olts') }}/' + olt.id;
 
     let method = form.querySelector('input[name="_method"]');
     if (!method) {

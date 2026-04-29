@@ -176,7 +176,7 @@
 <script>
 function loadStreetsEdit(townId, selectedId) {
     if (!townId) return;
-    fetch('/new/streets/by-town/' + townId)
+    fetch('{{ url('streets/by-town') }}/' + townId)
         .then(r => r.json())
         .then(streets => {
             const sel = document.getElementById('street-edit');
@@ -211,7 +211,7 @@ async function loadFromAresEdit() {
     status.style.color = '#666';
 
     try {
-        const res  = await fetch('/new/ares/lookup/' + ico);
+        const res  = await fetch('{{ url('ares/lookup') }}/' + ico);
         const data = await res.json();
 
         if (data.error) {

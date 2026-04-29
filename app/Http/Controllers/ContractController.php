@@ -74,12 +74,16 @@ class ContractController extends Controller
                 ->with('error', 'Odkaz lze odeslat pouze pro smlouvy ve stavu Návrh nebo Čeká na podpis.');
         }
 
-        $link = $this->contracts->issueAccessLink($contract->id);
+        $result = $this->contracts->issueAccessLink($contract->id);
+
+        $message = $result['email_sent']
+            ? 'Podpisový odkaz byl vygenerován a odeslán na email zákazníka.'
+            : 'Podpisový odkaz byl vygenerován. Zákazník nemá email — zkopírujte odkaz ručně.';
 
         return redirect()
             ->route('contracts.show', $memberId)
-            ->with('sign_link', $link)
-            ->with('success', 'Podpisový odkaz byl vygenerován.');
+            ->with('sign_link', $result['url'])
+            ->with('success', $message);
     }
 
     public function createAddon(int $memberId): RedirectResponse
@@ -123,12 +127,16 @@ class ContractController extends Controller
                 ->with('error', 'Dodatek je již podepsán.');
         }
 
-        $link = $this->contracts->sendAddonLink($contract->id);
+        $result = $this->contracts->sendAddonLink($contract->id);
+
+        $message = $result['email_sent']
+            ? 'Odkaz pro podpis dodatku byl vygenerován a odeslán na email zákazníka.'
+            : 'Odkaz pro podpis dodatku byl vygenerován. Zákazník nemá email — zkopírujte odkaz ručně.';
 
         return redirect()
             ->route('contracts.show', $memberId)
-            ->with('addon_link', $link)
-            ->with('success', 'Odkaz pro podpis dodatku byl vygenerován.');
+            ->with('addon_link', $result['url'])
+            ->with('success', $message);
     }
 
     public function deleteAddon(int $contractId): RedirectResponse

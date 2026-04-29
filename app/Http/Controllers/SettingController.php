@@ -21,6 +21,7 @@ class SettingController extends Controller
     public const EMAIL_KEYS = [
         'email_enabled', 'email_driver', 'email_hostname', 'email_port',
         'email_username', 'email_password', 'email_encryption', 'email_default_email',
+        'registration_summary_enabled', 'registration_summary_pdf',
     ];
 
     // BCC rules key prefix: email_bcc_rule_{n}_subject, email_bcc_rule_{n}_address
