@@ -4,7 +4,6 @@ namespace App\Http\Controllers;
 use App\Models\EmailQueue;
 use App\Models\EmailQueueAttachment;
 use App\Models\Setting;
-use App\Models\SpeedClass;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 
@@ -111,11 +110,8 @@ class RegistrationController extends Controller
                 'variable_symbol' => $vs,
             ]);
 
-            // 7. Výchozí třída rychlosti
-            $defaultSpeedClassId = SpeedClass::where('regular_member_default', 1)->value('id') ?? 1;
-            DB::table('members')->where('id', $memberId)->update([
-                'speed_class_id' => $defaultSpeedClassId,
-            ]);
+            // 7. Třída rychlosti — nenastavuje se automaticky, admin ji vyplní ručně
+            //    před vytvořením smlouvy (kontroluje ContractController::create).
 
             // 8. Kontakty (přes users_contacts M:N, contacts nemá user_id)
             $emailContactId = DB::table('contacts')->insertGetId([

@@ -106,7 +106,7 @@ class FreenetisMenu extends Component
                 ['url' => route('login_logs.index'),        'path' => 'login-logs',        'label' => 'Logy přihlášení',  'acl' => ['view_all', 'Login_logs_Controller', 'logs']],
                 ['url' => route('towns.index'),             'path' => 'towns',             'label' => 'Města',            'acl' => ['view_all', 'Address_points_Controller', 'town']],
                 ['url' => route('streets.index'),           'path' => 'streets',           'label' => 'Ulice',            'acl' => ['view_all', 'Address_points_Controller', 'street']],
-                ['url' => route('aro-groups.index'),        'path' => 'aro-groups',        'label' => 'Přístupová práva', 'acl' => ['view_all', 'Aro_groups_Controller', 'aro_groups']],
+                ['url' => route('aro-groups.index'),        'path' => 'aro-groups',        'label' => 'Přístupová práva', 'acl' => ['view_all', 'Aro_groups_Controller', 'aro_group']],
                 ['url' => route('fees.index'),              'path' => 'fees',              'label' => 'Tarify',           'acl' => ['view_all', 'Fees_Controller', 'fees']],
                 ['url' => route('speed_classes.index'),     'path' => 'speed-classes',     'label' => 'Třídy rychlosti',  'acl' => ['view_all', 'Speed_classes_Controller', 'speed_classes']],
                 ['url' => route('enum-types.index'),        'path' => 'enum-types',        'label' => 'Typy',             'acl' => ['view_all', 'Settings_Controller', 'enum_types']],

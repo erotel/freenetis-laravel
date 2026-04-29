@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Message;
 use App\Models\Setting;
 use App\Services\AclService;
 use Illuminate\Support\Facades\DB;
@@ -39,9 +40,10 @@ abstract class Controller
         $prefix  = Setting::get('email_subject_prefix', '');
         $subject = ($prefix ? $prefix . ' :: ' : '') . $message->name;
 
-        $search  = array_map(fn($k) => '{' . $k . '}', array_keys($vars));
-        $replace = array_values($vars);
-        $body    = str_replace($search, $replace, $message->email_text);
+        // Auto-substitute standard placeholders ({member_name}, {member_id},
+        // {leaving_date}, {entrance_date}, {balance}); caller's $vars win.
+        $allVars = Message::buildPlaceholders($memberId, $vars);
+        $body    = Message::substitute($message->email_text, $allVars);
 
         foreach ($emails as $to) {
             DB::table('email_queues')->insert([

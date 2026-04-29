@@ -1,0 +1,436 @@
+<?php
+
+namespace App\Http\Controllers\Contracts;
+
+use App\Http\Controllers\Controller;
+use App\Models\Contract;
+use App\Models\ContractEvent;
+use App\Models\ContractParty;
+use App\Models\EmailQueue;
+use App\Models\EmailQueueAttachment;
+use App\Models\Member;
+use App\Models\Setting;
+use App\Services\Contracts\OtpService;
+use App\Services\Contracts\PdfService;
+use App\Services\ContractService;
+use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Request;
+use Illuminate\Http\Response;
+use Illuminate\Support\Facades\DB;
+
+class PublicSignController extends Controller
+{
+    public function __construct(
+        private ContractService $contracts,
+        private OtpService $otp,
+        private PdfService $pdf,
+    ) {}
+
+    /**
+     * GET /sign/contract?t={token} — render the SPA. Token is validated client-side
+     * by calling /sign/info, which returns either the contract data or 401.
+     */
+    public function showContract(Request $request)
+    {
+        $token = (string) $request->query('t', '');
+        return view('contracts.sign', ['token' => $token]);
+    }
+
+    /**
+     * POST /sign/info — resolve token + return contract data for the SPA.
+     */
+    public function info(Request $request): JsonResponse
+    {
+        $contract = $this->resolveContract($request);
+        if (!$contract) return $this->unauthorizedJson();
+
+        $party = ContractParty::where('contract_id', $contract->id)->orderByDesc('id')->first();
+
+        return response()->json([
+            'id'          => (int) $contract->id,
+            'member_id'   => (int) $contract->member_id,
+            'contract_no' => $contract->contract_no,
+            'status'      => $contract->status,
+            'phone_mask'  => $contract->phone ? $this->maskPhone((string) $contract->phone) : null,
+            'full_name'   => $party?->full_name,
+            'variable_symbol' => $party?->variable_symbol,
+            'has_pdf'     => !empty($contract->pdf_path),
+            'addon'       => (int) $contract->addon,
+            'addon_signed' => (int) $contract->addon_signed,
+        ], 200, [], JSON_UNESCAPED_UNICODE);
+    }
+
+    public function previewContract(Request $request): Response
+    {
+        $contract = $this->resolveContract($request);
+        if (!$contract) return response('', 401);
+        $pdf = $this->pdf->renderContractPdf($contract, true, $request);
+        return response($pdf, 200, [
+            'Content-Type'        => 'application/pdf',
+            'Content-Disposition' => 'inline; filename="contract-preview.pdf"',
+            'Cache-Control'       => 'no-store',
+        ]);
+    }
+
+    public function sendOtp(Request $request): JsonResponse
+    {
+        $contract = $this->resolveContract($request);
+        if (!$contract) return $this->unauthorizedJson();
+
+        $phone = trim((string) $request->input('phone', ''));
+        if ($phone === '') {
+            return response()->json(['error' => 'Chybí telefon.'], 400);
+        }
+
+        $res = $this->otp->sendOtp($contract, $phone, $request);
+        return $this->fromServiceResult($res);
+    }
+
+    public function verifyOtp(Request $request): JsonResponse
+    {
+        $contract = $this->resolveContract($request);
+        if (!$contract) return $this->unauthorizedJson();
+
+        $otp = trim((string) $request->input('otp', ''));
+        $res = $this->otp->verifyOtp($contract, $otp, $request);
+        return $this->fromServiceResult($res);
+    }
+
+    /**
+     * POST /sign/finalize — generate, sign, store the final contract PDF.
+     * Returns a one-time download token URL.
+     */
+    public function finalizeContract(Request $request): JsonResponse
+    {
+        $contract = $this->resolveContract($request);
+        if (!$contract) return $this->unauthorizedJson();
+
+        if (!in_array($contract->status, ['otp_verified', 'signed'], true)) {
+            return response()->json(['error' => 'Smlouva nebyla ověřena.'], 409);
+        }
+
+        try {
+            // Mark party as not-terminated when finalizing
+            ContractParty::where('contract_id', $contract->id)->update(['termination' => 'ne']);
+
+            $fullpath = $this->pdf->renderContractPdf($contract, false, $request);
+            $raw      = (string) file_get_contents($fullpath);
+            $sha256   = hash('sha256', $raw);
+
+            DB::connection('contracts')->beginTransaction();
+            DB::connection('contracts')->table('contracts')
+                ->where('id', $contract->id)
+                ->update([
+                    'status'     => 'signed',
+                    'signed_at'  => now(),
+                    'pdf_path'   => $fullpath,
+                    'pdf_sha256' => hash('sha256', $raw, true),
+                ]);
+
+            ContractEvent::create([
+                'contract_id' => $contract->id,
+                'event'       => 'pdf_generated',
+                'meta_json'   => json_encode(['sha256' => $sha256], JSON_UNESCAPED_UNICODE),
+            ]);
+            DB::connection('contracts')->commit();
+
+            // Sync in-memory model — query builder update nehydratuje Eloquent atributy,
+            // a sendPostSignEmail() i členská synchronizace dál čtou z $contract.
+            $contract->status    = 'signed';
+            $contract->signed_at = now();
+            $contract->pdf_path  = $fullpath;
+        } catch (\Throwable $e) {
+            if (DB::connection('contracts')->transactionLevel() > 0) {
+                DB::connection('contracts')->rollBack();
+            }
+            return response()->json(['error' => 'Server error', 'detail' => $e->getMessage()], 500);
+        }
+
+        // Synchronizace s FreenetIS — aktivace člena po podpisu smlouvy.
+        // Typ 17 (čekající člen) má vlastní ruční workflow s přihláškou — ten neměníme.
+        $member = Member::find($contract->member_id);
+        if ($member) {
+            $oldType = $member->type;
+            $updates = ['registration' => 1];
+            if (in_array($member->type, [1, 18], true)) {
+                $updates['type'] = 2;
+            }
+            $member->update($updates);
+
+            DB::connection('contracts')->table('contract_events')->insert([
+                'contract_id' => $contract->id,
+                'event'       => 'member_activated',
+                'meta_json'   => json_encode([
+                    'member_id'    => $member->id,
+                    'old_type'     => $oldType,
+                    'new_type'     => $updates['type'] ?? $oldType,
+                    'registration' => 1,
+                ], JSON_UNESCAPED_UNICODE),
+                'created_at'  => now(),
+            ]);
+        }
+
+        $this->sendPostSignEmail($contract);
+
+        $dlToken = $this->createDownloadToken($contract->id, 'contract', 86400, null, 1);
+        return response()->json([
+            'ok'           => true,
+            'pdf_sha256'   => $sha256,
+            'download_url' => route('sign.download', ['t' => $dlToken]),
+        ]);
+    }
+
+    /**
+     * Queue an email to the customer with the signed contract, ceník and VOP attached.
+     * Silently no-op if disabled, no email on file, or contract PDF missing.
+     */
+    private function sendPostSignEmail(Contract $contract): void
+    {
+        if (!Setting::get('contract_email_attachments_enabled', 0)) {
+            return;
+        }
+
+        $party = ContractParty::where('contract_id', $contract->id)->orderByDesc('id')->first();
+        $email = trim((string) ($party?->email ?? ''));
+        if ($email === '') {
+            return;
+        }
+
+        $contractPdf = (string) $contract->pdf_path;
+        if ($contractPdf === '' || !is_file($contractPdf)) {
+            return;
+        }
+
+        $attachments = [
+            ['path' => $contractPdf, 'name' => 'smlouva-' . $contract->id . '.pdf'],
+        ];
+        foreach ([
+            'contract_email_pricelist_pdf' => 'cenik.pdf',
+            'contract_email_vop_pdf'       => 'vop.pdf',
+        ] as $settingKey => $attachName) {
+            $cfg = trim((string) Setting::get($settingKey, ''));
+            if ($cfg === '') continue;
+            $abs = str_starts_with($cfg, '/') ? $cfg : base_path(ltrim($cfg, '/'));
+            if (is_file($abs)) {
+                $attachments[] = ['path' => $abs, 'name' => $attachName];
+            }
+        }
+
+        try {
+            $contractNo = htmlspecialchars((string) $contract->contract_no, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+            $emailQueue = EmailQueue::create([
+                'from'    => Setting::get('email_default_email', 'noreply@pvfree.net'),
+                'to'      => $email,
+                'subject' => 'Podepsaná smlouva ' . $contract->contract_no . ' - PVfree.net',
+                'body'    => '<p>Dobrý den,</p>'
+                    . '<p>v příloze Vám zasíláme podepsanou smlouvu <strong>' . $contractNo . '</strong>'
+                    . ', ceník služeb a Všeobecné obchodní podmínky.</p>'
+                    . '<p>Dokumenty si prosím uschovejte pro svoji evidenci.</p>'
+                    . '<p>S pozdravem,<br>PVfree.net, z.s.</p>',
+                'state'       => EmailQueue::STATE_NEW,
+                'access_time' => now(),
+            ]);
+
+            foreach ($attachments as $a) {
+                EmailQueueAttachment::create([
+                    'email_queue_id' => $emailQueue->id,
+                    'path'           => $a['path'],
+                    'name'           => $a['name'],
+                    'mime'           => 'application/pdf',
+                    'created_at'     => now(),
+                ]);
+            }
+
+            ContractEvent::create([
+                'contract_id' => $contract->id,
+                'event'       => 'post_sign_email_sent',
+                'meta_json'   => json_encode([
+                    'to'          => $email,
+                    'attachments' => array_column($attachments, 'name'),
+                ], JSON_UNESCAPED_UNICODE),
+            ]);
+        } catch (\Throwable $e) {
+            \Log::warning('Post-sign email queue failed for contract #' . $contract->id . ': ' . $e->getMessage());
+        }
+    }
+
+    /**
+     * GET /sign/download?t={dlToken} — one-time PDF download.
+     */
+    public function downloadContract(Request $request)
+    {
+        $token = (string) $request->query('t', '');
+        if ($token === '') return response('Missing token', 400);
+
+        $row = DB::connection('contracts')->table('download_tokens')->where('token', $token)->first();
+        if (!$row || $row->used_at !== null || strtotime($row->expires_at) < time()) {
+            return response('Odkaz vypršel nebo byl již použit.', 410);
+        }
+        if (!empty($row->bind_ip) && $row->bind_ip !== $request->ip()) {
+            return response('Odkaz není platný z této IP.', 403);
+        }
+
+        $contract = Contract::find($row->contract_id);
+        if (!$contract) return response('Contract not found', 404);
+
+        $path = match ($row->file_type) {
+            'contract'    => $contract->pdf_path,
+            'addon'       => $contract->addon_pdf_path,
+            'termination' => $this->terminationPath($contract->id),
+            default       => null,
+        };
+        if (!$path || !is_file($path)) return response('PDF nedostupné.', 404);
+
+        DB::connection('contracts')->table('download_tokens')
+            ->where('id', $row->id)
+            ->update(['used_at' => now()]);
+
+        return response()->file($path, [
+            'Content-Type'        => 'application/pdf',
+            'Content-Disposition' => 'inline; filename="' . basename($path) . '"',
+        ]);
+    }
+
+    public function sendAddonOtp(Request $request): JsonResponse
+    {
+        $contract = $this->resolveContract($request);
+        if (!$contract) return $this->unauthorizedJson();
+
+        $res = $this->otp->sendAddonOtp($contract, $request);
+        return $this->fromServiceResult($res);
+    }
+
+    public function verifyAddonOtp(Request $request): JsonResponse
+    {
+        $contract = $this->resolveContract($request);
+        if (!$contract) return $this->unauthorizedJson();
+
+        $otp = trim((string) $request->input('otp', ''));
+        $res = $this->otp->verifyAddonOtp($contract, $otp, $request);
+        if (!($res['ok'] ?? false)) {
+            return $this->fromServiceResult($res);
+        }
+
+        try {
+            $fullpath = $this->pdf->renderAddonPdf($contract, false, $request);
+            $raw      = (string) file_get_contents($fullpath);
+            $sha256   = hash('sha256', $raw);
+
+            DB::connection('contracts')->beginTransaction();
+            DB::connection('contracts')->table('contracts')
+                ->where('id', $contract->id)
+                ->update([
+                    'addon_signed'    => 1,
+                    'addon_signed_at' => now(),
+                    'addon_pdf_path'  => $fullpath,
+                ]);
+            ContractEvent::create([
+                'contract_id' => $contract->id,
+                'event'       => 'addon_generated',
+                'meta_json'   => json_encode(['sha256' => $sha256], JSON_UNESCAPED_UNICODE),
+            ]);
+            DB::connection('contracts')->commit();
+        } catch (\Throwable $e) {
+            if (DB::connection('contracts')->transactionLevel() > 0) {
+                DB::connection('contracts')->rollBack();
+            }
+            return response()->json(['error' => 'Server error', 'detail' => $e->getMessage()], 500);
+        }
+
+        $dlToken = $this->createDownloadToken($contract->id, 'addon', 86400, null, 1);
+        return response()->json([
+            'ok'           => true,
+            'pdf_sha256'   => $sha256,
+            'download_url' => route('sign.download', ['t' => $dlToken]),
+        ]);
+    }
+
+    public function finalizeTermination(Request $request): JsonResponse
+    {
+        $contract = $this->resolveContract($request);
+        if (!$contract) return $this->unauthorizedJson();
+
+        if (!in_array($contract->status, ['otp_verified', 'signed'], true)) {
+            return response()->json(['error' => 'Smlouva nebyla ověřena.'], 409);
+        }
+
+        try {
+            $fullpath = $this->pdf->renderTerminationPdf($contract, $request);
+            $raw      = (string) file_get_contents($fullpath);
+            $sha256   = hash('sha256', $raw);
+
+            DB::connection('contracts')->beginTransaction();
+            ContractEvent::create([
+                'contract_id' => $contract->id,
+                'event'       => 'termination_generated',
+                'meta_json'   => json_encode(['sha256' => $sha256], JSON_UNESCAPED_UNICODE),
+            ]);
+            ContractParty::where('contract_id', $contract->id)->update(['termination' => 'ano']);
+            DB::connection('contracts')->commit();
+        } catch (\Throwable $e) {
+            if (DB::connection('contracts')->transactionLevel() > 0) {
+                DB::connection('contracts')->rollBack();
+            }
+            return response()->json(['error' => 'Server error', 'detail' => $e->getMessage()], 500);
+        }
+
+        $dlToken = $this->createDownloadToken($contract->id, 'termination', 86400, null, 1);
+        return response()->json([
+            'ok'           => true,
+            'pdf_sha256'   => $sha256,
+            'download_url' => route('sign.download', ['t' => $dlToken]),
+        ]);
+    }
+
+    // ── helpers ────────────────────────────────────────────────────────────
+
+    private function resolveContract(Request $request): ?Contract
+    {
+        $token = (string) ($request->input('t') ?: $request->query('t', ''));
+        if ($token === '') return null;
+        $cid = $this->contracts->verifyAccessToken($token);
+        if (!$cid) return null;
+        return Contract::find($cid);
+    }
+
+    private function unauthorizedJson(): JsonResponse
+    {
+        return response()->json(['error' => 'Neplatný nebo expirovaný odkaz.'], 401);
+    }
+
+    private function fromServiceResult(array $res): JsonResponse
+    {
+        $status = (int) ($res['status'] ?? ($res['ok'] ?? false ? 200 : 400));
+        unset($res['status']);
+        return response()->json($res, $status, [], JSON_UNESCAPED_UNICODE);
+    }
+
+    private function maskPhone(string $phone): string
+    {
+        $tail = substr(preg_replace('/\D/', '', $phone) ?? '', -4);
+        return '****' . $tail;
+    }
+
+    private function terminationPath(int $contractId): ?string
+    {
+        $cfg  = (string) (\App\Models\Setting::get('storage', null) ?? config('services.contracts.storage', 'storage/app/private/contracts'));
+        $base = str_starts_with($cfg, '/') ? $cfg : base_path(ltrim($cfg, '/'));
+        $path = rtrim($base, '/') . "/termination-{$contractId}.pdf";
+        return is_file($path) ? $path : null;
+    }
+
+    private function createDownloadToken(int $contractId, string $fileType, int $ttl, ?string $bindIp, int $maxUses): string
+    {
+        $token = bin2hex(random_bytes(32));
+        DB::connection('contracts')->table('download_tokens')->insert([
+            'token'       => $token,
+            'contract_id' => $contractId,
+            'file_type'   => $fileType,
+            'expires_at'  => now()->addSeconds($ttl),
+            'bind_ip'     => $bindIp,
+            'max_uses'    => $maxUses,
+            'created_at'  => now(),
+        ]);
+        return $token;
+    }
+}

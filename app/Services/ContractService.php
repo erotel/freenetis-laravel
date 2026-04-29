@@ -119,7 +119,7 @@ class ContractService
             ]),
         ]);
 
-        $url   = $this->smlouvyUrl . '/contract.html?t=' . $token;
+        $url   = route('sign.show', ['t' => $token]);
         $email = $this->queueSignLinkEmail($contractId, $url, false);
 
         return ['url' => $url, 'email_sent' => $email !== null, 'email' => $email];
@@ -195,12 +195,13 @@ class ContractService
             ? 'Odkaz pro podpis dodatku smlouvy - PVfree.net'
             : 'Odkaz pro podpis smlouvy - PVfree.net';
 
-        $what = $isAddon ? 'dodatku smlouvy' : 'smlouvy';
-        $body = "Dobrý den,\n\n"
-            . "zasíláme Vám odkaz pro elektronický podpis {$what}:\n\n"
-            . "{$url}\n\n"
-            . "Odkaz je platný 7 dní.\n\n"
-            . "S pozdravem\nPVfree.net";
+        $what    = $isAddon ? 'dodatku smlouvy' : 'smlouvy';
+        $urlHtml = htmlspecialchars($url, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+        $body = '<p>Dobrý den,</p>'
+            . '<p>zasíláme Vám odkaz pro elektronický podpis ' . $what . ':</p>'
+            . '<p><a href="' . $urlHtml . '">' . $urlHtml . '</a></p>'
+            . '<p>Odkaz je platný 7 dní.</p>'
+            . '<p>S pozdravem<br>PVfree.net</p>';
 
         try {
             EmailQueue::create([
@@ -370,5 +371,35 @@ class ContractService
     private function b64url(string $s): string
     {
         return rtrim(strtr(base64_encode($s), '+/', '-_'), '=');
+    }
+
+    private function b64urlDec(string $s): string
+    {
+        $r = base64_decode(strtr($s, '-_', '+/'));
+        return $r === false ? '' : $r;
+    }
+
+    /**
+     * Verify a sign-link access token issued by issueAccessLink/sendAddonLink.
+     * Returns the contract ID on success, or null if invalid/expired/tampered.
+     */
+    public function verifyAccessToken(string $token): ?int
+    {
+        $parts = explode('.', $token, 2);
+        if (count($parts) !== 2) return null;
+
+        [$p64, $s64] = $parts;
+        $json = $this->b64urlDec($p64);
+        $sig  = $this->b64urlDec($s64);
+        if ($json === '' || $sig === '') return null;
+
+        $calc = hash_hmac('sha256', $json, $this->tokenSecret, true);
+        if (!hash_equals($calc, $sig)) return null;
+
+        $data = json_decode($json, true);
+        if (!is_array($data) || ((int) ($data['exp'] ?? 0)) < time()) return null;
+
+        $cid = (int) ($data['cid'] ?? 0);
+        return $cid > 0 ? $cid : null;
     }
 }

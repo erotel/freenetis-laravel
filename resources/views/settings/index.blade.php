@@ -10,7 +10,7 @@
 
 {{-- Tabs --}}
 <div style="display:flex;gap:4px;margin-bottom:20px;flex-wrap:wrap">
-    @foreach(['banka' => 'Banka', 'email' => 'Email', 'finance' => 'Finance', 'system' => 'Systém', 'users' => 'Uživatelé', 'network' => 'Síť', 'sms' => 'SMS', 'gpon' => 'GPON'] as $tabKey => $tabLabel)
+    @foreach(['banka' => 'Banka', 'email' => 'Email', 'finance' => 'Finance', 'system' => 'Systém', 'users' => 'Uživatelé', 'network' => 'Síť', 'sms' => 'SMS', 'gpon' => 'GPON', 'smlouvy' => 'Smlouvy'] as $tabKey => $tabLabel)
     <a class="m-btn @if($activeTab === $tabKey) m-btn-primary @endif"
        href="{{ route('settings.index', ['tab' => $tabKey]) }}">{{ $tabLabel }}</a>
     @endforeach
@@ -818,6 +818,121 @@ function gponOltReset() {
 }
 </script>
 
+@endif
+
+@if($activeTab === 'smlouvy')
+<form method="POST" action="{{ route('settings.update-smlouvy') }}">
+@csrf @method('PUT')
+
+<div class="m-card" style="margin-bottom:16px;max-width:640px">
+    <div class="m-card-title">OTP (jednorázové kódy)</div>
+    <div class="m-form-group">
+        <label class="m-form-label">OTP pepper (tajný klíč)</label>
+        <input class="m-form-input" type="password" name="otp_pepper"
+            value="" placeholder="{{ $smlouvySettings['otp_pepper'] ? '••••••••' : '' }}" autocomplete="new-password">
+        <div class="m-form-hint">Sůl pro hashování OTP. Ponechte prázdné pro zachování stávající hodnoty.</div>
+    </div>
+    <div class="m-form-row">
+        <div class="m-form-group">
+            <label class="m-form-label">Platnost OTP (minuty)</label>
+            <input class="m-form-input" type="number" name="otp_ttl_min" min="1" max="60"
+                value="{{ $smlouvySettings['otp_ttl_min'] }}" style="max-width:100px">
+        </div>
+        <div class="m-form-group">
+            <label class="m-form-label">Max. počet pokusů</label>
+            <input class="m-form-input" type="number" name="otp_max_attempts" min="1" max="20"
+                value="{{ $smlouvySettings['otp_max_attempts'] }}" style="max-width:100px">
+        </div>
+        <div class="m-form-group">
+            <label class="m-form-label">Resend okno (sekundy)</label>
+            <input class="m-form-input" type="number" name="otp_resend_window_sec" min="0" max="3600"
+                value="{{ $smlouvySettings['otp_resend_window_sec'] }}" style="max-width:120px">
+        </div>
+    </div>
+    <div class="m-form-row">
+        <div class="m-form-group" style="flex:0 0 auto">
+            <label style="display:flex;align-items:center;gap:6px;font-size:13px;cursor:pointer;margin-top:24px">
+                <input type="checkbox" name="otp_test_mode" value="1"
+                    {{ $smlouvySettings['otp_test_mode'] == '1' ? 'checked' : '' }}>
+                Testovací režim OTP
+            </label>
+        </div>
+        <div class="m-form-group">
+            <label class="m-form-label">Testovací OTP kód</label>
+            <input class="m-form-input" type="text" name="otp_test_code"
+                value="{{ $smlouvySettings['otp_test_code'] }}" style="max-width:160px">
+            <div class="m-form-hint">Pevný kód, který v testovacím režimu projde místo skutečného OTP.</div>
+        </div>
+    </div>
+</div>
+
+<div class="m-card" style="margin-bottom:16px;max-width:640px">
+    <div class="m-card-title">Elektronický podpis PDF</div>
+    <div class="m-form-group">
+        <label class="m-form-label">Cesta k certifikátu (.pfx)</label>
+        <input class="m-form-input" type="text" name="pdf_sign_cert"
+            value="{{ $smlouvySettings['pdf_sign_cert'] }}"
+            placeholder="storage/app/private/certs/pvfree.pfx">
+        <div class="m-form-hint">Relativní k root adresáři aplikace, nebo absolutní cesta.</div>
+    </div>
+    <div class="m-form-group">
+        <label class="m-form-label">Heslo k certifikátu</label>
+        <input class="m-form-input" type="password" name="pdf_sign_pass"
+            value="" placeholder="{{ $smlouvySettings['pdf_sign_pass'] ? '••••••••' : '' }}" autocomplete="new-password">
+        <div class="m-form-hint">Ponechte prázdné pro zachování stávající hodnoty.</div>
+    </div>
+    <div class="m-form-row">
+        <div class="m-form-group">
+            <label class="m-form-label">Jméno podepisujícího</label>
+            <input class="m-form-input" type="text" name="pdf_sign_name"
+                value="{{ $smlouvySettings['pdf_sign_name'] }}">
+        </div>
+        <div class="m-form-group">
+            <label class="m-form-label">Místo podpisu</label>
+            <input class="m-form-input" type="text" name="pdf_sign_location"
+                value="{{ $smlouvySettings['pdf_sign_location'] }}">
+        </div>
+    </div>
+    <div class="m-form-group">
+        <label class="m-form-label">Důvod podpisu</label>
+        <input class="m-form-input" type="text" name="pdf_sign_reason"
+            value="{{ $smlouvySettings['pdf_sign_reason'] }}">
+    </div>
+</div>
+
+<div class="m-card" style="margin-bottom:16px;max-width:640px">
+    <div class="m-card-title">Email po podpisu smlouvy</div>
+    <p class="m-form-hint" style="margin-bottom:12px">
+        Po úspěšném podpisu se zákazníkovi automaticky odešle email s podepsanou smlouvou, ceníkem a VOP.
+    </p>
+    <div style="margin-bottom:12px">
+        <label style="display:flex;align-items:center;gap:6px;font-size:13px;cursor:pointer">
+            <input type="checkbox" name="contract_email_attachments_enabled" value="1"
+                {{ ($smlouvySettings['contract_email_attachments_enabled'] ?? '') == '1' ? 'checked' : '' }}>
+            Odesílat email s přílohami po podpisu
+        </label>
+    </div>
+    <div class="m-form-group">
+        <label class="m-form-label">Cesta k ceníku (PDF)</label>
+        <input class="m-form-input" type="text" name="contract_email_pricelist_pdf"
+            value="{{ $smlouvySettings['contract_email_pricelist_pdf'] }}"
+            placeholder="storage/app/private/contract-attachments/cenik.pdf">
+    </div>
+    <div class="m-form-group">
+        <label class="m-form-label">Cesta k VOP (PDF)</label>
+        <input class="m-form-input" type="text" name="contract_email_vop_pdf"
+            value="{{ $smlouvySettings['contract_email_vop_pdf'] }}"
+            placeholder="storage/app/private/contract-attachments/vop.pdf">
+        <div class="m-form-hint">
+            Relativní vůči root adresáři aplikace, nebo absolutní cesta. Pokud soubor neexistuje, jen se přeskočí (smlouva se odešle bez něj).
+        </div>
+    </div>
+</div>
+
+<div class="m-actions">
+    <button class="m-btn m-btn-primary" type="submit">Uložit nastavení smluv</button>
+</div>
+</form>
 @endif
 
 </div>

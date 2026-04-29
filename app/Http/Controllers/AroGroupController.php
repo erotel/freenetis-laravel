@@ -9,7 +9,7 @@ use Illuminate\Support\Facades\DB;
 class AroGroupController extends Controller
 {
     private const ACL_SECTION = 'Aro_groups_Controller';
-    private const ACL_VALUE   = 'aro_groups';
+    private const ACL_VALUE   = 'aro_group';
 
     private function can(string $action): bool
     {

@@ -50,6 +50,12 @@ class ContractController extends Controller
                 ->with('error', 'Smlouva pro tohoto člena již existuje (#' . $existing->contract_no . ').');
         }
 
+        if (!$member->speed_class_id) {
+            return redirect()
+                ->route('members.edit', $memberId)
+                ->with('error', 'Před vytvořením smlouvy nastavte třídu rychlosti (QoS) v editaci člena.');
+        }
+
         $contract = $this->contracts->createContract($member);
 
         return redirect()

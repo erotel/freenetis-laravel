@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="cs">
+<head>
+<meta charset="utf-8">
+<title>Žádost o ukončení členství – {{full_name}}</title>
+<style>
+  body{font-family:DejaVu Sans,Arial,sans-serif;font-size:12pt;color:#111}
+  h1{font-size:16pt;margin:0 0 10px}
+  .box{border:1px solid #ddd;border-radius:8px;padding:10px;margin:10px 0}
+  table.clean{border-collapse:collapse;width:100%}
+  table.clean td{padding:3px 6px;vertical-align:top}
+  .muted{color:#666;font-size:10pt}
+</style>
+</head>
+<body>
+
+<h1>Žádost o ukončení členství v pvfree.net</h1>
+
+<div class="box">
+  <table class="clean">
+    <tr><td style="width:210px"><strong>Jméno / Název:</strong></td><td>{{full_name}}</td></tr>
+    <tr><td><strong>Adresa:</strong></td><td>{{street}}, {{town}}, {{country}}</td></tr>
+    <tr><td><strong>IČO / DIČ:</strong></td><td>{{ico}} / {{dic}}</td></tr>
+    <tr><td><strong>Variabilní symbol:</strong></td><td>{{variable_symbol}}</td></tr>
+    <tr><td><strong>Telefon (mask.):</strong></td><td>{{phone_mask}}</td></tr>
+    <tr><td><strong>E-mail:</strong></td><td>{{email}}</td></tr>
+    <tr><td><strong>Datum žádosti:</strong></td><td>{{today}}</td></tr>
+  </table>
+</div>
+
+<p>Tímto žádám o ukončení svého členství v PVfree.net, z.s.</p>
+
+<p>Tuto žádost podávám elektronicky a stvrzuji ji zadáním ověřovacího SMS kódu, který mi byl zaslán na evidované telefonní číslo. Elektronická evidence potvrzení je přiložena jako součást tohoto PDF.</p>
+
+<p class="muted">Pozn.: následující strana obsahuje evidenci ověření (SMS OTP).</p>
+
+</body>
+</html>

@@ -17,22 +17,6 @@
 @section('content')
 <div class="member-page">
 
-{{-- Warning pro čekatele --}}
-@if(in_array($member->type, [1, 17, 18]))
-<div class="m-warning">
-    &#9888;
-    <strong>
-        @if($member->type == 17) Čekající člen
-        @elseif($member->type == 18) Čekající zákazník
-        @else Žadatel
-        @endif
-    </strong>
-    — přihláška/smlouva dosud nepodepsána.
-    Člen nemá přístup k internetu ani mu nejsou strháváni poplatky.
-    Po podpisu změňte typ přes <a href="{{ route('members.edit', $member->id) }}">Upravit</a>.
-</div>
-@endif
-
 {{-- Titulek --}}
 <div class="member-title-row">
     <h2>{{ $member->name }}</h2>

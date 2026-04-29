@@ -56,6 +56,14 @@ class SettingController extends Controller
         'gpon_enabled',
     ];
 
+    public const SMLOUVY_KEYS = [
+        'otp_pepper', 'otp_ttl_min', 'otp_max_attempts', 'otp_resend_window_sec',
+        'otp_test_mode', 'otp_test_code',
+        'pdf_sign_cert', 'pdf_sign_pass', 'pdf_sign_name', 'pdf_sign_location', 'pdf_sign_reason',
+        'contract_email_attachments_enabled',
+        'contract_email_pricelist_pdf', 'contract_email_vop_pdf',
+    ];
+
     // SMS drivers: id → config
     // has_hostname: true = admin can override hostname (Klikniavolej only)
     // has_test_mode: true = show test mode toggle (Klikniavolej only)
@@ -186,13 +194,35 @@ class SettingController extends Controller
         }
         $gponOlts = \App\Models\GponOlt::withCount('onts')->get();
 
+        // Smlouvy (contracts) settings — fall back to env-derived config defaults
+        $smlouvyDefaults = [
+            'otp_pepper'            => '',
+            'otp_ttl_min'           => (string) config('services.contracts.otp_ttl_min', 5),
+            'otp_max_attempts'      => (string) config('services.contracts.otp_max_attempts', 5),
+            'otp_resend_window_sec' => (string) config('services.contracts.otp_resend_window', 60),
+            'otp_test_mode'         => config('services.contracts.otp_test_mode') ? '1' : '0',
+            'otp_test_code'         => (string) config('services.contracts.otp_test_code', '111111'),
+            'pdf_sign_cert'         => (string) config('services.contracts.pdf_sign_cert', ''),
+            'pdf_sign_pass'         => '',
+            'pdf_sign_name'         => (string) config('services.contracts.pdf_sign_name', ''),
+            'pdf_sign_location'     => (string) config('services.contracts.pdf_sign_location', ''),
+            'pdf_sign_reason'       => (string) config('services.contracts.pdf_sign_reason', ''),
+            'contract_email_attachments_enabled' => '0',
+            'contract_email_pricelist_pdf'       => 'storage/app/private/contract-attachments/cenik.pdf',
+            'contract_email_vop_pdf'             => 'storage/app/private/contract-attachments/vop.pdf',
+        ];
+        $smlouvySettings = [];
+        foreach (self::SMLOUVY_KEYS as $key) {
+            $smlouvySettings[$key] = (string) Setting::get($key, $smlouvyDefaults[$key] ?? '');
+        }
+
         return view('settings.index', compact(
             'bankAccounts', 'memberTypes', 'routing', 'defaultBaId',
             'emailSettings', 'bccRules', 'messages', 'activeTab',
             'pohodaEmail', 'financeSettings', 'feesForSelect',
             'systemSettings', 'usersSettings', 'networkSettings',
             'smsSettings', 'smsDriverSettings', 'gponSettings', 'gponOlts',
-            'dhcpApiToken'
+            'dhcpApiToken', 'smlouvySettings'
         ));
     }
 
@@ -343,6 +373,45 @@ class SettingController extends Controller
 
         return redirect()->route('settings.index', ['tab' => 'gpon'])
             ->with('success', 'Nastavení GPON bylo uloženo.');
+    }
+
+    public function updateSmlouvy(Request $request)
+    {
+        abort_unless($this->can('edit_all'), 403);
+
+        $request->validate([
+            'otp_ttl_min'                  => 'nullable|integer|min:1|max:60',
+            'otp_max_attempts'             => 'nullable|integer|min:1|max:20',
+            'otp_resend_window_sec'        => 'nullable|integer|min:0|max:3600',
+            'otp_test_code'                => 'nullable|string|max:20',
+            'pdf_sign_cert'                => 'nullable|string|max:255',
+            'pdf_sign_name'                => 'nullable|string|max:100',
+            'pdf_sign_location'            => 'nullable|string|max:100',
+            'pdf_sign_reason'              => 'nullable|string|max:200',
+            'contract_email_pricelist_pdf' => 'nullable|string|max:255',
+            'contract_email_vop_pdf'       => 'nullable|string|max:255',
+        ]);
+
+        // Plain string fields — empty input clears the value
+        foreach (['otp_ttl_min', 'otp_max_attempts', 'otp_resend_window_sec', 'otp_test_code',
+                  'pdf_sign_cert', 'pdf_sign_name', 'pdf_sign_location', 'pdf_sign_reason',
+                  'contract_email_pricelist_pdf', 'contract_email_vop_pdf'] as $key) {
+            Setting::set($key, (string) $request->input($key, ''));
+        }
+
+        // Secrets — preserve existing value when the field is left blank
+        foreach (['otp_pepper', 'pdf_sign_pass'] as $key) {
+            $val = (string) $request->input($key, '');
+            if ($val !== '') {
+                Setting::set($key, $val);
+            }
+        }
+
+        Setting::set('otp_test_mode', $request->boolean('otp_test_mode') ? 1 : 0);
+        Setting::set('contract_email_attachments_enabled', $request->boolean('contract_email_attachments_enabled') ? 1 : 0);
+
+        return redirect()->route('settings.index', ['tab' => 'smlouvy'])
+            ->with('success', 'Nastavení smluv bylo uloženo.');
     }
 
     public function updateSms(Request $request)

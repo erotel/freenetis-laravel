@@ -1,0 +1,207 @@
+<!doctype html>
+<html lang="cs">
+<head>
+<meta charset="utf-8">
+<title>SMLOUVA O POSKYTOVÁNÍ SLUŽEB ELEKTRONICKÝCH KOMUNIKACÍ – {{contract_no}}</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+  table.lines {
+  border-collapse: collapse;
+  width: 100%;
+  margin-top: 8px;
+}
+
+table.lines td {
+  border: 1px solid #000;
+  padding: 6px 8px;
+  vertical-align: top;
+}
+
+table.lines td:first-child {
+  width: 40%;
+  background: #f9f9f9; /* volitelné, lehké zvýraznění popisů */
+  font-weight: 600;
+}
+
+  :root{ --fg:#000; --muted:#666; --line:#000; }
+  html,body{ margin:0; padding:0; background:#fff; color:var(--fg); font-family: 'DejaVu Sans', Arial, sans-serif; font-size:8pt; line-height:1.3; }
+  .page{ max-width:800px; margin:18px auto 40px; padding:0 12px; }
+  h1{ font-size:14pt; margin:0 0 8px; text-align:center; text-transform:uppercase; letter-spacing:.02em; }
+  .sub{ text-align:center; letter-spacing:.1em; }
+  .block{ margin:10px 0; }
+  .kvs{ display:grid; grid-template-columns: 220px 1fr; gap:6px 10px; }
+  .signs{ margin-top:18px; }
+  table{ border-collapse:collapse; width:100%; }
+  td{ vertical-align:top; }
+  .row{ display:flex; gap:16px; }
+  .w50{ width:50%; }
+  .line{ border-top:1px solid #000; height:1px; margin:24px 0; }
+  .muted{ color:#666; font-size:10pt; }
+</style>
+</head>
+<body>
+<div class="page">
+
+  <h1>SMLOUVA O POSKYTOVÁNÍ SLUŽEB ELEKTRONICKÝCH KOMUNIKACÍ</h1>
+
+  <div class="block">
+    <strong>PVfree.net, z.s.</strong>, se sídlem Daliborka 3009/3, 796 01 Prostějov, IČO: 26656787, DIČ: CZ26656787 zapsán ve spolkovém rejstříku vedeném u Krajského soudu v Brně, spisová značka L 10341, www.pvfree.net (dále jen <strong>„Poskytovatel“</strong>)
+  </div>
+
+  <div class="block">a</div>
+
+<div class="block">
+  <table class="lines">
+    <tr>
+      <td>Jméno a příjmení (obchodní název):</td>
+      <td><strong>{{full_name}}</strong></td>
+    </tr>
+    <tr>
+      <td>Datum narození (IČO, DIČ):</td>
+      <td>{{ico}} &nbsp;&nbsp; {{dic}}</td>
+    </tr>
+    <tr>
+      <td>Email:</td>
+      <td>{{mal}}</td>
+    </tr>
+    <tr>
+      <td>Telefon:</td>
+      <td>{{phone_mask}}</td>
+    </tr>
+    <tr>
+      <td>Adresa / Sídlo:</td>
+      <td>{{street}}, {{town}}, {{country}}</td>
+    </tr>
+    <tr>
+      <td>Variabilní symbol:</td>
+      <td><strong>{{variable_symbol}}</strong></td>
+    </tr>
+  </table>
+</div>
+  <div class="block">
+    (dále jen <strong>„Účastník“</strong>)
+  </div>
+
+  <div class="block">
+    (Poskytovatel a Účastník společně též <strong>„Smluvní strany“</strong>)
+  </div>
+
+  <h2>1. PŘEDMĚT SMLOUVY</h2>
+  <div class="block">
+    1.1. Předmětem této smlouvy (dále jen <strong>„Smlouva“</strong>) je poskytování přístupu k síti Internet ze strany Poskytovatele ve prospěch Účastníka (dále jen <strong>„Služba“</strong>).
+  </div>
+
+  <h2>2. SPECIFIKACE SLUŽBY</h2>
+<div class="block">
+  <table class="lines">
+    <tr>
+      <td>Adresa místa připojení:</td>
+      <td>{{service_full_address}}</td>
+    </tr>
+    <tr>
+      <td>Služba:</td>
+      <td>Připojení k síti Internet</td>
+    </tr>
+    <tr>
+      <td>Tarif:</td>
+      <td>{{speed_name}}</td>
+    </tr>
+    <tr>
+      <td>Cena:</td>
+      <td>{{price}} Kč / měsíc</td>
+    </tr>
+  </table>
+</div>
+
+  <h2>3. CENA SLUŽBY A PLATEBNÍ PODMÍNKY</h2>
+  <div class="block">
+    3.1.    Cena služby se řídí aktuálním ceníkem zveřejněným na https://www.pvfree.net/cz/m/cenik/ (dále jen <strong>„Web“</strong> a <strong>„Ceník“</strong>). Účastník prohlašuje, že se seznámil s aktuálním Ceníkem Poskytovatele a bere jej na vědomí a že bez výhrady cenové podmínky stanovené Ceníkem akceptuje.
+  </div>
+  <div class="block">
+    3.2.	Poskytovatel si vyhrazuje právo jednostranně změnit výši cen za poskytované Služby, jakož i způsob a interval plateb cen za Služby, a to v souladu se svým platným Ceníkem. O těchto změnách se Poskytovatel zavazuje Účastníka informovat elektronickou cestou na e-mailovou adresu nahlášenou Účastníkem. Pokud Účastník se změnou ceny nesouhlasí, má právo ve lhůtě 30 dní smlouvu vypovědět; výpovědní doba činí 1 měsíc. U spotřebitele platí informační povinnosti dle právních předpisů; v takovém případě může Účastník smlouvu ukončit bez sankce ve lhůtě 30 dní, nejpozději však ke dni účinnosti změn. Neuplatní-li Účastník nesouhlas ve lhůtě, považuje se nová cena za sjednanou.
+  </div>
+
+  <h2>4. DOBA TRVÁNÍ</h2>
+  <div class="block">
+    4.1.  Smlouva je platná podpisem oběma stranami. Účinnost této smlouvy nastává k prvnímu dni kalendářního měsíce následujícího po dni, kdy byla smlouva akceptována Poskytovatelem.
+  </div>
+
+  <div class="block">
+    4.2.  Smlouva je uzavřena na dobu <strong>neurčitou</strong>.
+  </div>
+
+
+  <h2>5. OSTATNÍ USTANOVENÍ</h2>
+  <div class="block">
+    5.1. Účastník potvrzuje, že jeho osobní údaje uvedené ve Smlouvě jsou pravdivé a přesné, a bere na
+vědomí jejich zpracování Poskytovatelem za účelem poskytování Služby po celou dobu trvání
+smluvního vztahu. Smluvní strany svými podpisy stvrzují, že veškeré údaje uvedené v této Smlouvě
+jsou pravdivé a že jsou si vědomy právních důsledků nepravdivých údajů.
+  </div>
+  <div class="block">
+    5.2. Poskytovatel v souladu s ustanovením § 1751 občanského zákoníku část obsahu této Smlouvy určuje
+odkazem na obchodní podmínky, které jsou nedílnou součástí této smlouvy a jsou taktéž k dispozici na
+webových stránkách Poskytovatele https://www.pvfree.net/cz/m/smlouva-vop-prilohy-ke-smlouve/
+(dále jen <strong>„VOP“</strong>). Součástí této Smlouvy je také Ceník. (Spolu s VOP dohromady také jen <strong>„Smluvní
+dokumentace“</strong>). Odchylná ujednání v této Smlouvě mají přednost před zněním Smluvní
+dokumentace. Účastník podpisem Smlouvy potvrzuje, že se seznámil s obsahem Smluvní
+dokumentace a že s ní souhlasí.
+  </div>
+  <div class="block">
+    5.3.Poskytovatel je oprávněn v souladu s VOP a dle platné legislativy jednostranně změnit VOP, případně
+jakoukoliv součást Smluvní dokumentace. Účastník má právo o této změně být včas informován. V
+ostatních případech lze tuto Smlouvu měnit a doplňovat pouze na základě písemných vzestupně
+číslovaných dodatků ke smlouvě, není-li v této Smlouvě sjednáno výslovně jinak.
+  </div>
+  <div class="block">
+    5.4. Právní vztahy výslovně neupravené touto Smlouvou včetně jejích příloh se řídí zákonem č.127/2005
+Sb. o elektronických komunikacích a zákonem č. 89/2012 Sb. (občanský zákoník).
+  </div>
+
+<div class="block">
+    5.5. Smluvní strany se zavazují, že se vždy pokusí řešit jakékoliv spory vyplývající z této Smlouvy nejprve
+dohodou a až v případě jejího nedosažení využijí další možnosti, jako jsou mimosoudní řešení sporů a
+řešení sporů ve správním řízení či v soudním řízení. Účastník, který je spotřebitelem, má právo na
+mimosoudní řešení sporu podle zákona 634/1992 Sb. o ochraně spotřebitele. V případě sporu o služby
+elektronických komunikací je místem mimosoudního řešení sporu Český telekomunikační úřad
+(ctu.gov.cz), v případě sporů netýkajících se služeb elektronických komunikací je místem
+mimosoudního řešení sporu Česká obchodní inspekce (coi.gov.cz).
+  </div>
+<div class="block">
+    5.6. Případná neplatnost některých ustanovení této Smlouvy nezakládá neplatnost této Smlouvy jako
+celku, přičemž tato neplatná ustanovení budou po jejich zjištění nahrazena novými, platnými
+ustanoveními
+  </div>
+<div class="block">
+    5.7. Smluvní strany prohlašují, že této Smlouvě porozuměly, a že ji uzavírají na základě své svobodné
+vůle, bez nátlaku či nápadně nevýhodných podmínek.
+  </div>
+  <div class="line"></div>
+
+  <table>
+    <tr>
+      <td class="w50"><strong>Dne:</strong> {{dat}}</td>
+    </tr>
+    <tr>
+      <td>Poskytovatel – PVfree.net, z.s.</td>
+      <td>Účastník – {{full_name}}</td>
+
+
+    </tr>
+    <tr>
+<td style="padding-top:40px; text-align:center;">
+  <img src="podpis.png" style="height:60px;"><br>
+  <span class="muted">podpis</span>
+</td>
+
+    <td style="padding-top:40px; text-align:center;">
+  ..........................................................<br>
+  <span class="muted">podpis</span>
+</td>
+</tr>
+
+  </table>
+
+</div>
+</body>
+</html>

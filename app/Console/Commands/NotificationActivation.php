@@ -77,11 +77,15 @@ class NotificationActivation extends Command
                     // Send email
                     if ($doEmail && !empty($member->email)) {
                         $subject = $subjectPrefix . ' ::' . $message->name;
+                        $body    = Message::substitute(
+                            $message->email_text ?? $message->text ?? '',
+                            Message::buildPlaceholders((int) $member->id)
+                        );
                         DB::table('email_queues')->insert([
                             'from'    => $fromEmail,
                             'to'      => $member->email,
                             'subject' => $subject,
-                            'body'    => $message->email_text ?? $message->text ?? '',
+                            'body'    => $body,
                             'state'   => 0,
                         ]);
                     }

@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Support\Facades\DB;
 
 class Message extends Model
 {
@@ -55,5 +56,39 @@ class Message extends Model
     {
         return $this->belongsToMany(IpAddress::class, 'messages_ip_addresses', 'message_id', 'ip_address_id')
             ->withPivot(['user_id', 'comment', 'datetime']);
+    }
+
+    /**
+     * Replace {key} placeholders in $body with $vars[key]. Missing keys are left as-is.
+     */
+    public static function substitute(string $body, array $vars): string
+    {
+        if (empty($vars)) return $body;
+        $search  = array_map(fn($k) => '{' . $k . '}', array_keys($vars));
+        $replace = array_map(fn($v) => (string) $v, array_values($vars));
+        return str_replace($search, $replace, $body);
+    }
+
+    /**
+     * Build the standard placeholder map for a member (name, id, dates, balance).
+     * $extra wins over auto-loaded values.
+     */
+    public static function buildPlaceholders(int $memberId, array $extra = []): array
+    {
+        $member = DB::table('members')->where('id', $memberId)->first();
+        if (!$member) return $extra;
+
+        $balance = (float) DB::table('accounts')
+            ->where('member_id', $memberId)
+            ->where('account_attribute_id', 221100)
+            ->value('balance');
+
+        return array_merge([
+            'member_name'   => $member->name ?? '',
+            'member_id'     => $member->id,
+            'leaving_date'  => $member->leaving_date ?? '',
+            'entrance_date' => $member->entrance_date ?? '',
+            'balance'       => number_format($balance, 2, ',', ' '),
+        ], $extra);
     }
 }

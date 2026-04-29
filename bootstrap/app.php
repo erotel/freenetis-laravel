@@ -15,6 +15,11 @@ return Application::configure(basePath: dirname(__DIR__))
             'acl'          => \App\Http\Middleware\AclMiddleware::class,
             'gpon_enabled' => \App\Http\Middleware\GponEnabled::class,
         ]);
+        // Public sign endpoints are token-gated and serve cross-origin clients,
+        // so they cannot rely on the session-bound CSRF token.
+        $middleware->validateCsrfTokens(except: [
+            'sign/*',
+        ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {
         //

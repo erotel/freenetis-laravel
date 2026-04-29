@@ -774,11 +774,15 @@ class MemberController extends Controller
                             ->value('c.value');
 
                         if ($email) {
+                            $body = \App\Models\Message::substitute(
+                                $message->email_text,
+                                \App\Models\Message::buildPlaceholders($id)
+                            );
                             DB::table('email_queues')->insert([
                                 'from'    => \App\Models\Setting::get('email_default_email', 'noreply@pvfree.net'),
                                 'to'      => $email,
                                 'subject' => \App\Models\Setting::get('email_subject_prefix', 'PVfree.net') . ' :: ' . $message->name,
-                                'body'    => $message->email_text,
+                                'body'    => $body,
                                 'state'   => 0,
                             ]);
                         }
@@ -848,11 +852,15 @@ class MemberController extends Controller
                     ->value('c.value');
 
                 if ($email) {
+                    $body = \App\Models\Message::substitute(
+                        $message->email_text,
+                        \App\Models\Message::buildPlaceholders($id)
+                    );
                     DB::table('email_queues')->insert([
                         'from'    => \App\Models\Setting::get('email_default_email', 'noreply@pvfree.net'),
                         'to'      => $email,
                         'subject' => \App\Models\Setting::get('email_subject_prefix', 'PVfree.net') . ' :: ' . $message->name,
-                        'body'    => $message->email_text,
+                        'body'    => $body,
                         'state'   => 0,
                     ]);
                 }

@@ -160,6 +160,20 @@ Route::get('streets/by-town-public/{townId}', function (int $townId) {
     );
 })->name('streets.by-town-public');
 
+// Public contract-sign flow (no auth — gated by HMAC access token)
+Route::prefix('sign')->name('sign.')->group(function () {
+    Route::get ('contract',         [\App\Http\Controllers\Contracts\PublicSignController::class, 'showContract'])->name('show');
+    Route::post('info',             [\App\Http\Controllers\Contracts\PublicSignController::class, 'info'])->name('info');
+    Route::get ('preview',          [\App\Http\Controllers\Contracts\PublicSignController::class, 'previewContract'])->name('preview');
+    Route::post('otp/send',         [\App\Http\Controllers\Contracts\PublicSignController::class, 'sendOtp'])->name('otp.send');
+    Route::post('otp/verify',       [\App\Http\Controllers\Contracts\PublicSignController::class, 'verifyOtp'])->name('otp.verify');
+    Route::post('finalize',         [\App\Http\Controllers\Contracts\PublicSignController::class, 'finalizeContract'])->name('finalize');
+    Route::get ('download',         [\App\Http\Controllers\Contracts\PublicSignController::class, 'downloadContract'])->name('download');
+    Route::post('addon/otp/send',   [\App\Http\Controllers\Contracts\PublicSignController::class, 'sendAddonOtp'])->name('addon.otp.send');
+    Route::post('addon/otp/verify', [\App\Http\Controllers\Contracts\PublicSignController::class, 'verifyAddonOtp'])->name('addon.otp.verify');
+    Route::post('terminate',        [\App\Http\Controllers\Contracts\PublicSignController::class, 'finalizeTermination'])->name('terminate');
+});
+
 // Protected area
 Route::middleware('auth')->group(function () {
     Route::get('/', function () {
@@ -380,6 +394,7 @@ Route::middleware('auth')->group(function () {
     Route::put('settings/network',  [SettingController::class, 'updateNetwork'])->name('settings.update-network');
     Route::post('settings/regenerate-dhcp-token', [SettingController::class, 'regenerateDhcpToken'])->name('settings.regenerate-dhcp-token');
     Route::put('settings/sms',      [SettingController::class, 'updateSms'])->name('settings.update-sms');
+    Route::put('settings/smlouvy',  [SettingController::class, 'updateSmlouvy'])->name('settings.update-smlouvy');
     Route::put('settings',          [SettingController::class, 'update'])->name('settings.update');
 
     Route::get('acl/create',       [AroGroupController::class, 'aclCreate'])->name('acl.create');
@@ -389,7 +404,7 @@ Route::middleware('auth')->group(function () {
     Route::delete('acl/{id}',      [AroGroupController::class, 'aclDestroy'])->name('acl.destroy');
 
     Route::get('aro-groups', [AroGroupController::class, 'index'])->name('aro-groups.index')
-        ->middleware('acl:view_all,Aro_groups_Controller,aro_groups');
+        ->middleware('acl:view_all,Aro_groups_Controller,aro_group');
     Route::get('aro-groups/create',                   [AroGroupController::class, 'create'])->name('aro-groups.create');
     Route::post('aro-groups',                         [AroGroupController::class, 'store'])->name('aro-groups.store');
     Route::get('aro-groups/{id}',                     [AroGroupController::class, 'show'])->name('aro-groups.show');

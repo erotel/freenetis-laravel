@@ -172,13 +172,6 @@ $redirectLabels = [
                     @if($canEdit)
                     <a class="m-link-sm" href="{{ route('members.edit', $member->id) }}">Upravit</a>
                     @endif
-                    @if($canDelete)
-                    <form method="POST" action="{{ route('members.destroy', $member->id) }}" style="display:inline"
-                          onsubmit="return confirm('Opravdu smazat člena {{ addslashes($member->name) }}?')">
-                        @csrf @method('DELETE')
-                        <button type="submit" style="background:none;border:none;cursor:pointer;padding:0;font-size:12px;color:#c0392b">Smazat</button>
-                    </form>
-                    @endif
                 </div>
             </td>
         </tr>
