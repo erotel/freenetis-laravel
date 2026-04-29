@@ -25,6 +25,7 @@
 @if(!$contract)
 <div class="m-card" style="margin-bottom:16px">
     <div style="color:#888;font-size:13px;padding:4px 0">Žádná smlouva pro tohoto člena.</div>
+    @if($canEdit)
     <div style="margin-top:12px">
         <form method="POST" action="{{ route('contracts.create', $member->id) }}">
             @csrf
@@ -34,13 +35,14 @@
             </button>
         </form>
     </div>
+    @endif
 </div>
 @else
 
 {{-- Akce --}}
 <div class="m-actions">
     <a class="m-btn" href="{{ route('members.show', $member->id) }}">← Zpět na člena</a>
-    @if(in_array($contract->status, ['draft','otp_sent','otp_verified']))
+    @if($canEdit && in_array($contract->status, ['draft','otp_sent','otp_verified']))
     <form method="POST" action="{{ route('contracts.send-link', $member->id) }}" style="display:inline">
         @csrf
         <button type="submit" class="m-btn">Odeslat odkaz pro podpis</button>
@@ -154,6 +156,7 @@
 <div class="m-card" style="margin-bottom:16px">
     @if($addonStatus === 'none')
         <div style="font-size:13px;color:#888;padding:4px 0">Žádný dodatek.</div>
+        @if($canEdit)
         <div style="margin-top:12px">
             <form method="POST" action="{{ route('contracts.addon.create', $member->id) }}">
                 @csrf
@@ -163,6 +166,7 @@
                 </button>
             </form>
         </div>
+        @endif
     @elseif($addonStatus === 'pending')
         <div class="m-field">
             <span class="m-field-label">Stav</span>
@@ -172,6 +176,7 @@
                 </span>
             </span>
         </div>
+        @if($canEdit)
         <div class="m-field">
             <span class="m-field-label">Akce</span>
             <span class="m-field-value" style="display:flex;gap:8px;flex-wrap:wrap">
@@ -186,6 +191,7 @@
                 </form>
             </span>
         </div>
+        @endif
         @if(session('addon_link'))
         <div style="margin-top:10px;padding:12px 14px;background:#fffbeb;border:1px solid #fcd34d;border-radius:6px;font-size:13px;">
             <strong>Odkaz pro podpis dodatku (platný 7 dní):</strong><br>

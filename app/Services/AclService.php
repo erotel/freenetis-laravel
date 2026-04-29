@@ -2,23 +2,25 @@
 
 namespace App\Services;
 
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 
 class AclService
 {
+    /** Cache TTL for compiled per-user permissions (seconds). */
+    private const CACHE_TTL = 300;
+
+    /** Cache key holding a counter that's bumped on global ACL changes. */
+    private const CACHE_GEN_KEY = 'acl_cache_generation';
+
     /** @var array<int, int[]> group_id => [group_id, ...all parents] */
     private array $groupHierarchy = [];
 
-    /** @var array<int, string[]> user_id => ['aco_value#axo_section#axo_value', ...] */
+    /** @var array<int, string[]> request-local cache: user_id => permissions */
     private array $userPermissions = [];
 
     /**
      * Check whether a user has access to a given object/action.
-     *
-     * @param int    $userId       FreenetIS user id
-     * @param string $acoValue     e.g. 'view_all' or 'view_own'
-     * @param string $axoSection   e.g. 'Users_Controller'
-     * @param string $axoValue     e.g. 'users'
      */
     public function hasAccess(int $userId, string $acoValue, string $axoSection, string $axoValue): bool
     {
@@ -51,7 +53,35 @@ class AclService
         return $this->hasAccess($userId, $acoType . '_all', $axoSection, $axoValue);
     }
 
+    /**
+     * Invalidate the cached permissions for a single user.
+     * Call this whenever the user's group membership changes.
+     */
+    public function flushUserCache(int $userId): void
+    {
+        Cache::forget($this->cacheKey($userId));
+        unset($this->userPermissions[$userId]);
+    }
+
+    /**
+     * Invalidate cached permissions for ALL users — use when ACL rules,
+     * group hierarchy, or group ↔ ACL mappings change. Bumps a generation
+     * counter so all existing keys become stale instantly without scanning.
+     */
+    public function flushAllCache(): void
+    {
+        Cache::increment(self::CACHE_GEN_KEY);
+        $this->userPermissions = [];
+        $this->groupHierarchy  = [];
+    }
+
     // -------------------------------------------------------------------------
+
+    private function cacheKey(int $userId): string
+    {
+        $gen = (int) Cache::rememberForever(self::CACHE_GEN_KEY, fn() => 1);
+        return "acl_user_{$userId}_v{$gen}";
+    }
 
     private function getGroupHierarchy(): array
     {
@@ -81,10 +111,23 @@ class AclService
 
     private function getPermissionsForUser(int $userId): array
     {
+        // 1) request-local cache (avoids re-hitting Cache 11× per page load from the menu)
         if (isset($this->userPermissions[$userId])) {
             return $this->userPermissions[$userId];
         }
 
+        // 2) cross-request cache (Laravel Cache, default file driver)
+        $perms = Cache::remember(
+            $this->cacheKey($userId),
+            self::CACHE_TTL,
+            fn() => $this->loadPermissions($userId)
+        );
+
+        return $this->userPermissions[$userId] = $perms;
+    }
+
+    private function loadPermissions(int $userId): array
+    {
         $hierarchy = $this->getGroupHierarchy();
 
         // Groups the user directly belongs to
@@ -94,7 +137,7 @@ class AclService
             ->all();
 
         if (empty($directGroups)) {
-            return $this->userPermissions[$userId] = [];
+            return [];
         }
 
         // Expand to include all ancestor groups
@@ -107,18 +150,16 @@ class AclService
         $allGroups = array_unique($allGroups);
 
         // Fetch ACL rules for all resolved groups
-        $rows = DB::table('aro_groups')
+        return DB::table('aro_groups')
             ->join('aro_groups_map', 'aro_groups_map.group_id', '=', 'aro_groups.id')
-            ->join('acl', 'acl.id', '=', 'aro_groups_map.acl_id')
-            ->join('aco_map', 'aco_map.acl_id', '=', 'acl.id')
-            ->join('aco', 'aco.value', '=', 'aco_map.value')
-            ->join('axo_map', 'axo_map.acl_id', '=', 'acl.id')
+            ->join('acl',     'acl.id',          '=', 'aro_groups_map.acl_id')
+            ->join('aco_map', 'aco_map.acl_id',  '=', 'acl.id')
+            ->join('aco',     'aco.value',       '=', 'aco_map.value')
+            ->join('axo_map', 'axo_map.acl_id',  '=', 'acl.id')
             ->whereIn('aro_groups.id', $allGroups)
             ->select(DB::raw("CONCAT(aco.value, '#', axo_map.section_value, '#', axo_map.value) AS perm_key"))
             ->distinct()
             ->pluck('perm_key')
             ->all();
-
-        return $this->userPermissions[$userId] = $rows;
     }
 }

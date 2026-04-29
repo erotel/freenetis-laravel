@@ -23,12 +23,15 @@ class ContractController extends Controller
 
     public function show(int $memberId): View
     {
-        abort_unless($this->can('view_all'), 403);
+        // Admin vidí vše; jinak musí jít o vlastní profil
+        $isOwn   = (auth()->user()?->member_id == $memberId);
+        $canEdit = $this->can('edit_all');
+        abort_unless($canEdit || $this->can('view_all') || $isOwn, 403);
 
         $member   = Member::findOrFail($memberId);
         $contract = $this->contracts->getByMemberId($memberId);
 
-        return view('contracts.show', compact('member', 'contract'));
+        return view('contracts.show', compact('member', 'contract', 'canEdit'));
     }
 
     public function create(int $memberId): RedirectResponse
@@ -166,9 +169,10 @@ class ContractController extends Controller
 
     public function downloadAddon(int $contractId): BinaryFileResponse|RedirectResponse
     {
-        abort_unless($this->can('view_all'), 403);
-
         $contract = Contract::findOrFail($contractId);
+
+        $isOwn = (auth()->user()?->member_id == $contract->member_id);
+        abort_unless($this->can('view_all') || $isOwn, 403);
 
         $path = $this->contracts->addonPdfPath($contract);
         if (!$path || !file_exists($path)) {
@@ -184,9 +188,11 @@ class ContractController extends Controller
 
     public function download(int $contractId): BinaryFileResponse|RedirectResponse
     {
-        abort_unless($this->can('view_all'), 403);
-
         $contract = Contract::findOrFail($contractId);
+
+        // Admin vidí vše; jinak musí jít o smlouvu vlastního profilu
+        $isOwn = (auth()->user()?->member_id == $contract->member_id);
+        abort_unless($this->can('view_all') || $isOwn, 403);
 
         $path = $this->contracts->pdfPath($contract);
         if (!$path || !file_exists($path)) {

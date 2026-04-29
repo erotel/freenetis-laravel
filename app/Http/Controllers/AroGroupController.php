@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\AroGroup;
+use App\Services\AclService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 
@@ -10,6 +11,8 @@ class AroGroupController extends Controller
 {
     private const ACL_SECTION = 'Aro_groups_Controller';
     private const ACL_VALUE   = 'aro_group';
+
+    public function __construct(private AclService $acl) {}
 
     private function can(string $action): bool
     {
@@ -119,6 +122,7 @@ class AroGroupController extends Controller
         ]);
 
         $group->update($validated);
+        $this->acl->flushAllCache();
 
         return redirect()->route('aro-groups.show', $id)
             ->with('success', 'Skupina byla upravena.');
@@ -140,6 +144,7 @@ class AroGroupController extends Controller
 
         DB::table('aro_groups_map')->where('group_id', $id)->delete();
         $group->delete();
+        $this->acl->flushAllCache();
 
         return redirect()->route('aro-groups.index')
             ->with('success', 'Skupina byla smazána.');
@@ -163,6 +168,7 @@ class AroGroupController extends Controller
                 'group_id' => $id,
                 'aro_id'   => $validated['user_id'],
             ]);
+            $this->acl->flushUserCache((int) $validated['user_id']);
         }
 
         return redirect()->route('aro-groups.show', $id)
@@ -177,6 +183,7 @@ class AroGroupController extends Controller
             ->where('group_id', $id)
             ->where('aro_id', $userId)
             ->delete();
+        $this->acl->flushUserCache($userId);
 
         return redirect()->route('aro-groups.show', $id)
             ->with('success', 'Uživatel byl odebrán ze skupiny.');
@@ -200,6 +207,7 @@ class AroGroupController extends Controller
                 'group_id' => $id,
                 'acl_id'   => $validated['acl_id'],
             ]);
+            $this->acl->flushAllCache();
         }
 
         return redirect()->route('aro-groups.show', $id)
@@ -214,6 +222,7 @@ class AroGroupController extends Controller
             ->where('group_id', $id)
             ->where('acl_id', $aclId)
             ->delete();
+        $this->acl->flushAllCache();
 
         return redirect()->route('aro-groups.show', $id)
             ->with('success', 'ACL pravidlo bylo odebráno skupině.');
@@ -272,6 +281,8 @@ class AroGroupController extends Controller
         foreach ($validated['group_ids'] ?? [] as $groupId) {
             DB::table('aro_groups_map')->insert(['acl_id' => $aclId, 'group_id' => $groupId]);
         }
+
+        $this->acl->flushAllCache();
 
         return redirect()->route('aro-groups.index')
             ->with('success', 'ACL pravidlo bylo vytvořeno.');
@@ -335,6 +346,8 @@ class AroGroupController extends Controller
             DB::table('aro_groups_map')->insert(['acl_id' => $id, 'group_id' => $groupId]);
         }
 
+        $this->acl->flushAllCache();
+
         return redirect()->route('aro-groups.index')
             ->with('success', 'ACL pravidlo bylo upraveno.');
     }
@@ -347,6 +360,7 @@ class AroGroupController extends Controller
         DB::table('axo_map')->where('acl_id', $id)->delete();
         DB::table('aro_groups_map')->where('acl_id', $id)->delete();
         DB::table('acl')->where('id', $id)->delete();
+        $this->acl->flushAllCache();
 
         return redirect()->route('aro-groups.index')
             ->with('success', 'ACL pravidlo bylo smazáno.');
