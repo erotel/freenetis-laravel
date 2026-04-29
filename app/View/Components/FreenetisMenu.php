@@ -66,8 +66,9 @@ class FreenetisMenu extends Component
                 ['url' => route('members.show', $user?->member_id ?? 1), 'path' => '', 'label' => 'Můj profil', 'acl' => null],
             ]],
             ['name' => 'members', 'label' => 'Uživatelé', 'items' => [
-                ['url' => route('members.index', ['types' => '1,3,15,17,90']), 'path' => 'members', 'label' => 'Seznam členů', 'acl' => ['view_all', 'Members_Controller', 'members'], 'count' => $countRegular],
-                ['url' => route('members.index', ['types' => '2,16,18']), 'path' => 'members', 'label' => 'Seznam zákazníků', 'acl' => ['view_all', 'Members_Controller', 'members'], 'count' => $countCustomers],
+                // Bývalí (typy 15, 16) jsou v záměrně vyloučeni — admin je najde přes filtr typů.
+                ['url' => route('members.index', ['types' => '1,3,17,90']), 'path' => 'members', 'label' => 'Seznam členů', 'acl' => ['view_all', 'Members_Controller', 'members'], 'count' => $countRegular],
+                ['url' => route('members.index', ['types' => '2,18']), 'path' => 'members', 'label' => 'Seznam zákazníků', 'acl' => ['view_all', 'Members_Controller', 'members'], 'count' => $countCustomers],
                 ['url' => route('members.index', ['types' => '17,18']), 'path' => 'members/applicants', 'label' => 'Čekatelé', 'acl' => ['view_all', 'Members_Controller', 'members'], 'count' => $countApplicants],
                 ['url' => route('users.index'), 'path' => 'users', 'label' => 'Uživatelé', 'acl' => ['view_all', 'Users_Controller', 'users']],
             ]],
