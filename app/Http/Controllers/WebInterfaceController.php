@@ -386,4 +386,37 @@ class WebInterfaceController extends Controller
 
         return $this->textResponse($lines);
     }
+
+    // ── 12. smtp_exceptions_json ─────────────────────────────────────────────
+
+    public function smtpExceptionsJson()
+    {
+        $this->guardTrusted();
+
+        $rows = DB::select("
+            SELECT id, intip, user, datum
+            FROM smtp_exceptions
+            ORDER BY INET_ATON(intip)
+        ");
+
+        return response()->json([
+            'generated_at'    => gmdate('c'),
+            'smtp_exceptions' => $rows,
+        ]);
+    }
+
+    // ── 13. smtp_exceptions_txt ──────────────────────────────────────────────
+
+    public function smtpExceptionsTxt(): Response
+    {
+        $this->guardTrusted();
+
+        $rows = DB::select("
+            SELECT intip
+            FROM smtp_exceptions
+            ORDER BY INET_ATON(intip)
+        ");
+
+        return $this->textResponse(array_column($rows, 'intip'));
+    }
 }

@@ -67,6 +67,8 @@ Route::prefix('web-interface')->name('web-interface.')->group(function () {
     Route::get('public-ip-nat-1to1-json',     [WebInterfaceController::class, 'publicIpNat1to1Json'])->name('public-ip-nat-1to1-json');
     Route::get('public-port-forwards-txt',    [WebInterfaceController::class, 'publicPortForwardsTxt'])->name('public-port-forwards-txt');
     Route::get('public-ip-nat-1to1-txt',      [WebInterfaceController::class, 'publicIpNat1to1Txt'])->name('public-ip-nat-1to1-txt');
+    Route::get('smtp-exceptions-json',        [WebInterfaceController::class, 'smtpExceptionsJson'])->name('smtp-exceptions-json');
+    Route::get('smtp-exceptions-txt',         [WebInterfaceController::class, 'smtpExceptionsTxt'])->name('smtp-exceptions-txt');
 });
 
 // Login / logout
@@ -169,6 +171,8 @@ Route::prefix('sign')->name('sign.')->group(function () {
     Route::post('otp/verify',       [\App\Http\Controllers\Contracts\PublicSignController::class, 'verifyOtp'])->name('otp.verify');
     Route::post('finalize',         [\App\Http\Controllers\Contracts\PublicSignController::class, 'finalizeContract'])->name('finalize');
     Route::get ('download',         [\App\Http\Controllers\Contracts\PublicSignController::class, 'downloadContract'])->name('download');
+    Route::get ('addon',            [\App\Http\Controllers\Contracts\PublicSignController::class, 'showAddon'])->name('addon.show');
+    Route::get ('addon/preview',    [\App\Http\Controllers\Contracts\PublicSignController::class, 'previewAddon'])->name('addon.preview');
     Route::post('addon/otp/send',   [\App\Http\Controllers\Contracts\PublicSignController::class, 'sendAddonOtp'])->name('addon.otp.send');
     Route::post('addon/otp/verify', [\App\Http\Controllers\Contracts\PublicSignController::class, 'verifyAddonOtp'])->name('addon.otp.verify');
     Route::post('terminate',        [\App\Http\Controllers\Contracts\PublicSignController::class, 'finalizeTermination'])->name('terminate');
@@ -489,6 +493,15 @@ Route::middleware('auth')->group(function () {
     Route::get('public-port-forwards/{id}/edit', [PublicPortForwardController::class, 'edit'])->name('public-port-forwards.edit');
     Route::put('public-port-forwards/{id}',      [PublicPortForwardController::class, 'update'])->name('public-port-forwards.update');
     Route::get('public-port-forwards/{id}/delete',[PublicPortForwardController::class, 'destroy'])->name('public-port-forwards.destroy');
+
+    // ── SMTP Exceptions ───────────────────────────────────────────────────────
+    Route::get('smtp-exceptions', [\App\Http\Controllers\SmtpExceptionController::class, 'index'])->name('smtp-exceptions.index')
+        ->middleware('acl:view_all,Network_Controller,smtp_exceptions');
+    Route::get('smtp-exceptions/create',     [\App\Http\Controllers\SmtpExceptionController::class, 'create'])->name('smtp-exceptions.create');
+    Route::post('smtp-exceptions',           [\App\Http\Controllers\SmtpExceptionController::class, 'store'])->name('smtp-exceptions.store');
+    Route::get('smtp-exceptions/{id}/edit',  [\App\Http\Controllers\SmtpExceptionController::class, 'edit'])->name('smtp-exceptions.edit');
+    Route::put('smtp-exceptions/{id}',       [\App\Http\Controllers\SmtpExceptionController::class, 'update'])->name('smtp-exceptions.update');
+    Route::get('smtp-exceptions/{id}/delete',[\App\Http\Controllers\SmtpExceptionController::class, 'destroy'])->name('smtp-exceptions.destroy');
 
     // ── Membership interrupts ─────────────────────────────────────────────────
     Route::get('members/{memberId}/membership-interrupts/create', [MembershipInterruptController::class, 'create'])->name('membership-interrupts.create');

@@ -72,6 +72,30 @@ class PublicSignController extends Controller
         ]);
     }
 
+    /**
+     * GET /sign/addon?t={token} — render the addon-sign SPA. Token validated by /sign/info.
+     */
+    public function showAddon(Request $request)
+    {
+        $token = (string) $request->query('t', '');
+        return view('contracts.addon-sign', ['token' => $token]);
+    }
+
+    /**
+     * GET /sign/addon/preview?t={token} — inline addon PDF preview.
+     */
+    public function previewAddon(Request $request): Response
+    {
+        $contract = $this->resolveContract($request);
+        if (!$contract) return response('', 401);
+        $pdf = $this->pdf->renderAddonPdf($contract, true, $request);
+        return response($pdf, 200, [
+            'Content-Type'        => 'application/pdf',
+            'Content-Disposition' => 'inline; filename="addon-preview.pdf"',
+            'Cache-Control'       => 'no-store',
+        ]);
+    }
+
     public function sendOtp(Request $request): JsonResponse
     {
         $contract = $this->resolveContract($request);
@@ -255,6 +279,57 @@ class PublicSignController extends Controller
     }
 
     /**
+     * Queue an email to the customer with the signed addon attached.
+     * Silently no-op if no email on file or addon PDF missing.
+     */
+    private function sendAddonPostSignEmail(Contract $contract): void
+    {
+        $party = ContractParty::where('contract_id', $contract->id)->orderByDesc('id')->first();
+        $email = trim((string) ($party?->email ?? ''));
+        if ($email === '') {
+            return;
+        }
+
+        $addonPdf = (string) $contract->addon_pdf_path;
+        if ($addonPdf === '' || !is_file($addonPdf)) {
+            return;
+        }
+
+        try {
+            $contractNo = htmlspecialchars((string) $contract->contract_no, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+            $emailQueue = EmailQueue::create([
+                'from'    => Setting::get('email_default_email', 'noreply@pvfree.net'),
+                'to'      => $email,
+                'subject' => 'Podepsaný dodatek ke smlouvě ' . $contract->contract_no . ' - PVfree.net',
+                'body'    => '<p>Dobrý den,</p>'
+                    . '<p>v příloze Vám zasíláme podepsaný dodatek ke smlouvě <strong>' . $contractNo . '</strong>.</p>'
+                    . '<p>Dokument si prosím uschovejte pro svoji evidenci.</p>'
+                    . '<p>S pozdravem,<br>PVfree.net, z.s.</p>',
+                'state'       => EmailQueue::STATE_NEW,
+                'access_time' => now(),
+            ]);
+
+            EmailQueueAttachment::create([
+                'email_queue_id' => $emailQueue->id,
+                'path'           => $addonPdf,
+                'name'           => 'dodatek-' . $contract->contract_no . '.pdf',
+                'mime'           => 'application/pdf',
+                'created_at'     => now(),
+            ]);
+
+            ContractEvent::create([
+                'contract_id' => $contract->id,
+                'event'       => 'addon_post_sign_email_sent',
+                'meta_json'   => json_encode([
+                    'to' => $email,
+                ], JSON_UNESCAPED_UNICODE),
+            ]);
+        } catch (\Throwable $e) {
+            \Log::warning('Addon post-sign email queue failed for contract #' . $contract->id . ': ' . $e->getMessage());
+        }
+    }
+
+    /**
      * GET /sign/download?t={dlToken} — one-time PDF download.
      */
     public function downloadContract(Request $request)
@@ -330,12 +405,19 @@ class PublicSignController extends Controller
                 'meta_json'   => json_encode(['sha256' => $sha256], JSON_UNESCAPED_UNICODE),
             ]);
             DB::connection('contracts')->commit();
+
+            // Sync in-memory — query builder update nehydratuje Eloquent atributy.
+            $contract->addon_signed    = 1;
+            $contract->addon_signed_at = now();
+            $contract->addon_pdf_path  = $fullpath;
         } catch (\Throwable $e) {
             if (DB::connection('contracts')->transactionLevel() > 0) {
                 DB::connection('contracts')->rollBack();
             }
             return response()->json(['error' => 'Server error', 'detail' => $e->getMessage()], 500);
         }
+
+        $this->sendAddonPostSignEmail($contract);
 
         $dlToken = $this->createDownloadToken($contract->id, 'addon', 86400, null, 1);
         return response()->json([

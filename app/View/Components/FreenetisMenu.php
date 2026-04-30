@@ -80,6 +80,7 @@ class FreenetisMenu extends Component
                 ['url' => route('vlans.index'), 'path' => 'vlans', 'label' => 'VLANy', 'acl' => ['view_all', 'Vlans_Controller', 'vlan']],
                 ['url' => route('public-ip-nat.index'), 'path' => 'public-ip-nat', 'label' => 'Veřejné IP (NAT)', 'acl' => ['view_all', 'Network_Controller', 'public_ip_nat']],
                 ['url' => route('public-port-forwards.index'), 'path' => 'public-port-forwards', 'label' => 'Veřejné porty', 'acl' => ['view_all', 'Network_Controller', 'public_ports']],
+                ['url' => route('smtp-exceptions.index'), 'path' => 'smtp-exceptions', 'label' => 'SMTP výjimky', 'acl' => ['view_all', 'Network_Controller', 'smtp_exceptions']],
                 ['url' => route('redirects.index'), 'path' => 'redirections', 'label' => 'Přesměrování', 'acl' => ['view_all', 'Redirect_Controller', 'redirect']],
                 ['url' => route('connection_requests.index'), 'path' => 'connection-requests', 'label' => 'Žádosti o připojení', 'acl' => ['view_all', 'Connection_Requests_Controller', 'request'], 'count' => $countConnectionRequests],
                 Setting::get('gpon_enabled', '0') ? ['url' => route('gpon.index'), 'path' => 'gpon', 'label' => 'GPON', 'acl' => ['view_all', 'Settings_Controller', 'finance_settings']] : null,

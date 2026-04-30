@@ -164,7 +164,7 @@ class ContractService
             ]),
         ]);
 
-        $url   = $this->smlouvyUrl . '/addon.html?t=' . $token;
+        $url   = route('sign.addon.show', ['t' => $token]);
         $email = $this->queueSignLinkEmail($contractId, $url, true);
 
         return ['url' => $url, 'email_sent' => $email !== null, 'email' => $email];
