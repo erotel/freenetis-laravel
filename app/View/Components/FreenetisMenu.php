@@ -102,7 +102,7 @@ class FreenetisMenu extends Component
                 ['url' => route('email_queues.unsent'),     'path' => 'email-queues',      'label' => 'E-mailová fronta', 'acl' => ['view_all', 'Email_queues_Controller', 'email_queue'],       'count' => $countEmailUnsent],
                 ['url' => route('settings.index'),          'path' => 'settings',          'label' => 'Nastavení',        'acl' => ['view_all', 'Settings_Controller', 'finance_settings']],
                 ['url' => route('sms_messages.index'),      'path' => 'sms-messages',      'label' => 'SMS zprávy',       'acl' => ['view_all', 'Sms_Controller', 'sms'],                        'count' => $countSmsUnsent],
-                ['url' => route('messages.index'),          'path' => 'messages',          'label' => 'Zprávy',           'acl' => ['view_all', 'Messages_Controller', 'messages']],
+                ['url' => route('messages.index'),          'path' => 'messages',          'label' => 'Zprávy',           'acl' => ['view_all', 'Messages_Controller', 'message']],
                 ['url' => route('device_templates.index'),  'path' => 'device-templates',  'label' => 'Šablony zařízení', 'acl' => ['view_all', 'Device_templates_Controller', 'device_template']],
                 ['url' => route('member_whitelists.index'), 'path' => 'member-whitelists', 'label' => 'Bílá listina',     'acl' => ['view_all', 'Members_whitelists_Controller', 'whitelist']],
                 ['url' => route('login_logs.index'),        'path' => 'login-logs',        'label' => 'Logy přihlášení',  'acl' => ['view_all', 'Login_logs_Controller', 'logs']],

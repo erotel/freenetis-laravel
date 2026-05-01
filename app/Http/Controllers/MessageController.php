@@ -9,7 +9,7 @@ use Illuminate\Support\Facades\DB;
 class MessageController extends Controller
 {
     private const ACL_SECTION = 'Messages_Controller';
-    private const ACL_VALUE   = 'messages';
+    private const ACL_VALUE   = 'message';
 
     private function can(string $action): bool
     {

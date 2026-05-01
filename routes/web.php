@@ -446,7 +446,7 @@ Route::middleware('auth')->group(function () {
     Route::get('login-logs/user/{userId}', [LoginLogController::class, 'showByUser'])->name('login_logs.by_user');
 
     Route::get('messages', [MessageController::class, 'index'])->name('messages.index')
-        ->middleware('acl:view_all,Messages_Controller,messages');
+        ->middleware('acl:view_all,Messages_Controller,message');
     Route::get('messages/create', [MessageController::class, 'create'])->name('messages.create');
     Route::post('messages', [MessageController::class, 'store'])->name('messages.store');
     Route::get('messages/{id}', [MessageController::class, 'show'])->name('messages.show');
