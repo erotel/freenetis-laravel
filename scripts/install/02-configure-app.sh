@@ -266,7 +266,7 @@ SMS_SENDER=$(env_quote "$SMS_SENDER")
 PDF_SIGN_CERT=$(env_quote "$APP_DIR/storage/app/private/cert/pvfree.pfx")
 PDF_SIGN_PASS=
 PDF_SIGN_NAME=$(env_quote "$SMS_SENDER")
-PDF_SIGN_REASON=Elektronický podpis
+PDF_SIGN_REASON=$(env_quote "Elektronický podpis")
 PDF_SIGN_LOCATION=
 EOF
 chmod 600 "$APP_DIR/.env"
