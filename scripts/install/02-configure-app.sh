@@ -426,6 +426,9 @@ Co ručně doplnit:
        upravit $APP_DIR/.env řádek SMS_API_KEY=<klíč>
        pak: sudo -u www-data php artisan config:cache
 
+  5. phpMyAdmin (volitelné — DB administrace přes web s HTTP Basic Auth):
+       sudo bash $(dirname "$(readlink -f "$0")")/03-install-phpmyadmin.sh
+
 Logy:
   $APP_DIR/storage/logs/laravel.log
   /var/log/apache2/freenetis-{access,error}.log
