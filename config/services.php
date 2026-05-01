@@ -35,6 +35,12 @@ return [
         ],
     ],
 
+    'sms' => [
+        'api_key' => env('SMS_API_KEY', ''),
+        'sender'  => env('SMS_SENDER', ''),
+        'api_url' => env('SMS_API_URL', 'https://app.smsmanager.cz/api'),
+    ],
+
     'contracts' => [
         'token_secret'      => env('CONTRACTS_TOKEN_SECRET', ''),
         'smlouvy_url'       => env('CONTRACTS_SMLOUVY_URL', ''),

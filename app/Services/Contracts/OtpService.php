@@ -280,8 +280,9 @@ class OtpService
             return false;
         }
 
-        $apiKey = (string) (Setting::get('sms_password5') ?: env('SMS_API_KEY', ''));
-        $sender = (string) (Setting::get('sms_sender_number') ?: env('SMS_SENDER', ''));
+        // env() po config:cache vrací default — používáme config().
+        $apiKey = (string) (Setting::get('sms_password5')      ?: config('services.sms.api_key', ''));
+        $sender = (string) (Setting::get('sms_sender_number')  ?: config('services.sms.sender', ''));
         if ($apiKey === '' || $sender === '') {
             Log::warning('SMS skip: missing API key or sender (sms_password5 / sms_sender_number)');
             return false;
