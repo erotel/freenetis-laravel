@@ -69,6 +69,10 @@ class SetupController extends Controller
         @set_time_limit(0);
         @ini_set('memory_limit', '512M');
 
+        // Import a admin creation jsou kritické — když selžou, vraceji uživatele
+        // s chybou. Migrations / seeders u user-uploaded dumpu mohou padat na
+        // nekompatibilním schema (legacy Kohana, různé verze) — logujeme
+        // varování, ale pokračujeme dál do complete(), aby token nezůstal.
         try {
             if ($useDump) {
                 $file = $request->file('sql_dump');
@@ -78,12 +82,28 @@ class SetupController extends Controller
             } else {
                 $this->setup->importBootstrap();
             }
+        } catch (\Throwable $e) {
+            \Log::error('Setup wizard import failed: ' . $e->getMessage(), ['exception' => $e]);
+            return back()->withInput()->withErrors([
+                'install' => 'Import dat selhal: ' . $e->getMessage(),
+            ]);
+        }
 
-            $this->setup->runMigrations();
-            $this->setup->runSeeders();
-            $this->setup->ensureEmailQueuesIndex();
+        // Tolerantní fáze — log warning, pokračuj.
+        foreach ([
+            'migrate'  => fn() => $this->setup->runMigrations(),
+            'seeders'  => fn() => $this->setup->runSeeders(),
+            'idx'      => fn() => $this->setup->ensureEmailQueuesIndex(),
+        ] as $stage => $fn) {
+            try {
+                $fn();
+            } catch (\Throwable $e) {
+                \Log::warning("Setup wizard $stage warning: " . $e->getMessage());
+            }
+        }
 
-            if (!$useDump) {
+        if (!$useDump) {
+            try {
                 $this->setup->createAdmin(
                     (string) $request->input('org_name'),
                     (string) $request->input('admin_login'),
@@ -92,16 +112,17 @@ class SetupController extends Controller
                     (string) $request->input('admin_surname'),
                     (string) $request->input('admin_email'),
                 );
+            } catch (\Throwable $e) {
+                \Log::error('Setup wizard createAdmin failed: ' . $e->getMessage(), ['exception' => $e]);
+                return back()->withInput()->withErrors([
+                    'install' => 'Vytvoření admina selhalo: ' . $e->getMessage(),
+                ]);
             }
-
-            $this->setup->cacheArtifacts();
-            $this->setup->complete();
-        } catch (\Throwable $e) {
-            \Log::error('Setup wizard failed: ' . $e->getMessage(), ['exception' => $e]);
-            return back()->withInput()->withErrors([
-                'install' => 'Instalace selhala: ' . $e->getMessage(),
-            ]);
         }
+
+        // Závěrečné kroky — log warning, pokračuj. Důležité: complete() vždy.
+        try { $this->setup->cacheArtifacts(); } catch (\Throwable $e) { \Log::warning('cacheArtifacts: ' . $e->getMessage()); }
+        $this->setup->complete();
 
         return redirect('/login')->with('success', 'Instalace dokončena. Přihlas se.');
     }

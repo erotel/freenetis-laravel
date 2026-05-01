@@ -60,6 +60,8 @@ class SetupService
     /**
      * Importuje uploadnutý SQL dump (volitelně .gz) do main DB.
      * Streamuje data přes pipe — bez ohledu na velikost souboru.
+     * Plus: pokud contractsdb je ještě prázdná, naimportuje contracts bootstrap
+     *       (ten zpravidla v legacy Kohana dumpu chybí — Laravel ho potřebuje).
      */
     public function importDump(string $absPath, bool $isGzipped): void
     {
@@ -78,6 +80,18 @@ class SetupService
                 escapeshellarg($absPath));
 
         $this->runShell($cmd, 1800);
+
+        // Po importu hlavní DB doplníme contracts schema, pokud ještě není.
+        // Legacy Kohana FreenetIS contracts neměl, takže typický migrační dump
+        // ho nikdy neobsahuje — bez něj padá ContractService po loginu.
+        $contractsBootstrap = base_path('scripts/install/sql/contractsdb-bootstrap.sql.gz');
+        if (is_file($contractsBootstrap) && $this->isDbEmpty('contracts')) {
+            $cmd2 = sprintf('gunzip -c %s | mariadb --defaults-file=%s %s',
+                escapeshellarg($contractsBootstrap),
+                escapeshellarg($this->contractsMariadbDefaultsFile()),
+                escapeshellarg(config('database.connections.contracts.database')));
+            $this->runShell($cmd2, 60);
+        }
     }
 
     /**
