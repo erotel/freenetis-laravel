@@ -15,6 +15,12 @@ return Application::configure(basePath: dirname(__DIR__))
             'acl'          => \App\Http\Middleware\AclMiddleware::class,
             'gpon_enabled' => \App\Http\Middleware\GponEnabled::class,
         ]);
+        // Setup wizard guard — pokud existuje storage/app/setup.token a žádný admin
+        // v DB, přesměruj všechny non-setup requesty na /setup. Po dokončení wizardu
+        // se token soubor smaže a middleware je trvale no-op.
+        $middleware->web(append: [
+            \App\Http\Middleware\EnsureSetupComplete::class,
+        ]);
         // Public sign endpoints are token-gated and serve cross-origin clients,
         // so they cannot rely on the session-bound CSRF token.
         $middleware->validateCsrfTokens(except: [

@@ -162,6 +162,10 @@ Route::get('streets/by-town-public/{townId}', function (int $townId) {
     );
 })->name('streets.by-town-public');
 
+// First-run web wizard (active jen mezi 02-configure-app.sh a dokončením setupu)
+Route::get('/setup',  [\App\Http\Controllers\SetupController::class, 'show'])->name('setup.show');
+Route::post('/setup', [\App\Http\Controllers\SetupController::class, 'install'])->name('setup.install');
+
 // Public captive-portal endpoint (fn-redirector na IGW přesměruje suspendované členy sem)
 Route::get('/redirection', [\App\Http\Controllers\RedirectionController::class, 'show'])
     ->name('redirection');

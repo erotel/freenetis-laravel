@@ -114,37 +114,25 @@ require_domain "$DOMAIN"
 
 CERTBOT_EMAIL="$(ask "E-mail pro Let's Encrypt (notifikace expirace)" "admin@$DOMAIN")"
 
-DB_NAME="$(ask "DB jméno" "freenetis")"
-DB_USER="$(ask "DB uživatel" "freenetis")"
-require_ident "DB jméno" "$DB_NAME"
-require_ident "DB uživatel" "$DB_USER"
-DB_PASS="$(ask_secret "DB heslo (Enter = vygeneruj náhodné)")"
-[[ -z "$DB_PASS" ]] && DB_PASS="$(openssl rand -base64 24 | tr -d '/+=' | head -c 32)"
-require_no_apostrophe "DB heslo" "$DB_PASS"
+# DB credentials — minimální dotazování, ostatní se nastaví ve web wizardu.
+# Defaultně všechno s vygenerovaným náhodným heslem.
+DB_NAME="freenetis"
+DB_USER="freenetis"
+DB_PASS="$(openssl rand -base64 24 | tr -d '/+=' | head -c 32)"
+CONTRACTS_DB_NAME="contractsdb"
+CONTRACTS_DB_USER="contracts"
+CONTRACTS_DB_PASS="$(openssl rand -base64 24 | tr -d '/+=' | head -c 32)"
 
-CONTRACTS_DB_NAME="$(ask "Contracts DB jméno (separátní DB pro smlouvy)" "contractsdb")"
-CONTRACTS_DB_USER="$(ask "Contracts DB uživatel" "contracts")"
-require_ident "Contracts DB jméno" "$CONTRACTS_DB_NAME"
-require_ident "Contracts DB uživatel" "$CONTRACTS_DB_USER"
-CONTRACTS_DB_PASS="$(ask_secret "Contracts DB heslo (Enter = vygeneruj)")"
-[[ -z "$CONTRACTS_DB_PASS" ]] && CONTRACTS_DB_PASS="$(openssl rand -base64 24 | tr -d '/+=' | head -c 32)"
-require_no_apostrophe "Contracts DB heslo" "$CONTRACTS_DB_PASS"
-
-DUMP_PATH="$(ask "Cesta k freenetis SQL dumpu (prázdné = jen migrace)" "")"
-CONTRACTS_DUMP_PATH="$(ask "Cesta k contractsdb SQL dumpu (prázdné = jen migrace)" "")"
-
-echo
-echo "── E-mail (SMTP pro odchozí poštu) ────────"
-MAIL_HOST="$(ask "SMTP host" "smtp.gmail.com")"
-MAIL_PORT="$(ask "SMTP port" "587")"
-MAIL_USER="$(ask "SMTP user" "")"
-MAIL_PASS="$(ask_secret "SMTP heslo")"
-MAIL_FROM="$(ask "Odesílatel (from)" "noreply@$DOMAIN")"
-
-echo
-echo "── SMS (SmsManager) ───────────────────────"
-SMS_API_KEY="$(ask_secret "SMS_API_KEY (nech prázdné, vyplníš později)")"
-SMS_SENDER="$(ask "SMS_SENDER (case-sensitive!)" "PVfree")"
+# Vstupy mail/SMS/dump/admin se přesunuly do web wizardu (/setup).
+DUMP_PATH=""
+CONTRACTS_DUMP_PATH=""
+MAIL_HOST=""
+MAIL_PORT="587"
+MAIL_USER=""
+MAIL_PASS=""
+MAIL_FROM="noreply@$DOMAIN"
+SMS_API_KEY=""
+SMS_SENDER="PVfree"
 
 # ── 3. Souhrn ────────────────────────────────────────────────────────────────
 echo
@@ -292,43 +280,7 @@ GRANT ALL PRIVILEGES ON \`$CONTRACTS_DB_NAME\`.* TO '$CONTRACTS_DB_USER'@'localh
 FLUSH PRIVILEGES;
 SQL
 
-# ── 9. Import dumpů (vlastní nebo bootstrap z repa) ──────────────────────────
-# Přednost má vlastní dump (uživatelská cesta z 02-configure prompt).
-# Pokud uživatel nezadal nic, použijeme `scripts/install/sql/*.sql.gz` z repa
-# (čisté schema + ACL/enum_types/messages — žádná uživatelská data).
-BOOTSTRAP_MAIN="$APP_DIR/scripts/install/sql/freenetis-bootstrap.sql.gz"
-BOOTSTRAP_CONTRACTS="$APP_DIR/scripts/install/sql/contractsdb-bootstrap.sql.gz"
-
-if [[ -n "$DUMP_PATH" ]]; then
-    [[ -f "$DUMP_PATH" ]] || die "Dump neexistuje: $DUMP_PATH"
-    log "Importuji main dump (vlastní)..."
-    if [[ "$DUMP_PATH" == *.gz ]]; then
-        gunzip -c "$DUMP_PATH" | mariadb "$DB_NAME"
-    else
-        mariadb "$DB_NAME" < "$DUMP_PATH"
-    fi
-elif [[ -f "$BOOTSTRAP_MAIN" ]]; then
-    log "Importuji main bootstrap z repa (čisté schema + ACL/enum_types/messages)..."
-    gunzip -c "$BOOTSTRAP_MAIN" | mariadb "$DB_NAME"
-    USE_BOOTSTRAP=1
-else
-    warn "Žádný main dump ani bootstrap.sql.gz — DB zůstane prázdná, jen Laravel migrace přidají své tabulky. Pokud jdeš na čistou instalaci, dej do scripts/install/sql/ bootstrap.sql.gz nebo spusť skript znovu s cestou k dumpu."
-fi
-
-if [[ -n "$CONTRACTS_DUMP_PATH" ]]; then
-    [[ -f "$CONTRACTS_DUMP_PATH" ]] || die "Contracts dump neexistuje: $CONTRACTS_DUMP_PATH"
-    log "Importuji contracts dump (vlastní)..."
-    if [[ "$CONTRACTS_DUMP_PATH" == *.gz ]]; then
-        gunzip -c "$CONTRACTS_DUMP_PATH" | mariadb "$CONTRACTS_DB_NAME"
-    else
-        mariadb "$CONTRACTS_DB_NAME" < "$CONTRACTS_DUMP_PATH"
-    fi
-elif [[ -f "$BOOTSTRAP_CONTRACTS" ]]; then
-    log "Importuji contracts bootstrap z repa..."
-    gunzip -c "$BOOTSTRAP_CONTRACTS" | mariadb "$CONTRACTS_DB_NAME"
-fi
-
-# ── 10. Storage adresáře ─────────────────────────────────────────────────────
+# ── 9. Storage adresáře ──────────────────────────────────────────────────────
 log "Vytváří storage adresáře..."
 mkdir -p \
     "$APP_DIR/storage/app/private/contracts/"{signed,tmp,cert} \
@@ -337,34 +289,17 @@ mkdir -p \
 chown -R www-data:www-data "$APP_DIR/storage" "$APP_DIR/bootstrap/cache"
 find "$APP_DIR/storage" -type d -exec chmod 775 {} \;
 
-# ── 11. Migrace + seedery ────────────────────────────────────────────────────
-cd "$APP_DIR"
-log "Spouštím migrace..."
-runuser -u www-data -- "php${PHPV}" artisan migrate --force --no-interaction || warn "migrace skončila s chybou — ověř DB schéma"
+# ── 10. Setup token ──────────────────────────────────────────────────────────
+# Web wizard (/setup) bude gated tímto tokenem — admin si ho přečte z URL,
+# kterou skript vypíše na konci. Po dokončení wizardu se token soubor smaže.
+log "Generuju setup token pro web wizard..."
+SETUP_TOKEN="$(openssl rand -hex 16)"
+SETUP_TOKEN_FILE="$APP_DIR/storage/app/setup.token"
+echo "$SETUP_TOKEN" > "$SETUP_TOKEN_FILE"
+chown www-data:www-data "$SETUP_TOKEN_FILE"
+chmod 600 "$SETUP_TOKEN_FILE"
 
-log "Spouštím ACL seedery..."
-runuser -u www-data -- "php${PHPV}" artisan db:seed --class=AclGponContractsSeeder --force --no-interaction || true
-runuser -u www-data -- "php${PHPV}" artisan db:seed --class=AclSmtpExceptionsSeeder --force --no-interaction || true
-
-# ── 11b. Bootstrap admin účet (jen u čisté instalace bez vlastního dumpu) ────
-if [[ -n "${USE_BOOTSTRAP:-}" ]]; then
-    log "Bootstrap admin účet (interaktivně)..."
-    echo
-    echo "── FreenetIS bootstrap admin (čistá instalace) ──"
-    echo "Zadej údaje pro prvního admina + organizaci."
-    echo
-    runuser -u www-data -- "php${PHPV}" artisan freenetis:install || warn "freenetis:install selhal — můžeš spustit ručně později: cd $APP_DIR && runuser -u www-data -- php artisan freenetis:install"
-fi
-
-# Index pro email_queues (přidaný ručně mimo migrace, dokud není správná migrace)
-mariadb "$DB_NAME" -e "
-    SET @x := (SELECT COUNT(*) FROM information_schema.statistics
-               WHERE table_schema = DATABASE() AND table_name = 'email_queues' AND index_name = 'idx_state');
-    SET @sql := IF(@x = 0, 'ALTER TABLE email_queues ADD INDEX idx_state (state)', 'SELECT 1');
-    PREPARE stmt FROM @sql; EXECUTE stmt; DEALLOCATE PREPARE stmt;
-" 2>/dev/null || true
-
-# ── 12. Apache vhost ─────────────────────────────────────────────────────────
+# ── 11. Apache vhost ─────────────────────────────────────────────────────────
 log "Aktivuji Apache vhost pro $DOMAIN..."
 VHOST="/etc/apache2/sites-available/freenetis.conf"
 # DOMAIN už prošla require_domain — nemůže obsahovat / — sed je bezpečné.
@@ -375,18 +310,16 @@ a2ensite -q freenetis
 apache2ctl configtest >/dev/null 2>&1 || die "Apache configtest selhal — zkontroluj $VHOST"
 systemctl reload apache2
 
-# ── 13. Cron pro schedule:run ────────────────────────────────────────────────
+# ── 12. Cron pro schedule:run ────────────────────────────────────────────────
 log "Nastavuji cron pro schedule:run..."
 CRON_LINE="* * * * * cd $APP_DIR && /usr/bin/php${PHPV} artisan schedule:run >/dev/null 2>&1"
 ( crontab -u www-data -l 2>/dev/null | grep -v 'schedule:run' ; echo "$CRON_LINE" ) | crontab -u www-data -
 
-# ── 14. Cache config ─────────────────────────────────────────────────────────
-log "Cachuji config + routes..."
+# ── 13. Config cache (po web wizardu si to wizard znovu zopakuje včetně route/view) ────
+log "Cachuji config..."
 runuser -u www-data -- "php${PHPV}" artisan config:cache --no-interaction >/dev/null || true
-runuser -u www-data -- "php${PHPV}" artisan route:cache  --no-interaction >/dev/null || true
-runuser -u www-data -- "php${PHPV}" artisan view:cache   --no-interaction >/dev/null || true
 
-# ── 15. Let's Encrypt přes certbot ───────────────────────────────────────────
+# ── 14. Let's Encrypt přes certbot ───────────────────────────────────────────
 echo
 log "Spouštím certbot pro $DOMAIN..."
 warn "Pro úspěch musí port 80 být dostupný z internetu a A-záznam DNS musí směřovat na tento server."
@@ -436,37 +369,43 @@ runuser -u www-data -- "php${PHPV}" "$APP_DIR/artisan" db:show --database=mysql 
 # ── 17. Hotovo ───────────────────────────────────────────────────────────────
 echo
 ok "═══════════════════════════════════════════"
-ok "  Instalace dokončena"
+ok "  Systémová instalace dokončena"
 ok "═══════════════════════════════════════════"
 cat <<EOF
 
-URL:           https://$DOMAIN/freenetis
-.env:          $APP_DIR/.env  (mode 600, vlastník www-data)
+DALŠÍ KROK — otevři v prohlížeči setup wizard:
 
-Co ručně doplnit:
-  1. PFX certifikát pro digitální podpis smluv:
-       cp pvfree.pfx $APP_DIR/storage/app/private/cert/
-       chown www-data:www-data $APP_DIR/storage/app/private/cert/pvfree.pfx
-       chmod 600 $APP_DIR/storage/app/private/cert/pvfree.pfx
-     Pak doplnit v .env:  PDF_SIGN_PASS=<heslo k PFX>
+   ┌─────────────────────────────────────────────────────────────────────┐
+   │                                                                     │
+   │  https://$DOMAIN/freenetis/setup?t=$SETUP_TOKEN
+   │                                                                     │
+   └─────────────────────────────────────────────────────────────────────┘
 
-  2. Přílohy pro post-sign emaily (volitelné):
-       cp cenik.pdf vop.pdf $APP_DIR/storage/app/private/contracts/
+Wizard tě provede:
+  - Volba: čistá instalace (vytvoří organizaci + admin účet)
+           NEBO migrace ze starého serveru (upload SQL dumpu, max 2 GB)
+  - Import schématu, migrace, ACL seedery
+  - Vytvoření admin účtu (jen u čisté instalace)
 
-  3. FIO API tokeny per účet:
-       admin → Bankovní účty → vyber účet → vyplnit token
+Po dokončení wizardu se setup token automaticky smaže a stránka /setup
+přestane být dostupná.
 
-  4. SMS_API_KEY pokud zatím prázdný:
-       upravit $APP_DIR/.env řádek SMS_API_KEY=<klíč>
-       pak: sudo -u www-data php artisan config:cache
-
-  5. phpMyAdmin (volitelné — DB administrace přes web s HTTP Basic Auth):
-       sudo bash $(dirname "$(readlink -f "$0")")/03-install-phpmyadmin.sh
+──────────────────────────────────────────────
+Co později ručně doplnit (přes admin UI nebo .env):
+  - PFX cert pro podpis smluv:
+      cp pvfree.pfx $APP_DIR/storage/app/private/cert/
+      chown www-data:www-data $APP_DIR/storage/app/private/cert/pvfree.pfx && chmod 600 $APP_DIR/storage/app/private/cert/pvfree.pfx
+      doplň v .env: PDF_SIGN_PASS=<heslo>
+  - Příchozí maily přes admin → Nastavení (SMTP host/user/pass)
+  - SMS přes admin → Nastavení (SMS_API_KEY)
+  - FIO API tokeny per účet — admin → Bankovní účty → token
+  - phpMyAdmin (volitelné):
+      bash $(dirname "$(readlink -f "$0")")/03-install-phpmyadmin.sh
 
 Logy:
   $APP_DIR/storage/logs/laravel.log
   /var/log/apache2/freenetis-{access,error}.log
 
-Smoke test:
-  curl -sS https://$DOMAIN/freenetis/login -o /dev/null -w "HTTP %{http_code}\\n"
+Setup token (kdyby URL výše ztratila):
+  cat $SETUP_TOKEN_FILE
 EOF

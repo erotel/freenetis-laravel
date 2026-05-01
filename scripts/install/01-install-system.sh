@@ -73,6 +73,19 @@ opcache.jit=off
 opcache.fast_shutdown=1
 EOF
 
+# ── 4b. PHP upload limity (pro setup wizard, dump 1+ GB) ─────────────────────
+UPLOAD_INI="/etc/php/${PHPV}/fpm/conf.d/99-freenetis.ini"
+log "Nastavuji upload limity (až 2 GB pro SQL dumpy v setup wizardu): $UPLOAD_INI"
+cat > "$UPLOAD_INI" <<'EOF'
+; FreenetIS — large SQL dump uploads via web setup wizard.
+; PHP streamuje upload na disk, takže memory_limit nemusí být na 2 GB.
+upload_max_filesize = 2G
+post_max_size       = 2G
+memory_limit        = 512M
+max_execution_time  = 0
+max_input_time      = -1
+EOF
+
 # ── 5. MariaDB — zajisti že běží + bind na localhost ────────────────────────
 systemctl enable -q --now mariadb
 systemctl enable -q --now apache2
