@@ -325,13 +325,21 @@ runuser -u www-data -- "php${PHPV}" artisan config:cache --no-interaction >/dev/
 
 # ── 14. Let's Encrypt přes certbot ───────────────────────────────────────────
 echo
-log "Spouštím certbot pro $DOMAIN..."
-warn "Pro úspěch musí port 80 být dostupný z internetu a A-záznam DNS musí směřovat na tento server."
-read -r -p "Spustit certbot teď? [Y/n] " cb
-if [[ ! "$cb" =~ ^[nN]$ ]]; then
-    certbot --apache --non-interactive --agree-tos --redirect \
-        -m "$CERTBOT_EMAIL" -d "$DOMAIN" \
-        || warn "certbot selhal — spusť ručně:  certbot --apache -d $DOMAIN"
+if [[ -d "/etc/letsencrypt/live/$DOMAIN" ]] \
+        && [[ -f "/etc/letsencrypt/live/$DOMAIN/fullchain.pem" ]]; then
+    log "Cert pro $DOMAIN už existuje (/etc/letsencrypt/live/$DOMAIN), spouštím jen 'certbot install' pro Apache..."
+    certbot install --cert-name "$DOMAIN" --apache --non-interactive \
+        || warn "certbot install selhal — Apache vhost nakonfiguruj ručně"
+else
+    log "Spouštím certbot pro $DOMAIN..."
+    warn "Pro úspěch musí port 80 být dostupný z internetu a A-záznam DNS musí směřovat na tento server."
+    warn "Let's Encrypt má rate limit 5 cert/168h na stejnou doménu — pokud ho vyčerpáš, použij --staging nebo subdoménu."
+    read -r -p "Spustit certbot teď? [Y/n] " cb
+    if [[ ! "$cb" =~ ^[nN]$ ]]; then
+        certbot --apache --non-interactive --agree-tos --redirect \
+            -m "$CERTBOT_EMAIL" -d "$DOMAIN" \
+            || warn "certbot selhal — možná rate limit. Zkus později nebo:  certbot --apache --staging -d $DOMAIN"
+    fi
 fi
 
 # ── 16. Smoke test ───────────────────────────────────────────────────────────
