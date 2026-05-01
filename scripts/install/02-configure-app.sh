@@ -292,16 +292,40 @@ GRANT ALL PRIVILEGES ON \`$CONTRACTS_DB_NAME\`.* TO '$CONTRACTS_DB_USER'@'localh
 FLUSH PRIVILEGES;
 SQL
 
-# ── 9. Import dumpů (volitelné) ──────────────────────────────────────────────
+# ── 9. Import dumpů (vlastní nebo bootstrap z repa) ──────────────────────────
+# Přednost má vlastní dump (uživatelská cesta z 02-configure prompt).
+# Pokud uživatel nezadal nic, použijeme `scripts/install/sql/*.sql.gz` z repa
+# (čisté schema + ACL/enum_types/messages — žádná uživatelská data).
+BOOTSTRAP_MAIN="$APP_DIR/scripts/install/sql/freenetis-bootstrap.sql.gz"
+BOOTSTRAP_CONTRACTS="$APP_DIR/scripts/install/sql/contractsdb-bootstrap.sql.gz"
+
 if [[ -n "$DUMP_PATH" ]]; then
     [[ -f "$DUMP_PATH" ]] || die "Dump neexistuje: $DUMP_PATH"
-    log "Importuji main dump..."
-    mariadb "$DB_NAME" < "$DUMP_PATH"
+    log "Importuji main dump (vlastní)..."
+    if [[ "$DUMP_PATH" == *.gz ]]; then
+        gunzip -c "$DUMP_PATH" | mariadb "$DB_NAME"
+    else
+        mariadb "$DB_NAME" < "$DUMP_PATH"
+    fi
+elif [[ -f "$BOOTSTRAP_MAIN" ]]; then
+    log "Importuji main bootstrap z repa (čisté schema + ACL/enum_types/messages)..."
+    gunzip -c "$BOOTSTRAP_MAIN" | mariadb "$DB_NAME"
+    USE_BOOTSTRAP=1
+else
+    warn "Žádný main dump ani bootstrap.sql.gz — DB zůstane prázdná, jen Laravel migrace přidají své tabulky. Pokud jdeš na čistou instalaci, dej do scripts/install/sql/ bootstrap.sql.gz nebo spusť skript znovu s cestou k dumpu."
 fi
+
 if [[ -n "$CONTRACTS_DUMP_PATH" ]]; then
     [[ -f "$CONTRACTS_DUMP_PATH" ]] || die "Contracts dump neexistuje: $CONTRACTS_DUMP_PATH"
-    log "Importuji contracts dump..."
-    mariadb "$CONTRACTS_DB_NAME" < "$CONTRACTS_DUMP_PATH"
+    log "Importuji contracts dump (vlastní)..."
+    if [[ "$CONTRACTS_DUMP_PATH" == *.gz ]]; then
+        gunzip -c "$CONTRACTS_DUMP_PATH" | mariadb "$CONTRACTS_DB_NAME"
+    else
+        mariadb "$CONTRACTS_DB_NAME" < "$CONTRACTS_DUMP_PATH"
+    fi
+elif [[ -f "$BOOTSTRAP_CONTRACTS" ]]; then
+    log "Importuji contracts bootstrap z repa..."
+    gunzip -c "$BOOTSTRAP_CONTRACTS" | mariadb "$CONTRACTS_DB_NAME"
 fi
 
 # ── 10. Storage adresáře ─────────────────────────────────────────────────────
@@ -321,6 +345,16 @@ runuser -u www-data -- "php${PHPV}" artisan migrate --force --no-interaction || 
 log "Spouštím ACL seedery..."
 runuser -u www-data -- "php${PHPV}" artisan db:seed --class=AclGponContractsSeeder --force --no-interaction || true
 runuser -u www-data -- "php${PHPV}" artisan db:seed --class=AclSmtpExceptionsSeeder --force --no-interaction || true
+
+# ── 11b. Bootstrap admin účet (jen u čisté instalace bez vlastního dumpu) ────
+if [[ -n "${USE_BOOTSTRAP:-}" ]]; then
+    log "Bootstrap admin účet (interaktivně)..."
+    echo
+    echo "── FreenetIS bootstrap admin (čistá instalace) ──"
+    echo "Zadej údaje pro prvního admina + organizaci."
+    echo
+    runuser -u www-data -- "php${PHPV}" artisan freenetis:install || warn "freenetis:install selhal — můžeš spustit ručně později: cd $APP_DIR && runuser -u www-data -- php artisan freenetis:install"
+fi
 
 # Index pro email_queues (přidaný ručně mimo migrace, dokud není správná migrace)
 mariadb "$DB_NAME" -e "
