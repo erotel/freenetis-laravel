@@ -36,6 +36,41 @@ die()  { printf '\033[1;31m[x]\033[0m %s\n' "$*" >&2; exit 1; }
 
 [[ $EUID -eq 0 ]] || die "Spusť jako root (sudo bash $0)"
 
+# ── Helpers ──────────────────────────────────────────────────────────────────
+# env_quote: zabalí hodnotu do .env-bezpečné podoby.
+#   Single-quoted ('…') je preferovaná (Dotenv neinterpretuje $/`/\/#/spaces/").
+#   Pokud hodnota obsahuje apostrof, fallback na double-quoted s escape sekvencemi.
+env_quote() {
+    local v="$1"
+    if [[ "$v" == *"'"* ]]; then
+        v="${v//\\/\\\\}"   # \  →  \\
+        v="${v//\$/\\\$}"   # $  →  \$
+        v="${v//\"/\\\"}"   # "  →  \"
+        printf '"%s"' "$v"
+    else
+        printf "'%s'" "$v"
+    fi
+}
+
+# require_ident: zkontroluje, že identifikátor (db user/name) je bezpečný pro SQL.
+require_ident() {
+    local name="$1" value="$2"
+    [[ "$value" =~ ^[a-zA-Z_][a-zA-Z0-9_]*$ ]] \
+        || die "$name musí začínat písmenem/_ a obsahovat jen [a-zA-Z0-9_]: '$value'"
+}
+
+# require_domain: jednoduchá validace FQDN.
+require_domain() {
+    [[ "$1" =~ ^[a-zA-Z0-9]([a-zA-Z0-9-]*[a-zA-Z0-9])?(\.[a-zA-Z0-9]([a-zA-Z0-9-]*[a-zA-Z0-9])?)+$ ]] \
+        || die "Neplatná doména: '$1'"
+}
+
+# require_no_apostrophe: heslo nesmí obsahovat apostrof (rozbije SQL CREATE USER).
+require_no_apostrophe() {
+    local name="$1" value="$2"
+    [[ "$value" != *"'"* ]] || die "$name nesmí obsahovat apostrof — zadej znovu bez něj."
+}
+
 # ── 1. Cesty ─────────────────────────────────────────────────────────────────
 APP_DIR="/var/www/html/freenetis-laravel"
 REPO_URL="${REPO_URL:-https://github.com/erotel/freenetis-laravel.git}"
@@ -75,18 +110,25 @@ ask_secret() {
 
 DOMAIN="$(ask "Doména (FQDN, např. is.pvfree.net)")"
 [[ -n "$DOMAIN" ]] || die "Doména je povinná"
+require_domain "$DOMAIN"
 
 CERTBOT_EMAIL="$(ask "E-mail pro Let's Encrypt (notifikace expirace)" "admin@$DOMAIN")"
 
 DB_NAME="$(ask "DB jméno" "freenetis")"
 DB_USER="$(ask "DB uživatel" "freenetis")"
+require_ident "DB jméno" "$DB_NAME"
+require_ident "DB uživatel" "$DB_USER"
 DB_PASS="$(ask_secret "DB heslo (Enter = vygeneruj náhodné)")"
 [[ -z "$DB_PASS" ]] && DB_PASS="$(openssl rand -base64 24 | tr -d '/+=' | head -c 32)"
+require_no_apostrophe "DB heslo" "$DB_PASS"
 
 CONTRACTS_DB_NAME="$(ask "Contracts DB jméno (separátní DB pro smlouvy)" "contractsdb")"
 CONTRACTS_DB_USER="$(ask "Contracts DB uživatel" "contracts")"
+require_ident "Contracts DB jméno" "$CONTRACTS_DB_NAME"
+require_ident "Contracts DB uživatel" "$CONTRACTS_DB_USER"
 CONTRACTS_DB_PASS="$(ask_secret "Contracts DB heslo (Enter = vygeneruj)")"
 [[ -z "$CONTRACTS_DB_PASS" ]] && CONTRACTS_DB_PASS="$(openssl rand -base64 24 | tr -d '/+=' | head -c 32)"
+require_no_apostrophe "Contracts DB heslo" "$CONTRACTS_DB_PASS"
 
 DUMP_PATH="$(ask "Cesta k freenetis SQL dumpu (prázdné = jen migrace)" "")"
 CONTRACTS_DUMP_PATH="$(ask "Cesta k contractsdb SQL dumpu (prázdné = jen migrace)" "")"
@@ -138,43 +180,50 @@ else
 fi
 
 # ── 5. composer install ──────────────────────────────────────────────────────
+# Spouštíme jako root (jinak www-data nemá perms zapsat do vendor/ při prvním běhu).
+# Po composeru chowneme celý adresář na www-data — pak už pro Laravel runtime perms sedí.
 log "composer install (může chvilku trvat)..."
 cd "$APP_DIR"
-sudo -u www-data composer install --no-dev --optimize-autoloader --quiet \
+COMPOSER_ALLOW_SUPERUSER=1 composer install --no-dev --optimize-autoloader --quiet \
     || die "composer install selhal"
 
+log "Nastavuji vlastnictví na www-data..."
+chown -R www-data:www-data "$APP_DIR"
+
 # ── 6. Vygeneruj secrets ─────────────────────────────────────────────────────
-APP_KEY="$(php"$PHPV" -r 'echo "base64:".base64_encode(random_bytes(32));')"
+APP_KEY="$("php${PHPV}" -r 'echo "base64:".base64_encode(random_bytes(32));')"
 OTP_PEPPER="$(openssl rand -hex 32)"
 CONTRACTS_TOKEN_SECRET="$(openssl rand -hex 32)"
 
 # ── 7. Sestav .env ───────────────────────────────────────────────────────────
+# User-supplied secrets (DB_PASS, MAIL_PASS, SMS_API_KEY, ...) projdou přes env_quote,
+# aby Laravel Dotenv parser nepadal na $/`/\/#/spaces/quotes v hodnotách.
 log "Generuju .env..."
 cat > "$APP_DIR/.env" <<EOF
 APP_NAME=FreenetIS
 APP_ENV=production
 APP_KEY=$APP_KEY
 APP_DEBUG=false
-APP_URL=https://$DOMAIN/freenetis
+APP_URL=$(env_quote "https://$DOMAIN/freenetis")
 APP_TIMEZONE=Europe/Prague
 APP_LOCALE=cs
 APP_FALLBACK_LOCALE=en
 
 LOG_CHANNEL=stack
-LOG_LEVEL=warning
+LOG_LEVEL=info
 
 DB_CONNECTION=mysql
 DB_HOST=127.0.0.1
 DB_PORT=3306
-DB_DATABASE=$DB_NAME
-DB_USERNAME=$DB_USER
-DB_PASSWORD=$DB_PASS
+DB_DATABASE=$(env_quote "$DB_NAME")
+DB_USERNAME=$(env_quote "$DB_USER")
+DB_PASSWORD=$(env_quote "$DB_PASS")
 
 CONTRACTS_DB_HOST=127.0.0.1
 CONTRACTS_DB_PORT=3306
-CONTRACTS_DB_DATABASE=$CONTRACTS_DB_NAME
-CONTRACTS_DB_USER=$CONTRACTS_DB_USER
-CONTRACTS_DB_PASS=$CONTRACTS_DB_PASS
+CONTRACTS_DB_DATABASE=$(env_quote "$CONTRACTS_DB_NAME")
+CONTRACTS_DB_USER=$(env_quote "$CONTRACTS_DB_USER")
+CONTRACTS_DB_PASS=$(env_quote "$CONTRACTS_DB_PASS")
 
 CACHE_STORE=file
 SESSION_DRIVER=file
@@ -184,19 +233,20 @@ QUEUE_CONNECTION=sync
 FILESYSTEM_DISK=local
 
 MAIL_MAILER=smtp
-MAIL_HOST=$MAIL_HOST
+MAIL_HOST=$(env_quote "$MAIL_HOST")
 MAIL_PORT=$MAIL_PORT
-MAIL_USERNAME=$MAIL_USER
-MAIL_PASSWORD=$MAIL_PASS
-MAIL_SCHEME=tls
-MAIL_FROM_ADDRESS=$MAIL_FROM
+MAIL_USERNAME=$(env_quote "$MAIL_USER")
+MAIL_PASSWORD=$(env_quote "$MAIL_PASS")
+# MAIL_SCHEME nech null — Symfony Mailer aktivuje STARTTLS sám podle portu (587).
+MAIL_SCHEME=null
+MAIL_FROM_ADDRESS=$(env_quote "$MAIL_FROM")
 MAIL_FROM_NAME=FreenetIS
 
 # Smlouvy
 CONTRACTS_TOKEN_SECRET=$CONTRACTS_TOKEN_SECRET
-CONTRACTS_STORAGE=$APP_DIR/storage/app/private/contracts/signed
-CONTRACTS_TMP=$APP_DIR/storage/app/private/contracts/tmp
-CONTRACTS_SMLOUVY_URL=https://$DOMAIN/freenetis
+CONTRACTS_STORAGE=$(env_quote "$APP_DIR/storage/app/private/contracts/signed")
+CONTRACTS_TMP=$(env_quote "$APP_DIR/storage/app/private/contracts/tmp")
+CONTRACTS_SMLOUVY_URL=$(env_quote "https://$DOMAIN/freenetis")
 
 # OTP / SMS
 OTP_PEPPER=$OTP_PEPPER
@@ -207,13 +257,13 @@ OTP_TEST_MODE=false
 OTP_TEST_CODE=123456
 
 SMS_API_URL=https://app.smsmanager.cz/api
-SMS_API_KEY=$SMS_API_KEY
-SMS_SENDER=$SMS_SENDER
+SMS_API_KEY=$(env_quote "$SMS_API_KEY")
+SMS_SENDER=$(env_quote "$SMS_SENDER")
 
 # PDF podpis (vyplň ručně až budeš mít certifikát)
-PDF_SIGN_CERT=$APP_DIR/storage/app/private/cert/pvfree.pfx
+PDF_SIGN_CERT=$(env_quote "$APP_DIR/storage/app/private/cert/pvfree.pfx")
 PDF_SIGN_PASS=
-PDF_SIGN_NAME=$SMS_SENDER
+PDF_SIGN_NAME=$(env_quote "$SMS_SENDER")
 PDF_SIGN_REASON=Elektronický podpis
 PDF_SIGN_LOCATION=
 EOF
@@ -221,14 +271,20 @@ chmod 600 "$APP_DIR/.env"
 chown www-data:www-data "$APP_DIR/.env"
 
 # ── 8. Vytvoř DB + uživatele ─────────────────────────────────────────────────
+# DB_NAME/DB_USER už prošly require_ident regex — bezpečné v SQL identifikátorech.
+# Hesla už prošly require_no_apostrophe — bezpečné jako 'string' literál.
+# Pro zbylé escape (backslash) zdvojíme \\ na \\\\ pro MySQL string literal.
 log "Vytváří DB + uživatele..."
-mariadb <<SQL
+DB_PASS_SQL="${DB_PASS//\\/\\\\}"
+CONTRACTS_DB_PASS_SQL="${CONTRACTS_DB_PASS//\\/\\\\}"
+
+mariadb <<SQL || die "MariaDB CREATE DATABASE/USER selhal — ověř, že 'sudo mariadb' funguje bez hesla."
 CREATE DATABASE IF NOT EXISTS \`$DB_NAME\` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 CREATE DATABASE IF NOT EXISTS \`$CONTRACTS_DB_NAME\` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
-CREATE USER IF NOT EXISTS '$DB_USER'@'localhost' IDENTIFIED BY '$DB_PASS';
-ALTER USER '$DB_USER'@'localhost' IDENTIFIED BY '$DB_PASS';
-CREATE USER IF NOT EXISTS '$CONTRACTS_DB_USER'@'localhost' IDENTIFIED BY '$CONTRACTS_DB_PASS';
-ALTER USER '$CONTRACTS_DB_USER'@'localhost' IDENTIFIED BY '$CONTRACTS_DB_PASS';
+CREATE USER IF NOT EXISTS '$DB_USER'@'localhost' IDENTIFIED BY '$DB_PASS_SQL';
+ALTER USER '$DB_USER'@'localhost' IDENTIFIED BY '$DB_PASS_SQL';
+CREATE USER IF NOT EXISTS '$CONTRACTS_DB_USER'@'localhost' IDENTIFIED BY '$CONTRACTS_DB_PASS_SQL';
+ALTER USER '$CONTRACTS_DB_USER'@'localhost' IDENTIFIED BY '$CONTRACTS_DB_PASS_SQL';
 GRANT ALL PRIVILEGES ON \`$DB_NAME\`.* TO '$DB_USER'@'localhost';
 GRANT ALL PRIVILEGES ON \`$CONTRACTS_DB_NAME\`.* TO '$CONTRACTS_DB_USER'@'localhost';
 FLUSH PRIVILEGES;
@@ -275,13 +331,13 @@ mariadb "$DB_NAME" -e "
 # ── 12. Apache vhost ─────────────────────────────────────────────────────────
 log "Aktivuji Apache vhost pro $DOMAIN..."
 VHOST="/etc/apache2/sites-available/freenetis.conf"
-sed "s/{{DOMAIN}}/$DOMAIN/g" "$TEMPLATE_DIR/apache-freenetis.conf" > "$VHOST"
-# Patch php-fpm socket pokud Ubuntu (8.3)
-if [[ "$PHPV" != "8.4" ]]; then
-    sed -i "s|php8\.4-fpm\.sock|php${PHPV}-fpm.sock|g" "$VHOST"
-fi
+# DOMAIN už prošla require_domain — nemůže obsahovat / — sed je bezpečné.
+sed -e "s/{{DOMAIN}}/$DOMAIN/g" \
+    -e "s|{{PHP_FPM_SOCK}}|php${PHPV}-fpm.sock|g" \
+    "$TEMPLATE_DIR/apache-freenetis.conf" > "$VHOST"
 a2ensite -q freenetis
-apache2ctl configtest >/dev/null && systemctl reload apache2
+apache2ctl configtest >/dev/null 2>&1 || die "Apache configtest selhal — zkontroluj $VHOST"
+systemctl reload apache2
 
 # ── 13. Cron pro schedule:run ────────────────────────────────────────────────
 log "Nastavuji cron pro schedule:run..."
@@ -305,7 +361,43 @@ if [[ ! "$cb" =~ ^[nN]$ ]]; then
         || warn "certbot selhal — spusť ručně:  certbot --apache -d $DOMAIN"
 fi
 
-# ── 16. Hotovo ───────────────────────────────────────────────────────────────
+# ── 16. Smoke test ───────────────────────────────────────────────────────────
+echo
+log "Smoke testy..."
+
+apache2ctl configtest >/dev/null 2>&1 \
+    && ok "Apache configtest: Syntax OK" \
+    || warn "Apache configtest selhal"
+
+[ -S "/run/php/php${PHPV}-fpm.sock" ] \
+    && ok "PHP-FPM socket dostupný" \
+    || warn "PHP-FPM socket /run/php/php${PHPV}-fpm.sock chybí"
+
+if curl -skfI "https://$DOMAIN/" --max-time 5 >/dev/null 2>&1; then
+    LOC="$(curl -skI "https://$DOMAIN/" --max-time 5 | tr -d '\r' | grep -i '^location:' | head -1)"
+    if echo "$LOC" | grep -qi '/freenetis'; then
+        ok "Root redirect: $LOC"
+    else
+        warn "Root redirect NEFUNGUJE správně: ${LOC:-(žádný Location header)}"
+    fi
+    CODE="$(curl -sk "https://$DOMAIN/freenetis/login" --max-time 5 -o /dev/null -w '%{http_code}')"
+    case "$CODE" in
+        200|302) ok "/freenetis/login: HTTP $CODE" ;;
+        *)       warn "/freenetis/login: HTTP $CODE (očekáváno 200 nebo 302)" ;;
+    esac
+else
+    warn "HTTPS nedostupné — smoke test přeskočen (možná certbot neproběhl, nebo ještě DNS nepropagované)"
+fi
+
+crontab -u www-data -l 2>/dev/null | grep -q 'schedule:run' \
+    && ok "Cron pro schedule:run zaregistrován" \
+    || warn "Cron NENÍ zaregistrován"
+
+sudo -u www-data "php${PHPV}" "$APP_DIR/artisan" db:show --database=mysql 2>&1 | grep -q 'Connected\|Database' \
+    && ok "DB connection: OK" \
+    || warn "DB connection: nedostupné (zkontroluj .env DB_*)"
+
+# ── 17. Hotovo ───────────────────────────────────────────────────────────────
 echo
 ok "═══════════════════════════════════════════"
 ok "  Instalace dokončena"
