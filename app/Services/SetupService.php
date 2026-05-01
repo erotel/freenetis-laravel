@@ -194,11 +194,14 @@ class SetupService
     }
 
     /**
-     * Cache config / routes / views.
+     * Cache jen config + view. route:cache z webového FPM kontextu produkuje
+     * rozbité cache (URL prefix /freenetis/ pak vrací 405 na auth routách),
+     * proto ho z wizardu vynecháváme. Admin si může z CLI spustit
+     * `php artisan route:cache` po nasazení.
      */
     public function cacheArtifacts(): void
     {
-        foreach (['config:cache', 'route:cache', 'view:cache'] as $cmd) {
+        foreach (['config:cache', 'view:cache'] as $cmd) {
             try {
                 Artisan::call($cmd, ['--no-interaction' => true]);
             } catch (\Throwable $e) {
