@@ -316,11 +316,11 @@ find "$APP_DIR/storage" -type d -exec chmod 775 {} \;
 # ── 11. Migrace + seedery ────────────────────────────────────────────────────
 cd "$APP_DIR"
 log "Spouštím migrace..."
-sudo -u www-data "php${PHPV}" artisan migrate --force --no-interaction || warn "migrace skončila s chybou — ověř DB schéma"
+runuser -u www-data -- "php${PHPV}" artisan migrate --force --no-interaction || warn "migrace skončila s chybou — ověř DB schéma"
 
 log "Spouštím ACL seedery..."
-sudo -u www-data "php${PHPV}" artisan db:seed --class=AclGponContractsSeeder --force --no-interaction || true
-sudo -u www-data "php${PHPV}" artisan db:seed --class=AclSmtpExceptionsSeeder --force --no-interaction || true
+runuser -u www-data -- "php${PHPV}" artisan db:seed --class=AclGponContractsSeeder --force --no-interaction || true
+runuser -u www-data -- "php${PHPV}" artisan db:seed --class=AclSmtpExceptionsSeeder --force --no-interaction || true
 
 # Index pro email_queues (přidaný ručně mimo migrace, dokud není správná migrace)
 mariadb "$DB_NAME" -e "
@@ -348,9 +348,9 @@ CRON_LINE="* * * * * cd $APP_DIR && /usr/bin/php${PHPV} artisan schedule:run >/d
 
 # ── 14. Cache config ─────────────────────────────────────────────────────────
 log "Cachuji config + routes..."
-sudo -u www-data "php${PHPV}" artisan config:cache --no-interaction >/dev/null || true
-sudo -u www-data "php${PHPV}" artisan route:cache  --no-interaction >/dev/null || true
-sudo -u www-data "php${PHPV}" artisan view:cache   --no-interaction >/dev/null || true
+runuser -u www-data -- "php${PHPV}" artisan config:cache --no-interaction >/dev/null || true
+runuser -u www-data -- "php${PHPV}" artisan route:cache  --no-interaction >/dev/null || true
+runuser -u www-data -- "php${PHPV}" artisan view:cache   --no-interaction >/dev/null || true
 
 # ── 15. Let's Encrypt přes certbot ───────────────────────────────────────────
 echo
@@ -395,7 +395,7 @@ crontab -u www-data -l 2>/dev/null | grep -q 'schedule:run' \
     && ok "Cron pro schedule:run zaregistrován" \
     || warn "Cron NENÍ zaregistrován"
 
-sudo -u www-data "php${PHPV}" "$APP_DIR/artisan" db:show --database=mysql 2>&1 | grep -q 'Connected\|Database' \
+runuser -u www-data -- "php${PHPV}" "$APP_DIR/artisan" db:show --database=mysql 2>&1 | grep -q 'Connected\|Database' \
     && ok "DB connection: OK" \
     || warn "DB connection: nedostupné (zkontroluj .env DB_*)"
 
