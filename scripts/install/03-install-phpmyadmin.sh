@@ -5,13 +5,13 @@
 #
 # Bezpečnostní defaulty:
 #   - Custom URL prefix (ne výchozí /phpmyadmin který skenují botnety)
-#   - HTTP Basic Auth nad PMA loginem (2 faktory)
-#   - Volitelný IP allow-list (Apache `Require ip ...`)
+#   - Tvrdý IP allow-list — přístup pouze z vnitřní sítě (mandatorní, není
+#     možné nechat prázdný). MySQL credentials zůstávají jediné login factor.
 #   - Bez phpmyadmin metadata DB (login se dělá jako existující DB uživatel —
 #     např. freenetis, který už máš z fáze 2)
 #
 # Běh:    sudo bash 03-install-phpmyadmin.sh
-# Re-run: bezpečné — přepíše Apache conf a htpasswd. PMA balíček se znovu neinstaluje.
+# Re-run: bezpečné — přepíše Apache conf. PMA balíček se znovu neinstaluje.
 
 set -euo pipefail
 
@@ -33,45 +33,42 @@ ask() {
         echo "$var"
     fi
 }
-ask_secret() {
-    local prompt="$1" var
-    read -rs -p "$prompt: " var
-    echo >&2
-    echo "$var"
-}
 
 echo
 echo "═══════════════════════════════════════════"
-echo "  phpMyAdmin — instalace + zabezpečení"
+echo "  phpMyAdmin — instalace + IP allow-list"
 echo "═══════════════════════════════════════════"
 echo
-echo "Doporučení:"
-echo "  - URL path: nech vygenerovat náhodný (botnety skenují /phpmyadmin)"
-echo "  - HTTP Basic Auth: NEpoužívej stejné heslo jako MySQL"
-echo "  - IP allow-list: pokud máš pevnou IP / VPN, přidej ji"
+echo "Bezpečnost:"
+echo "  - Žádný HTTP Basic Auth — login je čistě přes MySQL credentials."
+echo "  - Přístup je omezen na IP allow-list (mandatorní, nelze nechat prázdné)."
+echo "  - Custom URL path místo /phpmyadmin (botnety to skenují)."
 echo
 
 PMA_PATH="$(ask "URL cesta" "/dbadmin-$(openssl rand -hex 4)")"
 [[ "$PMA_PATH" =~ ^/[a-zA-Z0-9_/-]+$ ]] || die "URL cesta musí začínat / a obsahovat jen [a-zA-Z0-9_/-]"
 
-PMA_USER="$(ask "HTTP Basic Auth uživatel" "pma")"
-[[ "$PMA_USER" =~ ^[a-zA-Z0-9_-]+$ ]] || die "Uživatel obsahuje nepovolené znaky"
-
-PMA_PASS="$(ask_secret "HTTP Basic Auth heslo (Enter = vygeneruj)")"
-[[ -z "$PMA_PASS" ]] && PMA_PASS="$(openssl rand -base64 18 | tr -d '/+=' | head -c 24)"
-
 echo
-echo "IP allow-list — omezí, kdo se může vůbec dostat k loginu."
-echo "Příklady: 192.168.1.0/24    nebo:    1.2.3.4 5.6.7.8 2001:db8::/32"
-echo "Prázdné = kdokoliv s HTTP Basic + DB credentials."
-PMA_IP_ALLOW="$(ask "IP/CIDR allow-list" "")"
+echo "IP allow-list — KDO se vůbec dostane k loginu phpMyAdmin."
+echo "Zadej jednu nebo více IP/CIDR oddělených mezerou."
+echo "Příklady:"
+echo "  10.133.0.0/16              jedna privátní LAN"
+echo "  192.168.1.0/24 1.2.3.4     LAN + jednotlivá public IP"
+echo "  10.0.0.0/8 192.168.0.0/16  všechny privátní RFC1918 (dle vkusu)"
+echo
+PMA_IP_ALLOW="$(ask "IP/CIDR allow-list (povinné)" "")"
+[[ -n "$PMA_IP_ALLOW" ]] || die "IP allow-list je povinný — bez něj by phpMyAdmin byl dostupný komukoliv s URL."
+
+# Hard guard: přijmi jen "rozumné" tokeny (cifry, tečky, lomítka, dvojtečky pro
+# IPv6, mezery, písmena pro IPv6 hex). Žádné středníky / dolary atd.
+[[ "$PMA_IP_ALLOW" =~ ^[a-fA-F0-9./:[:space:]]+$ ]] \
+    || die "IP allow-list obsahuje nepovolené znaky: '$PMA_IP_ALLOW'"
 
 echo
 echo "── Souhrn ──────────────────────────────────"
 echo "  URL path:           $PMA_PATH"
-echo "  HTTP Basic user:    $PMA_USER"
-echo "  HTTP Basic pass:    [skryto]"
-echo "  IP allow-list:      ${PMA_IP_ALLOW:-(žádný — kdokoliv s heslem)}"
+echo "  IP allow-list:      $PMA_IP_ALLOW"
+echo "  Login factor:       MySQL credentials (jen z DB, žádný HTTP Basic)"
 echo
 read -r -p "Pokračovat? [y/N] " confirm
 [[ "$confirm" =~ ^[yY]$ ]] || die "Zrušeno uživatelem"
@@ -86,30 +83,21 @@ phpmyadmin phpmyadmin/reconfigure-webserver multiselect apache2
 phpmyadmin phpmyadmin/internal/skip-preseed boolean true
 EOF_PMA
 
-# ── 3. apt install phpmyadmin + apache2-utils (kvůli htpasswd) ───────────────
+# ── 3. apt install phpmyadmin ────────────────────────────────────────────────
 log "Instaluju phpmyadmin (může chvilku trvat — ~100 MB)..."
-DEBIAN_FRONTEND=noninteractive apt-get install -y -qq \
-    phpmyadmin apache2-utils > /dev/null
+DEBIAN_FRONTEND=noninteractive apt-get install -y -qq phpmyadmin > /dev/null
 
 # ── 4. Disable výchozího /phpmyadmin Aliasu (bezpečnost) ─────────────────────
 log "Disablingu výchozí Apache conf (Alias /phpmyadmin)..."
 a2disconf -q phpmyadmin 2>/dev/null || true
 
-# ── 5. htpasswd file ─────────────────────────────────────────────────────────
-HTPASSWD_FILE="/etc/apache2/.htpasswd-pma"
-log "Vytváří htpasswd file: $HTPASSWD_FILE"
-htpasswd -bcB "$HTPASSWD_FILE" "$PMA_USER" "$PMA_PASS"
-chown root:www-data "$HTPASSWD_FILE"
-chmod 640 "$HTPASSWD_FILE"
-
-# ── 6. Apache conf — Alias + Auth + IP guard ─────────────────────────────────
+# ── 5. Apache conf — Alias + IP guard ────────────────────────────────────────
 PMA_CONF="/etc/apache2/conf-available/freenetis-pma.conf"
 log "Vytváří Apache conf: $PMA_CONF"
 
-{
-    cat <<EOF_CONF
-# phpMyAdmin — vlastní URL prefix + HTTP Basic Auth + IP allow-list
-# Generováno 03-install-phpmyadmin.sh — pro úpravy edituj heredoc tam.
+cat > "$PMA_CONF" <<EOF_CONF
+# phpMyAdmin — vlastní URL prefix + tvrdý IP allow-list.
+# Generováno 03-install-phpmyadmin.sh — pro úpravy edituj tam, nebo přepiš ručně.
 
 Alias $PMA_PATH /usr/share/phpmyadmin
 
@@ -118,27 +106,15 @@ Alias $PMA_PATH /usr/share/phpmyadmin
     DirectoryIndex index.php
     AllowOverride None
 
-    <RequireAll>
-        Require valid-user
-EOF_CONF
-
-    if [[ -n "$PMA_IP_ALLOW" ]]; then
-        echo "        Require ip $PMA_IP_ALLOW"
-    fi
-
-    cat <<EOF_CONF
-    </RequireAll>
-
-    AuthType Basic
-    AuthName "FreenetIS DB Admin"
-    AuthUserFile $HTPASSWD_FILE
+    # Přístup pouze z povolených IP. MySQL credentials = jediný login factor.
+    Require ip $PMA_IP_ALLOW
 
     <FilesMatch "\.php\$">
         SetHandler "proxy:unix:/run/php/php8.4-fpm.sock|fcgi://localhost"
     </FilesMatch>
 </Directory>
 
-# Setup / install scripty phpMyAdmin nikdy nesmí být dostupné z webu.
+# Setup / install / library skripty phpMyAdmin nikdy nesmí být dostupné z webu.
 <Directory /usr/share/phpmyadmin/setup>
     Require all denied
 </Directory>
@@ -149,7 +125,6 @@ EOF_CONF
     Require all denied
 </Directory>
 EOF_CONF
-} > "$PMA_CONF"
 
 # Patch php-fpm socket podle reálné verze (Debian 13 = 8.4, Ubuntu 24.04 = 8.3)
 if command -v php8.3 &>/dev/null && ! command -v php8.4 &>/dev/null; then
@@ -160,7 +135,7 @@ a2enconf -q freenetis-pma
 apache2ctl configtest >/dev/null 2>&1 || die "Apache configtest selhal — zkontroluj $PMA_CONF"
 systemctl reload apache2
 
-# ── 7. Smoke test ────────────────────────────────────────────────────────────
+# ── 6. Smoke test ────────────────────────────────────────────────────────────
 log "Smoke test..."
 
 # Detekuj domain z .env (APP_URL)
@@ -168,27 +143,22 @@ APP_URL_ENV="$(grep -E '^APP_URL=' /var/www/html/freenetis-laravel/.env 2>/dev/n
 DOMAIN_FROM_ENV="$(echo "$APP_URL_ENV" | sed -E 's|^https?://([^/]+).*|\1|')"
 
 if [[ -n "$DOMAIN_FROM_ENV" ]]; then
-    # Bez Basic Auth — musíme dostat 401
+    # Z localhost / 127.0.0.1 — záleží jestli je localhost v allow-listu.
+    # Většinou ne, takže očekáváme 403.
     HTTP_CODE="$(curl -sk "https://$DOMAIN_FROM_ENV$PMA_PATH/" --max-time 5 -o /dev/null -w '%{http_code}' || echo "000")"
     case "$HTTP_CODE" in
-        401)     ok "Basic Auth aktivní (HTTP 401 bez creds — správně)" ;;
-        403)     ok "IP allow-list blokuje (HTTP 403 — správně, pokud nejsi v allow-listu)" ;;
-        200)     warn "HTTP 200 bez Basic Auth — Auth nefunguje! Zkontroluj $PMA_CONF" ;;
-        000)     warn "HTTPS nedostupné nebo timeout — ověř, že /etc/apache2/sites-enabled má SSL vhost (certbot)" ;;
-        *)       warn "Neočekávaný HTTP $HTTP_CODE" ;;
-    esac
-
-    # S Basic Auth — musíme dostat 200 (login form phpMyAdmin)
-    HTTP_CODE_AUTH="$(curl -sk "https://$DOMAIN_FROM_ENV$PMA_PATH/" --max-time 5 \
-        -u "$PMA_USER:$PMA_PASS" -o /dev/null -w '%{http_code}' || echo "000")"
-    case "$HTTP_CODE_AUTH" in
-        200)     ok "Basic Auth s creds projde (HTTP 200)" ;;
-        403)     ok "IP allow-list blokuje (HTTP 403 — správně, pokud nejsi v allow-listu)" ;;
-        *)       warn "S Basic Auth creds vrací HTTP $HTTP_CODE_AUTH (očekáváno 200)" ;;
+        200)
+            ok "Localhost je v allow-listu, phpMyAdmin login form se renderuje (HTTP 200)" ;;
+        403)
+            ok "Localhost NENÍ v allow-listu (HTTP 403 — správně, ověřuje to že IP guard funguje)" ;;
+        000)
+            warn "HTTPS nedostupné nebo timeout — ověř, že /etc/apache2/sites-enabled má SSL vhost (certbot)" ;;
+        *)
+            warn "Neočekávaný HTTP $HTTP_CODE" ;;
     esac
 fi
 
-# ── 8. Hotovo ────────────────────────────────────────────────────────────────
+# ── 7. Hotovo ────────────────────────────────────────────────────────────────
 echo
 ok "═══════════════════════════════════════════"
 ok "  phpMyAdmin nainstalován"
@@ -196,20 +166,22 @@ ok "═════════════════════════�
 cat <<EOF
 
 URL:                https://${DOMAIN_FROM_ENV:-<DOMÉNA>}$PMA_PATH/
-HTTP Basic user:    $PMA_USER
-HTTP Basic pass:    $PMA_PASS    ←  ULOŽ SI BEZPEČNĚ! Heslo se znovu nezobrazí.
-IP allow-list:      ${PMA_IP_ALLOW:-(žádný)}
+IP allow-list:      $PMA_IP_ALLOW
 
-Login do phpMyAdmin (po projití HTTP Basic):
+Login do phpMyAdmin (přihlašovací stránka se otevře jen z povolené IP):
   - Server:   localhost
-  - User:     freenetis     (nebo jiný DB user)
-  - Heslo:    najdeš v /var/www/html/freenetis-laravel/.env (DB_PASSWORD=...)
+  - User:     freenetis     (nebo jiný DB user — root, contracts, …)
+  - Heslo:    najdeš v /var/www/html/freenetis-laravel/.env  (DB_PASSWORD=...)
 
-Soubory ke konfiguraci:
-  $PMA_CONF              ← Apache vhost konfigurace
-  $HTPASSWD_FILE         ← htpasswd (mode 640, root:www-data)
+Soubor ke konfiguraci:
+  $PMA_CONF
 
-Zrušení phpMyAdmin (kdykoliv):
+Změnit IP allow-list (kdykoliv):
+  sudo $0     ← spusť skript znovu, vyplň jiný allow-list
+  NEBO ručně edituj $PMA_CONF (řádek "Require ip ...") a:
+       sudo systemctl reload apache2
+
+Zrušení phpMyAdmin:
   sudo a2disconf freenetis-pma
   sudo systemctl reload apache2
   sudo apt purge phpmyadmin    # volitelné — odstraní i package
