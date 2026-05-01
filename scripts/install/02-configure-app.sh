@@ -313,7 +313,11 @@ systemctl reload apache2
 # ── 12. Cron pro schedule:run ────────────────────────────────────────────────
 log "Nastavuji cron pro schedule:run..."
 CRON_LINE="* * * * * cd $APP_DIR && /usr/bin/php${PHPV} artisan schedule:run >/dev/null 2>&1"
-( crontab -u www-data -l 2>/dev/null | grep -v 'schedule:run' ; echo "$CRON_LINE" ) | crontab -u www-data -
+# Pozn: `crontab -u www-data -l` vrátí exit 1 pokud crontab neexistuje (čerstvá
+# instalace), což s set -o pipefail + set -e tiše zabije skript. Proto
+# zachycujeme stdout do proměnné a `|| true` chrání před selháním.
+EXISTING_CRON="$(crontab -u www-data -l 2>/dev/null | grep -v 'schedule:run' || true)"
+printf '%s\n%s\n' "$EXISTING_CRON" "$CRON_LINE" | crontab -u www-data -
 
 # ── 13. Config cache (po web wizardu si to wizard znovu zopakuje včetně route/view) ────
 log "Cachuji config..."
