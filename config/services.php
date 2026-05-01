@@ -36,6 +36,8 @@ return [
     ],
 
     'contracts' => [
+        'token_secret'      => env('CONTRACTS_TOKEN_SECRET', ''),
+        'smlouvy_url'       => env('CONTRACTS_SMLOUVY_URL', ''),
         'otp_pepper'        => env('OTP_PEPPER'),
         'otp_ttl_min'       => env('OTP_TTL_MIN', 5),
         'otp_max_attempts'  => env('OTP_MAX_ATTEMPTS', 5),

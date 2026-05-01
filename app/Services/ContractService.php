@@ -19,9 +19,11 @@ class ContractService
 
     public function __construct()
     {
-        $this->smlouvyUrl  = rtrim(env('CONTRACTS_SMLOUVY_URL', 'https://smlouvy.pvfree.net'), '/');
-        $this->tokenSecret = (string) env('CONTRACTS_TOKEN_SECRET', '');
-        $this->storageBase = rtrim(env('CONTRACTS_STORAGE', '/var/www/contract-app/storage/contracts'), '/');
+        // Čteme přes config() místo env() — env() vrací null po `php artisan config:cache`,
+        // pokud klíč není mapovaný v config/*.php souboru. Mapujeme v config/services.php.
+        $this->smlouvyUrl  = rtrim((string) config('services.contracts.smlouvy_url', 'https://smlouvy.pvfree.net'), '/');
+        $this->tokenSecret = (string) config('services.contracts.token_secret', '');
+        $this->storageBase = rtrim((string) config('services.contracts.storage', '/var/www/contract-app/storage/contracts'), '/');
 
         // Bezpečnostní guard: prázdný/krátký/placeholder secret = forgeable HMAC tokeny.
         // Hex z `openssl rand -hex 32` má 64 znaků; akceptujeme min. 32.
@@ -31,7 +33,7 @@ class ContractService
         ) {
             throw new \RuntimeException(
                 'CONTRACTS_TOKEN_SECRET není nastaven nebo je příliš krátký (min. 32 znaků). '
-                . 'Vygeneruj např. `openssl rand -hex 32` a nastav v .env.'
+                . 'Vygeneruj např. `openssl rand -hex 32` a nastav v .env, pak spusť `php artisan config:cache`.'
             );
         }
     }
