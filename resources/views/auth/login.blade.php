@@ -43,11 +43,6 @@
         <label for="password">Heslo</label>
         <input type="password" id="password" name="password" required>
 
-        <div class="remember">
-            <input type="checkbox" id="remember" name="remember">
-            <label for="remember" style="margin:0">Zapamatovat si mě</label>
-        </div>
-
         <button type="submit">Přihlásit se</button>
         <div style="text-align:center; margin-top:0.75em; font-size:0.9em;">
             @if(\App\Models\Setting::get('forgotten_password', 0))

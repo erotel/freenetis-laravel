@@ -23,7 +23,11 @@ class LoginController extends Controller
             'password' => ['required', 'string'],
         ]);
 
-        if (!Auth::attempt($credentials, $request->boolean('remember'))) {
+        // Remember-me záměrně NEpodporujeme — User model nemá remember_token sloupec,
+        // tj. cookie by byla vázaná na NULL token (forgeable, nerevokovatelná). Pokud by
+        // remember-me bylo potřeba, doplň migraci pro users.remember_token a opravu
+        // get/set/getRememberTokenName v App\Models\User.
+        if (!Auth::attempt($credentials)) {
             return back()
                 ->withInput($request->only('login'))
                 ->withErrors(['login' => __('Nesprávné přihlašovací jméno nebo heslo, nebo je účet zablokován.')]);

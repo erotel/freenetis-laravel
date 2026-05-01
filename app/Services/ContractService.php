@@ -20,8 +20,20 @@ class ContractService
     public function __construct()
     {
         $this->smlouvyUrl  = rtrim(env('CONTRACTS_SMLOUVY_URL', 'https://smlouvy.pvfree.net'), '/');
-        $this->tokenSecret = env('CONTRACTS_TOKEN_SECRET', '');
+        $this->tokenSecret = (string) env('CONTRACTS_TOKEN_SECRET', '');
         $this->storageBase = rtrim(env('CONTRACTS_STORAGE', '/var/www/contract-app/storage/contracts'), '/');
+
+        // Bezpečnostní guard: prázdný/krátký/placeholder secret = forgeable HMAC tokeny.
+        // Hex z `openssl rand -hex 32` má 64 znaků; akceptujeme min. 32.
+        if (
+            strlen($this->tokenSecret) < 32
+            || $this->tokenSecret === 'long_random_hex_64'
+        ) {
+            throw new \RuntimeException(
+                'CONTRACTS_TOKEN_SECRET není nastaven nebo je příliš krátký (min. 32 znaků). '
+                . 'Vygeneruj např. `openssl rand -hex 32` a nastav v .env.'
+            );
+        }
     }
 
     public function getByMemberId(int $memberId): ?Contract

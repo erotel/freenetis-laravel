@@ -225,8 +225,21 @@ class OtpService
 
     private function isTestMode(): bool
     {
+        // Hard guard: test mode pouze mimo produkci. Bez tohoto by admin mohl
+        // přepnutím Setting::set('otp_test_mode', 1) v DB akceptovat hardcoded
+        // OTP "111111" pro každého klienta a obejít celou SMS verifikaci.
+        if (app()->environment('production')) {
+            return false;
+        }
+
         $v = $this->cfg('otp_test_mode', false);
-        return in_array(strtolower((string) $v), ['1', 'true', 'yes'], true);
+        $on = in_array(strtolower((string) $v), ['1', 'true', 'yes'], true);
+
+        if ($on) {
+            \Illuminate\Support\Facades\Log::warning('OTP test mode is ACTIVE — accepting fixed code, NOT for production!');
+        }
+
+        return $on;
     }
 
     private function testCode(): string

@@ -525,9 +525,27 @@ class GponService
 
     private function logGpon(string $file, string $label, string $cmd, ?string $out): void
     {
-        $entry = "==== {$label} ====\nTIME: " . date('Y-m-d H:i:s') . "\nCMD:  {$cmd}\nOUT:\n{$out}\n\n";
+        // Audit log z `/tmp/gpon_*.log` přesměrujeme do storage/logs s mode 0600.
+        // Soubory v /tmp byly world-readable a obsahovaly SNMPv3 credentials.
+        $basename = basename($file);
+        $target   = storage_path('logs/' . $basename);
+
+        // Redakce SNMPv3 credentials z command line (-A authpass, -X privpass).
+        // Pokrývá tři tvary: -A 'pass'  /  -A "pass"  /  -A pass
+        $safeCmd = preg_replace(
+            '/(-[AX]\s+)(?:\'[^\']*\'|"[^"]*"|\S+)/',
+            '$1[REDACTED]',
+            $cmd
+        );
+
+        $entry = "==== {$label} ====\nTIME: " . date('Y-m-d H:i:s') . "\nCMD:  {$safeCmd}\nOUT:\n{$out}\n\n";
+
         try {
-            file_put_contents($file, $entry, FILE_APPEND);
+            $isNew = !file_exists($target);
+            file_put_contents($target, $entry, FILE_APPEND | LOCK_EX);
+            if ($isNew) {
+                @chmod($target, 0600);
+            }
         } catch (\Exception $e) {
             Log::warning('GPON log write failed: ' . $e->getMessage());
         }

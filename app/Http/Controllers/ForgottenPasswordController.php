@@ -14,6 +14,21 @@ class ForgottenPasswordController extends Controller
         return view('auth.forgotten_password');
     }
 
+    /**
+     * TTL pro password reset token v minutách. Po této době je token neplatný.
+     */
+    private const TOKEN_TTL_MIN = 60;
+
+    /**
+     * Generic response — vždy vrátit stejnou zprávu, ať uživatel existuje nebo ne.
+     * Brání enumeration loginů / emailů / variabilních symbolů přes captive timing.
+     */
+    private function genericResponse()
+    {
+        return redirect()->route('forgotten-password')
+            ->with('success', 'Pokud existuje účet odpovídající zadanému údaji, zaslali jsme na příslušný e-mail odkaz pro reset hesla. Pokud zpráva nedorazí do 20 minut, kontaktujte prosím podporu.');
+    }
+
     public function store(Request $request)
     {
         if (!Setting::get('forgotten_password', 0)) abort(404);
@@ -27,7 +42,7 @@ class ForgottenPasswordController extends Controller
         // 1) Try by login
         $user = DB::table('users')->where('login', $input)->first();
 
-        // 2) Try by email via contacts
+        // 2) Try by email via contacts (jen pokud se vejde právě jeden uživatel)
         if (!$user) {
             $contact = DB::table('contacts')
                 ->where('type', 20)
@@ -37,17 +52,11 @@ class ForgottenPasswordController extends Controller
                 $userIds = DB::table('users_contacts')
                     ->where('contact_id', $contact->id)
                     ->pluck('user_id');
-
-                // Multiple members share this email - cannot reset by email
-                if ($userIds->count() > 1) {
-                    return redirect()->route('forgotten-password')
-                        ->withInput()
-                        ->with('error', 'Zadaný e-mail je přiřazen více uživatelům. Použijte prosím přihlašovací jméno nebo variabilní symbol.');
-                }
-
                 if ($userIds->count() === 1) {
                     $user = DB::table('users')->where('id', $userIds->first())->first();
                 }
+                // Více shod (sdílený email) → ignoruj, vrátí generic response. Bezpečnější
+                // než původní explicitní hláška, která potvrdila existenci emailu v systému.
             }
         }
 
@@ -67,16 +76,11 @@ class ForgottenPasswordController extends Controller
             }
         }
 
+        // Pokud nenajdeme uživatele NEBO uživatel nemá email — vrátíme stejnou zprávu.
+        // (Nepošleme nic, ale uživatel to nepozná → enumeration je uzavřená.)
         if (!$user) {
-            return redirect()->route('forgotten-password')
-                ->withInput()
-                ->with('error', 'Přihlašovací jméno, e-mail nebo variabilní symbol nesouhlasí s údaji v informačním systému. Kontaktujte prosím podporu.');
+            return $this->genericResponse();
         }
-
-        $token = Str::random(40);
-        DB::table('users')->where('id', $user->id)->update([
-            'password_request' => $token,
-        ]);
 
         $email = DB::table('contacts')
             ->join('users_contacts', 'contacts.id', '=', 'users_contacts.contact_id')
@@ -84,28 +88,52 @@ class ForgottenPasswordController extends Controller
             ->where('contacts.type', 20)
             ->value('contacts.value');
 
-        if ($email) {
-            $siteTitle = Setting::get('title', 'FreenetIS');
-            $resetUrl  = route('forgotten-password.reset') . '?request=' . $token;
-            $fromEmail = Setting::get('email_default_email', 'noreply@freenetis.org');
-
-            DB::table('email_queues')->insert([
-                'from'    => $fromEmail,
-                'to'      => $email,
-                'subject' => $siteTitle . ' :: Reset hesla',
-                'body'    => "Dobrý den,\n\nPro reset hesla klikněte na tento odkaz:\n{$resetUrl}\n\nPokud jste o reset hesla nežádali, ignorujte tento email.\n\n{$siteTitle}",
-                'state'   => 0,
-            ]);
+        if (!$email) {
+            return $this->genericResponse();
         }
 
-        $maskedEmail = '';
-        if ($email) {
-            $parts = explode('@', $email);
-            $maskedEmail = substr($parts[0], 0, 1) . str_repeat('*', max(3, strlen($parts[0]) - 1)) . '@' . $parts[1];
+        $token = Str::random(40);
+        DB::table('users')->where('id', $user->id)->update([
+            'password_request'             => $token,
+            'password_request_expires_at'  => now()->addMinutes(self::TOKEN_TTL_MIN),
+        ]);
+
+        $siteTitle = Setting::get('title', 'FreenetIS');
+        $resetUrl  = route('forgotten-password.reset') . '?request=' . $token;
+        $fromEmail = Setting::get('email_default_email', 'noreply@freenetis.org');
+        $ttlMin    = self::TOKEN_TTL_MIN;
+
+        DB::table('email_queues')->insert([
+            'from'    => $fromEmail,
+            'to'      => $email,
+            'subject' => $siteTitle . ' :: Reset hesla',
+            'body'    => "Dobrý den,\n\nPro reset hesla klikněte na tento odkaz (platnost {$ttlMin} minut):\n{$resetUrl}\n\nPokud jste o reset hesla nežádali, ignorujte tento email.\n\n{$siteTitle}",
+            'state'   => 0,
+        ]);
+
+        return $this->genericResponse();
+    }
+
+    /**
+     * Najde uživatele podle tokenu, kontroluje platnost (expirace).
+     * Vrací null pokud token chybí, neexistuje, nebo expiroval.
+     */
+    private function findValidTokenUser(?string $token): ?object
+    {
+        if (!$token) return null;
+
+        $user = DB::table('users')->where('password_request', $token)->first();
+        if (!$user) return null;
+
+        // Token bez expirace (legacy záznam, nebo migrovaný DB) → odmítnout.
+        // Force re-request, protože nevíme jak je starý.
+        if (empty($user->password_request_expires_at)) return null;
+
+        if (\Carbon\Carbon::parse($user->password_request_expires_at)->isPast()) {
+            return null;
         }
 
-        return redirect()->route('forgotten-password')
-            ->with('success', 'Žádost byla odeslána na Váš e-mail (' . $maskedEmail . '). Zkontrolujte prosím svou e-mailovou schránku. Pokud zpráva nedorazí do 20 minut, kontaktujte prosím podporu.');
+        return $user;
     }
 
     public function reset(Request $request)
@@ -113,9 +141,7 @@ class ForgottenPasswordController extends Controller
         if (!Setting::get('forgotten_password', 0)) abort(404);
 
         $token = $request->query('request');
-        if (!$token) return redirect()->route('login');
-
-        $user = DB::table('users')->where('password_request', $token)->first();
+        $user  = $this->findValidTokenUser($token);
         if (!$user) {
             return redirect()->route('login')
                 ->with('error', 'Odkaz pro reset hesla je neplatný nebo vypršel.');
@@ -136,16 +162,22 @@ class ForgottenPasswordController extends Controller
             'password_confirmation' => 'required',
         ]);
 
-        $user = DB::table('users')->where('password_request', $request->token)->first();
+        $user = $this->findValidTokenUser($request->token);
         if (!$user) {
             return redirect()->route('login')
                 ->with('error', 'Odkaz pro reset hesla je neplatný nebo vypršel.');
         }
 
+        // Atomicky vynulovat token + jeho expiraci, aby ho nešlo znovu použít (race protection).
         DB::table('users')->where('id', $user->id)->update([
-            'password'         => bcrypt($request->password),
-            'password_request' => null,
+            'password'                    => bcrypt($request->password),
+            'password_request'            => null,
+            'password_request_expires_at' => null,
         ]);
+
+        // Zneplatnit všechny existující sessiony tohoto uživatele — kdo už byl přihlášen,
+        // se musí přihlásit znovu (mitigace situace, kdy útočník měl session a oběť reset).
+        DB::table('sessions')->where('user_id', $user->id)->delete();
 
         return redirect()->route('login')
             ->with('success', 'Heslo bylo úspěšně změněno. Nyní se můžete přihlásit.');

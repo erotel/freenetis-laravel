@@ -229,6 +229,8 @@ CACHE_STORE=file
 SESSION_DRIVER=file
 SESSION_PATH=/freenetis
 SESSION_LIFETIME=120
+# Cookie posíláme jen přes HTTPS — certbot dotuningne vhost na 443.
+SESSION_SECURE_COOKIE=true
 QUEUE_CONNECTION=sync
 FILESYSTEM_DISK=local
 

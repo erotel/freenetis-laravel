@@ -823,6 +823,8 @@ class MemberController extends Controller
 
     public function approve(int $id)
     {
+        abort_unless($this->aclCheck('edit_all', 'Members_Controller', 'members'), 403);
+
         $member = Member::findOrFail($id);
 
         if (!in_array($member->type, [MemberType::PENDING_MEMBER, MemberType::PENDING_CUSTOMER])) {

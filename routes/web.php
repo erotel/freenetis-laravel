@@ -73,7 +73,7 @@ Route::prefix('web-interface')->name('web-interface.')->group(function () {
 
 // Login / logout
 Route::get('/login', [LoginController::class, 'showLoginForm'])->name('login')->middleware('guest');
-Route::post('/login', [LoginController::class, 'login'])->middleware('guest');
+Route::post('/login', [LoginController::class, 'login'])->middleware(['guest', 'throttle:5,1']);
 Route::post('/logout', [LoginController::class, 'logout'])->name('logout')->middleware('auth');
 
 // Public self-registration (guest only)
@@ -84,9 +84,9 @@ Route::middleware('guest')->group(function () {
 
     // Forgotten password
     Route::get('forgotten-password', [ForgottenPasswordController::class, 'create'])->name('forgotten-password');
-    Route::post('forgotten-password', [ForgottenPasswordController::class, 'store'])->name('forgotten-password.store');
+    Route::post('forgotten-password', [ForgottenPasswordController::class, 'store'])->name('forgotten-password.store')->middleware('throttle:5,1');
     Route::get('forgotten-password/reset', [ForgottenPasswordController::class, 'reset'])->name('forgotten-password.reset');
-    Route::post('forgotten-password/reset', [ForgottenPasswordController::class, 'update'])->name('forgotten-password.update');
+    Route::post('forgotten-password/reset', [ForgottenPasswordController::class, 'update'])->name('forgotten-password.update')->middleware('throttle:5,1');
 });
 
 // Public ARES lookup (for registration form - no auth required)
