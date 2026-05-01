@@ -162,6 +162,10 @@ Route::get('streets/by-town-public/{townId}', function (int $townId) {
     );
 })->name('streets.by-town-public');
 
+// Public captive-portal endpoint (fn-redirector na IGW přesměruje suspendované členy sem)
+Route::get('/redirection', [\App\Http\Controllers\RedirectionController::class, 'show'])
+    ->name('redirection');
+
 // Public contract-sign flow (no auth — gated by HMAC access token)
 Route::prefix('sign')->name('sign.')->group(function () {
     Route::get ('contract',         [\App\Http\Controllers\Contracts\PublicSignController::class, 'showContract'])->name('show');
