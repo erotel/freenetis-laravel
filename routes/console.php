@@ -41,3 +41,6 @@ Schedule::command('members:redirect-interrupted')->dailyAt('00:09');
 
 // Activate redirect for applicants with expired connection test (skips unless duration configured)
 Schedule::command('members:redirect-expired-applicants')->hourly();
+
+// SledovaniTV — denně synchronizovat seznam aktivních TV zákazníků (skips unless module enabled)
+Schedule::command('sledovanitv:sync')->dailyAt('03:30');

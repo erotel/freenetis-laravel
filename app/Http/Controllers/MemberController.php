@@ -65,6 +65,9 @@ class MemberController extends Controller
                 'members.leaving_date',
                 'members.locked',
                 'members.address_point_id',
+                'members.tv_active',
+                'members.tv_valid_until',
+                'members.tv_synced_at',
                 DB::raw('(SELECT a.balance FROM accounts a WHERE a.member_id = members.id AND a.account_attribute_id = 221100 LIMIT 1) AS credit_balance'),
                 DB::raw('(SELECT msg.type FROM messages_ip_addresses mia JOIN ip_addresses ip ON ip.id = mia.ip_address_id JOIN messages msg ON msg.id = mia.message_id WHERE ip.member_id = members.id LIMIT 1) AS redirect_type'),
                 DB::raw("(SELECT CASE WHEN mw.permanent = 1 OR mw.until = '9999-12-31' THEN 'permanent' ELSE 'temporary' END FROM members_whitelists mw WHERE mw.member_id = members.id AND mw.since <= CURDATE() AND mw.until >= CURDATE() LIMIT 1) AS whitelist_type"),
@@ -90,6 +93,8 @@ class MemberController extends Controller
             ->paginate($perPage)
             ->withQueryString();
 
+        $tvEnabled = (bool) \App\Models\Setting::get('sledovanitv_enabled', 0);
+
         return view('members.index', [
             'members'         => $members,
             'sort'            => $sort,
@@ -99,11 +104,12 @@ class MemberController extends Controller
             'memberTypes'     => MemberType::labels(),
             'currentTypes'    => $currentTypes,
             'currentLocked'   => $currentLocked,
-            'filterFields'    => MemberFilter::fields(),
+            'filterFields'    => MemberFilter::fields($tvEnabled),
             'currentFilters'  => $advancedFilters,
             'canNew'          => $this->can('new_all'),
             'canEdit'         => $this->can('edit_all'),
             'canDelete'       => $this->can('delete_all'),
+            'tvEnabled'       => $tvEnabled,
         ]);
     }
 
@@ -162,6 +168,7 @@ class MemberController extends Controller
             'variableSymbols'     => $variableSymbols,
             'creditAccount'       => $creditAccount,
             'activeMemberFee'     => $activeMemberFee,
+            'tvEnabled'           => (bool) \App\Models\Setting::get('sledovanitv_enabled', 0),
             'canEdit'             => $this->can('edit_all'),
             'canDelete'           => $this->can('delete_all'),
             'mainUser'            => $mainUser,

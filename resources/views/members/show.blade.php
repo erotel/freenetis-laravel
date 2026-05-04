@@ -176,6 +176,26 @@
         @if($member->comment)
         <div class="m-field"><span class="m-field-label">Komentář</span><span class="m-field-value">{{ $member->comment }}</span></div>
         @endif
+        @if($tvEnabled)
+        <div class="m-field">
+            <span class="m-field-label">SledovaniTV</span>
+            <span class="m-field-value">
+                @if($member->tv_synced_at === null)
+                    <span style="color:#999">— (nikdy synced)</span>
+                @elseif($member->tv_active)
+                    <span style="color:#27ae60">📺 Aktivní</span>
+                    @if($member->tv_valid_until)
+                        <span style="color:#888;font-size:12px">do {{ $member->tv_valid_until }}</span>
+                    @endif
+                @else
+                    <span style="color:#c0392b">📺 Neaktivní</span>
+                    @if($member->tv_valid_until)
+                        <span style="color:#888;font-size:12px">(vypršelo {{ $member->tv_valid_until }})</span>
+                    @endif
+                @endif
+            </span>
+        </div>
+        @endif
     </div>
 
     <div>

@@ -2,10 +2,14 @@
 
 namespace App\Http\Controllers;
 
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 
 class StatsController extends Controller
 {
+    private const DEDUCT_TYPES = [1, 2, 5];    // member_fee, entrance_fee, device_fee
+
     public function index()
     {
         if (!$this->aclCheck('view_all', 'Stats_Controller', 'members_growth')) {
@@ -102,5 +106,108 @@ class StatsController extends Controller
             $months[] = sprintf('%d-%02d', $year, $m);
         }
         return $months;
+    }
+
+    public function cashflow(Request $request)
+    {
+        if (!$this->aclCheck('view_all', 'Stats_Controller', 'members_growth')) {
+            abort(403);
+        }
+
+        // ── Rozsah měsíců ─────────────────────────────────────────────────────
+        // ?year=2025 → leden..prosinec 2025
+        // bez parametru → posledních 12 měsíců (rolling)
+        $year = (int) $request->query('year', 0);
+        if ($year >= 2000 && $year <= 2100) {
+            $months = $this->monthsOfYear($year);
+        } else {
+            $year   = 0;
+            $months = $this->lastNMonths(12);
+        }
+
+        // ── Roky pro dropdown ─────────────────────────────────────────────────
+        $availableYears = $this->availableYears();
+
+        // ── Spočítat data (s 10min cache) ─────────────────────────────────────
+        $cacheKey = 'stats.cashflow.' . ($year ?: 'rolling12');
+        $rows = Cache::remember($cacheKey, 600, fn() => $this->computeCashflowRows($months));
+
+        // Nejnovější nahoře
+        $rows = array_reverse($rows);
+
+        return view('stats.cashflow', [
+            'rows'           => $rows,
+            'year'           => $year,
+            'availableYears' => $availableYears,
+        ]);
+    }
+
+    /**
+     * Posledních N měsíců včetně aktuálního, vzestupně (od nejstaršího po nejnovější).
+     */
+    private function lastNMonths(int $n): array
+    {
+        $months = [];
+        for ($i = $n - 1; $i >= 0; $i--) {
+            $months[] = now()->subMonths($i)->format('Y-m');
+        }
+        return $months;
+    }
+
+    /**
+     * Roky pro které existují transfery (DESC, novější první).
+     */
+    private function availableYears(): array
+    {
+        $rows = DB::select("SELECT DISTINCT YEAR(datetime) AS y FROM transfers WHERE datetime IS NOT NULL ORDER BY y DESC");
+        return array_map(fn($r) => (int) $r->y, $rows);
+    }
+
+    /**
+     * Vrátí pole řádků pro tabulku, jeden řádek na měsíc:
+     *   ['month' => 'YYYY-MM', 'deducted' => [2 => float, 90 => float]]
+     */
+    private function computeCashflowRows(array $months): array
+    {
+        if (empty($months)) return [];
+
+        $monthMin = $months[0] . '-01';
+        $monthMaxStart = end($months);
+        // Konec rozsahu = první den následujícího měsíce (exkluzivně)
+        $monthMaxExclusive = date('Y-m-01', strtotime($monthMaxStart . '-01 +1 month'));
+
+        // ── Strženo členům, split podle members.type (2, 90) ─────────────────
+        // Pozn: transfers.member_id z DeductFees je NULL, takže join na members
+        // jdeme přes origin_id → accounts (credit, attr=221100) → member.
+        $deductTypesIn = implode(',', array_map('intval', self::DEDUCT_TYPES));
+        $deductRows = DB::select("
+            SELECT SUBSTR(t.datetime,1,7) AS month, m.type AS mtype,
+                   ROUND(SUM(t.amount), 2) AS total
+            FROM transfers t
+            JOIN accounts a ON a.id = t.origin_id AND a.account_attribute_id = 221100
+            JOIN members m ON m.id = a.member_id
+            WHERE t.type IN ($deductTypesIn)
+              AND t.datetime >= ? AND t.datetime < ?
+              AND m.type IN (2, 90)
+            GROUP BY month, mtype
+        ", [$monthMin, $monthMaxExclusive]);
+
+        $deducted = []; // ['2026-04' => [2 => 1234, 90 => 5678]]
+        foreach ($deductRows as $r) {
+            $deducted[$r->month][(int) $r->mtype] = (float) $r->total;
+        }
+
+        // ── Sestavit řádky pro view ──────────────────────────────────────────
+        $out = [];
+        foreach ($months as $m) {
+            $out[] = [
+                'month'    => $m,
+                'deducted' => [
+                    2  => $deducted[$m][2]  ?? 0.0,
+                    90 => $deducted[$m][90] ?? 0.0,
+                ],
+            ];
+        }
+        return $out;
     }
 }

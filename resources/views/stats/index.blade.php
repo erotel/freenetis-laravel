@@ -20,6 +20,11 @@
 <div class="m-title-row"><h2>Statistiky</h2></div>
 <div class="m-subtitle">Přehled růstu, plateb a poplatků</div>
 
+<div style="display:flex;gap:4px;margin-bottom:20px;flex-wrap:wrap">
+    <a class="m-btn m-btn-primary" href="{{ route('stats.index') }}">Růst a platby</a>
+    <a class="m-btn"               href="{{ route('stats.cashflow') }}">Cash flow</a>
+</div>
+
 <div class="stats-grid">
 
     {{-- 1. Přírůstek / úbytek --}}

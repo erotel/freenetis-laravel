@@ -7,12 +7,12 @@ use Illuminate\Support\Facades\DB;
 
 class MemberFilter
 {
-    public static function fields(): array
+    public static function fields(bool $tvEnabled = false): array
     {
         $towns   = DB::table('towns')->orderBy('town')->pluck('town', 'id')->toArray();
         $streets = DB::table('streets')->orderBy('street')->pluck('street', 'id')->toArray();
 
-        return [
+        $fields = [
             ['key' => 'name',            'label' => 'Jméno',              'type' => 'text'],
             ['key' => 'id',              'label' => 'ID',                 'type' => 'number'],
             ['key' => 'type',            'label' => 'Typ',                'type' => 'select', 'values' => MemberType::labels()],
@@ -42,6 +42,16 @@ class MemberFilter
                 '' => '— vše —', '1' => 'Ano', '0' => 'Ne',
             ]],
         ];
+
+        if ($tvEnabled) {
+            $fields[] = ['key' => 'tv', 'label' => 'SledovaniTV', 'type' => 'select', 'values' => [
+                'active'   => 'Aktivní',
+                'inactive' => 'Vypršelá',
+                'never'    => 'Nikdy synced',
+            ]];
+        }
+
+        return $fields;
     }
 
     public static function apply($query, array $filters): void
@@ -141,6 +151,17 @@ class MemberFilter
                         ->join('messages as msg', 'msg.id', '=', 'mia.message_id')
                         ->whereColumn('ip.member_id', 'members.id')
                         ->where('msg.type', $op === 'neq' ? '!=' : '=', (int) $value));
+                }
+                break;
+
+            case 'tv':
+                // Operátor (eq/neq) ignorujeme — select má 3 vlastní stavy.
+                if ($value === 'active') {
+                    $query->where('members.tv_active', 1);
+                } elseif ($value === 'inactive') {
+                    $query->where('members.tv_active', 0)->whereNotNull('members.tv_synced_at');
+                } elseif ($value === 'never') {
+                    $query->whereNull('members.tv_synced_at');
                 }
                 break;
 

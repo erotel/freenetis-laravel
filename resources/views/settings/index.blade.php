@@ -10,7 +10,7 @@
 
 {{-- Tabs --}}
 <div style="display:flex;gap:4px;margin-bottom:20px;flex-wrap:wrap">
-    @foreach(['banka' => 'Banka', 'email' => 'Email', 'finance' => 'Finance', 'system' => 'Systém', 'users' => 'Uživatelé', 'network' => 'Síť', 'sms' => 'SMS', 'gpon' => 'GPON', 'smlouvy' => 'Smlouvy'] as $tabKey => $tabLabel)
+    @foreach(['banka' => 'Banka', 'email' => 'Email', 'finance' => 'Finance', 'system' => 'Systém', 'users' => 'Uživatelé', 'network' => 'Síť', 'sms' => 'SMS', 'gpon' => 'GPON', 'smlouvy' => 'Smlouvy', 'sledovanitv' => 'SledovaniTV'] as $tabKey => $tabLabel)
     <a class="m-btn @if($activeTab === $tabKey) m-btn-primary @endif"
        href="{{ route('settings.index', ['tab' => $tabKey]) }}">{{ $tabLabel }}</a>
     @endforeach
@@ -932,6 +932,70 @@ function gponOltReset() {
 <div class="m-actions">
     <button class="m-btn m-btn-primary" type="submit">Uložit nastavení smluv</button>
 </div>
+</form>
+@endif
+
+@if($activeTab === 'sledovanitv')
+<form method="POST" action="{{ route('settings.update-sledovanitv') }}">
+@csrf @method('PUT')
+
+<div class="m-card" style="margin-bottom:16px;max-width:560px">
+    <div class="m-card-title">SledovaniTV — read-only modul</div>
+    <p class="m-form-hint" style="margin-bottom:12px">
+        Pravidelně stahuje seznam zákazníků z partner API a v detailu člena ukazuje stav TV předplatného.
+        Mapping <code>users[].partnerid → members.id</code>, "aktivní" = <code>partnerActivation ≥ dnes</code>.
+    </p>
+
+    <div class="m-form-group">
+        <label style="display:flex;align-items:center;gap:6px;cursor:pointer">
+            <input type="checkbox" name="sledovanitv_enabled" value="1"
+                {{ ($sledovanitvSettings['sledovanitv_enabled'] ?? '') == '1' ? 'checked' : '' }}>
+            Modul povolen
+        </label>
+        <div class="m-form-hint">Když je vypnutý, badge se v UI nezobrazuje a denní cron je no-op.</div>
+    </div>
+
+    <div class="m-form-group">
+        <label class="m-form-label">Partner</label>
+        <input class="m-form-input" type="text" name="sledovanitv_partner"
+            value="{{ $sledovanitvSettings['sledovanitv_partner'] ?? '' }}" placeholder="např. pvfree">
+    </div>
+
+    <div class="m-form-group">
+        <label class="m-form-label">Heslo</label>
+        <input class="m-form-input" type="password" name="sledovanitv_password" autocomplete="new-password"
+            placeholder="{{ ($sledovanitvSettings['sledovanitv_password'] ?? '') !== '' ? '••••• (uložené)' : 'API password' }}">
+        <div class="m-form-hint">Nech prázdné, pokud nechceš měnit. Uložené heslo se nezobrazuje.</div>
+    </div>
+</div>
+
+<div class="m-card" style="margin-bottom:16px;max-width:560px">
+    <div class="m-card-title">Stav synchronizace</div>
+    <div class="m-field">
+        <span class="m-field-label">Poslední sync</span>
+        <span class="m-field-value">{{ $sledovanitvSettings['last_sync'] ?: '—' }}</span>
+    </div>
+    <div class="m-field">
+        <span class="m-field-label">Výsledek</span>
+        <span class="m-field-value">{{ $sledovanitvSettings['last_sync_status'] ?: '—' }}</span>
+    </div>
+    <div class="m-form-hint" style="margin-top:8px">
+        Cron běží denně v 03:30. Tlačítkem dole můžeš spustit ručně (vyžaduje uložené credentials).
+    </div>
+</div>
+
+<div class="m-actions">
+    <button class="m-btn m-btn-primary" type="submit">Uložit nastavení</button>
+</div>
+</form>
+
+<form method="POST" action="{{ route('settings.sledovanitv-sync') }}" style="margin-top:8px">
+    @csrf
+    <button class="m-btn" type="submit"
+            onclick="return confirm('Spustit sync teď? Stáhne se aktuální seznam ze SledovaniTV API a aktualizují se všichni členové.')"
+            {{ ($sledovanitvSettings['sledovanitv_enabled'] ?? '') == '1' ? '' : 'disabled' }}>
+        &#8635; Spustit sync teď
+    </button>
 </form>
 @endif
 

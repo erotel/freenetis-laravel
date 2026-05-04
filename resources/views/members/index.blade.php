@@ -117,6 +117,7 @@ $redirectLabels = [
             <th>Město</th>
             <th>Stav (kredit)</th>
             <th>Bílá listina</th>
+            @if($tvEnabled ?? false) <th title="SledovaniTV — aktivní TV předplatné">TV</th> @endif
             <th>Akce</th>
         </tr>
     </thead>
@@ -166,6 +167,17 @@ $redirectLabels = [
                 @endif
             </td>
             <td>{{ $wlLabel }}</td>
+            @if($tvEnabled ?? false)
+            <td title="{{ $member->tv_synced_at ? ($member->tv_active ? 'Aktivní do '.$member->tv_valid_until : 'Vypršelo '.$member->tv_valid_until) : 'Nikdy synced' }}">
+                @if($member->tv_synced_at === null)
+                    <span style="color:#ccc">—</span>
+                @elseif($member->tv_active)
+                    <span style="color:#27ae60;font-size:12px">Aktivní</span>
+                @else
+                    <span style="color:#999;font-size:12px">Neaktivní</span>
+                @endif
+            </td>
+            @endif
             <td>
                 <div style="display:flex;gap:6px;align-items:center">
                     <a class="m-link-sm" href="{{ route('members.show', $member->id) }}">Detail</a>
@@ -176,7 +188,7 @@ $redirectLabels = [
             </td>
         </tr>
         @empty
-        <tr><td colspan="10" style="text-align:center;color:#aaa;padding:2rem">Žádní členové nebyli nalezeni.</td></tr>
+        <tr><td colspan="{{ ($tvEnabled ?? false) ? 11 : 10 }}" style="text-align:center;color:#aaa;padding:2rem">Žádní členové nebyli nalezeni.</td></tr>
         @endforelse
     </tbody>
 </table>

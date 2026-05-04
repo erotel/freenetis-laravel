@@ -64,6 +64,10 @@ class SettingController extends Controller
         'contract_email_pricelist_pdf', 'contract_email_vop_pdf',
     ];
 
+    public const SLEDOVANITV_KEYS = [
+        'sledovanitv_enabled', 'sledovanitv_partner', 'sledovanitv_password',
+    ];
+
     // SMS drivers: id → config
     // has_hostname: true = admin can override hostname (Klikniavolej only)
     // has_test_mode: true = show test mode toggle (Klikniavolej only)
@@ -216,13 +220,21 @@ class SettingController extends Controller
             $smlouvySettings[$key] = (string) Setting::get($key, $smlouvyDefaults[$key] ?? '');
         }
 
+        // SledovaniTV — nepotřebujeme defaults, pole se prostě načte
+        $sledovanitvSettings = [];
+        foreach (self::SLEDOVANITV_KEYS as $key) {
+            $sledovanitvSettings[$key] = (string) Setting::get($key, '');
+        }
+        $sledovanitvSettings['last_sync']        = (string) Setting::get('sledovanitv_last_sync', '');
+        $sledovanitvSettings['last_sync_status'] = (string) Setting::get('sledovanitv_last_sync_status', '');
+
         return view('settings.index', compact(
             'bankAccounts', 'memberTypes', 'routing', 'defaultBaId',
             'emailSettings', 'bccRules', 'messages', 'activeTab',
             'pohodaEmail', 'financeSettings', 'feesForSelect',
             'systemSettings', 'usersSettings', 'networkSettings',
             'smsSettings', 'smsDriverSettings', 'gponSettings', 'gponOlts',
-            'dhcpApiToken', 'smlouvySettings'
+            'dhcpApiToken', 'smlouvySettings', 'sledovanitvSettings'
         ));
     }
 
@@ -412,6 +424,47 @@ class SettingController extends Controller
 
         return redirect()->route('settings.index', ['tab' => 'smlouvy'])
             ->with('success', 'Nastavení smluv bylo uloženo.');
+    }
+
+    public function updateSledovaniTv(Request $request)
+    {
+        abort_unless($this->can('edit_all'), 403);
+
+        $request->validate([
+            'sledovanitv_partner' => 'nullable|string|max:50',
+        ]);
+
+        Setting::set('sledovanitv_enabled', $request->boolean('sledovanitv_enabled') ? 1 : 0);
+        Setting::set('sledovanitv_partner', trim((string) $request->input('sledovanitv_partner', '')));
+
+        // Heslo zachováme, když je pole prázdné (stejný pattern jako otp_pepper)
+        $password = (string) $request->input('sledovanitv_password', '');
+        if ($password !== '') {
+            Setting::set('sledovanitv_password', $password);
+        }
+
+        return redirect()->route('settings.index', ['tab' => 'sledovanitv'])
+            ->with('success', 'Nastavení SledovaniTV bylo uloženo.');
+    }
+
+    public function syncSledovaniTv(\App\Services\SledovaniTvService $svc)
+    {
+        abort_unless($this->can('edit_all'), 403);
+
+        try {
+            $stats = $svc->syncToMembers();
+            $msg = sprintf(
+                'Sync OK: %d total, %d matched, %d active, %d unmatched, %d bez partnerid',
+                $stats['total'], $stats['matched'], $stats['active'],
+                $stats['unmatched'], $stats['no_partnerid']
+            );
+            return redirect()->route('settings.index', ['tab' => 'sledovanitv'])->with('success', $msg);
+        } catch (\Throwable $e) {
+            \Illuminate\Support\Facades\Log::error('SledovaniTV manual sync failed: ' . $e->getMessage());
+            Setting::set('sledovanitv_last_sync_status', 'CHYBA: ' . $e->getMessage());
+            return redirect()->route('settings.index', ['tab' => 'sledovanitv'])
+                ->with('error', 'Sync selhal: ' . $e->getMessage());
+        }
     }
 
     public function updateSms(Request $request)

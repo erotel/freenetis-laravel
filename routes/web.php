@@ -406,6 +406,8 @@ Route::middleware('auth')->group(function () {
     Route::put('settings/network',  [SettingController::class, 'updateNetwork'])->name('settings.update-network');
     Route::post('settings/regenerate-dhcp-token', [SettingController::class, 'regenerateDhcpToken'])->name('settings.regenerate-dhcp-token');
     Route::put('settings/sms',      [SettingController::class, 'updateSms'])->name('settings.update-sms');
+    Route::put('settings/sledovanitv',  [SettingController::class, 'updateSledovaniTv'])->name('settings.update-sledovanitv');
+    Route::post('settings/sledovanitv/sync', [SettingController::class, 'syncSledovaniTv'])->name('settings.sledovanitv-sync');
     Route::put('settings/smlouvy',  [SettingController::class, 'updateSmlouvy'])->name('settings.update-smlouvy');
     Route::put('settings',          [SettingController::class, 'update'])->name('settings.update');
 
@@ -582,7 +584,8 @@ Route::middleware('auth')->group(function () {
     Route::delete('comments/{id}',                  [CommentController::class, 'destroy'])->name('comments.destroy');
 
     Route::post('user/dark-mode', [UserController::class, 'toggleDarkMode'])->name('user.dark-mode');
-    Route::get('stats', [StatsController::class, 'index'])->name('stats.index');
+    Route::get('stats',          [StatsController::class, 'index'])->name('stats.index');
+    Route::get('stats/cashflow', [StatsController::class, 'cashflow'])->name('stats.cashflow');
     Route::get('saved-filters',       [SavedFilterController::class, 'index'])->name('saved-filters.index');
     Route::post('saved-filters',      [SavedFilterController::class, 'store'])->name('saved-filters.store');
     Route::delete('saved-filters/{id}', [SavedFilterController::class, 'destroy'])->name('saved-filters.destroy');
