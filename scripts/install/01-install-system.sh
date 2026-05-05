@@ -42,6 +42,8 @@ DEBIAN_FRONTEND=noninteractive apt-get install -y -qq \
     "php${PHPV}-mysql" "php${PHPV}-mbstring" "php${PHPV}-xml" \
     "php${PHPV}-curl" "php${PHPV}-gd" "php${PHPV}-intl" \
     "php${PHPV}-zip" "php${PHPV}-bcmath" "php${PHPV}-opcache" "php${PHPV}-gmp" \
+    "php${PHPV}-snmp" \
+    snmp \
     composer git unzip ca-certificates curl sudo \
     certbot python3-certbot-apache \
     > /dev/null

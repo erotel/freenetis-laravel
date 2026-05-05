@@ -3,6 +3,8 @@
 @php
     $pageTitle = match(request('types')) {
         '1,3,15,17,90' => 'Seznam členů',
+        '1,3,17,90'    => 'Seznam členů',
+        '1,17,18'      => 'Seznam čekatelů',
         '17,18'        => 'Seznam čekatelů',
         default        => 'Seznam zákazníků',
     };
@@ -40,9 +42,9 @@
             <div class="m-form-label">Typ</div>
             <select class="m-form-select" style="width:160px" name="types" onchange="this.form.submit()">
                 <option value="all" @selected($currentTypes === 'all')>— všechny typy —</option>
-                <option value="1,3,15,17,90" @selected($currentTypes === '1,3,15,17,90')>Členové</option>
+                <option value="1,3,15,17,90" @selected($currentTypes === '1,3,15,17,90' || $currentTypes === '1,3,17,90')>Členové</option>
                 <option value="2,16,18" @selected($currentTypes === '2,16,18')>Zákazníci</option>
-                <option value="17,18" @selected($currentTypes === '17,18')>Čekatelé</option>
+                <option value="1,17,18" @selected($currentTypes === '1,17,18' || $currentTypes === '17,18')>Čekatelé</option>
                 @foreach($memberTypes as $typeId => $typeLabel)
                 <option value="{{ $typeId }}" @selected($currentTypes === (string)$typeId)>{{ $typeLabel }}</option>
                 @endforeach

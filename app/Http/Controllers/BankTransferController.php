@@ -33,21 +33,33 @@ class BankTransferController extends Controller
         return view('bank_transfers.show_by_account', compact('account', 'transfers'));
     }
 
-    public function showUnidentified()
+    public function showUnidentified(Request $request)
     {
         abort_unless($this->can('view_all', 'unidentified_transfers'), 403);
+
+        // Default: posledních 30 dní (po importu produkce je v DB i 4500+ historických
+        // neidentifikovaných převodů z pre-migrace, které dělají stránku nepoužitelnou).
+        $from = $request->query('from') ?? now()->subDays(30)->toDateString();
+        $to   = $request->query('to') ?: null;
 
         // Kohana logic: unidentified = transfer exists but member_id is NULL/0
         // (payment could not be matched to any member — wrong account, missing VS, etc.)
         $transfers = BankTransfer::whereNotNull('transfer_id')
-            ->whereHas('transfer', function ($q) {
-                $q->whereNull('member_id')->orWhere('member_id', 0);
+            ->whereHas('transfer', function ($q) use ($from, $to) {
+                $q->where(function ($q) {
+                    $q->whereNull('member_id')->orWhere('member_id', 0);
+                });
+                if ($from) $q->where('datetime', '>=', $from . ' 00:00:00');
+                if ($to)   $q->where('datetime', '<=', $to   . ' 23:59:59');
             })
             ->with(['bankStatement.bankAccount', 'originAccount', 'destinationAccount', 'transfer'])
-            ->orderByDesc('id')
-            ->paginate(50);
+            ->join('transfers', 'transfers.id', '=', 'bank_transfers.transfer_id')
+            ->orderByDesc('transfers.datetime')
+            ->select('bank_transfers.*')
+            ->paginate(50)
+            ->withQueryString();
 
-        return view('bank_transfers.unidentified', compact('transfers'));
+        return view('bank_transfers.unidentified', compact('transfers', 'from', 'to'));
     }
 
     public function refundForm(int $id)

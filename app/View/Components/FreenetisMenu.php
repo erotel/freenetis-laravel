@@ -41,7 +41,7 @@ class FreenetisMenu extends Component
             ->where('status', 'draft')
             ->count();
 
-        $countApplicants  = fn() => (int) DB::table('members')->whereIn('type', [17, 18])->count();
+        $countApplicants  = fn() => (int) DB::table('members')->whereIn('type', [1, 17, 18])->count();
         $countCustomers   = fn() => (int) DB::table('members')->where('type', 2)->count();
         $countRegular     = fn() => (int) DB::table('members')->where('type', 90)->count();
         $countLogErrors   = fn() => (int) DB::table('log_queues')->whereIn('type', [0, 1])->where('state', 0)->count();
@@ -69,7 +69,7 @@ class FreenetisMenu extends Component
                 // Bývalí (typy 15, 16) jsou v záměrně vyloučeni — admin je najde přes filtr typů.
                 ['url' => route('members.index', ['types' => '1,3,17,90']), 'path' => 'members', 'label' => 'Seznam členů', 'acl' => ['view_all', 'Members_Controller', 'members'], 'count' => $countRegular],
                 ['url' => route('members.index', ['types' => '2,18']), 'path' => 'members', 'label' => 'Seznam zákazníků', 'acl' => ['view_all', 'Members_Controller', 'members'], 'count' => $countCustomers],
-                ['url' => route('members.index', ['types' => '17,18']), 'path' => 'members/applicants', 'label' => 'Čekatelé', 'acl' => ['view_all', 'Members_Controller', 'members'], 'count' => $countApplicants],
+                ['url' => route('members.index', ['types' => '1,17,18']), 'path' => 'members/applicants', 'label' => 'Čekatelé', 'acl' => ['view_all', 'Members_Controller', 'members'], 'count' => $countApplicants],
                 ['url' => route('users.index'), 'path' => 'users', 'label' => 'Uživatelé', 'acl' => ['view_all', 'Users_Controller', 'users']],
             ]],
             ['name' => 'network', 'label' => 'Síť', 'items' => array_filter([
