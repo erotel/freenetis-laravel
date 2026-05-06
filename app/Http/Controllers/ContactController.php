@@ -58,7 +58,11 @@ class ContactController extends Controller
         }
 
         $user         = $this->loadUser($userId);
+        // Při zakládání nového kontaktu schováme zastaralé protokoly
+        // (ICQ/MSN/Jabber/Skype). Existující záznamy s těmito typy zůstávají
+        // v UI viditelné — deprecated řeší jen nový vstup.
         $contactTypes = EnumType::where('type_id', EnumType::CONTACT_GROUP_ID)
+            ->notDeprecated()
             ->orderBy('id')
             ->pluck('value', 'id');
 

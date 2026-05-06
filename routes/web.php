@@ -474,7 +474,7 @@ Route::middleware('auth')->group(function () {
     Route::delete('messages/{messageId}/auto-settings/{id}', [MessageAutoSettingController::class, 'destroy'])->name('message-auto-settings.destroy');
 
     Route::get('enum-types', [EnumTypeController::class, 'index'])->name('enum-types.index')
-        ->middleware('acl:view_all,Settings_Controller,enum_types');
+        ->middleware('acl:view_all,Enum_types_Controller,enum_types');
     Route::get('enum-types/create', [EnumTypeController::class, 'create'])->name('enum-types.create');
     Route::post('enum-types', [EnumTypeController::class, 'store'])->name('enum-types.store');
     Route::get('enum-types/{id}/edit', [EnumTypeController::class, 'edit'])->name('enum-types.edit');

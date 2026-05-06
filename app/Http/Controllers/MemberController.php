@@ -25,6 +25,30 @@ class MemberController extends Controller
         return $this->aclCheck($action, self::ACL_SECTION, self::ACL_VALUE);
     }
 
+    /**
+     * Filtrovaný seznam pro dropdown na index stránce — jen typy, se kterými
+     * admin reálně pracuje. Schované jsou Žadatel/Čestný/Sympatizant/Nečlen/
+     * Fee-free, protože v této instalaci nemají reálné využití (stovky
+     * záznamů to v UI jen rozptylovala).
+     */
+    private static function dropdownMemberTypes(): array
+    {
+        $labels = MemberType::labels();
+        $order = [
+            MemberType::CUSTOMER,           // 2  Zákazník
+            MemberType::REGULAR,            // 90 Řádný člen
+            MemberType::FORMER_CUSTOMER,    // 16 Bývalý zákazník
+            MemberType::FORMER,             // 15 Bývalý člen
+            MemberType::PENDING_MEMBER,     // 17 Čekající člen
+            MemberType::PENDING_CUSTOMER,   // 18 Čekající zákazník
+        ];
+        $out = [];
+        foreach ($order as $id) {
+            $out[$id] = $labels[$id];
+        }
+        return $out;
+    }
+
     public function index(Request $request)
     {
         $allowedSorts = ['id', 'name', 'type', 'entrance_date', 'registration'];
@@ -101,7 +125,7 @@ class MemberController extends Controller
             'dir'             => $dir,
             'perPage'         => $perPage,
             'search'          => $search,
-            'memberTypes'     => MemberType::labels(),
+            'memberTypes'     => self::dropdownMemberTypes(),
             'currentTypes'    => $currentTypes,
             'currentLocked'   => $currentLocked,
             'filterFields'    => MemberFilter::fields($tvEnabled),

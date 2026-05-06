@@ -8,7 +8,7 @@ use Illuminate\Http\Request;
 
 class EnumTypeController extends Controller
 {
-    private const ACL_SECTION = 'Settings_Controller';
+    private const ACL_SECTION = 'Enum_types_Controller';
     private const ACL_VALUE   = 'enum_types';
 
     private function can(string $action): bool

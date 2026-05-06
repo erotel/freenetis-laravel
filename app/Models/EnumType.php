@@ -8,7 +8,12 @@ class EnumType extends Model
 {
     public $timestamps = false;
     protected $table = 'enum_types';
-    protected $fillable = ['type_id', 'value'];
+    protected $fillable = ['type_id', 'value', 'deprecated'];
+
+    protected $casts = [
+        'deprecated' => 'bool',
+        'read_only'  => 'bool',
+    ];
 
     /** type_id grouping all contact types */
     const CONTACT_GROUP_ID = 4;
@@ -19,5 +24,13 @@ class EnumType extends Model
     public function typeName(): \Illuminate\Database\Eloquent\Relations\BelongsTo
     {
         return $this->belongsTo(EnumTypeName::class, 'type_id');
+    }
+
+    /** Skryje hodnoty označené jako zastaralé — pro výběrové dropdowny při
+     *  vytváření nových záznamů. Existující záznamy s deprecated typem se
+     *  i nadále zobrazují v listingu (deprecated řeší jen nový vstup). */
+    public function scopeNotDeprecated(\Illuminate\Database\Eloquent\Builder $q): \Illuminate\Database\Eloquent\Builder
+    {
+        return $q->where('deprecated', 0);
     }
 }

@@ -111,7 +111,7 @@ class FreenetisMenu extends Component
                 ['url' => route('aro-groups.index'),        'path' => 'aro-groups',        'label' => 'Přístupová práva', 'acl' => ['view_all', 'Aro_groups_Controller', 'aro_group']],
                 ['url' => route('fees.index'),              'path' => 'fees',              'label' => 'Tarify',           'acl' => ['view_all', 'Fees_Controller', 'fees']],
                 ['url' => route('speed_classes.index'),     'path' => 'speed-classes',     'label' => 'Třídy rychlosti',  'acl' => ['view_all', 'Speed_classes_Controller', 'speed_classes']],
-                ['url' => route('enum-types.index'),        'path' => 'enum-types',        'label' => 'Typy',             'acl' => ['view_all', 'Settings_Controller', 'enum_types']],
+                ['url' => route('enum-types.index'),        'path' => 'enum-types',        'label' => 'Typy',             'acl' => ['view_all', 'Enum_types_Controller', 'enum_types']],
             ]],
         ];
 
