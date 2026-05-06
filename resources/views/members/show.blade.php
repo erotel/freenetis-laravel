@@ -332,7 +332,7 @@
 @if($mainUser)
 <div class="m-section">Hlavní uživatel</div>
 <div class="m-card" style="margin-bottom:16px">
-    @php $initials = strtoupper(substr($mainUser->name ?? 'U', 0, 1) . substr($mainUser->surname ?? '', 0, 1)); @endphp
+    @php $initials = mb_strtoupper(mb_substr($mainUser->name ?? 'U', 0, 1, 'UTF-8') . mb_substr($mainUser->surname ?? '', 0, 1, 'UTF-8'), 'UTF-8'); @endphp
     <div class="m-user-row">
         <div class="m-avatar">{{ $initials }}</div>
         <div class="m-user-info">
@@ -370,7 +370,7 @@
 <div class="m-card" style="margin-bottom:16px">
     @foreach($member->users as $u)
     <div class="m-user-row">
-        @php $ini = strtoupper(substr($u->name ?? 'U', 0, 1) . substr($u->surname ?? '', 0, 1)); @endphp
+        @php $ini = mb_strtoupper(mb_substr($u->name ?? 'U', 0, 1, 'UTF-8') . mb_substr($u->surname ?? '', 0, 1, 'UTF-8'), 'UTF-8'); @endphp
         <div class="m-avatar">{{ $ini }}</div>
         <div class="m-user-info">
             <div class="m-user-name">{{ $u->full_name }}</div>
