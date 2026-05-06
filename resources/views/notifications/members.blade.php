@@ -18,9 +18,9 @@
 {{-- Info box --}}
 <div class="m-alert m-alert-info" style="margin-bottom:16px">
     <strong>Akce:</strong>
-    <span class="m-badge m-badge-green" style="font-size:11px">Aktivovat</span> — nastaví přesměrování / odešle e-mail / SMS &nbsp;
-    <span class="m-badge m-badge-gray" style="font-size:11px">Beze změny</span> — nic se nezmění &nbsp;
-    <span class="m-badge m-badge-amber" style="font-size:11px">Deaktivovat</span> — odstraní přesměrování
+    <span class="m-badge m-badge-green" style="font-size:13px">Aktivovat</span> — nastaví přesměrování / odešle e-mail / SMS &nbsp;
+    <span class="m-badge m-badge-gray" style="font-size:13px">Beze změny</span> — nic se nezmění &nbsp;
+    <span class="m-badge m-badge-amber" style="font-size:13px">Deaktivovat</span> — odstraní přesměrování
 </div>
 
 <form method="POST" action="{{ route('notifications.members.notify', $message->id) }}">
@@ -104,8 +104,8 @@
         <td style="text-align:left">
             <a class="m-link" href="{{ route('members.show', $m->id) }}">{{ $m->name }}</a>
         </td>
-        <td><span class="m-badge {{ $badgeClass }}" style="font-size:11px">{{ $typeLabel }}</span></td>
-        <td style="font-family:monospace;font-size:12px;text-align:right">
+        <td><span class="m-badge {{ $badgeClass }}" style="font-size:13px">{{ $typeLabel }}</span></td>
+        <td style="font-family:monospace;font-size:14px;text-align:right">
             @if($balance !== null)
                 <span style="color:{{ $balance >= 0 ? '#27ae60' : '#c0392b' }}">
                     {{ number_format($balance, 2, ',', ' ') }} Kč
@@ -130,7 +130,7 @@
         </td>
         @if($message->text)
         <td>
-            <select class="m-form-select fn-redir" name="redirection[{{ $m->id }}]" style="width:100px;font-size:12px;padding:2px 4px">
+            <select class="m-form-select fn-redir" name="redirection[{{ $m->id }}]" style="width:100px;font-size:14px;padding:2px 4px">
                 <option value="{{ $KEEP }}"       @selected($defaultRedir === $KEEP)>Beze změny</option>
                 <option value="{{ $ACTIVATE }}"   @selected($defaultRedir === $ACTIVATE)>Aktivovat</option>
                 <option value="{{ $DEACTIVATE }}">Deaktivovat</option>
@@ -139,7 +139,7 @@
         @endif
         @if($message->email_text)
         <td>
-            <select class="m-form-select fn-email" name="email[{{ $m->id }}]" style="width:100px;font-size:12px;padding:2px 4px">
+            <select class="m-form-select fn-email" name="email[{{ $m->id }}]" style="width:100px;font-size:14px;padding:2px 4px">
                 <option value="{{ $KEEP }}">Beze změny</option>
                 <option value="{{ $ACTIVATE }}">Aktivovat</option>
             </select>
@@ -147,7 +147,7 @@
         @endif
         @if($message->sms_text)
         <td>
-            <select class="m-form-select fn-sms" name="sms[{{ $m->id }}]" style="width:100px;font-size:12px;padding:2px 4px">
+            <select class="m-form-select fn-sms" name="sms[{{ $m->id }}]" style="width:100px;font-size:14px;padding:2px 4px">
                 <option value="{{ $KEEP }}">Beze změny</option>
                 <option value="{{ $ACTIVATE }}">Aktivovat</option>
             </select>

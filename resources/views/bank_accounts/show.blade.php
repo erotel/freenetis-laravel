@@ -33,11 +33,11 @@
         </form>
     </div>
     <details style="margin-top:10px">
-        <summary style="cursor:pointer;color:#c0392b;font-size:13px">Načíst za období...</summary>
+        <summary style="cursor:pointer;color:#c0392b;font-size:16px">Načíst za období...</summary>
         <form method="POST" action="{{ route('import.fio_period', $account->id) }}" style="display:flex;gap:8px;align-items:center;margin-top:8px;flex-wrap:wrap">
             @csrf
-            <label style="font-size:13px">Od: <input class="m-form-input" type="date" name="date_from" required style="max-width:150px"></label>
-            <label style="font-size:13px">Do: <input class="m-form-input" type="date" name="date_to" required style="max-width:150px"></label>
+            <label style="font-size:16px">Od: <input class="m-form-input" type="date" name="date_from" required style="max-width:150px"></label>
+            <label style="font-size:16px">Do: <input class="m-form-input" type="date" name="date_to" required style="max-width:150px"></label>
             <button class="m-btn m-btn-primary" type="submit">Načíst</button>
         </form>
     </details>

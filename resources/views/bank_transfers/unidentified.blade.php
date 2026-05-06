@@ -59,20 +59,20 @@
                 @if($mainAccount) <a class="m-link" href="{{ route('bank_accounts.show', $mainAccount->id) }}">{{ $mainAccount->name }}</a>
                 @else — @endif
             </td>
-            <td style="font-size:12px">{{ $bt->bankStatement?->from?->format('d.m.Y') ?? '—' }}</td>
-            <td style="font-family:monospace;font-size:12px">{{ $counterpart?->full_account_number ?? '—' }}</td>
-            <td style="font-size:12px">{{ $counterpart?->name ?? '—' }}</td>
-            <td style="font-family:monospace;font-size:12px">
+            <td style="font-size:14px">{{ $bt->bankStatement?->from?->format('d.m.Y') ?? '—' }}</td>
+            <td style="font-family:monospace;font-size:14px">{{ $counterpart?->full_account_number ?? '—' }}</td>
+            <td style="font-size:14px">{{ $counterpart?->name ?? '—' }}</td>
+            <td style="font-family:monospace;font-size:14px">
                 @if($bt->variable_symbol)
                     {{ $bt->variable_symbol }}
                 @else
                     <span class="m-tag m-tag-red">chybí</span>
                 @endif
             </td>
-            <td style="text-align:right;font-family:monospace;font-size:12px">
+            <td style="text-align:right;font-family:monospace;font-size:14px">
                 {{ $amount !== null ? number_format($amount, 2, ',', ' ') . ' Kč' : '—' }}
             </td>
-            <td style="font-size:12px">{{ $bt->comment ?: '—' }}</td>
+            <td style="font-size:14px">{{ $bt->comment ?: '—' }}</td>
             <td><a class="m-link-sm" href="{{ route('bank-transfers.refund.form', $bt->id) }}">↩ Vrátit</a></td>
         </tr>
         @empty

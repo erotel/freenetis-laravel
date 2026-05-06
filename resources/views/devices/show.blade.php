@@ -96,14 +96,14 @@
                 @if($canDeleteEngineer)
                 <form method="POST" action="{{ route('devices.engineers.remove', [$device->id, $de->user_id]) }}" style="display:inline">
                     @csrf @method('DELETE')
-                    <button type="submit" style="background:none;border:none;cursor:pointer;padding:0;font-size:12px;color:#c0392b"
+                    <button type="submit" style="background:none;border:none;cursor:pointer;padding:0;font-size:14px;color:#c0392b"
                             onclick="return confirm('Odebrat technika?')">Odebrat</button>
                 </form>
                 @endif
             </span>
         </div>
         @empty
-        <div style="font-size:13px;color:#aaa;padding:6px 0">Žádní technici.</div>
+        <div style="font-size:16px;color:#aaa;padding:6px 0">Žádní technici.</div>
         @endforelse
         @if($canManageEngineers)
         <form method="POST" action="{{ route('devices.engineers.add', $device->id) }}" style="margin-top:10px;display:flex;gap:8px">
@@ -146,7 +146,7 @@
         <tr>
             <td>{{ $iface->type ?? '—' }}</td>
             <td><a class="m-link" href="{{ route('ifaces.show', $iface->id) }}">{{ $iface->name ?? '—' }}</a></td>
-            <td style="font-family:monospace;font-size:12px">{{ $iface->mac ?? '—' }}</td>
+            <td style="font-family:monospace;font-size:14px">{{ $iface->mac ?? '—' }}</td>
             <td>
                 @forelse($iface->ipAddresses as $ip)
                     <a class="m-link" href="{{ route('ip_addresses.show', $ip->id) }}">{{ $ip->ip_address }}</a>@if(!$loop->last), @endif
@@ -160,7 +160,7 @@
                     <form method="POST" action="{{ route('ifaces.destroy', $iface->id) }}" style="display:inline"
                           onsubmit="return confirm('Smazat rozhraní {{ addslashes($iface->name) }}?')">
                         @csrf @method('DELETE')
-                        <button type="submit" style="background:none;border:none;cursor:pointer;padding:0;font-size:12px;color:#c0392b">Smazat</button>
+                        <button type="submit" style="background:none;border:none;cursor:pointer;padding:0;font-size:14px;color:#c0392b">Smazat</button>
                     </form>
                 </div>
             </td>

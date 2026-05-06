@@ -39,7 +39,7 @@
                     <a class="m-link-sm" href="{{ route('aro-groups.edit', $group->id) }}">Upravit</a>
                     <form method="POST" action="{{ route('aro-groups.destroy', $group->id) }}" style="display:inline">
                         @csrf @method('DELETE')
-                        <button type="submit" style="background:none;border:none;cursor:pointer;padding:0;font-size:12px;color:#c0392b"
+                        <button type="submit" style="background:none;border:none;cursor:pointer;padding:0;font-size:14px;color:#c0392b"
                                 onclick="return confirm('Smazat skupinu?')">Smazat</button>
                     </form>
                 </div>

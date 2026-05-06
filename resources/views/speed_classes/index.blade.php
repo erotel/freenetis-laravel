@@ -33,8 +33,8 @@
         <tr>
             <td>{{ $sc->id }}</td>
             <td>{{ $sc->name }}</td>
-            <td style="font-family:monospace;font-size:12px">{{ \App\Models\SpeedClass::formatPair($sc->d_ceil, $sc->u_ceil) }}</td>
-            <td style="font-family:monospace;font-size:12px">{{ \App\Models\SpeedClass::formatPair($sc->d_rate, $sc->u_rate) }}</td>
+            <td style="font-family:monospace;font-size:14px">{{ \App\Models\SpeedClass::formatPair($sc->d_ceil, $sc->u_ceil) }}</td>
+            <td style="font-family:monospace;font-size:14px">{{ \App\Models\SpeedClass::formatPair($sc->d_rate, $sc->u_rate) }}</td>
             <td style="text-align:center">{{ $sc->members_count }}</td>
             <td style="text-align:center">
                 @if($canEdit)
@@ -42,7 +42,7 @@
                     @csrf
                     <button type="submit" style="border:none;background:none;cursor:pointer;padding:0"
                             title="{{ $sc->regular_member_default ? 'Zrušit výchozí pro členy' : 'Nastavit jako výchozí pro členy' }}">
-                        <span style="color:{{ $sc->regular_member_default ? '#27ae60' : '#ddd' }};font-size:16px">●</span>
+                        <span style="color:{{ $sc->regular_member_default ? '#27ae60' : '#ddd' }};font-size:19px">●</span>
                     </button>
                 </form>
                 @else
@@ -55,7 +55,7 @@
                     @csrf
                     <button type="submit" style="border:none;background:none;cursor:pointer;padding:0"
                             title="{{ $sc->applicant_default ? 'Zrušit výchozí pro žadatele' : 'Nastavit jako výchozí pro žadatele' }}">
-                        <span style="color:{{ $sc->applicant_default ? '#27ae60' : '#ddd' }};font-size:16px">●</span>
+                        <span style="color:{{ $sc->applicant_default ? '#27ae60' : '#ddd' }};font-size:19px">●</span>
                     </button>
                 </form>
                 @else
@@ -71,7 +71,7 @@
                     <form method="POST" action="{{ route('speed_classes.destroy', $sc->id) }}" style="display:inline"
                           onsubmit="return confirm('Smazat třídu {{ addslashes($sc->name) }}?')">
                         @csrf @method('DELETE')
-                        <button type="submit" style="background:none;border:none;cursor:pointer;padding:0;font-size:12px;color:#c0392b">Smazat</button>
+                        <button type="submit" style="background:none;border:none;cursor:pointer;padding:0;font-size:14px;color:#c0392b">Smazat</button>
                     </form>
                     @endif
                 </div>

@@ -122,13 +122,13 @@ $isDark = ($userSettings['dark_mode'] ?? 0) == 1;
         display:none;
         align-items:center;justify-content:center;
         background:none;border:none;
-        color:#fff;font-size:20px;
+        color:#fff;font-size:24px;
         cursor:pointer;padding:8px;
         margin-right:8px;
         line-height:1;
     }
     #fn-logo{
-        font-size:20px;font-weight:700;letter-spacing:-.5px;
+        font-size:24px;font-weight:700;letter-spacing:-.5px;
         color:#fff;text-decoration:none;white-space:nowrap;
         margin-right:24px;
     }
@@ -136,12 +136,12 @@ $isDark = ($userSettings['dark_mode'] ?? 0) == 1;
     #fn-header-sep{flex:1}
     #fn-user{
         display:flex;align-items:center;gap:16px;
-        font-size:13px;color:rgba(255,255,255,.65);
+        font-size:16px;color:rgba(255,255,255,.65);
     }
     #fn-user strong{color:rgba(255,255,255,.9);font-weight:500}
-    #fn-user .fn-ip{font-family:monospace;font-size:12px;color:rgba(255,255,255,.45)}
+    #fn-user .fn-ip{font-family:monospace;font-size:14px;color:rgba(255,255,255,.45)}
     #fn-logout-btn{
-        font-size:12px;font-weight:500;
+        font-size:14px;font-weight:500;
         color:#1a1a1a;background:#e8651a;
         border:none;cursor:pointer;
         padding:5px 14px;border-radius:20px;
@@ -152,7 +152,7 @@ $isDark = ($userSettings['dark_mode'] ?? 0) == 1;
     #fn-logout-btn:hover{background:#d45a14;color:#fff}
     #dark-toggle{
         background:none;border:1px solid rgba(255,255,255,.25);border-radius:20px;
-        color:rgba(255,255,255,.7);font-size:16px;cursor:pointer;
+        color:rgba(255,255,255,.7);font-size:19px;cursor:pointer;
         padding:3px 9px;line-height:1;transition:border-color .15s,color .15s;
     }
     #dark-toggle:hover{border-color:rgba(255,255,255,.6);color:#fff}
@@ -173,7 +173,7 @@ $isDark = ($userSettings['dark_mode'] ?? 0) == 1;
     #fn-search-wrap{padding:12px 12px 8px;position:relative}
     #fn-search-wrap input[type=text]{
         width:100%;box-sizing:border-box;
-        padding:7px 10px;font-size:13px;
+        padding:7px 10px;font-size:16px;
         border:1px solid var(--fn-border);border-radius:6px;
         background:var(--fn-input-bg);color:var(--fn-text);outline:none;
         transition:border-color .15s,box-shadow .15s;
@@ -211,7 +211,7 @@ $isDark = ($userSettings['dark_mode'] ?? 0) == 1;
     #fn-footer{
         background:var(--fn-body-bg);border-top:1px solid var(--fn-border);
         padding:8px 20px;
-        font-size:12px;color:var(--fn-text-muted);
+        font-size:14px;color:var(--fn-text-muted);
         flex-shrink:0;
     }
     #fn-footer a{color:var(--fn-text-muted);text-decoration:none}
@@ -219,7 +219,7 @@ $isDark = ($userSettings['dark_mode'] ?? 0) == 1;
 
     /* Breadcrumbs */
     #breadcrumbs{
-        font-size:13px;color:var(--fn-text-muted);
+        font-size:16px;color:var(--fn-text-muted);
         margin-bottom:14px;
     }
     #breadcrumbs a{color:var(--fn-text-muted);text-decoration:none}
@@ -350,10 +350,10 @@ $isDark = ($userSettings['dark_mode'] ?? 0) == 1;
                     var html=data.map(function(item){
                         return '<a href="'+item.url+'" style="display:block;padding:7px 12px;text-decoration:none;color:#333;border-bottom:1px solid #f0f0f0;">'+
                             '<strong style="color:#e8651a;">'+highlight(item.title,q)+'</strong>'+
-                            (item.detail?'<br><small style="color:#888;font-size:11px;">'+highlight(item.detail,q)+'</small>':'')+
+                            (item.detail?'<br><small style="color:#888;font-size:13px;">'+highlight(item.detail,q)+'</small>':'')+
                             '</a>';
                     }).join('');
-                    html+='<a href="{{ route("search") }}?q='+encodeURIComponent(q)+'" style="display:block;padding:6px 12px;background:#f9f8f6;color:#888;text-decoration:none;font-size:12px;text-align:center;">Zobrazit všechny výsledky →</a>';
+                    html+='<a href="{{ route("search") }}?q='+encodeURIComponent(q)+'" style="display:block;padding:6px 12px;background:#f9f8f6;color:#888;text-decoration:none;font-size:14px;text-align:center;">Zobrazit všechny výsledky →</a>';
                     whisper.innerHTML=html;whisper.style.display='block';
                 })
                 .catch(function(){whisper.style.display='none';});

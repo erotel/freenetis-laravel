@@ -28,29 +28,29 @@ body {
 .logo .placeholder {
     display: inline-block; padding: 12px 20px;
     background: #185FA5; color: #fff; font-weight: 700;
-    border-radius: 6px; font-size: 18px;
+    border-radius: 6px; font-size: 22px;
 }
-h1 { margin: 0 0 18px; font-size: 22px; }
+h1 { margin: 0 0 18px; font-size: 26px; }
 h1.alert { color: #b91c1c; }
-h2 { font-size: 15px; margin: 20px 0 10px; color: #555; text-transform: uppercase; letter-spacing: .03em; }
-.message-text { font-size: 15px; }
+h2 { font-size: 18px; margin: 20px 0 10px; color: #555; text-transform: uppercase; letter-spacing: .03em; }
+.message-text { font-size: 18px; }
 .message-text p:first-child { margin-top: 0; }
 .message-text p:last-child { margin-bottom: 0; }
 .comment {
     margin-top: 16px; padding: 10px 14px;
     background: #fef3c7; border: 1px solid #fcd34d; border-radius: 6px;
-    font-size: 13px; color: #92400e;
+    font-size: 16px; color: #92400e;
 }
-.kv { display: grid; grid-template-columns: 160px 1fr; gap: 6px 14px; font-size: 14px; }
+.kv { display: grid; grid-template-columns: 160px 1fr; gap: 6px 14px; font-size: 17px; }
 .kv .k { color: #888; }
 .kv .v { font-weight: 600; }
 .bad { color: #b91c1c; }
 .support {
     background: #eef5fc; border: 1px solid #c8dcf3; border-radius: 6px;
-    padding: 14px 18px; font-size: 14px;
+    padding: 14px 18px; font-size: 17px;
 }
 .support a { color: #185FA5; }
-.muted { color: #888; font-size: 12px; text-align: center; margin-top: 14px; }
+.muted { color: #888; font-size: 14px; text-align: center; margin-top: 14px; }
 @media (max-width: 480px) {
     .kv { grid-template-columns: 1fr; }
     .kv .k { margin-top: 6px; }

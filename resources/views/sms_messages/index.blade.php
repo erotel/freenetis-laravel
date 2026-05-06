@@ -72,10 +72,10 @@
         @endphp
         <tr>
             <td><a class="m-link" href="{{ route('sms_messages.show', $sms->id) }}">{{ $sms->id }}</a></td>
-            <td><span class="m-tag {{ $typeClass }}" style="font-size:11px">{{ $sms->typeName() }}</span></td>
-            <td><span class="m-tag {{ $stateClass }}" style="font-size:11px">{{ $state }}</span></td>
-            <td style="font-family:monospace;font-size:12px">{{ $sms->sender }}</td>
-            <td style="font-family:monospace;font-size:12px">{{ $sms->receiver }}</td>
+            <td><span class="m-tag {{ $typeClass }}" style="font-size:13px">{{ $sms->typeName() }}</span></td>
+            <td><span class="m-tag {{ $stateClass }}" style="font-size:13px">{{ $state }}</span></td>
+            <td style="font-family:monospace;font-size:14px">{{ $sms->sender }}</td>
+            <td style="font-family:monospace;font-size:14px">{{ $sms->receiver }}</td>
             <td>
                 <a class="m-link" href="{{ route('sms_messages.show', $sms->id) }}">
                     {{ \Illuminate\Support\Str::limit($sms->text, 60) }}
@@ -85,7 +85,7 @@
                 @if($sms->user) <a class="m-link" href="{{ route('users.show', $sms->user_id) }}">{{ $sms->user->login }}</a>
                 @else — @endif
             </td>
-            <td style="font-size:12px">{{ \Carbon\Carbon::parse($sms->stamp)->format('d.m.Y H:i') }}</td>
+            <td style="font-size:14px">{{ \Carbon\Carbon::parse($sms->stamp)->format('d.m.Y H:i') }}</td>
         </tr>
         @empty
         <tr><td colspan="8" style="text-align:center;color:#aaa;padding:2rem">Žádné záznamy.</td></tr>

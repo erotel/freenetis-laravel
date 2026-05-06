@@ -90,7 +90,7 @@
         </div>
     </div>
     <div class="m-form-group">
-        <label style="display:flex;align-items:center;gap:6px;font-size:13px;cursor:pointer">
+        <label style="display:flex;align-items:center;gap:6px;font-size:16px;cursor:pointer">
             <input type="checkbox" id="enabled" name="enabled" value="1"
                    @checked(old('enabled', $record ? $record->enabled : true))>
             Aktivní

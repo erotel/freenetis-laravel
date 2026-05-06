@@ -49,12 +49,12 @@
             <td>{{ $item->id }}</td>
             <td><a class="m-link" href="{{ route('members.show', $item->member_id) }}">{{ $item->member_name }}</a></td>
             <td>{{ $item->doc_number }}</td>
-            <td style="text-align:right;font-family:monospace;font-size:12px">
+            <td style="text-align:right;font-family:monospace;font-size:14px">
                 {{ number_format($item->amount, 2, ',', ' ') }} {{ $item->currency }}
             </td>
-            <td style="font-family:monospace;font-size:12px">{{ $item->refund_account }}</td>
-            <td style="font-size:12px">{{ \Carbon\Carbon::parse($item->created_at)->format('d.m.Y') }}</td>
-            <td style="font-size:12px">
+            <td style="font-family:monospace;font-size:14px">{{ $item->refund_account }}</td>
+            <td style="font-size:14px">{{ \Carbon\Carbon::parse($item->created_at)->format('d.m.Y') }}</td>
+            <td style="font-size:14px">
                 @if($item->exported_at)
                     {{ \Carbon\Carbon::parse($item->exported_at)->format('d.m.Y H:i') }}
                 @else —

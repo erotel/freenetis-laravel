@@ -60,7 +60,7 @@
                 @else —
                 @endif
             </td>
-            <td style="text-align:right;font-family:monospace;font-size:12px">
+            <td style="text-align:right;font-family:monospace;font-size:14px">
                 <span style="color:{{ $account->balance > 0 ? '#27ae60' : ($account->balance < 0 ? '#c0392b' : 'inherit') }}">
                     {{ number_format($account->balance, 2, ',', ' ') }} Kč
                 </span>
@@ -83,7 +83,7 @@
 
 <div style="margin-top:4px;display:flex;align-items:center;gap:10px;justify-content:space-between">
     <div style="margin-top:8px">{{ $accounts->links() }}</div>
-    <form method="GET" action="{{ route('accounts.index') }}" style="display:flex;align-items:center;gap:6px;font-size:13px;margin-top:8px">
+    <form method="GET" action="{{ route('accounts.index') }}" style="display:flex;align-items:center;gap:6px;font-size:16px;margin-top:8px">
         @if(request('sort'))<input type="hidden" name="sort" value="{{ $sort }}">@endif
         @if(request('dir'))<input type="hidden" name="dir" value="{{ $dir }}">@endif
         @if($type !== 'all')<input type="hidden" name="type" value="{{ $type }}">@endif

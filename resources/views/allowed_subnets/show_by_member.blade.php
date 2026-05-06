@@ -29,7 +29,7 @@
         <span class="m-field-label">Max. povolených podsítí:</span>
         <input class="m-form-input" type="number" name="allowed_subnets_count" min="0"
                value="{{ $member->allowed_subnets_count }}" style="max-width:80px">
-        <button class="m-btn m-btn-primary" type="submit" style="padding:5px 10px;font-size:12px">Uložit</button>
+        <button class="m-btn m-btn-primary" type="submit" style="padding:5px 10px;font-size:14px">Uložit</button>
     </form>
     <div class="m-field">
         <span class="m-field-label">Zapnutých podsítí</span>
@@ -71,14 +71,14 @@
         @forelse($allowedSubnets as $as)
         <tr>
             <td><a class="m-link" href="{{ route('subnets.show', $as->subnet_id) }}">{{ $as->subnet->name ?? '—' }}</a></td>
-            <td style="font-family:monospace;font-size:12px">
+            <td style="font-family:monospace;font-size:14px">
                 {{ $as->subnet->network_address ?? '—' }}/{{ $as->subnet->netmask ?? '' }}
             </td>
             <td style="text-align:center">
                 @if($canEdit)
                 <form method="POST" action="{{ route('allowed_subnets.toggle', $as->id) }}" style="display:inline">
                     @csrf
-                    <button type="submit" style="border:none;background:none;cursor:pointer;padding:0;font-size:16px"
+                    <button type="submit" style="border:none;background:none;cursor:pointer;padding:0;font-size:19px"
                             title="{{ $as->enabled ? 'Zapnuto — kliknutím vypnout' : 'Vypnuto — kliknutím zapnout' }}">
                         <span style="color:{{ $as->enabled ? '#27ae60' : '#ddd' }}">{{ $as->enabled ? '✓' : '✗' }}</span>
                     </button>
@@ -92,7 +92,7 @@
                 <form method="POST" action="{{ route('allowed_subnets.destroy', $as->id) }}" style="display:inline"
                       onsubmit="return confirm('Odebrat podsíť {{ addslashes($as->subnet->name ?? '') }}?')">
                     @csrf @method('DELETE')
-                    <button type="submit" style="background:none;border:none;cursor:pointer;padding:0;font-size:12px;color:#c0392b">Odebrat</button>
+                    <button type="submit" style="background:none;border:none;cursor:pointer;padding:0;font-size:14px;color:#c0392b">Odebrat</button>
                 </form>
                 @endif
             </td>

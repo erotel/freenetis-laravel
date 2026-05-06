@@ -45,17 +45,17 @@
             <td>{{ $wl->id }}</td>
             <td><a class="m-link" href="{{ route('members.show', $wl->member_id) }}">{{ $wl->member_name }}</a></td>
             <td>@if($wl->permanent)<span class="m-tag m-tag-green">Ano</span>@else —@endif</td>
-            <td style="font-size:12px">{{ $wl->since }}</td>
-            <td style="font-size:12px">{{ $untilDisplay }}</td>
+            <td style="font-size:14px">{{ $wl->since }}</td>
+            <td style="font-size:14px">{{ $untilDisplay }}</td>
             <td>@if($active)<span class="m-tag m-tag-green">Ano</span>@else <span class="m-tag m-tag-gray">Ne</span>@endif</td>
-            <td style="font-size:12px">{{ $wl->comment ?? '—' }}</td>
+            <td style="font-size:14px">{{ $wl->comment ?? '—' }}</td>
             <td>
                 <div style="display:flex;gap:6px">
                     @if($canEdit) <a class="m-link-sm" href="{{ route('member_whitelists.edit', $wl->id) }}">Upravit</a> @endif
                     @if($canDelete)
                     <form method="POST" action="{{ route('member_whitelists.destroy', $wl->id) }}" style="display:inline">
                         @csrf @method('DELETE')
-                        <button type="submit" style="background:none;border:none;cursor:pointer;padding:0;font-size:12px;color:#c0392b"
+                        <button type="submit" style="background:none;border:none;cursor:pointer;padding:0;font-size:14px;color:#c0392b"
                                 onclick="return confirm('Smazat whitelist záznam?')">Smazat</button>
                     </form>
                     @endif

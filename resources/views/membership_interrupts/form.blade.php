@@ -56,7 +56,7 @@
                 ? (bool) old('end_after_interrupt_end')
                 : ($record ? (bool) $record->end_after_interrupt_end : false);
         @endphp
-        <label style="display:flex;align-items:center;gap:6px;font-size:13px;cursor:pointer">
+        <label style="display:flex;align-items:center;gap:6px;font-size:16px;cursor:pointer">
             <input type="checkbox" id="end_after_interrupt_end" name="end_after_interrupt_end" value="1" @checked($checked)>
             Ukončit členství po skončení přerušení
         </label>

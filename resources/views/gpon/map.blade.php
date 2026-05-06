@@ -16,7 +16,7 @@
     <div id="gpon-map" style="height:600px;width:100%"></div>
 </div>
 
-<div style="margin-top:10px;font-size:13px;color:var(--fn-text-muted);display:flex;gap:20px;flex-wrap:wrap">
+<div style="margin-top:10px;font-size:16px;color:var(--fn-text-muted);display:flex;gap:20px;flex-wrap:wrap">
     <span>Zobrazeno {{ $onts->count() }} ONT s GPS souřadnicemi.</span>
     <span><span style="display:inline-block;width:12px;height:12px;background:#16a34a;border-radius:50%;vertical-align:middle;margin-right:4px"></span>Online</span>
     <span><span style="display:inline-block;width:12px;height:12px;background:#dc2626;border-radius:50%;vertical-align:middle;margin-right:4px"></span>Offline</span>
@@ -75,8 +75,8 @@ $ontsJson = $onts->map(fn($o) => [
             : '<span style="color:#dc2626;font-weight:600">● Offline</span>';
         var popup = '<strong>' + (o.house_no || o.serial) + '</strong> ' + stav;
         if (o.name) popup += '<br>' + o.name;
-        if (o.port) popup += '<br><span style="color:#888;font-size:12px">' + o.port + '</span>';
-        popup += '<br><a href="' + o.url + '" style="font-size:12px">Detail →</a>';
+        if (o.port) popup += '<br><span style="color:#888;font-size:14px">' + o.port + '</span>';
+        popup += '<br><a href="' + o.url + '" style="font-size:14px">Detail →</a>';
 
         L.marker([o.lat, o.lng], { icon: makeIcon(o.online) })
             .addTo(map)

@@ -28,30 +28,30 @@
 {{-- Počty --}}
 <div style="display:flex;gap:12px;margin-bottom:20px;flex-wrap:wrap">
     <a href="{{ route('gpon.index') }}" class="m-card" style="padding:12px 20px;text-decoration:none;min-width:110px;text-align:center">
-        <div style="font-size:22px;font-weight:700">{{ $counts['new'] + $counts['registered'] + $counts['removed'] }}</div>
+        <div style="font-size:26px;font-weight:700">{{ $counts['new'] + $counts['registered'] + $counts['removed'] }}</div>
         <div class="m-form-hint">Celkem</div>
     </a>
     <a href="{{ route('gpon.index', ['status' => 'new']) }}" class="m-card" style="padding:12px 20px;text-decoration:none;min-width:110px;text-align:center">
-        <div style="font-size:22px;font-weight:700;color:#d97706">{{ $counts['new'] }}</div>
+        <div style="font-size:26px;font-weight:700;color:#d97706">{{ $counts['new'] }}</div>
         <div class="m-form-hint">Nové</div>
     </a>
     <a href="{{ route('gpon.index', ['status' => 'registered']) }}" class="m-card" style="padding:12px 20px;text-decoration:none;min-width:110px;text-align:center">
-        <div style="font-size:22px;font-weight:700;color:#16a34a">{{ $counts['registered'] }}</div>
+        <div style="font-size:26px;font-weight:700;color:#16a34a">{{ $counts['registered'] }}</div>
         <div class="m-form-hint">Registrované</div>
     </a>
     <a href="{{ route('gpon.index', ['status' => 'removed']) }}" class="m-card" style="padding:12px 20px;text-decoration:none;min-width:110px;text-align:center">
-        <div style="font-size:22px;font-weight:700;color:#6b7280">{{ $counts['removed'] }}</div>
+        <div style="font-size:26px;font-weight:700;color:#6b7280">{{ $counts['removed'] }}</div>
         <div class="m-form-hint">Odebrané</div>
     </a>
 </div>
 
 {{-- Filtr --}}
 <div style="display:flex;gap:8px;margin-bottom:16px;align-items:center;flex-wrap:wrap">
-    <span style="font-size:13px;color:var(--fn-text-muted)">Filtr stavu:</span>
+    <span style="font-size:16px;color:var(--fn-text-muted)">Filtr stavu:</span>
     @foreach(['' => 'Vše', 'new' => 'Nové', 'registered' => 'Registrované', 'removed' => 'Odebrané'] as $val => $label)
     <a class="m-btn @if($status === ($val ?: null) || ($val === '' && !$status)) m-btn-primary @endif"
        href="{{ route('gpon.index', $val ? ['status' => $val] : []) }}"
-       style="font-size:12px;padding:4px 12px">{{ $label }}</a>
+       style="font-size:14px;padding:4px 12px">{{ $label }}</a>
     @endforeach
 </div>
 
@@ -75,7 +75,7 @@
     <tbody>
         @forelse($onts as $ont)
         <tr>
-            <td style="font-family:monospace;font-size:12px">{{ $ont->serial }}</td>
+            <td style="font-family:monospace;font-size:14px">{{ $ont->serial }}</td>
             <td>{{ $ont->gpon_port }}</td>
             <td>{{ $ont->ont_id }}</td>
             <td>{{ $ont->service_port }}</td>
@@ -97,16 +97,16 @@
                 @endif
             </td>
             <td>{{ $ont->house_no ?: '—' }}</td>
-            <td style="font-size:12px">
+            <td style="font-size:14px">
                 @if($ont->addedBy)
                     <a href="{{ route('users.show', $ont->addedBy->id) }}">{{ $ont->addedBy->login }}</a>
                 @else
                     <span class="m-form-hint">{{ $ont->user_name ?? '—' }}</span>
                 @endif
             </td>
-            <td style="font-size:12px;color:var(--fn-text-muted)">{{ $ont->olt_ip }}</td>
+            <td style="font-size:14px;color:var(--fn-text-muted)">{{ $ont->olt_ip }}</td>
             <td>
-                <a class="m-btn" style="font-size:12px;padding:3px 10px"
+                <a class="m-btn" style="font-size:14px;padding:3px 10px"
                    href="{{ route('gpon.show', $ont->id) }}">Detail</a>
             </td>
         </tr>

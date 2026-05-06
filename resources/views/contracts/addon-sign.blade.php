@@ -7,16 +7,16 @@
 <link rel="stylesheet" href="{{ asset('css/modern.css') }}">
 <style>
 body { background:#f0ede8; color:#222; padding:24px 12px; max-width:900px; margin:0 auto; font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif; }
-h1 { font-size:20px; margin:0 0 8px; }
-h2 { font-size:16px; margin:0 0 12px; }
-.meta-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(220px,1fr)); gap:8px 16px; font-size:14px; }
-.meta-grid .lbl { color:#888; font-size:12px; }
+h1 { font-size:24px; margin:0 0 8px; }
+h2 { font-size:19px; margin:0 0 12px; }
+.meta-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(220px,1fr)); gap:8px 16px; font-size:17px; }
+.meta-grid .lbl { color:#888; font-size:14px; }
 iframe { width:100%; height:60vh; border:1px solid #e8e8e8; border-radius:8px; background:#fff; }
 .row { display:flex; gap:8px; align-items:center; flex-wrap:wrap; margin-top:6px; }
-.msg { margin-top:10px; padding:10px; border-radius:6px; display:none; font-size:13px; }
+.msg { margin-top:10px; padding:10px; border-radius:6px; display:none; font-size:16px; }
 .msg.ok  { background:#eaf6ea; color:#1c6e2b; border:1px solid #c3e6c3; }
 .msg.err { background:#fbeaea; color:#a02525; border:1px solid #f5c6c6; }
-.muted { color:#888; font-size:12px; }
+.muted { color:#888; font-size:14px; }
 </style>
 </head>
 <body>

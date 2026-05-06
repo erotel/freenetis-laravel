@@ -46,7 +46,7 @@
             @error('enum_type_id') <div class="m-form-hint" style="color:#c0392b">{{ $message }}</div> @enderror
         </div>
         <div class="m-form-group" style="display:flex;align-items:flex-end;padding-bottom:2px">
-            <label style="display:flex;align-items:center;gap:6px;font-size:13px;cursor:pointer">
+            <label style="display:flex;align-items:center;gap:6px;font-size:16px;cursor:pointer">
                 <input type="checkbox" name="default" value="1" @checked(old('default', $template?->default))>
                 Výchozí šablona pro tento typ
             </label>
@@ -96,7 +96,7 @@
             @endphp
             @for($i = 0; $i < $totalCount; $i++)
             <div style="display:flex;align-items:center;gap:6px;margin-bottom:4px">
-                <span style="font-size:12px;color:#aaa;min-width:20px">{{ $i + 1 }}.</span>
+                <span style="font-size:14px;color:#aaa;min-width:20px">{{ $i + 1 }}.</span>
                 <input class="m-form-input" type="text" name="{{ $prefix }}_names[]"
                        value="{{ old("{$prefix}_names.{$i}", $existingItems[$i]['name'] ?? '') }}"
                        placeholder="např. eth{{ $i + 1 }}" style="max-width:180px">
@@ -122,7 +122,7 @@ function updateNames(prefix, count) {
     for (var i = currentCount; i < count; i++) {
         var div = document.createElement('div');
         div.style.cssText = 'display:flex;align-items:center;gap:6px;margin-bottom:4px';
-        div.innerHTML = '<span style="font-size:12px;color:#aaa;min-width:20px">' + (i + 1) + '.</span>' +
+        div.innerHTML = '<span style="font-size:14px;color:#aaa;min-width:20px">' + (i + 1) + '.</span>' +
             '<input class="m-form-input" type="text" name="' + prefix + '_names[]" placeholder="např. iface' + (i + 1) + '" style="max-width:180px">';
         container.appendChild(div);
     }

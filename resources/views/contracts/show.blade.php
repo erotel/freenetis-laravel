@@ -24,7 +24,7 @@
 
 @if(!$contract)
 <div class="m-card" style="margin-bottom:16px">
-    <div style="color:#888;font-size:13px;padding:4px 0">Žádná smlouva pro tohoto člena.</div>
+    <div style="color:#888;font-size:16px;padding:4px 0">Žádná smlouva pro tohoto člena.</div>
     @if($canEdit)
     <div style="margin-top:12px">
         <form method="POST" action="{{ route('contracts.create', $member->id) }}">
@@ -54,7 +54,7 @@
 </div>
 
 @if(session('sign_link'))
-<div style="margin-bottom:16px;padding:12px 14px;background:#fffbeb;border:1px solid #fcd34d;border-radius:6px;font-size:13px;">
+<div style="margin-bottom:16px;padding:12px 14px;background:#fffbeb;border:1px solid #fcd34d;border-radius:6px;font-size:16px;">
     <strong>Podpisový odkaz (platný 7 dní):</strong><br>
     <a href="{{ session('sign_link') }}" target="_blank" rel="noopener" style="word-break:break-all;color:#92400e">
         {{ session('sign_link') }}
@@ -79,14 +79,14 @@
     <div class="m-field">
         <span class="m-field-label">Stav</span>
         <span class="m-field-value">
-            <span style="display:inline-block;padding:3px 12px;border-radius:12px;font-size:13px;font-weight:600;background:{{ $sc['bg'] }};color:{{ $sc['text'] }};border:1px solid {{ $sc['border'] }}">
+            <span style="display:inline-block;padding:3px 12px;border-radius:12px;font-size:16px;font-weight:600;background:{{ $sc['bg'] }};color:{{ $sc['text'] }};border:1px solid {{ $sc['border'] }}">
                 {{ $contract->statusLabel() }}
             </span>
         </span>
     </div>
     <div class="m-field">
         <span class="m-field-label">Číslo smlouvy</span>
-        <span class="m-field-value" style="font-family:monospace;font-size:14px">{{ $contract->contract_no }}</span>
+        <span class="m-field-value" style="font-family:monospace;font-size:17px">{{ $contract->contract_no }}</span>
     </div>
     <div class="m-field">
         <span class="m-field-label">Vytvořeno</span>
@@ -155,7 +155,7 @@
 <div class="m-section">Dodatek ke smlouvě</div>
 <div class="m-card" style="margin-bottom:16px">
     @if($addonStatus === 'none')
-        <div style="font-size:13px;color:#888;padding:4px 0">Žádný dodatek.</div>
+        <div style="font-size:16px;color:#888;padding:4px 0">Žádný dodatek.</div>
         @if($canEdit)
         <div style="margin-top:12px">
             <form method="POST" action="{{ route('contracts.addon.create', $member->id) }}">
@@ -171,7 +171,7 @@
         <div class="m-field">
             <span class="m-field-label">Stav</span>
             <span class="m-field-value">
-                <span style="display:inline-block;padding:3px 12px;border-radius:12px;font-size:13px;font-weight:600;background:#fef3c7;color:#92400e;border:1px solid #fcd34d">
+                <span style="display:inline-block;padding:3px 12px;border-radius:12px;font-size:16px;font-weight:600;background:#fef3c7;color:#92400e;border:1px solid #fcd34d">
                     Čeká na podpis
                 </span>
             </span>
@@ -193,7 +193,7 @@
         </div>
         @endif
         @if(session('addon_link'))
-        <div style="margin-top:10px;padding:12px 14px;background:#fffbeb;border:1px solid #fcd34d;border-radius:6px;font-size:13px;">
+        <div style="margin-top:10px;padding:12px 14px;background:#fffbeb;border:1px solid #fcd34d;border-radius:6px;font-size:16px;">
             <strong>Odkaz pro podpis dodatku (platný 7 dní):</strong><br>
             <a href="{{ session('addon_link') }}" target="_blank" rel="noopener" style="word-break:break-all;color:#92400e">
                 {{ session('addon_link') }}
@@ -204,7 +204,7 @@
         <div class="m-field">
             <span class="m-field-label">Stav</span>
             <span class="m-field-value">
-                <span style="display:inline-block;padding:3px 12px;border-radius:12px;font-size:13px;font-weight:600;background:#dcfce7;color:#14532d;border:1px solid #86efac">
+                <span style="display:inline-block;padding:3px 12px;border-radius:12px;font-size:16px;font-weight:600;background:#dcfce7;color:#14532d;border:1px solid #86efac">
                     Podepsáno
                 </span>
             </span>
@@ -236,14 +236,14 @@
     @foreach($contract->events as $event)
     <div class="m-field" style="align-items:flex-start;flex-direction:column;gap:3px;">
         <div style="display:flex;gap:10px;align-items:center">
-            <span style="font-size:12px;color:#888;min-width:130px">
+            <span style="font-size:14px;color:#888;min-width:130px">
                 {{ \Carbon\Carbon::parse($event->created_at)->format('d.m.Y H:i') }}
             </span>
-            <span style="font-size:13px;font-weight:600">{{ $event->eventLabel() }}</span>
+            <span style="font-size:16px;font-weight:600">{{ $event->eventLabel() }}</span>
         </div>
         @php $meta = $event->meta(); @endphp
         @if(!empty($meta))
-        <div style="font-size:12px;color:#888;margin-left:140px">
+        <div style="font-size:14px;color:#888;margin-left:140px">
             @foreach($meta as $k => $v)
                 @if(!is_array($v) && $v !== null && $v !== '')
                 <span>{{ $k }}: {{ $v }}</span>{{ !$loop->last ? ' · ' : '' }}

@@ -56,7 +56,7 @@
                     <form method="POST" action="{{ route('streets.destroy', $street->id) }}" style="display:inline"
                           onsubmit="return confirm('Opravdu smazat ulici {{ addslashes($street->street) }}?')">
                         @csrf @method('DELETE')
-                        <button type="submit" style="background:none;border:none;cursor:pointer;padding:0;font-size:12px;color:#c0392b">Smazat</button>
+                        <button type="submit" style="background:none;border:none;cursor:pointer;padding:0;font-size:14px;color:#c0392b">Smazat</button>
                     </form>
                     @endif
                 </div>
@@ -71,7 +71,7 @@
 
 <div style="margin-top:4px;display:flex;align-items:center;gap:10px;justify-content:space-between">
     <div style="margin-top:8px">{{ $streets->links() }}</div>
-    <form method="GET" action="{{ route('streets.index') }}" style="display:flex;align-items:center;gap:6px;font-size:13px;margin-top:8px">
+    <form method="GET" action="{{ route('streets.index') }}" style="display:flex;align-items:center;gap:6px;font-size:16px;margin-top:8px">
         @if(request('sort'))<input type="hidden" name="sort" value="{{ $sort }}">@endif
         @if(request('dir'))<input type="hidden" name="dir" value="{{ $dir }}">@endif
         <span>Na stránku:</span>

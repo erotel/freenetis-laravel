@@ -29,9 +29,9 @@
         @forelse($rows as $row)
         <tr>
             <td>{{ $row->id }}</td>
-            <td style="font-family:monospace;font-size:12px">{{ $row->intip }}</td>
+            <td style="font-family:monospace;font-size:14px">{{ $row->intip }}</td>
             <td>{{ $row->user }}</td>
-            <td style="font-size:12px">{{ $row->datum?->format('d.m.Y') ?? '—' }}</td>
+            <td style="font-size:14px">{{ $row->datum?->format('d.m.Y') ?? '—' }}</td>
             @if($canEdit)
             <td>
                 <div style="display:flex;gap:6px">

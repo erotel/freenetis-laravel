@@ -49,7 +49,7 @@
         @forelse($transfers as $transfer)
         <tr>
             <td>{{ $transfer->id }}</td>
-            <td style="font-size:12px;color:#888">{{ $transfer->datetime?->format('d.m.Y') }}</td>
+            <td style="font-size:14px;color:#888">{{ $transfer->datetime?->format('d.m.Y') }}</td>
             <td>{{ $transfer->text }}</td>
             <td>
                 @if($transfer->origin) <a class="m-link" href="{{ route('accounts.show', $transfer->origin_id) }}">{{ $transfer->origin->name }}</a>
@@ -63,10 +63,10 @@
                 @if($transfer->member) <a class="m-link" href="{{ route('members.show', $transfer->member_id) }}">{{ $transfer->member->name }}</a>
                 @else — @endif
             </td>
-            <td style="text-align:right;font-family:monospace;font-size:12px">
+            <td style="text-align:right;font-family:monospace;font-size:14px">
                 {{ number_format($transfer->amount, 2, ',', ' ') }} Kč
             </td>
-            <td style="font-size:12px">{{ \App\Models\Transfer::typeLabel($transfer->type ?? 0) }}</td>
+            <td style="font-size:14px">{{ \App\Models\Transfer::typeLabel($transfer->type ?? 0) }}</td>
             <td><a class="m-link-sm" href="{{ route('transfers.show', $transfer->id) }}">Detail</a></td>
         </tr>
         @empty
@@ -78,7 +78,7 @@
 
 <div style="margin-top:4px;display:flex;align-items:center;gap:10px;justify-content:space-between">
     <div style="margin-top:8px">{{ $transfers->links() }}</div>
-    <form method="GET" action="{{ route('transfers.index') }}" style="display:flex;align-items:center;gap:6px;font-size:13px;margin-top:8px">
+    <form method="GET" action="{{ route('transfers.index') }}" style="display:flex;align-items:center;gap:6px;font-size:16px;margin-top:8px">
         @if(request('sort'))<input type="hidden" name="sort" value="{{ $sort }}">@endif
         @if(request('dir'))<input type="hidden" name="dir" value="{{ $dir }}">@endif
         @if(request('account_id'))<input type="hidden" name="account_id" value="{{ request('account_id') }}">@endif

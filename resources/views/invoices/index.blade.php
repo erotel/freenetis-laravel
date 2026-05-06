@@ -60,11 +60,11 @@
                 @elseif($invoice->partner_name) {{ $invoice->partner_name }}
                 @else — @endif
             </td>
-            <td style="font-size:12px">{{ $invoice->getTypeLabel() }}</td>
-            <td style="font-size:12px">{{ $invoice->date_inv }}</td>
-            <td style="font-size:12px">{{ $invoice->date_due }}</td>
-            <td style="text-align:right;font-family:monospace;font-size:12px">{{ number_format($invoice->price_total, 2, ',', ' ') }} {{ $invoice->currency }}</td>
-            <td style="text-align:right;font-family:monospace;font-size:12px">{{ number_format($invoice->price_vat_total, 2, ',', ' ') }} {{ $invoice->currency }}</td>
+            <td style="font-size:14px">{{ $invoice->getTypeLabel() }}</td>
+            <td style="font-size:14px">{{ $invoice->date_inv }}</td>
+            <td style="font-size:14px">{{ $invoice->date_due }}</td>
+            <td style="text-align:right;font-family:monospace;font-size:14px">{{ number_format($invoice->price_total, 2, ',', ' ') }} {{ $invoice->currency }}</td>
+            <td style="text-align:right;font-family:monospace;font-size:14px">{{ number_format($invoice->price_vat_total, 2, ',', ' ') }} {{ $invoice->currency }}</td>
             <td>
                 <div style="display:flex;gap:6px">
                     <a class="m-link-sm" href="{{ route('invoices.show', $invoice->id) }}">Detail</a>

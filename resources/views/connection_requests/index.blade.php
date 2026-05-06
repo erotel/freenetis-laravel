@@ -64,11 +64,11 @@
                 @if($cr->member) <a class="m-link" href="{{ route('members.show', $cr->member_id) }}">{{ $cr->member->name }}</a>
                 @else — @endif
             </td>
-            <td style="font-family:monospace;font-size:12px">{{ $cr->ip_address }}</td>
-            <td style="font-family:monospace;font-size:12px">{{ $cr->mac_address }}</td>
+            <td style="font-family:monospace;font-size:14px">{{ $cr->ip_address }}</td>
+            <td style="font-family:monospace;font-size:14px">{{ $cr->mac_address }}</td>
             <td>{{ $cr->subnet?->name ?? '—' }}</td>
             <td><span class="m-tag {{ $stateClass }}">{{ $cr->stateName() }}</span></td>
-            <td style="font-size:12px">{{ \Carbon\Carbon::parse($cr->created_at)->format('d.m.Y H:i') }}</td>
+            <td style="font-size:14px">{{ \Carbon\Carbon::parse($cr->created_at)->format('d.m.Y H:i') }}</td>
             @if($canEdit)
             <td>
                 @if($cr->state === \App\Models\ConnectionRequest::STATE_UNDECIDED)
@@ -77,7 +77,7 @@
                     <form method="POST" action="{{ route('connection_requests.reject', $cr->id) }}" style="display:inline"
                           onsubmit="return confirm('Zamítnout žádost?')">
                         @csrf @method('DELETE')
-                        <button type="submit" style="background:none;border:none;cursor:pointer;padding:0;font-size:12px;color:#c0392b">Zamítnout</button>
+                        <button type="submit" style="background:none;border:none;cursor:pointer;padding:0;font-size:14px;color:#c0392b">Zamítnout</button>
                     </form>
                 </div>
                 @else —

@@ -65,8 +65,8 @@
                 @if($counterpart) <a class="m-link" href="{{ route('accounts.show', $counterpart->id) }}">{{ $counterpart->name }}</a>
                 @else — @endif
             </td>
-            <td style="font-size:12px;color:#888">{{ $transfer->datetime?->format('d.m.Y') }}</td>
-            <td style="text-align:right;font-family:monospace;font-size:12px;color:{{ $signed >= 0 ? '#27ae60' : '#c0392b' }}">
+            <td style="font-size:14px;color:#888">{{ $transfer->datetime?->format('d.m.Y') }}</td>
+            <td style="text-align:right;font-family:monospace;font-size:14px;color:{{ $signed >= 0 ? '#27ae60' : '#c0392b' }}">
                 {{ ($signed >= 0 ? '+' : '') . number_format($signed, 2, ',', ' ') }} Kč
             </td>
             <td>{{ $transfer->text }}</td>

@@ -28,7 +28,7 @@
             <div class="reg-type-card m-card" style="border:2px solid #ddd;text-align:center;cursor:pointer;margin:0">
                 <div style="font-size:2em;margin-bottom:6px">🌐</div>
                 <div style="font-weight:600;color:#222">Zákazník</div>
-                <div style="color:#888;font-size:12px;margin-top:4px">Internet domů / do firmy</div>
+                <div style="color:#888;font-size:14px;margin-top:4px">Internet domů / do firmy</div>
             </div>
         </label>
         <label style="flex:1;min-width:140px;cursor:pointer">
@@ -38,7 +38,7 @@
             <div class="reg-type-card m-card" style="border:2px solid #ddd;text-align:center;cursor:pointer;margin:0">
                 <div style="font-size:2em;margin-bottom:6px">🤝</div>
                 <div style="font-weight:600;color:#222">Člen spolku</div>
-                <div style="color:#888;font-size:12px;margin-top:4px">Chci se stát členem spolku</div>
+                <div style="color:#888;font-size:14px;margin-top:4px">Chci se stát členem spolku</div>
             </div>
         </label>
     </div>

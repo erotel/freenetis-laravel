@@ -27,7 +27,7 @@
         <tr>
             <td>{{ $msg->id }}</td>
             <td><a class="m-link" href="{{ route('messages.show', $msg->id) }}">{{ $msg->name }}</a></td>
-            <td style="font-size:12px">{{ ['Zakázáno', 'Člen', 'IP adresa'][$msg->self_cancel] }}</td>
+            <td style="font-size:14px">{{ ['Zakázáno', 'Člen', 'IP adresa'][$msg->self_cancel] }}</td>
             <td>
                 <div style="display:flex;gap:6px">
                     <a class="m-link-sm" href="{{ route('messages.show', $msg->id) }}">Detail</a>
@@ -37,7 +37,7 @@
                     @endif
                     <form method="POST" action="{{ route('messages.destroy', $msg->id) }}" style="display:inline">
                         @csrf @method('DELETE')
-                        <button type="submit" style="background:none;border:none;cursor:pointer;padding:0;font-size:12px;color:#c0392b"
+                        <button type="submit" style="background:none;border:none;cursor:pointer;padding:0;font-size:14px;color:#c0392b"
                                 onclick="return confirm('Smazat zprávu?')">Smazat</button>
                     </form>
                 </div>
@@ -67,7 +67,7 @@
         @foreach($systemMessages as $msg)
         <tr>
             <td>{{ $msg->id }}</td>
-            <td><span class="m-tag m-tag-gray" style="font-size:11px">{{ \App\Models\Message::typeLabel($msg->type) }}</span></td>
+            <td><span class="m-tag m-tag-gray" style="font-size:13px">{{ \App\Models\Message::typeLabel($msg->type) }}</span></td>
             <td><a class="m-link" href="{{ route('messages.show', $msg->id) }}">{{ $msg->name }}</a></td>
             <td>
                 <div style="display:flex;gap:6px">

@@ -44,19 +44,19 @@
     </div>
     <div style="display:flex;gap:20px;flex-wrap:wrap;margin-top:4px">
         @if($canSetDhcp)
-        <label style="display:flex;align-items:center;gap:6px;font-size:13px;cursor:pointer">
+        <label style="display:flex;align-items:center;gap:6px;font-size:16px;cursor:pointer">
             <input type="checkbox" id="dhcp" name="dhcp" value="1" @checked(old('dhcp', $subnet->dhcp))>
             DHCP server
         </label>
         @endif
         @if($canSetDns)
-        <label style="display:flex;align-items:center;gap:6px;font-size:13px;cursor:pointer">
+        <label style="display:flex;align-items:center;gap:6px;font-size:16px;cursor:pointer">
             <input type="checkbox" id="dns" name="dns" value="1" @checked(old('dns', $subnet->dns))>
             DNS server
         </label>
         @endif
         @if($canSetQos)
-        <label style="display:flex;align-items:center;gap:6px;font-size:13px;cursor:pointer">
+        <label style="display:flex;align-items:center;gap:6px;font-size:16px;cursor:pointer">
             <input type="checkbox" id="qos" name="qos" value="1" @checked(old('qos', $subnet->qos))>
             QoS
         </label>

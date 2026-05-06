@@ -36,7 +36,7 @@
             <td><a class="m-link" href="{{ route('members.show', $m->id) }}">{{ $m->name }}</a></td>
             <td>{{ \App\Helpers\MemberType::label($m->type) }}</td>
             <td>{{ $m->town ?? '—' }}</td>
-            <td style="font-family:monospace;font-size:12px">{{ $m->variable_symbol ?? '—' }}</td>
+            <td style="font-family:monospace;font-size:14px">{{ $m->variable_symbol ?? '—' }}</td>
         </tr>
         @endforeach
     </tbody>
@@ -75,8 +75,8 @@
         @foreach($results['devices'] as $d)
         <tr>
             <td><a class="m-link" href="{{ route('devices.show', $d->id) }}">{{ $d->device_name }}</a></td>
-            <td style="font-family:monospace;font-size:12px">{{ $d->mac ?? '—' }}</td>
-            <td style="font-family:monospace;font-size:12px">{{ $d->ip_address ?? '—' }}</td>
+            <td style="font-family:monospace;font-size:14px">{{ $d->mac ?? '—' }}</td>
+            <td style="font-family:monospace;font-size:14px">{{ $d->ip_address ?? '—' }}</td>
             <td><a class="m-link" href="{{ route('members.show', $d->member_id) }}">{{ $d->member_name }}</a></td>
         </tr>
         @endforeach
@@ -96,8 +96,8 @@
         @foreach($results['subnets'] as $s)
         <tr>
             <td><a class="m-link" href="{{ route('subnets.show', $s->id) }}">{{ $s->name }}</a></td>
-            <td style="font-family:monospace;font-size:12px">{{ $s->network_address }}</td>
-            <td style="font-family:monospace;font-size:12px">{{ $s->netmask }}</td>
+            <td style="font-family:monospace;font-size:14px">{{ $s->network_address }}</td>
+            <td style="font-family:monospace;font-size:14px">{{ $s->netmask }}</td>
         </tr>
         @endforeach
     </tbody>

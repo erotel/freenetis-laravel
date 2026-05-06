@@ -62,7 +62,7 @@
             </td>
             <td>@if($def['has_mac'])<span class="m-tag m-tag-green">Ano</span>@else —@endif</td>
             <td>@if($def['has_ip'])<span class="m-tag m-tag-green">Ano</span>@else —@endif</td>
-            <td style="font-size:12px">
+            <td style="font-size:14px">
                 @if(count($def['items']) > 0)
                     {{ implode(', ', array_column($def['items'], 'name')) }}
                 @else —

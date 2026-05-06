@@ -55,8 +55,8 @@
                 <a class="m-link" href="{{ route('devices.show', $device->id) }}">{{ $device->name }}</a>
             </td>
             <td>{{ $device->enumType?->value ?? '—' }}</td>
-            <td style="font-family:monospace;font-size:12px">{{ $firstIface?->mac ?? '—' }}</td>
-            <td style="font-family:monospace;font-size:12px">{{ $firstIp?->ip_address ?? '—' }}</td>
+            <td style="font-family:monospace;font-size:14px">{{ $firstIface?->mac ?? '—' }}</td>
+            <td style="font-family:monospace;font-size:14px">{{ $firstIp?->ip_address ?? '—' }}</td>
             <td>{{ $subnetLabel }}</td>
             <td>
                 <div style="display:flex;gap:6px">
@@ -68,7 +68,7 @@
                     <form method="POST" action="{{ route('devices.destroy', $device->id) }}" style="display:inline"
                           onsubmit="return confirm('Opravdu smazat zařízení {{ addslashes($device->name) }}?')">
                         @csrf @method('DELETE')
-                        <button type="submit" style="background:none;border:none;cursor:pointer;padding:0;font-size:12px;color:#c0392b">Smazat</button>
+                        <button type="submit" style="background:none;border:none;cursor:pointer;padding:0;font-size:14px;color:#c0392b">Smazat</button>
                     </form>
                     @endif
                 </div>

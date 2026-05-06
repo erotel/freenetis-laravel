@@ -27,12 +27,12 @@
         <div class="m-field">
             <span class="m-field-label">Typ</span>
             <span class="m-field-value">
-                <span style="background:{{ $log->typeColor() }};color:#fff;font-size:11px;padding:2px 7px;border-radius:10px">
+                <span style="background:{{ $log->typeColor() }};color:#fff;font-size:13px;padding:2px 7px;border-radius:10px">
                     {{ $log->typeName() }}
                 </span>
             </span>
         </div>
-        <div class="m-field"><span class="m-field-label">Zaznamenáno</span><span class="m-field-value" style="font-size:12px">{{ $log->created_at }}</span></div>
+        <div class="m-field"><span class="m-field-label">Zaznamenáno</span><span class="m-field-value" style="font-size:14px">{{ $log->created_at }}</span></div>
         <div class="m-field">
             <span class="m-field-label">Stav</span>
             <span class="m-field-value">
@@ -46,7 +46,7 @@
         @if($log->closed_by_user_id)
         <div class="m-field">
             <span class="m-field-label">Uzavřel</span>
-            <span class="m-field-value" style="font-size:12px">
+            <span class="m-field-value" style="font-size:14px">
                 {{ $closedByUser ? $closedByUser->name . ' ' . $closedByUser->surname : '#' . $log->closed_by_user_id }}
                 ({{ $log->closed_at }})
             </span>
@@ -58,13 +58,13 @@
 
 <div class="m-section">Popis</div>
 <div class="m-card" style="margin-bottom:16px">
-    <pre style="font-size:13px;margin:0;white-space:pre-wrap;word-break:break-word">{{ $log->description }}</pre>
+    <pre style="font-size:16px;margin:0;white-space:pre-wrap;word-break:break-word">{{ $log->description }}</pre>
 </div>
 
 @if($log->exception_backtrace)
 <div class="m-section">{{ $log->type == \App\Models\LogQueue::TYPE_INFO ? 'Zpráva' : 'Výjimka' }}</div>
 <div class="m-card" style="margin-bottom:16px;padding:10px">
-    <pre style="font-size:12px;margin:0;overflow-x:auto;white-space:pre-wrap;word-break:break-all;background:#f7f7f5;padding:8px;border-radius:4px">{{ $log->exception_backtrace }}</pre>
+    <pre style="font-size:14px;margin:0;overflow-x:auto;white-space:pre-wrap;word-break:break-all;background:#f7f7f5;padding:8px;border-radius:4px">{{ $log->exception_backtrace }}</pre>
 </div>
 @endif
 
@@ -88,16 +88,16 @@
     <tbody>
         @foreach($comments as $comment)
         <tr>
-            <td style="white-space:pre-wrap;font-size:13px">{{ $comment->text }}</td>
-            <td style="font-size:12px">{{ $comment->user_name }}</td>
-            <td style="font-size:12px">{{ $comment->datetime }}</td>
+            <td style="white-space:pre-wrap;font-size:16px">{{ $comment->text }}</td>
+            <td style="font-size:14px">{{ $comment->user_name }}</td>
+            <td style="font-size:14px">{{ $comment->datetime }}</td>
             <td>
                 <div style="display:flex;gap:6px">
                     @if($canEditComment) <a class="m-link-sm" href="{{ route('comments.edit', $comment->id) }}">Upravit</a> @endif
                     @if($canDeleteComment)
                     <form method="POST" action="{{ route('comments.destroy', $comment->id) }}" style="display:inline">
                         @csrf @method('DELETE')
-                        <button type="submit" style="background:none;border:none;cursor:pointer;padding:0;font-size:12px;color:#c0392b"
+                        <button type="submit" style="background:none;border:none;cursor:pointer;padding:0;font-size:14px;color:#c0392b"
                                 onclick="return confirm('Smazat komentář?')">Smazat</button>
                     </form>
                     @endif

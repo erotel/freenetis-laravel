@@ -38,18 +38,18 @@
         @foreach($settings as $s)
         <tr>
             <td>{{ $s->id }}</td>
-            <td style="font-size:12px">{{ \App\Models\MessageAutoSetting::typeLabel($s->type) }}</td>
-            <td style="font-family:monospace;font-size:12px">{{ $s->attributeLabel() }}</td>
+            <td style="font-size:14px">{{ \App\Models\MessageAutoSetting::typeLabel($s->type) }}</td>
+            <td style="font-family:monospace;font-size:14px">{{ $s->attributeLabel() }}</td>
             <td>@if($s->redirection_enabled)<span class="m-tag m-tag-green">Ano</span>@else —@endif</td>
             <td>@if($s->email_enabled)<span class="m-tag m-tag-green">Ano</span>@else —@endif</td>
             <td>@if($s->sms_enabled)<span class="m-tag m-tag-green">Ano</span>@else —@endif</td>
-            <td style="font-size:12px">{{ $s->send_activation_to_email ?? '—' }}</td>
+            <td style="font-size:14px">{{ $s->send_activation_to_email ?? '—' }}</td>
             <td>
                 <div style="display:flex;gap:6px">
                     <a class="m-link-sm" href="{{ route('message-auto-settings.edit', $s->id) }}">Upravit</a>
                     <form method="POST" action="{{ route('message-auto-settings.destroy', $s->id) }}" style="display:inline">
                         @csrf @method('DELETE')
-                        <button type="submit" style="background:none;border:none;cursor:pointer;padding:0;font-size:12px;color:#c0392b"
+                        <button type="submit" style="background:none;border:none;cursor:pointer;padding:0;font-size:14px;color:#c0392b"
                                 onclick="return confirm('Smazat pravidlo?')">Smazat</button>
                     </form>
                 </div>

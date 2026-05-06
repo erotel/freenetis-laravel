@@ -33,19 +33,19 @@
     @if($message->text)
     <div class="m-field" style="align-items:flex-start;flex-direction:column;gap:4px">
         <span class="m-field-label">Text přesměrování</span>
-        <div style="font-size:13px;background:#f7f7f5;border-radius:6px;padding:8px 10px;width:100%;white-space:pre-wrap">{{ $message->text }}</div>
+        <div style="font-size:16px;background:#f7f7f5;border-radius:6px;padding:8px 10px;width:100%;white-space:pre-wrap">{{ $message->text }}</div>
     </div>
     @endif
     @if($message->email_text)
     <div class="m-field" style="align-items:flex-start;flex-direction:column;gap:4px">
         <span class="m-field-label">Text emailu</span>
-        <div style="font-size:13px;background:#f7f7f5;border-radius:6px;padding:8px 10px;width:100%;white-space:pre-wrap">{{ $message->email_text }}</div>
+        <div style="font-size:16px;background:#f7f7f5;border-radius:6px;padding:8px 10px;width:100%;white-space:pre-wrap">{{ $message->email_text }}</div>
     </div>
     @endif
     @if($message->sms_text)
     <div class="m-field" style="align-items:flex-start;flex-direction:column;gap:4px">
         <span class="m-field-label">Text SMS</span>
-        <div style="font-size:13px;background:#f7f7f5;border-radius:6px;padding:8px 10px;width:100%">{{ $message->sms_text }}</div>
+        <div style="font-size:16px;background:#f7f7f5;border-radius:6px;padding:8px 10px;width:100%">{{ $message->sms_text }}</div>
     </div>
     @endif
 </div>
@@ -69,11 +69,11 @@
             <td style="font-family:monospace">{{ $ip->ip_address }}</td>
             <td>{{ $ip->activated_by ?? '—' }}</td>
             <td>{{ $ip->comment ?? '—' }}</td>
-            <td style="font-size:12px">{{ $ip->datetime }}</td>
+            <td style="font-size:14px">{{ $ip->datetime }}</td>
             <td>
                 <form method="POST" action="{{ route('messages.deactivate', [$message->id, $ip->ip_address_id]) }}" style="display:inline">
                     @csrf @method('DELETE')
-                    <button type="submit" class="m-btn m-btn-danger" style="font-size:12px;padding:3px 8px">Deaktivovat</button>
+                    <button type="submit" class="m-btn m-btn-danger" style="font-size:14px;padding:3px 8px">Deaktivovat</button>
                 </form>
             </td>
         </tr>

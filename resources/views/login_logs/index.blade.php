@@ -27,7 +27,7 @@
             <td>{{ $user->id }}</td>
             <td><a class="m-link" href="{{ route('login_logs.by_user', $user->id) }}">{{ $user->login }}</a></td>
             <td>{{ $user->name }} {{ $user->surname }}</td>
-            <td style="font-size:12px;color:#888">{{ $user->last_time }}</td>
+            <td style="font-size:14px;color:#888">{{ $user->last_time }}</td>
         </tr>
         @empty
         <tr><td colspan="4" style="text-align:center;color:#aaa;padding:2rem">Žádní uživatelé.</td></tr>

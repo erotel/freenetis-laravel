@@ -41,17 +41,17 @@
         @endphp
         <tr>
             <td>{{ $row->id }}</td>
-            <td><span class="m-tag m-tag-gray" style="font-size:11px">{{ strtoupper($row->protocol) }}</span></td>
-            <td style="font-family:monospace;font-size:12px">{{ $row->public_ip }}</td>
-            <td style="font-family:monospace;font-size:12px">
+            <td><span class="m-tag m-tag-gray" style="font-size:13px">{{ strtoupper($row->protocol) }}</span></td>
+            <td style="font-family:monospace;font-size:14px">{{ $row->public_ip }}</td>
+            <td style="font-family:monospace;font-size:14px">
                 @if($row->public_port_from == $row->public_port_to)
                     {{ $row->public_port_from }}
                 @else
                     {{ $row->public_port_from }}–{{ $row->public_port_to }}
                 @endif
             </td>
-            <td style="font-family:monospace;font-size:12px">{{ $row->private_ip }}</td>
-            <td style="font-family:monospace;font-size:12px">
+            <td style="font-family:monospace;font-size:14px">{{ $row->private_ip }}</td>
+            <td style="font-family:monospace;font-size:14px">
                 @if($row->private_port_from == $row->private_port_to)
                     {{ $row->private_port_from }}
                 @else
@@ -59,7 +59,7 @@
                 @endif
             </td>
             <td>{{ $row->owner_member_name ?: '—' }}</td>
-            <td style="font-size:12px">{{ $changeDate }}{{ $changeName ? ' (' . $changeName . ')' : '' }}</td>
+            <td style="font-size:14px">{{ $changeDate }}{{ $changeName ? ' (' . $changeName . ')' : '' }}</td>
             @if($canEdit)
             <td>
                 <div style="display:flex;gap:6px">

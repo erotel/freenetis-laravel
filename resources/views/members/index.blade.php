@@ -152,14 +152,14 @@ $redirectLabels = [
                     <span class="m-tag m-tag-red">ne</span>
                 @endif
             </td>
-            <td><span class="m-badge {{ $badgeClass }}" style="font-size:11px">{{ $member->type_label }}</span></td>
+            <td><span class="m-badge {{ $badgeClass }}" style="font-size:13px">{{ $member->type_label }}</span></td>
             <td style="text-align:left;max-width:200px;overflow:hidden;text-overflow:ellipsis">
                 <a class="m-link" href="{{ route('members.show', $member->id) }}">{{ $member->name }}</a>
             </td>
             <td>{{ $member->addressPoint?->street?->street ?? '—' }}</td>
             <td>{{ $member->addressPoint?->street_number ?? '—' }}</td>
             <td>{{ $member->addressPoint?->town?->town ?? '—' }}</td>
-            <td style="text-align:right;font-family:monospace;font-size:12px">
+            <td style="text-align:right;font-family:monospace;font-size:14px">
                 @if($balance !== null)
                     <span style="color:{{ $balance >= 0 ? '#27ae60' : '#c0392b' }}">
                         {{ number_format($balance, 2, ',', ' ') }} Kč
@@ -174,9 +174,9 @@ $redirectLabels = [
                 @if($member->tv_synced_at === null)
                     <span style="color:#ccc">—</span>
                 @elseif($member->tv_active)
-                    <span style="color:#27ae60;font-size:12px">Aktivní</span>
+                    <span style="color:#27ae60;font-size:14px">Aktivní</span>
                 @else
-                    <span style="color:#999;font-size:12px">Neaktivní</span>
+                    <span style="color:#999;font-size:14px">Neaktivní</span>
                 @endif
             </td>
             @endif

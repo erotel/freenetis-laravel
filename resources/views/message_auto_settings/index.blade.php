@@ -40,18 +40,18 @@
         @foreach($rules as $rule)
         <tr>
             <td>{{ $rule->id }}</td>
-            <td style="font-size:12px">{{ $typeLabels[$rule->type] ?? $rule->type }}</td>
-            <td style="font-family:monospace;font-size:12px">{{ $rule->attribute ?: '—' }}</td>
+            <td style="font-size:14px">{{ $typeLabels[$rule->type] ?? $rule->type }}</td>
+            <td style="font-family:monospace;font-size:14px">{{ $rule->attribute ?: '—' }}</td>
             <td>@if($rule->redirection_enabled)<span class="m-tag m-tag-green">Ano</span>@else —@endif</td>
             <td>@if($rule->email_enabled)<span class="m-tag m-tag-green">Ano</span>@else —@endif</td>
             <td>@if($rule->sms_enabled)<span class="m-tag m-tag-green">Ano</span>@else —@endif</td>
-            <td style="font-size:12px">{{ $rule->send_activation_to_email ?: '—' }}</td>
+            <td style="font-size:14px">{{ $rule->send_activation_to_email ?: '—' }}</td>
             <td>
                 <div style="display:flex;gap:6px">
                     <a class="m-link-sm" href="{{ route('message-auto-settings.edit', [$message->id, $rule->id]) }}">Upravit</a>
                     <form method="POST" action="{{ route('message-auto-settings.destroy', [$message->id, $rule->id]) }}" style="display:inline">
                         @csrf @method('DELETE')
-                        <button type="submit" style="background:none;border:none;cursor:pointer;padding:0;font-size:12px;color:#c0392b"
+                        <button type="submit" style="background:none;border:none;cursor:pointer;padding:0;font-size:14px;color:#c0392b"
                                 onclick="return confirm('Smazat pravidlo?')">Smazat</button>
                     </form>
                 </div>

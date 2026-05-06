@@ -25,7 +25,7 @@
         @forelse($logs as $log)
         <tr>
             <td>{{ $log->id }}</td>
-            <td style="font-size:12px">{{ $log->time?->format('d.m.Y H:i:s') }}</td>
+            <td style="font-size:14px">{{ $log->time?->format('d.m.Y H:i:s') }}</td>
             <td style="font-family:monospace">{{ $log->IP_address }}</td>
         </tr>
         @empty

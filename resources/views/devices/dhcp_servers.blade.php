@@ -29,7 +29,7 @@
         <tr>
             <td>{{ $device->id }}</td>
             <td><a href="{{ route('devices.show', $device->id) }}">{{ $device->name }}</a></td>
-            <td style="font-size:12px;color:#6b7280">{{ $device->subnets }}</td>
+            <td style="font-size:14px;color:#6b7280">{{ $device->subnets }}</td>
             <td>
                 @if($device->access_time && $device->access_time !== '0000-00-00 00:00:00')
                     {{ \Carbon\Carbon::parse($device->access_time)->diffForHumans() }}
@@ -49,11 +49,11 @@
                 @endif
             </td>
             <td style="white-space:nowrap">
-                <a class="m-btn" style="font-size:12px;padding:4px 10px"
+                <a class="m-btn" style="font-size:14px;padding:4px 10px"
                    href="{{ route('devices.export', ['id' => $device->id, 'format' => 'mikrotik-ip-dhcp-server']) }}?token={{ $token }}">
                     Export
                 </a>
-                <a class="m-btn" style="font-size:12px;padding:4px 10px;margin-left:4px"
+                <a class="m-btn" style="font-size:14px;padding:4px 10px;margin-left:4px"
                    href="{{ route('devices.export', ['id' => $device->id, 'format' => 'mikrotik-ip-dhcp-server']) }}?token={{ $token }}&forced=1">
                     Forced
                 </a>
@@ -69,7 +69,7 @@
 @if($token)
 <div class="m-card" style="margin-top:16px;max-width:640px">
     <div class="m-card-title">Export URL formát</div>
-    <div class="m-form-hint" style="font-family:monospace;font-size:12px;word-break:break-all">
+    <div class="m-form-hint" style="font-family:monospace;font-size:14px;word-break:break-all">
         /devices/{id}/export/mikrotik-ip-dhcp-server?token={{ $token }}<br>
         /devices/{id}/export/mikrotik-ip-dhcp-server?token={{ $token }}&forced=1
     </div>

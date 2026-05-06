@@ -10,7 +10,7 @@
 .stats-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:20px;margin-bottom:20px}
 @media(max-width:900px){.stats-grid{grid-template-columns:1fr}}
 .stat-card{padding:16px 20px}
-.stat-card h3{margin:0 0 16px;font-size:15px;font-weight:600;color:var(--fn-text)}
+.stat-card h3{margin:0 0 16px;font-size:18px;font-weight:600;color:var(--fn-text)}
 .chart-wrap{position:relative;height:260px}
 </style>
 @endsection

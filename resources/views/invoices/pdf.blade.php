@@ -114,14 +114,14 @@ foreach ($items as $item) {
 
         .supplier-name {
             font-weight: bold;
-            font-size: 14px;
+            font-size: 17px;
             margin-bottom: 5px;
         }
 
         .invoice-title {
             text-align: right;
             font-weight: bold;
-            font-size: 14px;
+            font-size: 17px;
             text-transform: uppercase;
         }
 
@@ -136,7 +136,7 @@ foreach ($items as $item) {
 
             padding: 5px 7px;
             margin-top: 6px;
-            font-size: 10px;
+            font-size: 12px;
         }
 
         .box-inner {
@@ -151,7 +151,7 @@ foreach ($items as $item) {
 
         .box h4 {
             margin: 0 0 3px;
-            font-size: 10px;
+            font-size: 12px;
             font-weight: bold;
             text-transform: uppercase;
         }
@@ -159,7 +159,7 @@ foreach ($items as $item) {
         .inline-table {
             width: 100%;
             border-collapse: collapse;
-            font-size: 10px;
+            font-size: 12px;
         }
 
         .inline-table td {
@@ -171,7 +171,7 @@ foreach ($items as $item) {
             padding: 5px 7px;
             text-align: center;
             margin: 10px 0;
-            font-size: 11px;
+            font-size: 13px;
             font-weight: bold;
         }
 
@@ -179,7 +179,7 @@ foreach ($items as $item) {
             width: 100%;
             border-collapse: collapse;
             margin-bottom: 8px;
-            font-size: 10px;
+            font-size: 12px;
         }
 
         .dates-row td {
@@ -200,7 +200,7 @@ foreach ($items as $item) {
             width: 100%;
             border-collapse: collapse;
             margin-top: 8px;
-            font-size: 10px;
+            font-size: 12px;
         }
 
         .items-table th,
@@ -227,7 +227,7 @@ foreach ($items as $item) {
         .total-box {
             margin-top: 10px;
             text-align: right;
-            font-size: 12px;
+            font-size: 14px;
             font-weight: bold;
         }
 
@@ -241,14 +241,14 @@ foreach ($items as $item) {
 
         .middle-note {
             margin-top: 10px;
-            font-size: 9px;
+            font-size: 11px;
         }
 
         .bottom-row {
             margin-top: 15px;
             width: 100%;
             border-collapse: collapse;
-            font-size: 9px;
+            font-size: 11px;
         }
 
         .bottom-row td {
@@ -267,7 +267,7 @@ foreach ($items as $item) {
             display: flex;
             align-items: center;
             justify-content: center;
-            font-size: 8px;
+            font-size: 10px;
             margin-top: 5px;
         }
 
@@ -298,7 +298,7 @@ foreach ($items as $item) {
         .sign-box {
             width: 25%;
             padding-left: 15px;
-            font-size: 10px;
+            font-size: 12px;
         }
 
         .sign-box .label {
@@ -310,13 +310,13 @@ foreach ($items as $item) {
             border-top: 1px solid #000;
             margin-top: 35px;
             text-align: center;
-            font-size: 9px;
+            font-size: 11px;
             padding-top: 2px;
         }
 
         .footer {
             margin-top: 10px;
-            font-size: 8px;
+            font-size: 10px;
         }
     </style>
 </head>
@@ -439,7 +439,7 @@ foreach ($items as $item) {
 
 
             <!-- Vystavil -->
-            <div style="margin-top:8px; font-size:10px;">
+            <div style="margin-top:8px; font-size:12px;">
             </div>
 
             <!-- Text pod tabulkou -->

@@ -19,13 +19,13 @@ body {
     box-shadow: 0 2px 8px rgba(0,0,0,.07);
     padding: 24px 28px; margin-bottom: 16px;
 }
-h1 { margin: 0 0 8px; font-size: 24px; }
-h2 { font-size: 16px; margin: 24px 0 12px; color: #444; text-transform: uppercase; letter-spacing: .03em; }
+h1 { margin: 0 0 8px; font-size: 29px; }
+h2 { font-size: 19px; margin: 24px 0 12px; color: #444; text-transform: uppercase; letter-spacing: .03em; }
 p.lead { color: #555; margin-top: 0; }
-label { display: block; margin: 14px 0 4px; font-size: 13px; font-weight: 600; }
+label { display: block; margin: 14px 0 4px; font-size: 16px; font-weight: 600; }
 input[type=text], input[type=password], input[type=email], input[type=file] {
     width: 100%; padding: 10px 12px; border: 1px solid #d4cfc6;
-    border-radius: 5px; font-size: 14px; font-family: inherit;
+    border-radius: 5px; font-size: 17px; font-family: inherit;
     background: #fafaf7;
 }
 input:focus { border-color: #185FA5; outline: none; background: #fff; }
@@ -34,7 +34,7 @@ input:focus { border-color: #185FA5; outline: none; background: #fff; }
     flex: 1 1 280px;
     border: 2px solid #d4cfc6; border-radius: 6px;
     padding: 14px 16px; cursor: pointer;
-    font-size: 14px; font-weight: 500;
+    font-size: 17px; font-weight: 500;
     display: flex; align-items: flex-start; gap: 10px;
     margin: 0;
     background: #fafaf7;
@@ -42,29 +42,29 @@ input:focus { border-color: #185FA5; outline: none; background: #fff; }
 .mode-choice label:hover { border-color: #888; background: #fff; }
 .mode-choice input[type=radio]:checked + .mc-text { font-weight: 700; }
 .mode-choice label:has(input:checked) { border-color: #185FA5; background: #eef5fc; }
-.mode-choice .mc-text { font-size: 13px; }
+.mode-choice .mc-text { font-size: 16px; }
 .mode-choice .mc-text small { display: block; color: #666; font-weight: 400; margin-top: 4px; line-height: 1.3; }
 .help {
     margin-top: 8px; padding: 10px 12px;
     background: #f9f5e7; border: 1px solid #f0e0a3; border-radius: 4px;
-    font-size: 12px; color: #6c5b1e;
+    font-size: 14px; color: #6c5b1e;
 }
 .help code {
     display: block; padding: 6px 8px; margin: 4px 0; background: #fffbe6;
-    font-family: ui-monospace, monospace; font-size: 11px; white-space: pre-wrap;
+    font-family: ui-monospace, monospace; font-size: 13px; white-space: pre-wrap;
     word-break: break-all; border-radius: 3px;
 }
 button {
     background: #185FA5; color: #fff; border: 0;
-    padding: 12px 24px; font-size: 14px; font-weight: 600; border-radius: 5px;
+    padding: 12px 24px; font-size: 17px; font-weight: 600; border-radius: 5px;
     cursor: pointer; font-family: inherit;
 }
 button:hover { background: #0c4d8e; }
 button:disabled { background: #888; cursor: wait; }
-.error { background: #fde0e0; border: 1px solid #f0a8a8; padding: 10px 12px; border-radius: 4px; color: #8a1f1f; font-size: 13px; margin-bottom: 14px; }
+.error { background: #fde0e0; border: 1px solid #f0a8a8; padding: 10px 12px; border-radius: 4px; color: #8a1f1f; font-size: 16px; margin-bottom: 14px; }
 .row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
 @media (max-width: 540px) { .row2 { grid-template-columns: 1fr; } }
-.field-error { color: #b91c1c; font-size: 12px; margin-top: 4px; }
+.field-error { color: #b91c1c; font-size: 14px; margin-top: 4px; }
 .spinner-overlay {
     position: fixed; inset: 0; background: rgba(255,255,255,.92);
     display: none; align-items: center; justify-content: center;
@@ -182,7 +182,7 @@ button:disabled { background: #888; cursor: wait; }
 
     <div class="card">
         <button type="submit" id="submitBtn">Dokončit instalaci →</button>
-        <span style="margin-left: 14px; color: #888; font-size: 12px;">Po dokončení se průvodce sám vypne a přesměruje na login.</span>
+        <span style="margin-left: 14px; color: #888; font-size: 14px;">Po dokončení se průvodce sám vypne a přesměruje na login.</span>
     </div>
 </form>
 
@@ -190,9 +190,9 @@ button:disabled { background: #888; cursor: wait; }
 
 <div class="spinner-overlay" id="spinner">
     <div class="spinner"></div>
-    <div style="font-size: 16px; color: #444; max-width: 400px; text-align: center;">
+    <div style="font-size: 19px; color: #444; max-width: 400px; text-align: center;">
         <strong>Probíhá instalace…</strong><br>
-        <span style="font-size: 13px; color: #777;">Importuju schéma a vytvářím účet. Velký dump může trvat několik minut. <strong>Nezavírej okno.</strong></span>
+        <span style="font-size: 16px; color: #777;">Importuju schéma a vytvářím účet. Velký dump může trvat několik minut. <strong>Nezavírej okno.</strong></span>
     </div>
 </div>
 

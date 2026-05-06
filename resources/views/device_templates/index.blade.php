@@ -38,7 +38,7 @@
                     <form method="POST" action="{{ route('device_templates.destroy', $t->id) }}" style="display:inline"
                           onsubmit="return confirm('Smazat šablonu {{ addslashes($t->name) }}?')">
                         @csrf @method('DELETE')
-                        <button type="submit" style="background:none;border:none;cursor:pointer;padding:0;font-size:12px;color:#c0392b">Smazat</button>
+                        <button type="submit" style="background:none;border:none;cursor:pointer;padding:0;font-size:14px;color:#c0392b">Smazat</button>
                     </form>
                 </div>
             </td>

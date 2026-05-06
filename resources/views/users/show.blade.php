@@ -71,7 +71,7 @@
         @forelse($aroGroups as $group)
         <div class="m-field"><span class="m-field-value">{{ $group->name }}</span></div>
         @empty
-        <div style="font-size:13px;color:#aaa;padding:6px 0">Žádné skupiny.</div>
+        <div style="font-size:16px;color:#aaa;padding:6px 0">Žádné skupiny.</div>
         @endforelse
     </div>
 </div>

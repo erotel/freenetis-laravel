@@ -51,7 +51,7 @@
                 ? (bool) old('enabled')
                 : ($record ? (bool) $record->enabled : true);
         @endphp
-        <label style="display:flex;align-items:center;gap:6px;font-size:13px;cursor:pointer">
+        <label style="display:flex;align-items:center;gap:6px;font-size:16px;cursor:pointer">
             <input type="checkbox" id="enabled" name="enabled" value="1" @checked($checkedEnabled)>
             Aktivní
         </label>

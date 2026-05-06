@@ -84,7 +84,7 @@
                     <form method="POST" action="{{ route('ip_addresses.destroy', $ip->id) }}" style="display:inline"
                           onsubmit="return confirm('Opravdu smazat IP adresu {{ addslashes($ip->ip_address) }}?')">
                         @csrf @method('DELETE')
-                        <button type="submit" style="background:none;border:none;cursor:pointer;padding:0;font-size:12px;color:#c0392b">Smazat</button>
+                        <button type="submit" style="background:none;border:none;cursor:pointer;padding:0;font-size:14px;color:#c0392b">Smazat</button>
                     </form>
                     @endif
                 </div>

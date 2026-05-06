@@ -63,16 +63,16 @@
         @forelse($payments as $payment)
         <tr>
             <td><a class="m-link" href="{{ route('outgoing_payments.show', $payment->id) }}">{{ $payment->id }}</a></td>
-            <td style="font-size:12px">{{ $payment->bankAccount?->name }}</td>
-            <td style="font-size:12px">{{ $payment->created_at->format('d.m.Y') }}</td>
-            <td style="font-family:monospace;font-size:12px">{{ $payment->target_account }}</td>
-            <td style="font-size:12px">{{ $payment->target_name ?: '—' }}</td>
-            <td style="text-align:right;font-family:monospace;font-size:12px">{{ number_format($payment->amount, 2, ',', ' ') }} {{ $payment->currency }}</td>
-            <td style="font-family:monospace;font-size:12px">{{ $payment->variable_symbol ?: '—' }}</td>
-            <td style="font-size:12px">{{ $payment->message ?: '—' }}</td>
-            <td style="font-size:12px">{{ $reasonLabels[$payment->reason] ?? $payment->reason }}</td>
+            <td style="font-size:14px">{{ $payment->bankAccount?->name }}</td>
+            <td style="font-size:14px">{{ $payment->created_at->format('d.m.Y') }}</td>
+            <td style="font-family:monospace;font-size:14px">{{ $payment->target_account }}</td>
+            <td style="font-size:14px">{{ $payment->target_name ?: '—' }}</td>
+            <td style="text-align:right;font-family:monospace;font-size:14px">{{ number_format($payment->amount, 2, ',', ' ') }} {{ $payment->currency }}</td>
+            <td style="font-family:monospace;font-size:14px">{{ $payment->variable_symbol ?: '—' }}</td>
+            <td style="font-size:14px">{{ $payment->message ?: '—' }}</td>
+            <td style="font-size:14px">{{ $reasonLabels[$payment->reason] ?? $payment->reason }}</td>
             <td>
-                <span style="color:{{ $statusColors[$payment->status] ?? 'inherit' }};font-size:12px">
+                <span style="color:{{ $statusColors[$payment->status] ?? 'inherit' }};font-size:14px">
                     {{ $statusLabels[$payment->status] ?? $payment->status }}
                 </span>
             </td>
@@ -81,14 +81,14 @@
                     @if($canEdit && $payment->status === 'draft')
                     <form method="POST" action="{{ route('outgoing_payments.approve', $payment->id) }}" style="display:inline">
                         @csrf
-                        <button type="submit" style="background:none;border:none;cursor:pointer;padding:0;font-size:12px;color:#27ae60">✓ Schválit</button>
+                        <button type="submit" style="background:none;border:none;cursor:pointer;padding:0;font-size:14px;color:#27ae60">✓ Schválit</button>
                     </form>
                     @endif
                     @if($canEdit && in_array($payment->status, ['draft', 'approved']))
                     <form method="POST" action="{{ route('outgoing_payments.cancel', $payment->id) }}" style="display:inline"
                           onsubmit="return confirm('Opravdu zrušit platbu #{{ $payment->id }}?')">
                         @csrf
-                        <button type="submit" style="background:none;border:none;cursor:pointer;padding:0;font-size:12px;color:#c0392b">✕ Zrušit</button>
+                        <button type="submit" style="background:none;border:none;cursor:pointer;padding:0;font-size:14px;color:#c0392b">✕ Zrušit</button>
                     </form>
                     @endif
                 </div>

@@ -71,7 +71,7 @@
         <tr>
             <td>{{ $subnet->id }}</td>
             <td style="text-align:left"><a class="m-link" href="{{ route('subnets.show', $subnet->id) }}">{{ $subnet->name ?: '—' }}</a></td>
-            <td style="font-family:monospace;font-size:12px">{{ $subnet->network_address }}/{{ $subnet->netmask }}</td>
+            <td style="font-family:monospace;font-size:14px">{{ $subnet->network_address }}/{{ $subnet->netmask }}</td>
             <td>{{ $subnet->ip_addresses_count }}</td>
             @if($showDhcp)<td>@if($subnet->dhcp)<span class="m-tag m-tag-green">Ano</span>@else —@endif</td>@endif
             @if($showDns) <td>@if($subnet->dns) <span class="m-tag m-tag-green">Ano</span>@else —@endif</td>@endif
@@ -86,7 +86,7 @@
                     <form method="POST" action="{{ route('subnets.destroy', $subnet->id) }}" style="display:inline"
                           onsubmit="return confirm('Opravdu smazat subnet {{ addslashes($subnet->network_address) }}?')">
                         @csrf @method('DELETE')
-                        <button type="submit" style="background:none;border:none;cursor:pointer;padding:0;font-size:12px;color:#c0392b">Smazat</button>
+                        <button type="submit" style="background:none;border:none;cursor:pointer;padding:0;font-size:14px;color:#c0392b">Smazat</button>
                     </form>
                     @endif
                 </div>

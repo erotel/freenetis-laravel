@@ -31,7 +31,7 @@
         <label class="m-form-label">Akce</label>
         <div style="display:flex;flex-wrap:wrap;gap:12px">
             @foreach($actions as $action)
-            <label style="display:flex;align-items:center;gap:6px;font-size:13px;cursor:pointer">
+            <label style="display:flex;align-items:center;gap:6px;font-size:16px;cursor:pointer">
                 <input type="checkbox" name="actions[]" value="{{ $action }}"
                     {{ in_array($action, old('actions', $selected['actions'] ?? [])) ? 'checked' : '' }}>
                 {{ $action }}
@@ -44,7 +44,7 @@
         <label class="m-form-label">Skupiny</label>
         <div style="display:flex;flex-wrap:wrap;gap:6px 16px">
             @foreach($groups as $group)
-            <label style="display:flex;align-items:center;gap:6px;font-size:13px;cursor:pointer">
+            <label style="display:flex;align-items:center;gap:6px;font-size:16px;cursor:pointer">
                 <input type="checkbox" name="group_ids[]" value="{{ $group->id }}"
                     {{ in_array($group->id, old('group_ids', $selected['group_ids'] ?? [])) ? 'checked' : '' }}>
                 {{ $group->name }}
@@ -59,11 +59,11 @@
         @foreach($axo as $item)
             @if($item->section_value !== $currentSection)
                 @if($currentSection !== null) </div> @endif
-                <div style="margin-top:10px;font-weight:600;font-size:12px;color:#888;text-transform:uppercase;letter-spacing:.05em">{{ $item->section_value }}</div>
+                <div style="margin-top:10px;font-weight:600;font-size:14px;color:#888;text-transform:uppercase;letter-spacing:.05em">{{ $item->section_value }}</div>
                 <div style="padding-left:12px;display:flex;flex-wrap:wrap;gap:4px 16px">
                 @php $currentSection = $item->section_value; @endphp
             @endif
-            <label style="display:flex;align-items:center;gap:4px;font-size:12px;cursor:pointer">
+            <label style="display:flex;align-items:center;gap:4px;font-size:14px;cursor:pointer">
                 <input type="checkbox" name="axo_ids[]" value="{{ $item->id }}"
                     {{ in_array($item->id, old('axo_ids', $selected['axo_ids'] ?? [])) ? 'checked' : '' }}>
                 {{ $item->name }} <span style="color:#aaa">({{ $item->value }})</span>

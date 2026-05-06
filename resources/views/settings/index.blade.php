@@ -96,7 +96,7 @@
 <div class="m-card" style="margin-bottom:16px;max-width:520px">
     <div class="m-card-title">Nastavení odchozí pošty</div>
     <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px">
-        <label style="display:flex;align-items:center;gap:6px;font-size:13px;cursor:pointer">
+        <label style="display:flex;align-items:center;gap:6px;font-size:16px;cursor:pointer">
             <input type="checkbox" name="email_enabled" value="1"
                 {{ ($emailSettings['email_enabled'] ?? '') == '1' ? 'checked' : '' }}>
             Povoleno
@@ -184,7 +184,7 @@
                         value="{{ $rule['address'] ?? '' }}" placeholder="kopie@example.com">
                 </td>
                 <td>
-                    <button type="button" style="background:none;border:none;cursor:pointer;color:#c0392b;font-size:16px"
+                    <button type="button" style="background:none;border:none;cursor:pointer;color:#c0392b;font-size:19px"
                             onclick="this.closest('tr').remove()">✕</button>
                 </td>
             </tr>
@@ -203,7 +203,7 @@
         Po úspěšné registraci nového člena bude na jeho email odesláno PDF se shrnutím.
     </p>
     <div style="margin-bottom:12px">
-        <label style="display:flex;align-items:center;gap:6px;font-size:13px;cursor:pointer">
+        <label style="display:flex;align-items:center;gap:6px;font-size:16px;cursor:pointer">
             <input type="checkbox" name="registration_summary_enabled" value="1"
                 {{ ($emailSettings['registration_summary_enabled'] ?? '') == '1' ? 'checked' : '' }}>
             Odesílat shrnutí registrace
@@ -240,7 +240,7 @@ function addBccRow() {
     tr.innerHTML = '<td><select class="m-form-select" name="bcc_message_id[]" onchange="prefillSubject(this)"><option value="">— vyberte zprávu —</option>' + messageOptions + '</select></td>' +
         '<td><input class="m-form-input" type="text" name="bcc_subject_prefix[]" placeholder="např. Faktura "></td>' +
         '<td><input class="m-form-input" type="text" name="bcc_address[]" placeholder="kopie@example.com"></td>' +
-        '<td><button type="button" style="background:none;border:none;cursor:pointer;color:#c0392b;font-size:16px" onclick="this.closest(\'tr\').remove()">✕</button></td>';
+        '<td><button type="button" style="background:none;border:none;cursor:pointer;color:#c0392b;font-size:19px" onclick="this.closest(\'tr\').remove()">✕</button></td>';
     tbody.appendChild(tr);
 }
 </script>
@@ -253,12 +253,12 @@ function addBccRow() {
 <div class="m-card" style="margin-bottom:16px;max-width:600px">
     <div class="m-card-title">Nastavení financí</div>
     <div style="display:flex;gap:16px;flex-wrap:wrap;margin-bottom:12px">
-        <label style="display:flex;align-items:center;gap:6px;font-size:13px;cursor:pointer">
+        <label style="display:flex;align-items:center;gap:6px;font-size:16px;cursor:pointer">
             <input type="checkbox" name="finance_enabled" value="1"
                 {{ ($financeSettings['finance_enabled'] ?? '') == '1' ? 'checked' : '' }}>
             Finanční systém povolen
         </label>
-        <label style="display:flex;align-items:center;gap:6px;font-size:13px;cursor:pointer">
+        <label style="display:flex;align-items:center;gap:6px;font-size:16px;cursor:pointer">
             <input type="checkbox" name="deduct_fees_automatically_enabled" value="1"
                 {{ ($financeSettings['deduct_fees_automatically_enabled'] ?? '') == '1' ? 'checked' : '' }}>
             Automatické strhávání poplatků
@@ -337,7 +337,7 @@ function addBccRow() {
     <div class="m-form-group">
         <div class="m-form-label" style="margin-bottom:8px">Volby</div>
         <div style="display:flex;flex-direction:column;gap:10px">
-            <label style="display:flex;align-items:flex-start;gap:8px;cursor:pointer;font-size:13px">
+            <label style="display:flex;align-items:flex-start;gap:8px;cursor:pointer;font-size:16px">
                 <input type="checkbox" name="self_registration" value="1"
                     style="margin-top:2px;flex-shrink:0"
                     {{ ($systemSettings['self_registration'] ?? '') == '1' ? 'checked' : '' }}>
@@ -346,7 +346,7 @@ function addBccRow() {
                     <div class="m-form-hint" style="margin-top:1px">Umožní nepřihlášeným uživatelům vyplnit registrační formulář.</div>
                 </span>
             </label>
-            <label style="display:flex;align-items:flex-start;gap:8px;cursor:pointer;font-size:13px">
+            <label style="display:flex;align-items:flex-start;gap:8px;cursor:pointer;font-size:16px">
                 <input type="checkbox" name="forgotten_password" value="1"
                     style="margin-top:2px;flex-shrink:0"
                     {{ ($systemSettings['forgotten_password'] ?? '') == '1' ? 'checked' : '' }}>
@@ -360,7 +360,7 @@ function addBccRow() {
 </div>
 
 <div class="m-card" style="margin-bottom:16px;max-width:560px">
-    <div class="m-card-title">Kontaktní údaje sdružení <span style="font-weight:400;text-transform:none;letter-spacing:0;color:#bbb;font-size:11px">(pro PDF výpovědi smlouvy)</span></div>
+    <div class="m-card-title">Kontaktní údaje sdružení <span style="font-weight:400;text-transform:none;letter-spacing:0;color:#bbb;font-size:13px">(pro PDF výpovědi smlouvy)</span></div>
 
     <div class="m-form-row">
         <div class="m-form-group">
@@ -414,7 +414,7 @@ function addBccRow() {
             <input class="m-form-input" type="number" name="security_password_length"
                 value="{{ $usersSettings['security_password_length'] ?? 8 }}" min="4" max="32"
                 style="max-width:80px">
-            <span style="font-size:13px;color:#888">znaků</span>
+            <span style="font-size:16px;color:#888">znaků</span>
         </div>
         <div class="m-form-hint">Výchozí: 8</div>
     </div>
@@ -431,7 +431,7 @@ function addBccRow() {
     </div>
 
     <div class="m-form-group">
-        <label style="display:flex;align-items:flex-start;gap:8px;cursor:pointer;font-size:13px">
+        <label style="display:flex;align-items:flex-start;gap:8px;cursor:pointer;font-size:16px">
             <input type="checkbox" name="former_member_auto_device_remove" value="1"
                 style="margin-top:2px;flex-shrink:0"
                 {{ ($usersSettings['former_member_auto_device_remove'] ?? '') == '1' ? 'checked' : '' }}>
@@ -456,12 +456,12 @@ function addBccRow() {
 <div class="m-card" style="margin-bottom:16px;max-width:560px">
     <div class="m-card-title">Nastavení sítě</div>
     <div style="display:flex;gap:16px;flex-wrap:wrap;margin-bottom:12px">
-        <label style="display:flex;align-items:center;gap:6px;font-size:13px;cursor:pointer">
+        <label style="display:flex;align-items:center;gap:6px;font-size:16px;cursor:pointer">
             <input type="checkbox" name="redirection_enabled" value="1"
                 {{ ($networkSettings['redirection_enabled'] ?? '') == '1' ? 'checked' : '' }}>
             Přesměrování povoleno
         </label>
-        <label style="display:flex;align-items:center;gap:6px;font-size:13px;cursor:pointer">
+        <label style="display:flex;align-items:center;gap:6px;font-size:16px;cursor:pointer">
             <input type="checkbox" name="networks_enabled" value="1"
                 {{ ($networkSettings['networks_enabled'] ?? '') == '1' ? 'checked' : '' }}>
             Síťový modul povolen
@@ -537,7 +537,7 @@ function addBccRow() {
 <div class="m-card" style="margin-bottom:16px;max-width:480px">
     <div class="m-card-title">Základní nastavení SMS</div>
     <div style="margin-bottom:12px">
-        <label style="display:flex;align-items:center;gap:6px;font-size:13px;cursor:pointer">
+        <label style="display:flex;align-items:center;gap:6px;font-size:16px;cursor:pointer">
             <input type="checkbox" name="sms_enabled" value="1"
                 {{ ($smsSettings['sms_enabled'] ?? '0') == '1' ? 'checked' : '' }}>
             SMS povoleny
@@ -595,7 +595,7 @@ function addBccRow() {
     </div>
     @if($dCfg['has_test_mode'])
     <div class="m-form-group">
-        <label style="display:flex;align-items:center;gap:6px;font-size:13px;cursor:pointer">
+        <label style="display:flex;align-items:center;gap:6px;font-size:16px;cursor:pointer">
             <input type="checkbox" name="sms_test_mode{{ $dId }}" value="1"
                 {{ ($ds['test_mode'] ?? '0') == '1' ? 'checked' : '' }}>
             Testovací mód (SMS se nezasílají)
@@ -618,7 +618,7 @@ function addBccRow() {
 <div class="m-card" style="margin-bottom:16px;max-width:520px">
     <div class="m-card-title">GPON modul</div>
     <div style="display:flex;align-items:center;gap:8px;margin-bottom:16px">
-        <label style="display:flex;align-items:center;gap:6px;font-size:13px;cursor:pointer">
+        <label style="display:flex;align-items:center;gap:6px;font-size:16px;cursor:pointer">
             <input type="checkbox" name="gpon_enabled" value="1"
                 {{ ($gponSettings['gpon_enabled'] ?? '0') == '1' ? 'checked' : '' }}>
             Povolit GPON modul
@@ -639,7 +639,7 @@ function addBccRow() {
     <div class="m-card-title">OLT zařízení</div>
 
     @if($gponOlts->count())
-    <table class="m-table" style="font-size:13px;margin-bottom:16px">
+    <table class="m-table" style="font-size:16px;margin-bottom:16px">
         <thead>
             <tr>
                 <th>Název</th><th>IP</th><th>Port</th><th>Line profil</th>
@@ -657,7 +657,7 @@ function addBccRow() {
             <td>{{ $golt->traffic_table }}</td>
             <td>{{ $golt->onts_count }}</td>
             <td style="white-space:nowrap">
-                <button class="m-btn" style="font-size:11px;padding:3px 8px"
+                <button class="m-btn" style="font-size:13px;padding:3px 8px"
                     data-olt-id="{{ $golt->id }}"
                     data-olt='{!! json_encode($golt->toArray(), JSON_HEX_QUOT | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_TAG) !!}'
                     onclick="gponOltEdit(this)">Upravit</button>
@@ -665,7 +665,7 @@ function addBccRow() {
                     style="display:inline"
                     onsubmit="return confirm('Smazat OLT {{ addslashes($golt->name) }}?')">
                     @csrf @method('DELETE')
-                    <button class="m-btn" style="font-size:11px;padding:3px 8px;background:#fee2e2;color:#b91c1c;border-color:#fca5a5"
+                    <button class="m-btn" style="font-size:13px;padding:3px 8px;background:#fee2e2;color:#b91c1c;border-color:#fca5a5"
                         type="submit">Smazat</button>
                 </form>
             </td>
@@ -674,7 +674,7 @@ function addBccRow() {
         </tbody>
     </table>
     @else
-    <p style="color:var(--fn-text-muted);font-size:13px;margin:0 0 16px">Žádné OLT zatím není nakonfigurováno.</p>
+    <p style="color:var(--fn-text-muted);font-size:16px;margin:0 0 16px">Žádné OLT zatím není nakonfigurováno.</p>
     @endif
 
     {{-- Formulář přidat/upravit OLT --}}
@@ -750,7 +750,7 @@ function addBccRow() {
                 <div class="m-form-group" style="flex:2">
                     <label class="m-form-label">VLAN mapa (JSON, volitelné)</label>
                     <input class="m-form-input" type="text" name="vlan_map" id="golt-vlan-map"
-                        placeholder='{"0":200,"1":200,...}' style="font-family:monospace;font-size:12px">
+                        placeholder='{"0":200,"1":200,...}' style="font-family:monospace;font-size:14px">
                 </div>
                 <div class="m-form-group">
                     <label class="m-form-label">Název obce (geokódování)</label>
@@ -851,7 +851,7 @@ function gponOltReset() {
     </div>
     <div class="m-form-row">
         <div class="m-form-group" style="flex:0 0 auto">
-            <label style="display:flex;align-items:center;gap:6px;font-size:13px;cursor:pointer;margin-top:24px">
+            <label style="display:flex;align-items:center;gap:6px;font-size:16px;cursor:pointer;margin-top:24px">
                 <input type="checkbox" name="otp_test_mode" value="1"
                     {{ $smlouvySettings['otp_test_mode'] == '1' ? 'checked' : '' }}>
                 Testovací režim OTP
@@ -906,7 +906,7 @@ function gponOltReset() {
         Po úspěšném podpisu se zákazníkovi automaticky odešle email s podepsanou smlouvou, ceníkem a VOP.
     </p>
     <div style="margin-bottom:12px">
-        <label style="display:flex;align-items:center;gap:6px;font-size:13px;cursor:pointer">
+        <label style="display:flex;align-items:center;gap:6px;font-size:16px;cursor:pointer">
             <input type="checkbox" name="contract_email_attachments_enabled" value="1"
                 {{ ($smlouvySettings['contract_email_attachments_enabled'] ?? '') == '1' ? 'checked' : '' }}>
             Odesílat email s přílohami po podpisu

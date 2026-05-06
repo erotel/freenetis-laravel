@@ -55,20 +55,20 @@
     <tbody>
         @forelse($redirections as $r)
         <tr>
-            <td style="font-family:monospace;font-size:12px">{{ $r->ip_address }}</td>
+            <td style="font-family:monospace;font-size:14px">{{ $r->ip_address }}</td>
             <td>
                 @if($r->member_id) <a class="m-link" href="{{ route('members.show', $r->member_id) }}">{{ $r->member_name }}</a>
                 @else — @endif
             </td>
             <td>{{ $r->msg_name }}</td>
-            <td><span class="m-tag m-tag-amber" style="font-size:11px">{{ $typeLabels[$r->msg_type] ?? $r->msg_type }}</span></td>
-            <td style="font-size:12px">{{ \Carbon\Carbon::parse($r->datetime)->format('d.m.Y H:i') }}</td>
-            <td style="font-size:12px">{{ $r->comment ?? '—' }}</td>
+            <td><span class="m-tag m-tag-amber" style="font-size:13px">{{ $typeLabels[$r->msg_type] ?? $r->msg_type }}</span></td>
+            <td style="font-size:14px">{{ \Carbon\Carbon::parse($r->datetime)->format('d.m.Y H:i') }}</td>
+            <td style="font-size:14px">{{ $r->comment ?? '—' }}</td>
             @if($canDelete)
             <td>
                 <form method="POST" action="{{ route('redirects.delete', [$r->ip_address_id, $r->message_id]) }}" style="display:inline">
                     @csrf @method('DELETE')
-                    <button type="submit" style="background:none;border:none;cursor:pointer;padding:0;font-size:12px;color:#c0392b"
+                    <button type="submit" style="background:none;border:none;cursor:pointer;padding:0;font-size:14px;color:#c0392b"
                             onclick="return confirm('Zrušit přesměrování {{ $r->ip_address }}?')">Zrušit</button>
                 </form>
             </td>

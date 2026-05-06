@@ -71,7 +71,7 @@
         <tr>
             <td>{{ $log->id }}</td>
             <td>
-                <span style="background:{{ $typeColors[$log->type] ?? '#888' }};color:#fff;font-size:11px;padding:2px 7px;border-radius:10px;white-space:nowrap">
+                <span style="background:{{ $typeColors[$log->type] ?? '#888' }};color:#fff;font-size:13px;padding:2px 7px;border-radius:10px;white-space:nowrap">
                     {{ $typeNames[$log->type] ?? $log->type }}
                 </span>
             </td>
@@ -82,19 +82,19 @@
                     <span class="m-tag m-tag-gray">Uzavřený</span>
                 @endif
             </td>
-            <td style="font-size:12px">{{ $log->created_at }}</td>
-            <td style="font-size:12px;max-width:300px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">
+            <td style="font-size:14px">{{ $log->created_at }}</td>
+            <td style="font-size:14px;max-width:300px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">
                 {{ \Illuminate\Support\Str::limit($log->description, 100) }}
             </td>
-            <td style="font-size:12px">{{ $log->closed_at ?? '—' }}</td>
-            <td style="font-size:12px">{{ $log->closed_by_name ?? '—' }}</td>
+            <td style="font-size:14px">{{ $log->closed_at ?? '—' }}</td>
+            <td style="font-size:14px">{{ $log->closed_by_name ?? '—' }}</td>
             <td>
                 <div style="display:flex;gap:6px">
                     <a class="m-link-sm" href="{{ route('log_queues.show', $log->id) }}">Detail</a>
                     @if($canEdit && $log->state == 0)
                     <form method="POST" action="{{ route('log_queues.close', $log->id) }}" style="display:inline">
                         @csrf
-                        <button type="submit" style="background:none;border:none;cursor:pointer;padding:0;font-size:12px;color:#185FA5"
+                        <button type="submit" style="background:none;border:none;cursor:pointer;padding:0;font-size:14px;color:#185FA5"
                                 onclick="return confirm('Uzavřít tento záznam?')">Uzavřít</button>
                     </form>
                     @endif

@@ -83,9 +83,9 @@
             <td>{{ $item->name }}</td>
             <td>{{ $item->code }}</td>
             <td style="text-align:right">{{ $item->quantity }}</td>
-            <td style="text-align:right;font-family:monospace;font-size:12px">{{ number_format($item->price * $item->quantity, 2, ',', ' ') }}</td>
+            <td style="text-align:right;font-family:monospace;font-size:14px">{{ number_format($item->price * $item->quantity, 2, ',', ' ') }}</td>
             <td style="text-align:right">{{ number_format($item->vat * 100, 0) }} %</td>
-            <td style="text-align:right;font-family:monospace;font-size:12px">{{ number_format($item->price_vat, 2, ',', ' ') }}</td>
+            <td style="text-align:right;font-family:monospace;font-size:14px">{{ number_format($item->price_vat, 2, ',', ' ') }}</td>
         </tr>
         @empty
         <tr><td colspan="6" style="text-align:center;color:#aaa;padding:1.5rem">Žádné položky.</td></tr>

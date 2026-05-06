@@ -60,7 +60,7 @@
             <td>{{ $iface->id }}</td>
             <td>{{ $iface->type_label }}</td>
             <td>{{ $iface->name ?? '—' }}</td>
-            <td style="font-family:monospace;font-size:12px">{{ $iface->mac ?? '—' }}</td>
+            <td style="font-family:monospace;font-size:14px">{{ $iface->mac ?? '—' }}</td>
             <td>
                 @if($iface->device)
                     <a class="m-link" href="{{ route('devices.show', $iface->device_id) }}">{{ $iface->device->name }}</a>

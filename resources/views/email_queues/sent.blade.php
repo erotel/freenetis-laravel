@@ -65,10 +65,10 @@
         @forelse($emails as $email)
         <tr>
             <td>{{ $email->id }}</td>
-            <td style="font-size:12px">{{ $email->from }}</td>
-            <td style="font-size:12px">{{ $email->to }}</td>
-            <td style="font-size:12px">{{ Str::limit($email->subject, 70) }}</td>
-            <td style="font-size:12px">{{ \Carbon\Carbon::parse($email->access_time)->format('d.m.Y H:i') }}</td>
+            <td style="font-size:14px">{{ $email->from }}</td>
+            <td style="font-size:14px">{{ $email->to }}</td>
+            <td style="font-size:14px">{{ Str::limit($email->subject, 70) }}</td>
+            <td style="font-size:14px">{{ \Carbon\Carbon::parse($email->access_time)->format('d.m.Y H:i') }}</td>
         </tr>
         @empty
         <tr><td colspan="5" style="text-align:center;color:#aaa;padding:2rem">Žádné odeslané e-maily.</td></tr>

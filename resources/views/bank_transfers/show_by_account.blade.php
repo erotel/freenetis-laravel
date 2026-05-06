@@ -45,16 +45,16 @@
         @endphp
         <tr>
             <td>{{ $bt->id }}</td>
-            <td style="font-size:12px">{{ $bt->bankStatement?->from?->format('d.m.Y') ?? '—' }}</td>
-            <td style="font-family:monospace;font-size:12px">
+            <td style="font-size:14px">{{ $bt->bankStatement?->from?->format('d.m.Y') ?? '—' }}</td>
+            <td style="font-family:monospace;font-size:14px">
                 @if($counterpart)
                     <a class="m-link" href="{{ route('bank_accounts.show', $counterpart->id) }}">{{ $counterpart->full_account_number }}</a>
                 @else —
                 @endif
             </td>
-            <td style="font-family:monospace;font-size:12px">{{ $bt->variable_symbol ?: '—' }}</td>
-            <td style="font-size:12px">{{ $bt->constant_symbol ?: '—' }}</td>
-            <td style="font-size:12px">{{ $bt->comment ?: '—' }}</td>
+            <td style="font-family:monospace;font-size:14px">{{ $bt->variable_symbol ?: '—' }}</td>
+            <td style="font-size:14px">{{ $bt->constant_symbol ?: '—' }}</td>
+            <td style="font-size:14px">{{ $bt->comment ?: '—' }}</td>
             <td>
                 @if($bt->transfer_id)
                     <span class="m-tag m-tag-green">Spárováno</span>

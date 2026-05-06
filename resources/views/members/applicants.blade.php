@@ -35,9 +35,9 @@
             </td>
             <td>
                 @if($m->type == 17)
-                    <span class="m-badge m-badge-amber" style="font-size:11px">Čekající člen</span>
+                    <span class="m-badge m-badge-amber" style="font-size:13px">Čekající člen</span>
                 @else
-                    <span class="m-badge m-badge-blue" style="font-size:11px">Čekající zákazník</span>
+                    <span class="m-badge m-badge-blue" style="font-size:13px">Čekající zákazník</span>
                 @endif
             </td>
             <td>{{ $m->entrance_date }}</td>

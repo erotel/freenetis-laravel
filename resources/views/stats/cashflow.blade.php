@@ -11,7 +11,7 @@
 <style>
 .cf-table{width:100%;border-collapse:collapse}
 .cf-table th, .cf-table td{padding:8px 12px;border-bottom:1px solid var(--fn-border, #e5e5e5)}
-.cf-table th{text-align:right;font-weight:600;font-size:13px;background:var(--fn-bg-soft, #f7f7f7)}
+.cf-table th{text-align:right;font-weight:600;font-size:16px;background:var(--fn-bg-soft, #f7f7f7)}
 .cf-table th.col-month{text-align:left}
 .cf-table td{text-align:right;font-variant-numeric:tabular-nums}
 .cf-table td.col-month{text-align:left;font-weight:500}
@@ -50,8 +50,8 @@
     <thead>
         <tr>
             <th class="col-month">Měsíc</th>
-            <th>Strženo zákazníkům<br><span style="font-weight:400;font-size:11px;color:#888">(typ 2)</span></th>
-            <th>Strženo členům<br><span style="font-weight:400;font-size:11px;color:#888">(typ 90)</span></th>
+            <th>Strženo zákazníkům<br><span style="font-weight:400;font-size:13px;color:#888">(typ 2)</span></th>
+            <th>Strženo členům<br><span style="font-weight:400;font-size:13px;color:#888">(typ 90)</span></th>
         </tr>
     </thead>
     <tbody>

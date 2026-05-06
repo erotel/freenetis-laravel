@@ -50,11 +50,11 @@
         <tr>
             <td>{{ $mf->id }}</td>
             <td>{{ $mf->fee->name ?: '—' }}</td>
-            <td style="text-align:right;font-family:monospace;font-size:12px">{{ number_format($mf->fee->fee, 2, ',', ' ') }} Kč</td>
-            <td style="font-size:12px">{{ $mf->activation_date?->format('d.m.Y') }}</td>
-            <td style="font-size:12px">{{ $mf->deactivation_date && $mf->deactivation_date->year < 9999 ? $mf->deactivation_date->format('d.m.Y') : '∞' }}</td>
+            <td style="text-align:right;font-family:monospace;font-size:14px">{{ number_format($mf->fee->fee, 2, ',', ' ') }} Kč</td>
+            <td style="font-size:14px">{{ $mf->activation_date?->format('d.m.Y') }}</td>
+            <td style="font-size:14px">{{ $mf->deactivation_date && $mf->deactivation_date->year < 9999 ? $mf->deactivation_date->format('d.m.Y') : '∞' }}</td>
             <td><span class="m-tag {{ $isActive ? 'm-tag-green' : 'm-tag-gray' }}">{{ $isActive ? 'Aktivní' : 'Neaktivní' }}</span></td>
-            <td style="font-size:12px">{{ $mf->comment ?: '—' }}</td>
+            <td style="font-size:14px">{{ $mf->comment ?: '—' }}</td>
             <td>
                 <div style="display:flex;gap:6px">
                     @if($canEdit) <a class="m-link-sm" href="{{ route('members_fees.edit', $mf->id) }}">Upravit</a> @endif
@@ -62,7 +62,7 @@
                     <form method="POST" action="{{ route('members_fees.destroy', $mf->id) }}" style="display:inline"
                           onsubmit="return confirm('Odebrat tarif?')">
                         @csrf @method('DELETE')
-                        <button type="submit" style="background:none;border:none;cursor:pointer;padding:0;font-size:12px;color:#c0392b">Odebrat</button>
+                        <button type="submit" style="background:none;border:none;cursor:pointer;padding:0;font-size:14px;color:#c0392b">Odebrat</button>
                     </form>
                     @endif
                 </div>
@@ -75,11 +75,11 @@
                 <tr style="opacity:.65">
                     <td>{{ $mf->id }}</td>
                     <td>{{ $mf->fee->name ?: '—' }} <span class="m-tag m-tag-gray">výchozí</span></td>
-                    <td style="text-align:right;font-family:monospace;font-size:12px">{{ number_format($mf->fee->fee, 2, ',', ' ') }} Kč</td>
-                    <td style="font-size:12px">{{ $mf->activation_date?->format('d.m.Y') }}</td>
-                    <td style="font-size:12px">{{ $mf->deactivation_date && $mf->deactivation_date->year < 9999 ? $mf->deactivation_date->format('d.m.Y') : '∞' }}</td>
+                    <td style="text-align:right;font-family:monospace;font-size:14px">{{ number_format($mf->fee->fee, 2, ',', ' ') }} Kč</td>
+                    <td style="font-size:14px">{{ $mf->activation_date?->format('d.m.Y') }}</td>
+                    <td style="font-size:14px">{{ $mf->deactivation_date && $mf->deactivation_date->year < 9999 ? $mf->deactivation_date->format('d.m.Y') : '∞' }}</td>
                     <td><span class="m-tag {{ $isActive ? 'm-tag-green' : 'm-tag-gray' }}">{{ $isActive ? 'Aktivní' : 'Neaktivní' }}</span></td>
-                    <td style="font-size:12px">{{ $mf->comment ?: '—' }}</td>
+                    <td style="font-size:14px">{{ $mf->comment ?: '—' }}</td>
                     <td>—</td>
                 </tr>
                 @endforeach

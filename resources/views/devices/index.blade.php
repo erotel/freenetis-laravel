@@ -75,7 +75,7 @@
                 @else —
                 @endif
             </td>
-            <td style="font-size:12px;color:#888">{{ $device->access_time ?? '—' }}</td>
+            <td style="font-size:14px;color:#888">{{ $device->access_time ?? '—' }}</td>
             <td>
                 <div style="display:flex;gap:6px">
                     <a class="m-link-sm" href="{{ route('devices.show', $device->id) }}">Detail</a>
@@ -86,7 +86,7 @@
                     <form method="POST" action="{{ route('devices.destroy', $device->id) }}" style="display:inline"
                           onsubmit="return confirm('Opravdu smazat zařízení {{ addslashes($device->name) }}?')">
                         @csrf @method('DELETE')
-                        <button type="submit" style="background:none;border:none;cursor:pointer;padding:0;font-size:12px;color:#c0392b">Smazat</button>
+                        <button type="submit" style="background:none;border:none;cursor:pointer;padding:0;font-size:14px;color:#c0392b">Smazat</button>
                     </form>
                     @endif
                 </div>

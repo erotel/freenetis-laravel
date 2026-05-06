@@ -3,7 +3,7 @@
 #main-menu .menu-group { margin-bottom:4px; }
 #main-menu .menu-group-label {
     display:block;
-    font-size:10px;
+    font-size:12px;
     font-weight:600;
     text-transform:uppercase;
     letter-spacing:.08em;
@@ -17,7 +17,7 @@
     align-items:center;
     gap:6px;
     padding:5px 10px 5px 8px;
-    font-size:13px;
+    font-size:16px;
     color:#444;
     text-decoration:none;
     border-radius:4px;
@@ -28,7 +28,7 @@
 #main-menu .menu-group > ul > li > a::before {
     content:'•';
     color:#e8651a;
-    font-size:10px;
+    font-size:12px;
     flex-shrink:0;
     opacity:.7;
     line-height:1;
@@ -50,7 +50,7 @@
     min-width:18px;
     height:18px;
     padding:0 5px;
-    font-size:11px;
+    font-size:13px;
     font-weight:600;
     border-radius:9px;
     line-height:1;

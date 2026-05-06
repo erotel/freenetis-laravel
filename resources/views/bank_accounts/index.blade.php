@@ -25,8 +25,8 @@
         <tr>
             <td>{{ $account->id }}</td>
             <td>{{ $account->name }}</td>
-            <td style="font-family:monospace;font-size:12px">{{ $account->full_account_number }}</td>
-            <td style="font-family:monospace;font-size:12px">{{ $account->IBAN ?: '—' }}</td>
+            <td style="font-family:monospace;font-size:14px">{{ $account->full_account_number }}</td>
+            <td style="font-family:monospace;font-size:14px">{{ $account->IBAN ?: '—' }}</td>
             @if($canManageAutoDown)
             <td>
                 <a class="m-link-sm" href="{{ route('bank_accounts.auto_downloads', $account->id) }}">
@@ -66,8 +66,8 @@
         <tr>
             <td>{{ $account->id }}</td>
             <td>{{ $account->name }}</td>
-            <td style="font-family:monospace;font-size:12px">{{ $account->full_account_number }}</td>
-            <td style="font-family:monospace;font-size:12px">{{ $account->IBAN ?: '—' }}</td>
+            <td style="font-family:monospace;font-size:14px">{{ $account->full_account_number }}</td>
+            <td style="font-family:monospace;font-size:14px">{{ $account->IBAN ?: '—' }}</td>
             <td>
                 @if($account->member) <a class="m-link" href="{{ route('members.show', $account->member_id) }}">{{ $account->member->name }}</a>
                 @else — @endif

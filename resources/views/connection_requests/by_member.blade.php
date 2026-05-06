@@ -34,12 +34,12 @@
         @endphp
         <tr>
             <td><a class="m-link" href="{{ route('connection_requests.show', $cr->id) }}">{{ $cr->id }}</a></td>
-            <td style="font-family:monospace;font-size:12px">{{ $cr->ip_address }}</td>
-            <td style="font-family:monospace;font-size:12px">{{ $cr->mac_address }}</td>
+            <td style="font-family:monospace;font-size:14px">{{ $cr->ip_address }}</td>
+            <td style="font-family:monospace;font-size:14px">{{ $cr->mac_address }}</td>
             <td>{{ $cr->subnet?->name ?? '—' }}</td>
             <td><span class="m-tag {{ $stateClass }}">{{ $cr->stateName() }}</span></td>
-            <td style="font-size:12px">{{ \Carbon\Carbon::parse($cr->created_at)->format('d.m.Y H:i') }}</td>
-            <td style="font-size:12px">
+            <td style="font-size:14px">{{ \Carbon\Carbon::parse($cr->created_at)->format('d.m.Y H:i') }}</td>
+            <td style="font-size:14px">
                 {{ $cr->decided_at ? \Carbon\Carbon::parse($cr->decided_at)->format('d.m.Y H:i') : '—' }}
             </td>
         </tr>

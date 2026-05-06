@@ -24,7 +24,7 @@
 {{-- Základní info --}}
 <div class="m-card" style="flex:1;min-width:280px;max-width:520px">
     <div class="m-card-title">Informace o ONT</div>
-    <table style="width:100%;border-collapse:collapse;font-size:14px">
+    <table style="width:100%;border-collapse:collapse;font-size:17px">
         <tr><td style="padding:5px 0;color:var(--fn-text-muted);width:140px">Serial</td>
             <td style="font-family:monospace">{{ $ont->serial }}</td></tr>
         <tr><td style="padding:5px 0;color:var(--fn-text-muted)">GPON port</td>
@@ -72,7 +72,7 @@
                     @else
                         <span id="member-display-text" style="color:var(--fn-text-muted)">—</span>
                     @endif
-                    <button type="button" class="m-btn" style="font-size:11px;padding:2px 8px"
+                    <button type="button" class="m-btn" style="font-size:13px;padding:2px 8px"
                             onclick="memberEditShow()">Upravit</button>
                 </div>
                 {{-- Inline edit --}}
@@ -80,7 +80,7 @@
                       action="{{ route('gpon.update-member', $ont->id) }}"
                       style="display:none;margin-top:6px">
                     @csrf
-                    <select name="member_id" class="m-form-select" style="max-width:260px;font-size:13px;margin-bottom:6px">
+                    <select name="member_id" class="m-form-select" style="max-width:260px;font-size:16px;margin-bottom:6px">
                         <option value="">— žádný zákazník —</option>
                         @foreach($customers as $c)
                             <option value="{{ $c->id }}" {{ $ont->member_id == $c->id ? 'selected' : '' }}>
@@ -89,8 +89,8 @@
                         @endforeach
                     </select>
                     <div style="display:flex;gap:6px">
-                        <button type="submit" class="m-btn m-btn-primary" style="font-size:12px;padding:3px 10px">Uložit</button>
-                        <button type="button" class="m-btn" style="font-size:12px;padding:3px 10px"
+                        <button type="submit" class="m-btn m-btn-primary" style="font-size:14px;padding:3px 10px">Uložit</button>
+                        <button type="button" class="m-btn" style="font-size:14px;padding:3px 10px"
                                 onclick="memberEditHide()">Zrušit</button>
                     </div>
                 </form>
@@ -115,9 +115,9 @@
     {{-- Online badge --}}
     <div style="margin-bottom:14px">
         @if($details['online'])
-            <span class="m-tag m-tag-green" style="font-size:13px">● Online</span>
+            <span class="m-tag m-tag-green" style="font-size:16px">● Online</span>
         @else
-            <span class="m-tag" style="background:#fee2e2;color:#b91c1c;font-size:13px">● Offline</span>
+            <span class="m-tag" style="background:#fee2e2;color:#b91c1c;font-size:16px">● Offline</span>
         @endif
     </div>
 
@@ -130,33 +130,33 @@
             $txColor = ($txVal !== 'DOWN' && (float)$txVal >= -27) ? '#16a34a' : '#dc2626';
         @endphp
         <div class="m-metric" style="border-radius:6px;padding:10px 12px">
-            <div style="font-size:11px;color:var(--fn-text-muted);margin-bottom:2px">Rx výkon</div>
-            <div style="font-size:18px;font-weight:700;color:{{ $rxVal === 'DOWN' ? '#dc2626' : $rxColor }}">
+            <div style="font-size:13px;color:var(--fn-text-muted);margin-bottom:2px">Rx výkon</div>
+            <div style="font-size:22px;font-weight:700;color:{{ $rxVal === 'DOWN' ? '#dc2626' : $rxColor }}">
                 {{ $rxVal }}{{ $rxVal !== 'DOWN' ? ' dBm' : '' }}
             </div>
         </div>
         <div class="m-metric" style="border-radius:6px;padding:10px 12px">
-            <div style="font-size:11px;color:var(--fn-text-muted);margin-bottom:2px">Tx výkon</div>
-            <div style="font-size:18px;font-weight:700;color:{{ $txVal === 'DOWN' ? '#dc2626' : $txColor }}">
+            <div style="font-size:13px;color:var(--fn-text-muted);margin-bottom:2px">Tx výkon</div>
+            <div style="font-size:22px;font-weight:700;color:{{ $txVal === 'DOWN' ? '#dc2626' : $txColor }}">
                 {{ $txVal }}{{ $txVal !== 'DOWN' ? ' dBm' : '' }}
             </div>
         </div>
         <div class="m-metric" style="border-radius:6px;padding:10px 12px">
-            <div style="font-size:11px;color:var(--fn-text-muted);margin-bottom:2px">Teplota</div>
-            <div class="m-metric-value" style="font-size:18px;font-weight:700">
+            <div style="font-size:13px;color:var(--fn-text-muted);margin-bottom:2px">Teplota</div>
+            <div class="m-metric-value" style="font-size:22px;font-weight:700">
                 {{ $details['temperature'] }}{{ $details['temperature'] !== 'DOWN' ? ' °C' : '' }}
             </div>
         </div>
         <div class="m-metric" style="border-radius:6px;padding:10px 12px">
-            <div style="font-size:11px;color:var(--fn-text-muted);margin-bottom:2px">Vzdálenost</div>
-            <div class="m-metric-value" style="font-size:18px;font-weight:700">
+            <div style="font-size:13px;color:var(--fn-text-muted);margin-bottom:2px">Vzdálenost</div>
+            <div class="m-metric-value" style="font-size:22px;font-weight:700">
                 {{ $details['distance'] }}{{ $details['distance'] !== 'DOWN' ? ' m' : '' }}
             </div>
         </div>
     </div>
 
     {{-- Detail fields --}}
-    <table style="width:100%;border-collapse:collapse;font-size:13px">
+    <table style="width:100%;border-collapse:collapse;font-size:16px">
         <tr>
             <td style="padding:4px 0;color:var(--fn-text-muted);width:110px">Napětí</td>
             <td>{{ $details['voltage'] }}{{ $details['voltage'] !== 'DOWN' ? ' V' : '' }}</td>
@@ -186,7 +186,7 @@
     </table>
 
     @else
-    <p style="color:var(--fn-text-muted);font-size:13px;margin:0">SNMP data nejsou dostupná.</p>
+    <p style="color:var(--fn-text-muted);font-size:16px;margin:0">SNMP data nejsou dostupná.</p>
     @endif
 </div>
 @endif
@@ -229,7 +229,7 @@
             <div class="m-actions" style="margin-top:12px">
                 <button class="m-btn m-btn-success" type="submit">Registrovat</button>
                 <button type="button" id="gpon-clear-member" class="m-btn"
-                        style="font-size:12px;display:{{ $ont->member_id ? 'inline-flex' : 'none' }}">
+                        style="font-size:14px;display:{{ $ont->member_id ? 'inline-flex' : 'none' }}">
                     × Odebrat propojení se členem
                 </button>
             </div>
@@ -278,7 +278,7 @@
                 const idMatch = item.url.match(/\/members\/(\d+)/);
                 const id = idMatch ? idMatch[1] : '';
                 return `<div class="gpon-ac-item" data-id="${id}" data-name="${escHtml(item.title)}"
-                             style="padding:8px 12px;cursor:pointer;font-size:13px;border-bottom:1px solid var(--fn-border,#f3f4f6)">
+                             style="padding:8px 12px;cursor:pointer;font-size:16px;border-bottom:1px solid var(--fn-border,#f3f4f6)">
                             <strong>${escHtml(item.title)}</strong>
                             ${item.detail ? '<span style="color:#888;margin-left:6px">' + escHtml(item.detail) + '</span>' : ''}
                         </div>`;

@@ -21,17 +21,17 @@
         <div class="m-form-hint" id="attribute-help"></div>
     </div>
     <div style="display:flex;gap:20px;flex-wrap:wrap;margin-bottom:12px">
-        <label style="display:flex;align-items:center;gap:6px;font-size:13px;cursor:pointer">
+        <label style="display:flex;align-items:center;gap:6px;font-size:16px;cursor:pointer">
             <input type="checkbox" name="redirection_enabled" value="1"
                 {{ old('redirection_enabled', $rule?->redirection_enabled ?? 0) ? 'checked' : '' }}>
             Přesměrování
         </label>
-        <label style="display:flex;align-items:center;gap:6px;font-size:13px;cursor:pointer">
+        <label style="display:flex;align-items:center;gap:6px;font-size:16px;cursor:pointer">
             <input type="checkbox" name="email_enabled" value="1"
                 {{ old('email_enabled', $rule?->email_enabled ?? 0) ? 'checked' : '' }}>
             E-mail
         </label>
-        <label style="display:flex;align-items:center;gap:6px;font-size:13px;cursor:pointer">
+        <label style="display:flex;align-items:center;gap:6px;font-size:16px;cursor:pointer">
             <input type="checkbox" name="sms_enabled" value="1"
                 {{ old('sms_enabled', $rule?->sms_enabled ?? 0) ? 'checked' : '' }}>
             SMS

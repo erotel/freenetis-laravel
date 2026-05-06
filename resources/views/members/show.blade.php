@@ -185,12 +185,12 @@
                 @elseif($member->tv_active)
                     <span style="color:#27ae60">📺 Aktivní</span>
                     @if($member->tv_valid_until)
-                        <span style="color:#888;font-size:12px">do {{ $member->tv_valid_until }}</span>
+                        <span style="color:#888;font-size:14px">do {{ $member->tv_valid_until }}</span>
                     @endif
                 @else
                     <span style="color:#c0392b">📺 Neaktivní</span>
                     @if($member->tv_valid_until)
-                        <span style="color:#888;font-size:12px">(vypršelo {{ $member->tv_valid_until }})</span>
+                        <span style="color:#888;font-size:14px">(vypršelo {{ $member->tv_valid_until }})</span>
                     @endif
                 @endif
             </span>
@@ -216,7 +216,7 @@
                 @endif
                 <div class="m-field"><span class="m-field-label">Země</span><span class="m-field-value">Czech Republic</span></div>
             @else
-                <div style="font-size:13px;color:#aaa;padding:6px 0">—</div>
+                <div style="font-size:16px;color:#aaa;padding:6px 0">—</div>
             @endif
         </div>
 
@@ -246,19 +246,19 @@
 <div class="m-card" style="margin-bottom:16px">
     @foreach($accountCommentsList as $ac)
     <div class="m-field" style="align-items:flex-start; flex-direction:column; gap:2px;">
-        <div style="font-size:12px;color:#888;">
+        <div style="font-size:14px;color:#888;">
             <strong>{{ $ac->user_name }}</strong>
             ({{ \Carbon\Carbon::parse($ac->datetime)->format('d.m.Y') }})
             @if($canEditComment) <a class="m-link" href="{{ route('comments.edit', $ac->id) }}">Upravit</a> @endif
             @if($canDeleteComment)
             <form method="POST" action="{{ route('comments.destroy', $ac->id) }}" style="display:inline;">
                 @csrf @method('DELETE')
-                <button type="submit" style="background:none;border:none;padding:0;color:#c00;cursor:pointer;font-size:12px;"
+                <button type="submit" style="background:none;border:none;padding:0;color:#c00;cursor:pointer;font-size:14px;"
                         onclick="return confirm('Smazat komentář?')">Smazat</button>
             </form>
             @endif
         </div>
-        <div style="font-size:13px;">{{ $ac->text }}</div>
+        <div style="font-size:16px;">{{ $ac->text }}</div>
     </div>
     @endforeach
     @if($canComment)
@@ -281,12 +281,12 @@
         @foreach($group as $r)
         <div class="m-ip-row">
             <span class="m-ip-addr">{{ $r->ip_address }}</span>
-            <span style="font-size:13px;color:#555;">{{ $r->msg_name }}</span>
-            <span style="font-size:12px;color:#aaa;">{{ \Carbon\Carbon::parse($r->datetime)->format('d.m.Y H:i') }}</span>
+            <span style="font-size:16px;color:#555;">{{ $r->msg_name }}</span>
+            <span style="font-size:14px;color:#aaa;">{{ \Carbon\Carbon::parse($r->datetime)->format('d.m.Y H:i') }}</span>
             @if($canDeleteRedirect)
             <form method="POST" action="{{ route('redirects.delete', [$r->ip_address_id, $r->message_id]) }}" style="display:inline">
                 @csrf @method('DELETE')
-                <button type="submit" style="background:none;border:none;padding:0;color:#c00;cursor:pointer;font-size:12px;"
+                <button type="submit" style="background:none;border:none;padding:0;color:#c00;cursor:pointer;font-size:14px;"
                         onclick="return confirm('Zrušit přesměrování {{ $r->ip_address }}?')">Zrušit</button>
             </form>
             @endif
@@ -309,7 +309,7 @@
             <a class="m-link" href="{{ route('membership-interrupts.edit', $int->id) }}">Upravit</a>
             <form method="POST" action="{{ route('membership-interrupts.destroy', $int->id) }}" style="display:inline">
                 @csrf @method('DELETE')
-                <button type="submit" style="background:none;border:none;padding:0;color:#c00;cursor:pointer;font-size:12px;"
+                <button type="submit" style="background:none;border:none;padding:0;color:#c00;cursor:pointer;font-size:14px;"
                         onclick="return confirm('Smazat přerušení #{{ $int->id }}?')">Smazat</button>
             </form>
             @endif
@@ -393,10 +393,10 @@
 <div class="m-card" style="margin-bottom:16px">
     @foreach($gponOnts as $ont)
     <div class="m-field">
-        <span class="m-field-label" style="font-family:monospace;font-size:12px">{{ $ont->serial }}</span>
+        <span class="m-field-label" style="font-family:monospace;font-size:14px">{{ $ont->serial }}</span>
         <span class="m-field-value" style="display:flex;align-items:center;gap:8px">
             <span class="m-tag m-tag-green">{{ $ont->gpon_port }}</span>
-            <span style="font-size:12px;color:var(--fn-text-muted)">VLAN {{ $ont->vlan }}</span>
+            <span style="font-size:14px;color:var(--fn-text-muted)">VLAN {{ $ont->vlan }}</span>
             <a class="m-link-sm" href="{{ route('gpon.show', $ont->id) }}">Detail</a>
         </span>
     </div>
@@ -422,7 +422,7 @@
     <div class="m-field">
         <span class="m-field-label">Stav</span>
         <span class="m-field-value">
-            <span style="display:inline-block;padding:2px 8px;border-radius:12px;font-size:12px;font-weight:600;background:{{ $contractColor }}1a;color:{{ $contractColor }};border:1px solid {{ $contractColor }}55">
+            <span style="display:inline-block;padding:2px 8px;border-radius:12px;font-size:14px;font-weight:600;background:{{ $contractColor }}1a;color:{{ $contractColor }};border:1px solid {{ $contractColor }}55">
                 {{ $contract->statusLabel() }}
             </span>
         </span>
@@ -453,13 +453,13 @@
         </span>
     </div>
     @if(session('sign_link'))
-    <div style="margin-top:8px;padding:10px 12px;background:#fffbeb;border:1px solid #fcd34d;border-radius:6px;font-size:13px;">
+    <div style="margin-top:8px;padding:10px 12px;background:#fffbeb;border:1px solid #fcd34d;border-radius:6px;font-size:16px;">
         <strong>Podpisový odkaz:</strong><br>
         <a href="{{ session('sign_link') }}" target="_blank" rel="noopener" style="word-break:break-all">{{ session('sign_link') }}</a>
     </div>
     @endif
 @else
-    <div style="font-size:13px;color:#888;padding:4px 0">Žádná smlouva.</div>
+    <div style="font-size:16px;color:#888;padding:4px 0">Žádná smlouva.</div>
     @if($canEdit)
     <div style="margin-top:10px">
         <form method="POST" action="{{ route('contracts.create', $member->id) }}" style="display:inline">
@@ -480,7 +480,7 @@
 <div class="m-section">Dodatek ke smlouvě</div>
 <div class="m-card" style="margin-bottom:16px">
     @if($addonStatus === 'none')
-        <div style="font-size:13px;color:#888;padding:4px 0">Žádný dodatek.</div>
+        <div style="font-size:16px;color:#888;padding:4px 0">Žádný dodatek.</div>
         @if($canEdit)
         <div style="margin-top:10px">
             <form method="POST" action="{{ route('contracts.addon.create', $member->id) }}" style="display:inline">
@@ -496,7 +496,7 @@
         <div class="m-field">
             <span class="m-field-label">Stav dodatku</span>
             <span class="m-field-value">
-                <span style="display:inline-block;padding:2px 8px;border-radius:12px;font-size:12px;font-weight:600;background:#fef3c71a;color:#d97706;border:1px solid #fcd34d55">
+                <span style="display:inline-block;padding:2px 8px;border-radius:12px;font-size:14px;font-weight:600;background:#fef3c71a;color:#d97706;border:1px solid #fcd34d55">
                     Čeká na podpis
                 </span>
             </span>
@@ -518,7 +518,7 @@
         </div>
         @endif
         @if(session('addon_link'))
-        <div style="margin-top:8px;padding:10px 12px;background:#fffbeb;border:1px solid #fcd34d;border-radius:6px;font-size:13px;">
+        <div style="margin-top:8px;padding:10px 12px;background:#fffbeb;border:1px solid #fcd34d;border-radius:6px;font-size:16px;">
             <strong>Odkaz pro podpis dodatku:</strong><br>
             <a href="{{ session('addon_link') }}" target="_blank" rel="noopener" style="word-break:break-all">{{ session('addon_link') }}</a>
         </div>
@@ -527,7 +527,7 @@
         <div class="m-field">
             <span class="m-field-label">Stav dodatku</span>
             <span class="m-field-value">
-                <span style="display:inline-block;padding:2px 8px;border-radius:12px;font-size:12px;font-weight:600;background:#dcfce71a;color:#16a34a;border:1px solid #86efac55">
+                <span style="display:inline-block;padding:2px 8px;border-radius:12px;font-size:14px;font-weight:600;background:#dcfce71a;color:#16a34a;border:1px solid #86efac55">
                     Podepsáno
                 </span>
             </span>
@@ -556,8 +556,8 @@
     @foreach($member->ipAddresses as $ip)
     <div class="m-ip-row">
         <a class="m-ip-addr m-link" href="{{ route('ip_addresses.show', $ip->id) }}">{{ $ip->ip_address }}</a>
-        <span style="font-size:12px;color:#888;">{{ $ip->subnet?->label ?? '—' }}</span>
-        <span style="font-size:12px;color:#aaa;">
+        <span style="font-size:14px;color:#888;">{{ $ip->subnet?->label ?? '—' }}</span>
+        <span style="font-size:14px;color:#aaa;">
             {{ $ip->dhcp ? 'DHCP' : '' }}
             {{ $ip->gateway ? 'GW' : '' }}
         </span>

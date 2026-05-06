@@ -17,7 +17,7 @@
         </select>
     </div>
     <div class="m-form-group">
-        <label style="display:flex;align-items:center;gap:6px;font-size:13px;cursor:pointer">
+        <label style="display:flex;align-items:center;gap:6px;font-size:16px;cursor:pointer">
             <input type="checkbox" name="ignore_whitelist" value="1"
                 {{ old('ignore_whitelist', $message?->ignore_whitelist) ? 'checked' : '' }}>
             Ignorovat whitelist

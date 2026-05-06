@@ -56,17 +56,17 @@
         <input class="m-form-input" type="number" name="attr_hour" value="{{ old('attr_hour', $attrHour) }}" min="0" max="23" style="max-width:80px">
     </div>
     <div style="display:flex;gap:20px;flex-wrap:wrap;margin-bottom:12px">
-        <label style="display:flex;align-items:center;gap:6px;font-size:13px;cursor:pointer">
+        <label style="display:flex;align-items:center;gap:6px;font-size:16px;cursor:pointer">
             <input type="checkbox" name="redirection_enabled" value="1"
                 {{ old('redirection_enabled', $setting?->redirection_enabled) ? 'checked' : '' }}>
             Přesměrování
         </label>
-        <label style="display:flex;align-items:center;gap:6px;font-size:13px;cursor:pointer">
+        <label style="display:flex;align-items:center;gap:6px;font-size:16px;cursor:pointer">
             <input type="checkbox" name="email_enabled" value="1"
                 {{ old('email_enabled', $setting?->email_enabled) ? 'checked' : '' }}>
             E-mail
         </label>
-        <label style="display:flex;align-items:center;gap:6px;font-size:13px;cursor:pointer">
+        <label style="display:flex;align-items:center;gap:6px;font-size:16px;cursor:pointer">
             <input type="checkbox" name="sms_enabled" value="1"
                 {{ old('sms_enabled', $setting?->sms_enabled) ? 'checked' : '' }}>
             SMS

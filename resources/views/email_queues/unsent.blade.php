@@ -63,23 +63,23 @@
         @forelse($emails as $email)
         <tr>
             <td>{{ $email->id }}</td>
-            <td style="font-size:12px">{{ $email->from }}</td>
-            <td style="font-size:12px">{{ $email->to }}</td>
-            <td style="font-size:12px">{{ Str::limit($email->subject, 60) }}</td>
-            <td style="font-size:12px">{{ \Carbon\Carbon::parse($email->access_time)->format('d.m.Y H:i') }}</td>
+            <td style="font-size:14px">{{ $email->from }}</td>
+            <td style="font-size:14px">{{ $email->to }}</td>
+            <td style="font-size:14px">{{ Str::limit($email->subject, 60) }}</td>
+            <td style="font-size:14px">{{ \Carbon\Carbon::parse($email->access_time)->format('d.m.Y H:i') }}</td>
             <td>
                 <div style="display:flex;gap:6px">
                     @if($canSend)
                     <form method="POST" action="{{ route('email_queues.resend', $email->id) }}" style="display:inline">
                         @csrf
-                        <button type="submit" style="background:none;border:none;cursor:pointer;padding:0;font-size:12px;color:#27ae60"
+                        <button type="submit" style="background:none;border:none;cursor:pointer;padding:0;font-size:14px;color:#27ae60"
                                 onclick="return confirm('Odeslat e-mail #{{ $email->id }}?')">Odeslat</button>
                     </form>
                     @endif
                     @if($canDelete)
                     <form method="POST" action="{{ route('email_queues.destroy', $email->id) }}" style="display:inline">
                         @csrf @method('DELETE')
-                        <button type="submit" style="background:none;border:none;cursor:pointer;padding:0;font-size:12px;color:#c0392b"
+                        <button type="submit" style="background:none;border:none;cursor:pointer;padding:0;font-size:14px;color:#c0392b"
                                 onclick="return confirm('Smazat e-mail #{{ $email->id }}?')">Smazat</button>
                     </form>
                     @endif

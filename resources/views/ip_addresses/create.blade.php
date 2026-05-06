@@ -68,15 +68,15 @@
         </div>
     </div>
     <div style="display:flex;gap:20px;flex-wrap:wrap;margin-top:4px">
-        <label style="display:flex;align-items:center;gap:6px;font-size:13px;cursor:pointer">
+        <label style="display:flex;align-items:center;gap:6px;font-size:16px;cursor:pointer">
             <input type="checkbox" id="dhcp" name="dhcp" value="1" @checked(old('dhcp'))>
             DHCP
         </label>
-        <label style="display:flex;align-items:center;gap:6px;font-size:13px;cursor:pointer">
+        <label style="display:flex;align-items:center;gap:6px;font-size:16px;cursor:pointer">
             <input type="checkbox" id="gateway" name="gateway" value="1" @checked(old('gateway'))>
             Gateway
         </label>
-        <label style="display:flex;align-items:center;gap:6px;font-size:13px;cursor:pointer">
+        <label style="display:flex;align-items:center;gap:6px;font-size:16px;cursor:pointer">
             <input type="checkbox" id="service" name="service" value="1" @checked(old('service'))>
             Servisní adresa
         </label>

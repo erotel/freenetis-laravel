@@ -42,9 +42,9 @@
             <td>{{ $fee->id }}</td>
             <td>{{ \App\Models\Fee::typeLabels()[$fee->type_id] ?? $fee->enumType?->value ?? $fee->type_id }}</td>
             <td>{{ $fee->name ?: '—' }}</td>
-            <td style="text-align:right;font-family:monospace;font-size:12px">{{ number_format($fee->fee, 2, ',', ' ') }} Kč</td>
-            <td style="font-size:12px">{{ $fee->from?->format('d.m.Y') }}</td>
-            <td style="font-size:12px">{{ $fee->to && $fee->to->year < 9999 ? $fee->to->format('d.m.Y') : '∞' }}</td>
+            <td style="text-align:right;font-family:monospace;font-size:14px">{{ number_format($fee->fee, 2, ',', ' ') }} Kč</td>
+            <td style="font-size:14px">{{ $fee->from?->format('d.m.Y') }}</td>
+            <td style="font-size:14px">{{ $fee->to && $fee->to->year < 9999 ? $fee->to->format('d.m.Y') : '∞' }}</td>
             <td>
                 <div style="display:flex;gap:6px">
                     @if(!$fee->readonly && $canEdit)
@@ -54,7 +54,7 @@
                     <form method="POST" action="{{ route('fees.destroy', $fee->id) }}" style="display:inline"
                           onsubmit="return confirm('Opravdu smazat tarif?')">
                         @csrf @method('DELETE')
-                        <button type="submit" style="background:none;border:none;cursor:pointer;padding:0;font-size:12px;color:#c0392b">Smazat</button>
+                        <button type="submit" style="background:none;border:none;cursor:pointer;padding:0;font-size:14px;color:#c0392b">Smazat</button>
                     </form>
                     @endif
                 </div>

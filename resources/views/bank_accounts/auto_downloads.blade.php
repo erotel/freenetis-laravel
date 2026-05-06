@@ -40,15 +40,15 @@
         @foreach($rules as $rule)
         <tr>
             <td>{{ $rule->id }}</td>
-            <td style="font-size:12px">{{ $rule->typeLabel() }}</td>
-            <td style="font-size:12px">{{ $rule->attributeLabel() }}</td>
+            <td style="font-size:14px">{{ $rule->typeLabel() }}</td>
+            <td style="font-size:14px">{{ $rule->attributeLabel() }}</td>
             <td>@if($rule->email_enabled)<span class="m-tag m-tag-green">Ano</span>@else —@endif</td>
             <td>@if($rule->sms_enabled)<span class="m-tag m-tag-green">Ano</span>@else —@endif</td>
             <td>
                 @if($canDelete)
                 <form method="POST" action="{{ route('bank_accounts.auto_downloads.destroy', $rule->id) }}" style="display:inline">
                     @csrf @method('DELETE')
-                    <button type="submit" style="background:none;border:none;cursor:pointer;padding:0;font-size:12px;color:#c0392b"
+                    <button type="submit" style="background:none;border:none;cursor:pointer;padding:0;font-size:14px;color:#c0392b"
                             onclick="return confirm('Smazat pravidlo?')">Smazat</button>
                 </form>
                 @endif
@@ -83,11 +83,11 @@
     </div>
     @endfor
     <div style="display:flex;gap:20px;flex-wrap:wrap;margin-top:4px">
-        <label style="display:flex;align-items:center;gap:6px;font-size:13px;cursor:pointer">
+        <label style="display:flex;align-items:center;gap:6px;font-size:16px;cursor:pointer">
             <input type="checkbox" name="email_enabled" id="email_enabled" value="1" @checked(old('email_enabled'))>
             E-mail
         </label>
-        <label style="display:flex;align-items:center;gap:6px;font-size:13px;cursor:pointer">
+        <label style="display:flex;align-items:center;gap:6px;font-size:16px;cursor:pointer">
             <input type="checkbox" name="sms_enabled" id="sms_enabled" value="1" @checked(old('sms_enabled'))>
             SMS
         </label>

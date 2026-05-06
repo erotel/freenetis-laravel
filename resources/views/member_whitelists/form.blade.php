@@ -31,7 +31,7 @@
 
 <div class="m-card" style="margin-bottom:16px;max-width:480px">
     <div class="m-form-group">
-        <label style="display:flex;align-items:center;gap:6px;font-size:13px;cursor:pointer">
+        <label style="display:flex;align-items:center;gap:6px;font-size:16px;cursor:pointer">
             <input type="checkbox" name="permanent" id="permanent" value="1"
                    @checked(old('permanent', $whitelist?->permanent))
                    onchange="toggleUntil()">

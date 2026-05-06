@@ -36,12 +36,12 @@
                     <a class="m-link-sm" href="{{ route('enum-types.edit', $type->id) }}">Upravit</a>
                     <form method="POST" action="{{ route('enum-types.destroy', $type->id) }}" style="display:inline">
                         @csrf @method('DELETE')
-                        <button type="submit" style="background:none;border:none;cursor:pointer;padding:0;font-size:12px;color:#c0392b"
+                        <button type="submit" style="background:none;border:none;cursor:pointer;padding:0;font-size:14px;color:#c0392b"
                                 onclick="return confirm('Smazat typ {{ $type->value }}?')">Smazat</button>
                     </form>
                 </div>
                 @else
-                <span style="color:#aaa;font-size:12px">systémový</span>
+                <span style="color:#aaa;font-size:14px">systémový</span>
                 @endif
             </td>
         </tr>

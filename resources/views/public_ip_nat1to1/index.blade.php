@@ -53,10 +53,10 @@
         @endphp
         <tr>
             <td>{{ $row->id }}</td>
-            <td style="font-family:monospace;font-size:12px">{{ $row->public_ip }}</td>
-            <td style="font-family:monospace;font-size:12px">{{ $row->private_ip ?: '—' }}</td>
+            <td style="font-family:monospace;font-size:14px">{{ $row->public_ip }}</td>
+            <td style="font-family:monospace;font-size:14px">{{ $row->private_ip ?: '—' }}</td>
             <td>{{ $row->owner_member_name ?: '—' }}</td>
-            <td style="font-size:12px">{{ $changeDate }}{{ $changeName ? ' (' . $changeName . ')' : '' }}</td>
+            <td style="font-size:14px">{{ $changeDate }}{{ $changeName ? ' (' . $changeName . ')' : '' }}</td>
             @if($canEdit)
             <td>
                 <div style="display:flex;gap:6px">

@@ -46,7 +46,7 @@
             <td>
                 <form method="POST" action="{{ route('aro-groups.remove-user', [$group->id, $user->id]) }}" style="display:inline">
                     @csrf @method('DELETE')
-                    <button type="submit" style="background:none;border:none;cursor:pointer;padding:0;font-size:12px;color:#c0392b"
+                    <button type="submit" style="background:none;border:none;cursor:pointer;padding:0;font-size:14px;color:#c0392b"
                             onclick="return confirm('Odebrat uživatele ze skupiny?')">Odebrat</button>
                 </form>
             </td>
@@ -90,19 +90,19 @@
                 <td rowspan="{{ count($rows) }}">{{ $row->acl_id }}</td>
                 <td rowspan="{{ count($rows) }}">{{ $row->note }}</td>
                 @endif
-                <td style="font-size:12px">{{ $row->section }} / {{ $row->resource }}</td>
+                <td style="font-size:14px">{{ $row->section }} / {{ $row->resource }}</td>
                 @if($i === 0)
                 <td rowspan="{{ count($rows) }}">
                     <div style="display:flex;gap:6px;flex-wrap:wrap">
                         <a class="m-link-sm" href="{{ route('acl.edit', $aclId) }}">Upravit</a>
                         <form method="POST" action="{{ route('aro-groups.remove-acl', [$group->id, $aclId]) }}" style="display:inline">
                             @csrf @method('DELETE')
-                            <button type="submit" style="background:none;border:none;cursor:pointer;padding:0;font-size:12px;color:#c0392b"
+                            <button type="submit" style="background:none;border:none;cursor:pointer;padding:0;font-size:14px;color:#c0392b"
                                     onclick="return confirm('Odebrat ACL pravidlo skupině?')">Odebrat</button>
                         </form>
                         <form method="POST" action="{{ route('acl.destroy', $aclId) }}" style="display:inline">
                             @csrf @method('DELETE')
-                            <button type="submit" style="background:none;border:none;cursor:pointer;padding:0;font-size:12px;color:#c0392b"
+                            <button type="submit" style="background:none;border:none;cursor:pointer;padding:0;font-size:14px;color:#c0392b"
                                     onclick="return confirm('Smazat ACL pravidlo {{ $aclId }} úplně?')">Smazat</button>
                         </form>
                     </div>
