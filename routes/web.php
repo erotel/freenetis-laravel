@@ -79,7 +79,7 @@ Route::post('/logout', [LoginController::class, 'logout'])->name('logout')->midd
 // Public self-registration (guest only)
 Route::middleware('guest')->group(function () {
     Route::get('register', [RegistrationController::class, 'create'])->name('registration.create');
-    Route::post('register', [RegistrationController::class, 'store'])->name('registration.store');
+    Route::post('register', [RegistrationController::class, 'store'])->name('registration.store')->middleware('throttle:5,10');
     Route::get('register/success', [RegistrationController::class, 'success'])->name('registration.success');
 
     // Forgotten password

@@ -9,10 +9,19 @@ use Illuminate\Http\Request;
 
 class GponController extends Controller
 {
+    private const ACL_SECTION = 'Gpon_Controller';
+    private const ACL_VALUE   = 'gpon';
+
     public function __construct(private GponService $gponService) {}
+
+    private function can(string $action): bool
+    {
+        return $this->aclCheck($action, self::ACL_SECTION, self::ACL_VALUE);
+    }
 
     public function index(Request $request)
     {
+        abort_unless($this->can('view_all'), 403);
         $status = $request->input('status');
 
         $query = Ont::with(['member', 'addedBy'])->orderByDesc('created_at');
@@ -34,6 +43,7 @@ class GponController extends Controller
 
     public function show(int $id)
     {
+        abort_unless($this->can('view_all'), 403);
         $ont     = Ont::with(['member', 'device', 'addedBy'])->findOrFail($id);
         $details = null;
 
@@ -54,6 +64,7 @@ class GponController extends Controller
 
     public function updateMember(int $id, Request $request)
     {
+        abort_unless($this->can('edit_all'), 403);
         $request->validate([
             'member_id' => 'nullable|integer|exists:members,id',
         ]);
@@ -67,6 +78,7 @@ class GponController extends Controller
 
     public function scan(Request $request)
     {
+        abort_unless($this->can('edit_all'), 403);
         try {
             $count = $this->gponService->scanNewOnts();
             return back()->with('success', "Skenování dokončeno. Nalezeno {$count} nových ONT.");
@@ -77,6 +89,7 @@ class GponController extends Controller
 
     public function register(Request $request, int $id)
     {
+        abort_unless($this->can('edit_all'), 403);
         $request->validate([
             'house_no'  => 'nullable|string|max:32',
             'user_name' => 'nullable|string|max:128',
@@ -102,6 +115,7 @@ class GponController extends Controller
 
     public function remove(int $id)
     {
+        abort_unless($this->can('edit_all'), 403);
         try {
             $this->gponService->removeOntById($id);
             return redirect()->route('gpon.index')->with('success', 'ONT byla odebrána.');
@@ -112,6 +126,7 @@ class GponController extends Controller
 
     public function destroy(int $id)
     {
+        abort_unless($this->can('delete_all'), 403);
         $ont = Ont::findOrFail($id);
 
         if ($ont->reg_status !== 'removed') {
@@ -125,6 +140,7 @@ class GponController extends Controller
 
     public function map()
     {
+        abort_unless($this->can('view_all'), 403);
         $onts = \App\Models\Ont::whereNotNull('gps_lat')
             ->whereNotNull('gps_lng')
             ->where('reg_status', 'registered')

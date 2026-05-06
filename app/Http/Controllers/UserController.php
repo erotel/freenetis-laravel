@@ -277,9 +277,9 @@ class UserController extends Controller
 
     public function changePassword(int $id)
     {
-        $isOwnUser = (auth()->user()->id == $id ||
-                      DB::table('users')->where('id', $id)->value('member_id') == auth()->user()->member_id);
-        abort_unless($this->can('edit_all', 'password') || $isOwnUser, 403);
+        $isSelf  = (int) auth()->id() === (int) $id;
+        $isAdmin = $this->can('edit_all', 'password');
+        abort_unless($isSelf || $isAdmin, 403);
 
         $user = User::find($id);
         if (!$user) {
@@ -288,14 +288,14 @@ class UserController extends Controller
 
         $member = DB::table('members')->where('id', $user->member_id)->first();
 
-        return view('users.change_password', compact('user', 'member'));
+        return view('users.change_password', compact('user', 'member', 'isAdmin', 'isSelf'));
     }
 
     public function updatePassword(Request $request, int $id)
     {
-        $isOwnUser = (auth()->user()->id == $id ||
-                      DB::table('users')->where('id', $id)->value('member_id') == auth()->user()->member_id);
-        abort_unless($this->can('edit_all', 'password') || $isOwnUser, 403);
+        $isSelf  = (int) auth()->id() === (int) $id;
+        $isAdmin = $this->can('edit_all', 'password');
+        abort_unless($isSelf || $isAdmin, 403);
 
         $user = User::find($id);
         if (!$user) {
@@ -304,10 +304,17 @@ class UserController extends Controller
 
         $minLength = (int) \App\Models\Setting::get('security_password_length', 8);
 
-        $request->validate([
+        // Self-change vyžaduje znalost aktuálního hesla — chrání před zneužitím
+        // unesené session a před vzájemným zásahem mezi sub-uživateli členství.
+        // Admin (edit_all,password) může reset bez current_password.
+        $rules = [
             'password'              => "required|string|min:{$minLength}|confirmed",
             'password_confirmation' => 'required',
-        ]);
+        ];
+        if ($isSelf && !$isAdmin) {
+            $rules['current_password'] = ['required', 'current_password'];
+        }
+        $request->validate($rules);
 
         $user->password = Hash::make($request->input('password'));
         $user->save();

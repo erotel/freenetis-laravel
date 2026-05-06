@@ -26,6 +26,13 @@
 @csrf
 @method('PUT')
 <div class="m-card" style="margin-bottom:16px;max-width:420px">
+    @if($isSelf && !$isAdmin)
+    <div class="m-form-group">
+        <label class="m-form-label" for="current_password">Aktuální heslo <span style="color:#c0392b">*</span></label>
+        <input class="m-form-input" type="password" id="current_password" name="current_password" autocomplete="current-password">
+        @error('current_password') <div class="m-form-hint" style="color:#c0392b">{{ $message }}</div> @enderror
+    </div>
+    @endif
     <div class="m-form-group">
         <label class="m-form-label" for="password">Nové heslo <span style="color:#c0392b">*</span></label>
         <input class="m-form-input" type="password" id="password" name="password" autocomplete="new-password">
