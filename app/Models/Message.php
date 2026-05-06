@@ -60,12 +60,22 @@ class Message extends Model
 
     /**
      * Replace {key} placeholders in $body with $vars[key]. Missing keys are left as-is.
+     *
+     * $body je admin-psaný HTML šablona; $vars hodnoty pocházejí z user inputu
+     * (member_name z public registrace, atd.) a defaultně se HTML-escape, aby
+     * nemohly injektovat tagy nebo atributové XSS payloady do výsledného HTML.
+     * Pro plain-text kontext (SMS) předej $htmlEscape=false.
      */
-    public static function substitute(string $body, array $vars): string
+    public static function substitute(string $body, array $vars, bool $htmlEscape = true): string
     {
         if (empty($vars)) return $body;
         $search  = array_map(fn($k) => '{' . $k . '}', array_keys($vars));
-        $replace = array_map(fn($v) => (string) $v, array_values($vars));
+        $replace = array_map(
+            fn($v) => $htmlEscape
+                ? htmlspecialchars((string) $v, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8')
+                : (string) $v,
+            array_values($vars)
+        );
         return str_replace($search, $replace, $body);
     }
 

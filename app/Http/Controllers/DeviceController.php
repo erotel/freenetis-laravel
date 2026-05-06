@@ -632,28 +632,9 @@ class DeviceController extends Controller
             ->where('ip_addresses.ip_address', $request->ip())
             ->exists();
 
-        \Log::info('DHCP export auth', [
-            'device_id'   => $id,
-            'format'      => $format,
-            'client_ip'   => $request->ip(),
-            'from_device' => $fromDevice,
-            'auth_id'     => auth()->id(),
-            'is_guest'    => auth()->guest(),
-            'acl_check'   => auth()->check()
-                ? $this->aclCheck('view_all', 'Devices_Controller', 'export')
-                : null,
-        ]);
-
         $token      = $request->input('token') ?? $request->bearerToken();
         $validToken = Setting::get('dhcp_api_token');
         $tokenValid = $token && $validToken && hash_equals($validToken, $token);
-
-        \Log::info('DHCP export token check', [
-            'token_present' => !empty($token),
-            'token_valid'   => $tokenValid,
-            'token_length'  => $token ? strlen($token) : 0,
-            'valid_length'  => $validToken ? strlen($validToken) : 0,
-        ]);
 
         if (!$fromDevice && !$tokenValid) {
             if (auth()->guest()) {
