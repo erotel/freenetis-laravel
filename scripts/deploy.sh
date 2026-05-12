@@ -72,7 +72,13 @@ ok "Závislosti instalovány."
 if [ "$SKIP_MIGRATE" -eq 1 ]; then
     warn "3/5 migrate přeskočeno (--skip-migrate)"
 else
-    step "3/5 artisan migrate --force"
+    step "3a/5 artisan migrate:reconcile (sync s legacy schématem)"
+    # Označí pending migrace, jejichž tabulky/sloupce už existují (z legacy dumpu
+    # nebo paralelního provisioningu) jako already-applied — bez toho by migrate
+    # padal na 1050 "Table already exists".
+    "${RUN_AS_WEB[@]}" php artisan migrate:reconcile
+
+    step "3b/5 artisan migrate --force"
     "${RUN_AS_WEB[@]}" php artisan migrate --force
     ok "Migrace hotové."
 fi
