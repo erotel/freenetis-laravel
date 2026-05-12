@@ -821,7 +821,7 @@ function gponOltReset() {
 @endif
 
 @if($activeTab === 'smlouvy')
-<form method="POST" action="{{ route('settings.update-smlouvy') }}">
+<form method="POST" action="{{ route('settings.update-smlouvy') }}" enctype="multipart/form-data">
 @csrf @method('PUT')
 
 <div class="m-card" style="margin-bottom:16px;max-width:640px">
@@ -876,6 +876,12 @@ function gponOltReset() {
         <div class="m-form-hint">Relativní k root adresáři aplikace, nebo absolutní cesta.</div>
     </div>
     <div class="m-form-group">
+        <label class="m-form-label">Nebo nahraj nový .pfx soubor</label>
+        <input class="m-form-input" type="file" name="pdf_sign_cert_file" accept=".pfx,.p12">
+        <div class="m-form-hint">Uloží se do <code>storage/app/private/certs/</code> a cesta se automaticky vyplní.</div>
+        @error('pdf_sign_cert_file') <div class="field-error" style="color:#b91c1c;font-size:14px;margin-top:4px">{{ $message }}</div> @enderror
+    </div>
+    <div class="m-form-group">
         <label class="m-form-label">Heslo k certifikátu</label>
         <input class="m-form-input" type="password" name="pdf_sign_pass"
             value="" placeholder="{{ $smlouvySettings['pdf_sign_pass'] ? '••••••••' : '' }}" autocomplete="new-password">
@@ -919,6 +925,12 @@ function gponOltReset() {
             placeholder="storage/app/private/contract-attachments/cenik.pdf">
     </div>
     <div class="m-form-group">
+        <label class="m-form-label">Nebo nahraj nový ceník (PDF)</label>
+        <input class="m-form-input" type="file" name="contract_email_pricelist_pdf_file" accept=".pdf,application/pdf">
+        <div class="m-form-hint">Uloží se do <code>storage/app/private/contract-attachments/</code> a cesta se vyplní.</div>
+        @error('contract_email_pricelist_pdf_file') <div class="field-error" style="color:#b91c1c;font-size:14px;margin-top:4px">{{ $message }}</div> @enderror
+    </div>
+    <div class="m-form-group">
         <label class="m-form-label">Cesta k VOP (PDF)</label>
         <input class="m-form-input" type="text" name="contract_email_vop_pdf"
             value="{{ $smlouvySettings['contract_email_vop_pdf'] }}"
@@ -926,6 +938,12 @@ function gponOltReset() {
         <div class="m-form-hint">
             Relativní vůči root adresáři aplikace, nebo absolutní cesta. Pokud soubor neexistuje, jen se přeskočí (smlouva se odešle bez něj).
         </div>
+    </div>
+    <div class="m-form-group">
+        <label class="m-form-label">Nebo nahraj nové VOP (PDF)</label>
+        <input class="m-form-input" type="file" name="contract_email_vop_pdf_file" accept=".pdf,application/pdf">
+        <div class="m-form-hint">Uloží se do <code>storage/app/private/contract-attachments/</code> a cesta se vyplní.</div>
+        @error('contract_email_vop_pdf_file') <div class="field-error" style="color:#b91c1c;font-size:14px;margin-top:4px">{{ $message }}</div> @enderror
     </div>
 </div>
 

@@ -406,7 +406,36 @@ class SettingController extends Controller
             'pdf_sign_reason'              => 'nullable|string|max:200',
             'contract_email_pricelist_pdf' => 'nullable|string|max:255',
             'contract_email_vop_pdf'       => 'nullable|string|max:255',
+            // Uploady: PFX (~ pár kB) a PDF (do 10 MB)
+            'pdf_sign_cert_file'                => 'nullable|file|max:1024|extensions:pfx,p12',
+            'contract_email_pricelist_pdf_file' => 'nullable|file|max:10240|mimes:pdf',
+            'contract_email_vop_pdf_file'       => 'nullable|file|max:10240|mimes:pdf',
         ]);
+
+        // Uploady mají přednost před textovým polem — pokud admin nahrál soubor,
+        // přepíše tím cestu na finální umístění. Cíle jsou napevno pod
+        // storage/app/private, takže path traversal v uploadovaném jméně nemůže
+        // sahat mimo whitelist.
+        $uploads = [
+            'pdf_sign_cert_file'                => ['target' => 'pdf_sign_cert',                'dir' => 'certs',                 'fallback_name' => 'cert.pfx'],
+            'contract_email_pricelist_pdf_file' => ['target' => 'contract_email_pricelist_pdf', 'dir' => 'contract-attachments', 'fallback_name' => 'cenik.pdf'],
+            'contract_email_vop_pdf_file'       => ['target' => 'contract_email_vop_pdf',       'dir' => 'contract-attachments', 'fallback_name' => 'vop.pdf'],
+        ];
+        foreach ($uploads as $field => $meta) {
+            if (!$request->hasFile($field) || !$request->file($field)->isValid()) continue;
+            $file = $request->file($field);
+            // Sanitizace názvu (jen ASCII alnum/dash/dot/underscore) a fallback,
+            // aby uploadované soubory měly předvídatelná jména v privátním storage.
+            $origName = (string) $file->getClientOriginalName();
+            $safe = preg_replace('/[^A-Za-z0-9._-]+/', '_', pathinfo($origName, PATHINFO_FILENAME));
+            $ext  = strtolower($file->getClientOriginalExtension() ?: pathinfo($meta['fallback_name'], PATHINFO_EXTENSION));
+            $name = ($safe !== '' ? $safe : pathinfo($meta['fallback_name'], PATHINFO_FILENAME)) . '.' . $ext;
+            $relDir = $meta['dir'];
+            $file->storeAs($relDir, $name, 'local'); // local = storage/app/private
+            // Setting ukládáme jako cestu relativní k base_path() — stejný formát,
+            // jaký dosud admini psali ručně (storage/app/private/...).
+            $request->merge([$meta['target'] => 'storage/app/private/' . $relDir . '/' . $name]);
+        }
 
         // Plain string fields — empty input clears the value
         foreach (['otp_ttl_min', 'otp_max_attempts', 'otp_resend_window_sec', 'otp_test_code',
