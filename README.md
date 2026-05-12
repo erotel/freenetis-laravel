@@ -4,6 +4,8 @@ Přepis FreenetIS (původně Kohana 2 PHP framework) do **Laravel 13**.
 Informační systém pro provoz síťařských spolků: členská evidence, finance,
 DHCP, captive portal, smlouvy s elektronickým podpisem, GPON, SMS, …
 
+Aktuální verze: **v2.0.0** (viz `config/version.php`). v1.x byla legacy Kohana.
+
 > Status: One-man show s asistencí Claude AI. Aktivní vývoj na větvi `laravel-migration`.
 
 ---
@@ -13,20 +15,35 @@ DHCP, captive portal, smlouvy s elektronickým podpisem, GPON, SMS, …
 **Předpoklady:** čerstvý **Debian 13 (Trixie)** nebo **Ubuntu 24.04 LTS**, root přístup,
 A-záznam DNS směřující na server (např. `is.spolek.net`).
 
+### Varianta A — one-liner (doporučeno)
+
 ```bash
-# 1) Naclonuj repo
-git clone https://github.com/erotel/freenetis-laravel.git /tmp/fnl
-cd /tmp/fnl
-git checkout laravel-migration
+curl -fsSL https://raw.githubusercontent.com/erotel/freenetis-laravel/laravel-migration/scripts/install/bootstrap.sh | sudo bash
+```
 
-# 2) Systémová fáze: balíčky, Apache, PHP-FPM, MariaDB, certbot, opcache
-bash scripts/install/01-install-system.sh
+Bootstrap zařídí git, naklonuje repo přímo do `/var/www/html/freenetis-laravel`,
+spustí 01 (systémové balíčky) a 02 (interaktivní konfigurace s otázkami na doménu,
+e-mail pro Let's Encrypt, …). 02 čte vstup z `/dev/tty`, takže `curl | bash` funguje.
 
-# 3) Aplikační fáze: clone do /var/www/html, .env, vhost, certbot, setup token
-bash scripts/install/02-configure-app.sh
+ENV overrides:
+```bash
+REPO_BRANCH=jina-vetev APP_DIR=/srv/freenetis SKIP_PHASE_2=1 \
+    curl -fsSL https://raw.githubusercontent.com/erotel/freenetis-laravel/laravel-migration/scripts/install/bootstrap.sh | sudo bash
+```
+
+### Varianta B — manuální (žádný stažený third-party skript)
+
+```bash
+sudo apt-get update && sudo apt-get install -y git
+sudo git clone -b laravel-migration https://github.com/erotel/freenetis-laravel.git /var/www/html/freenetis-laravel
+cd /var/www/html/freenetis-laravel
+sudo bash scripts/install/01-install-system.sh
+sudo bash scripts/install/02-configure-app.sh
 # → Zeptá se na: doménu (FQDN), e-mail pro Let's Encrypt
 # → Na konci vypíše URL pro web setup wizard
 ```
+
+02 detekuje existující `.git` v cílovém umístění a místo druhého klonu udělá jen `git pull`.
 
 Skript `02-configure-app.sh` na konci vypíše URL ve tvaru:
 
@@ -42,6 +59,33 @@ https://is.spolek.net/freenetis/setup?t=<32-hex-token>
 | **Migrace ze starého serveru**   | Nahraješ SQL dump (max 2 GB, `.sql` nebo `.sql.gz`). Admin účty jsou v dumpu. |
 
 Po dokončení wizardu se setup token automaticky smaže a `/setup` přestane být dostupný. Wizard tě přesměruje na `/login`.
+
+---
+
+## Update existující instance
+
+```bash
+cd /var/www/html/freenetis-laravel
+sudo ./scripts/deploy.sh
+```
+
+Co dělá v pořadí:
+
+1. `git pull --ff-only` na aktuální větvi
+2. `composer install --no-dev --optimize-autoloader`
+3. `php artisan migrate:reconcile` — registruje migrace, jejichž tabulky už existují
+   (legacy importy, paralelní provisioning), takže další krok neselže na 1050
+4. `php artisan migrate --force`
+5. `php artisan optimize:clear` — bez tohohle se nově přidané `config/*.php`
+   soubory nepropíší do aplikace (viz historický bug s `config/version.php`)
+6. Chown `storage/` a `bootstrap/cache/` na `www-data`
+
+Composer/artisan kroky se spouští pod `www-data` (pokud běžíš jako root), takže
+`vendor/` ani Laravel cache nedostanou root ownership.
+
+Volby:
+- `--reload-apache` — pokud máš `opcache.validate_timestamps=0`
+- `--skip-migrate` — když ručně řešíš schéma
 
 ---
 
@@ -150,18 +194,22 @@ Velikost dumpu: bez limitu (PHP+Apache jsou nakonfigurované na 2 GB upload, imp
 ### Důležité skripty / artefakty
 
 ```
-scripts/install/
-├── 01-install-system.sh           Systémové balíčky + Apache + PHP + MariaDB
-├── 02-configure-app.sh            Aplikace + .env + DB + setup token + certbot
-├── 03-install-phpmyadmin.sh       (volitelné) phpMyAdmin s IP allow-listem
-├── templates/
-│   └── apache-freenetis.conf      Apache vhost template (Alias /freenetis, redirect)
-└── sql/
-    ├── freenetis-bootstrap.sql.gz       45 KB — main DB schema + lookup data
-    └── contractsdb-bootstrap.sql.gz     1.8 KB — contracts DB schema-only
+scripts/
+├── deploy.sh                      Update existující instance (pull + composer + migrate + clear)
+└── install/
+    ├── bootstrap.sh               One-liner curl|bash installer (kroky 1 + 2)
+    ├── 01-install-system.sh       Systémové balíčky + Apache + PHP + MariaDB
+    ├── 02-configure-app.sh        Aplikace + .env + DB + setup token + certbot
+    ├── 03-install-phpmyadmin.sh   (volitelné) phpMyAdmin s IP allow-listem
+    ├── templates/
+    │   └── apache-freenetis.conf  Apache vhost template (Alias /freenetis, redirect)
+    └── sql/
+        ├── freenetis-bootstrap.sql.gz       45 KB — main DB schema + lookup data
+        └── contractsdb-bootstrap.sql.gz     1.8 KB — contracts DB schema-only
 
 app/Console/Commands/
 ├── FreenetisInstall.php           php artisan freenetis:install — bootstrap admin
+├── MigrateReconcile.php           php artisan migrate:reconcile — registruje existující schéma
 ├── ImportBankStatements.php       Cron — FIO API automatický import
 ├── SendEmailQueue.php             Cron — odesílání emailů z fronty
 ├── SmsSend.php                    Cron — odesílání SMS z fronty
@@ -173,13 +221,12 @@ app/Console/Commands/
 ## Vývoj
 
 ```bash
-git clone https://github.com/erotel/freenetis-laravel.git
+git clone -b laravel-migration https://github.com/erotel/freenetis-laravel.git
 cd freenetis-laravel
-git checkout laravel-migration
 
 composer install
+cp .env.example .env             # doplň DB credentials, APP_URL, ...
 php artisan key:generate
-# Vytvoř .env podle .env.example, doplň DB credentials
 
 php artisan migrate
 php artisan db:seed --class=AclGponContractsSeeder
@@ -187,6 +234,9 @@ php artisan db:seed --class=AclSmtpExceptionsSeeder
 php artisan freenetis:install   # interaktivně vytvoří admin
 php artisan serve
 ```
+
+Po každém `git pull` v dev: `php artisan optimize:clear` (jinak Laravel
+nevidí nové `config/*.php` ani upravené blade šablony).
 
 ### Tasking
 
