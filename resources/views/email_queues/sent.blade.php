@@ -35,6 +35,7 @@
 
 <div class="m-card" style="margin-bottom:16px;padding:14px 1.25rem">
     <form method="GET" style="display:flex;flex-wrap:wrap;gap:10px;align-items:flex-end">
+        @if($loadAll) <input type="hidden" name="all" value="1"> @endif
         <div>
             <div class="m-form-label">Od</div>
             <input class="m-form-input" type="text" name="from" value="{{ $filterFrom }}" style="width:160px">
@@ -50,7 +51,7 @@
         <div style="display:flex;gap:6px;padding-bottom:1px">
             <button class="m-btn m-btn-primary" type="submit">Filtrovat</button>
             @if($filterFrom || $filterTo || $filterSubj)
-            <a class="m-btn" href="{{ route('email_queues.sent') }}">Zrušit filtr</a>
+            <a class="m-btn" href="{{ route('email_queues.sent', $loadAll ? ['all' => 1] : []) }}">Zrušit filtr</a>
             @endif
         </div>
     </form>
