@@ -83,7 +83,11 @@ class SettingController extends Controller
 
     public function index()
     {
-        $bankAccounts = BankAccount::orderBy('name')->get(['id', 'name', 'account_nr', 'bank_nr']);
+        // Jen účty spolku (asociace má member_id = 1) — viz BankAccountController::index,
+        // kde se členské bank účty oddělují od asociačních stejnou podmínkou.
+        $bankAccounts = BankAccount::where('member_id', 1)
+            ->orderBy('name')
+            ->get(['id', 'name', 'account_nr', 'bank_nr']);
 
         // Member type → bank account routing rules
         // Kohana used types: 1=admin, 2=zákazník, 3=..., 15=..., 90=člen
