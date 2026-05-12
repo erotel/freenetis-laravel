@@ -42,18 +42,21 @@ class BankTransferController extends Controller
         $from = $request->query('from') ?? now()->subDays(30)->toDateString();
         $to   = $request->query('to') ?: null;
 
-        // Kohana logic: unidentified = transfer exists but member_id is NULL/0
-        // (payment could not be matched to any member — wrong account, missing VS, etc.)
-        $transfers = BankTransfer::whereNotNull('transfer_id')
-            ->whereHas('transfer', function ($q) use ($from, $to) {
-                $q->where(function ($q) {
-                    $q->whereNull('member_id')->orWhere('member_id', 0);
-                });
-                if ($from) $q->where('datetime', '>=', $from . ' 00:00:00');
-                if ($to)   $q->where('datetime', '<=', $to   . ' 23:59:59');
-            })
-            ->with(['bankStatement.bankAccount', 'originAccount', 'destinationAccount', 'transfer'])
+        // Kohana logic (Bank_transfer_Model::get_unidentified_transfers):
+        //   neidentifikovaný = transfer.member_id IS NULL/0
+        //   AND origin účet je typu MEMBER_FEES (684000) — suspense účet, na který se
+        //   předúčtují příchozí bankovní platby, dokud nejsou přiřazené členovi.
+        //   Bez tohoto filtru sem padají i interní převody (banka → dodavatelé, atd.).
+        $transfers = BankTransfer::whereNotNull('bank_transfers.transfer_id')
             ->join('transfers', 'transfers.id', '=', 'bank_transfers.transfer_id')
+            ->join('accounts as origin_acc', 'origin_acc.id', '=', 'transfers.origin_id')
+            ->where('origin_acc.account_attribute_id', 684000)
+            ->where(function ($q) {
+                $q->whereNull('transfers.member_id')->orWhere('transfers.member_id', 0);
+            })
+            ->when($from, fn($q) => $q->where('transfers.datetime', '>=', $from . ' 00:00:00'))
+            ->when($to,   fn($q) => $q->where('transfers.datetime', '<=', $to   . ' 23:59:59'))
+            ->with(['bankStatement.bankAccount', 'originAccount', 'destinationAccount', 'transfer'])
             ->orderByDesc('transfers.datetime')
             ->select('bank_transfers.*')
             ->paginate(50)
