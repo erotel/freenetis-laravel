@@ -90,7 +90,7 @@
 @endif
 
 @if($activeTab === 'email')
-<form method="POST" action="{{ route('settings.update-email') }}">
+<form method="POST" action="{{ route('settings.update-email') }}" enctype="multipart/form-data">
 @csrf @method('PUT')
 
 <div class="m-card" style="margin-bottom:16px;max-width:520px">
@@ -218,6 +218,12 @@
             Relativní cesta vůči <code>storage/app/private/</code>, nebo absolutní cesta začínající <code>/</code>.
             Pokud soubor neexistuje, email se neodešle.
         </div>
+    </div>
+    <div class="m-form-group">
+        <label class="m-form-label">Nebo nahraj nové shrnutí (PDF)</label>
+        <input class="m-form-input" type="file" name="registration_summary_pdf_file" accept=".pdf,application/pdf">
+        <div class="m-form-hint">Uloží se do <code>storage/app/private/</code> a cesta se vyplní.</div>
+        @error('registration_summary_pdf_file') <div class="field-error" style="color:#b91c1c;font-size:14px;margin-top:4px">{{ $message }}</div> @enderror
     </div>
 </div>
 

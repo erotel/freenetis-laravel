@@ -271,6 +271,25 @@ class SettingController extends Controller
     {
         abort_unless($this->can('edit_all'), 403);
 
+        $request->validate([
+            'registration_summary_pdf_file' => 'nullable|file|max:10240|mimes:pdf',
+        ]);
+
+        // Upload má přednost před textovým polem. Cílový adresář je napevno
+        // (storage/app/private/), jméno se sanitizuje, takže path traversal
+        // v uploadovaném názvu nemůže uniknout. Cesta v Setting je relativní
+        // vůči storage/app/private/ (formát, který RegistrationController
+        // už očekává — viz storage_path('app/private/' . $pdfSetting)).
+        if ($request->hasFile('registration_summary_pdf_file')
+            && $request->file('registration_summary_pdf_file')->isValid()) {
+            $file = $request->file('registration_summary_pdf_file');
+            $orig = pathinfo((string) $file->getClientOriginalName(), PATHINFO_FILENAME);
+            $safe = preg_replace('/[^A-Za-z0-9._-]+/', '_', $orig) ?: 'smlouva_shrnuti';
+            $name = $safe . '.pdf';
+            $file->storeAs('', $name, 'local'); // local = storage/app/private
+            $request->merge(['registration_summary_pdf' => $name]);
+        }
+
         foreach (self::EMAIL_KEYS as $key) {
             Setting::set($key, $request->input($key, ''));
         }
