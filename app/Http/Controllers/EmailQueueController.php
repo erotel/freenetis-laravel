@@ -22,15 +22,8 @@ class EmailQueueController extends Controller
     {
         abort_unless($this->canView(), 403);
 
-        $last200 = DB::table('email_queues')->select('id')
-            ->where('state', EmailQueue::STATE_NEW)
-            ->orderByDesc('id')->limit(200);
-
-        $query = DB::table('email_queues')
-            ->joinSub($last200, 'last200', fn($j) => $j->on('email_queues.id', '=', 'last200.id'))
-            ->select('email_queues.*')
-            ->where('email_queues.state', EmailQueue::STATE_NEW);
-
+        $loadAll = $request->boolean('all');
+        $query = $this->stateQuery(EmailQueue::STATE_NEW, $loadAll);
         $this->applyFilters($query, $request);
 
         $emails = $query->orderByDesc('email_queues.id')->paginate(50)->withQueryString();
@@ -42,6 +35,7 @@ class EmailQueueController extends Controller
             'filterFrom'  => $request->input('from', ''),
             'filterTo'    => $request->input('to', ''),
             'filterSubj'  => $request->input('subject', ''),
+            'loadAll'     => $loadAll,
         ]);
     }
 
@@ -51,15 +45,8 @@ class EmailQueueController extends Controller
     {
         abort_unless($this->canView(), 403);
 
-        $last200 = DB::table('email_queues')->select('id')
-            ->where('state', EmailQueue::STATE_SENT)
-            ->orderByDesc('id')->limit(200);
-
-        $query = DB::table('email_queues')
-            ->joinSub($last200, 'last200', fn($j) => $j->on('email_queues.id', '=', 'last200.id'))
-            ->select('email_queues.*')
-            ->where('email_queues.state', EmailQueue::STATE_SENT);
-
+        $loadAll = $request->boolean('all');
+        $query = $this->stateQuery(EmailQueue::STATE_SENT, $loadAll);
         $this->applyFilters($query, $request);
 
         $emails = $query->orderByDesc('email_queues.id')->paginate(50)->withQueryString();
@@ -70,7 +57,73 @@ class EmailQueueController extends Controller
             'filterFrom' => $request->input('from', ''),
             'filterTo'   => $request->input('to', ''),
             'filterSubj' => $request->input('subject', ''),
+            'loadAll'    => $loadAll,
         ]);
+    }
+
+    // ── Detail e-mailu ────────────────────────────────────────────────────────
+
+    public function show(int $id)
+    {
+        abort_unless($this->canView(), 403);
+
+        $email = EmailQueue::with('attachments')->findOrFail($id);
+
+        return view('email_queues.show', [
+            'email'     => $email,
+            'canSend'   => $this->canSend(),
+            'canDelete' => $this->canDelete(),
+        ]);
+    }
+
+    // ── Stažení přílohy ───────────────────────────────────────────────────────
+
+    public function downloadAttachment(int $id, int $attachmentId)
+    {
+        abort_unless($this->canView(), 403);
+
+        $email = EmailQueue::findOrFail($id);
+        $att   = $email->attachments()->where('id', $attachmentId)->firstOrFail();
+
+        // Legacy ukládá absolutní cestu (např. /usr/share/freenetis/data/invoices/...);
+        // download je povolen jen z whitelistovaných kořenů, aby attachment endpoint
+        // nešel zneužít na čtení libovolného souboru na serveru.
+        $real = realpath($att->path);
+        if ($real === false) {
+            abort(404, 'Soubor přílohy nenalezen.');
+        }
+        $allowedRoots = array_filter([
+            realpath('/usr/share/freenetis/data'),
+            realpath(storage_path('app')),
+            realpath(base_path('storage/app')),
+        ]);
+        $ok = false;
+        foreach ($allowedRoots as $root) {
+            if ($root && str_starts_with($real, $root . DIRECTORY_SEPARATOR)) { $ok = true; break; }
+        }
+        if (!$ok) {
+            abort(403, 'Příloha mimo povolený adresář.');
+        }
+
+        return response()->download($real, $att->name ?: basename($real), [
+            'Content-Type' => $att->mime ?: 'application/octet-stream',
+        ]);
+    }
+
+    // ── Sestavení query s/bez limitu 200 ──────────────────────────────────────
+
+    private function stateQuery(int $state, bool $loadAll): \Illuminate\Database\Query\Builder
+    {
+        if ($loadAll) {
+            return DB::table('email_queues')->where('state', $state);
+        }
+        $last200 = DB::table('email_queues')->select('id')
+            ->where('state', $state)
+            ->orderByDesc('id')->limit(200);
+        return DB::table('email_queues')
+            ->joinSub($last200, 'last200', fn($j) => $j->on('email_queues.id', '=', 'last200.id'))
+            ->select('email_queues.*')
+            ->where('email_queues.state', $state);
     }
 
     // ── Znovu odeslat ─────────────────────────────────────────────────────────

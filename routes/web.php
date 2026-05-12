@@ -543,6 +543,8 @@ Route::middleware('auth')->group(function () {
     Route::delete('email-queues',           [EmailQueueController::class, 'destroyUnsent'])->name('email_queues.destroy-unsent');
     Route::get('email-queues/sent',         [EmailQueueController::class, 'sent'])->name('email_queues.sent');
     Route::delete('email-queues/sent',      [EmailQueueController::class, 'destroySent'])->name('email_queues.destroy-sent');
+    Route::get('email-queues/{id}/show',    [EmailQueueController::class, 'show'])->name('email_queues.show');
+    Route::get('email-queues/{id}/attachments/{attachmentId}', [EmailQueueController::class, 'downloadAttachment'])->name('email_queues.attachment');
     Route::post('email-queues/{id}/resend', [EmailQueueController::class, 'resend'])->name('email_queues.resend');
     Route::delete('email-queues/{id}',      [EmailQueueController::class, 'destroy'])->name('email_queues.destroy');
 

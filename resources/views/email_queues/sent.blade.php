@@ -7,10 +7,18 @@
 @section('content')
 <div class="m-page">
 <div class="m-title-row"><h2>Odeslané e-maily</h2></div>
-<div class="m-subtitle">Celkem: {{ $emails->total() }} záznamů</div>
+<div class="m-subtitle">
+    Celkem: {{ $emails->total() }} záznamů
+    @if(!$loadAll) <span style="color:#888">(zobrazeno z posledních 200)</span> @endif
+</div>
 
 <div class="m-actions">
     <a class="m-btn" href="{{ route('email_queues.unsent') }}">Čekající e-maily</a>
+    @if($loadAll)
+        <a class="m-btn" href="{{ route('email_queues.sent', array_filter(['from'=>$filterFrom,'to'=>$filterTo,'subject'=>$filterSubj])) }}">← Posledních 200</a>
+    @else
+        <a class="m-btn m-btn-primary" href="{{ route('email_queues.sent', array_filter(['all'=>1,'from'=>$filterFrom,'to'=>$filterTo,'subject'=>$filterSubj])) }}">Načíst vše (i starší)</a>
+    @endif
     @if($canDelete && $emails->total() > 0)
     <form method="POST" action="{{ route('email_queues.destroy-sent') }}" style="display:inline">
         @csrf @method('DELETE')
@@ -59,19 +67,21 @@
             <th>Komu</th>
             <th>Předmět</th>
             <th style="width:140px">Odesláno</th>
+            <th style="width:70px">Akce</th>
         </tr>
     </thead>
     <tbody>
         @forelse($emails as $email)
         <tr>
-            <td>{{ $email->id }}</td>
+            <td><a href="{{ route('email_queues.show', $email->id) }}">{{ $email->id }}</a></td>
             <td style="font-size:14px">{{ $email->from }}</td>
             <td style="font-size:14px">{{ $email->to }}</td>
-            <td style="font-size:14px">{{ Str::limit($email->subject, 70) }}</td>
+            <td style="font-size:14px"><a href="{{ route('email_queues.show', $email->id) }}">{{ Str::limit($email->subject, 70) }}</a></td>
             <td style="font-size:14px">{{ \Carbon\Carbon::parse($email->access_time)->format('d.m.Y H:i') }}</td>
+            <td><a href="{{ route('email_queues.show', $email->id) }}" style="font-size:14px">Zobrazit</a></td>
         </tr>
         @empty
-        <tr><td colspan="5" style="text-align:center;color:#aaa;padding:2rem">Žádné odeslané e-maily.</td></tr>
+        <tr><td colspan="6" style="text-align:center;color:#aaa;padding:2rem">Žádné odeslané e-maily.</td></tr>
         @endforelse
     </tbody>
 </table>
