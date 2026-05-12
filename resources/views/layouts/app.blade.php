@@ -320,6 +320,7 @@ $isDark = ($userSettings['dark_mode'] ?? 0) == 1;
     {{-- FOOTER --}}
     <footer id="fn-footer">
         Powered by <a href="http://www.freenetis.org/">FreenetIS</a>
+        <span style="color:var(--fn-text-muted);margin-left:6px">v{{ config('version.string') }}</span>
     </footer>
 
 </div>
