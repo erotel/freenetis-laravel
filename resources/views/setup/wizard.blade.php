@@ -197,23 +197,26 @@ button:disabled { background: #888; cursor: wait; }
 </div>
 
 <script>
-function updateMode() {
-    const mode = document.querySelector('input[name=install_mode]:checked').value;
-    document.getElementById('section-dump').style.display = mode === 'dump' ? '' : 'none';
-    document.getElementById('section-fresh').style.display = mode === 'fresh' ? '' : 'none';
+// Cachujeme uzly jen jednou — dotaz `input[required]` by po prvním přepnutí
+// vracel prázdný NodeList a `required` flag by se už nikdy nevrátil zpět.
+// Místo manipulace s `required` používáme `disabled`: disabled pole jsou
+// browserem vyřazena z form-validation (žádné "is not focusable" warningy
+// pro skryté inputy) a zároveň nejdou v POSTu, takže serverová větev
+// install_mode=dump nedostane nepoužitá pole.
+const freshSection = document.getElementById('section-fresh');
+const dumpSection  = document.getElementById('section-dump');
+const freshFields  = freshSection.querySelectorAll('input');
+const dumpField    = document.getElementById('sql_dump');
 
-    // Toggle required atributy
-    const freshFields = document.querySelectorAll('#section-fresh input[required]');
-    const dumpField = document.getElementById('sql_dump');
-    if (mode === 'dump') {
-        freshFields.forEach(f => f.required = false);
-        dumpField.required = true;
-    } else {
-        freshFields.forEach(f => f.required = true);
-        dumpField.required = false;
-    }
+function updateMode() {
+    const isDump = document.querySelector('input[name=install_mode]:checked').value === 'dump';
+    dumpSection.style.display  = isDump ? ''     : 'none';
+    freshSection.style.display = isDump ? 'none' : '';
+    freshFields.forEach(f => f.disabled = isDump);
+    dumpField.disabled = !isDump;
 }
 updateMode();
+document.querySelectorAll('input[name=install_mode]').forEach(r => r.addEventListener('change', updateMode));
 
 document.getElementById('setupForm').addEventListener('submit', () => {
     document.getElementById('submitBtn').disabled = true;
