@@ -626,7 +626,7 @@ class MemberController extends Controller
             'leaving_date'   => 'required|date',
             'end_mode'       => 'required|integer|in:1,2,3,4',
             'refund_account' => $isRefundMode ? 'required|string|max:50' : 'nullable',
-            'refund_amount'  => $isRefundMode ? 'required|numeric|min:0' : 'nullable',
+            'refund_amount'  => $isRefundMode ? 'required|numeric|gt:0' : 'nullable',
         ]);
 
         $member = DB::table('members')->where('id', $id)->first();
@@ -634,6 +634,19 @@ class MemberController extends Controller
 
         $newType = ($member->type == MemberType::REGULAR) ? MemberType::FORMER : MemberType::FORMER_CUSTOMER;
         $endMode = (int) $validated['end_mode'];
+
+        // Před otevřením transakce ověřit, že existuje bankovní účet pro tento typ člena.
+        // Bez něj by se outgoing_payment nevytvořil, ale credit by se vynuloval a email
+        // odešel — admin by pak hledal "kam zmizely peníze".
+        if ($endMode === 3) {
+            $configKey = 'bank_account_member_type_' . $member->type;
+            if (!(int) \App\Models\Setting::get($configKey, 0)) {
+                return redirect()->back()->withInput()->withErrors([
+                    'refund_account' => "Není nakonfigurován bankovní účet pro typ člena {$member->type} "
+                        . "(setting '{$configKey}'). Nastavte ho v Nastavení → Banka, pak vratku zopakujte."
+                ]);
+            }
+        }
 
         DB::transaction(function () use ($id, $member, $newType, $validated, $endMode) {
             DB::table('members')->where('id', $id)->update([
@@ -702,8 +715,12 @@ class MemberController extends Controller
                                 'text'              => 'Vymazání kreditu při ukončení členství s vratkou',
                                 'member_id'         => $id,
                             ]);
-                            DB::table('accounts')->where('id', $creditAccount->id)->update(['balance' => 0]);
-                            DB::table('accounts')->where('id', $orgAccount->id)->decrement('balance', abs($clearAmount));
+                            // Double-entry: origin (credit) -=, destination (operating) +=.
+                            // Hard-set creditu na 0 by selhal pokud by mezitím přišla další platba,
+                            // ale tahle sekce běží uvnitř DB::transaction, takže ne. Pro consistency
+                            // s createTransfer v ImportController používáme decrement/increment dvojici.
+                            DB::table('accounts')->where('id', $creditAccount->id)->decrement('balance', $clearAmount);
+                            DB::table('accounts')->where('id', $orgAccount->id)->increment('balance', $clearAmount);
                         }
                     }
                 }
