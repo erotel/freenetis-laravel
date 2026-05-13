@@ -38,7 +38,10 @@ return new class extends Migration
 <p>S pozdravem,<br>PVfree.net, z.s.</p>
 HTML,
             'sms_text'         => null,
-            'type'             => null,
+            // type > 0 = systémová zpráva (zobrazí se v Nastavení → Zprávy → Systémové).
+            // 24 je chybějící slot mezi existujícími 23 (FORMER_MEMBER_RETURN_PAYMENT)
+            // a 25 (DEBTOR_MESSAGE_CLEN). Mapuje se na Message::CUSTOMER_PAYMENT_CONFIRMATION.
+            'type'             => 24,
             'self_cancel'      => 0,
             'ignore_whitelist' => 0,
         ]);
