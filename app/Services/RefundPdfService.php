@@ -100,7 +100,9 @@ class RefundPdfService
             $dir  = self::basePath() . '/' . $year;
             if (!is_dir($dir)) mkdir($dir, 0775, true);
 
-            $safeName = preg_replace('/[^A-Za-z0-9_-]+/u', '-', 'refund-' . $docNumber);
+            // Sanitize jen znaky nelegální v souborech (Windows/Unix), Unicode písmena
+            // a čísla nech být — "Č", "L" jsou validní v FS jménu i v MIME příloze.
+            $safeName = preg_replace('/[^\p{L}\p{N}_-]+/u', '-', 'refund-' . $docNumber);
             $path     = $dir . '/' . $safeName . '.pdf';
             $mpdf->Output($path, 'F');
 
