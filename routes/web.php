@@ -71,6 +71,24 @@ Route::prefix('web-interface')->name('web-interface.')->group(function () {
     Route::get('smtp-exceptions-txt',         [WebInterfaceController::class, 'smtpExceptionsTxt'])->name('smtp-exceptions-txt');
 });
 
+// Legacy Kohana URL aliasy (web_interface/foo_bar) — produkční zařízení (MikroTik
+// firewally, qos skripty atd.) je mají natvrdo. Mapujeme na nové dashed URL.
+Route::prefix('web_interface')->group(function () {
+    Route::get('redirected_ranges',              [WebInterfaceController::class, 'redirectedRanges']);
+    Route::get('allowed_ip_addresses',           [WebInterfaceController::class, 'allowedIpAddresses']);
+    Route::get('unallowed_ip_addresses/{type?}', [WebInterfaceController::class, 'unallowedIpAddresses']);
+    Route::get('self_cancelable_ip_addresses',   [WebInterfaceController::class, 'selfCancelableIpAddresses']);
+    Route::get('allowed_ip6_addresses',          [WebInterfaceController::class, 'allowedIp6Addresses']);
+    Route::get('ipv6_radius',                    [WebInterfaceController::class, 'ipv6Radius']);
+    Route::get('qos_json',                       [WebInterfaceController::class, 'qosJson']);
+    Route::get('public_port_forwards_json',      [WebInterfaceController::class, 'publicPortForwardsJson']);
+    Route::get('public_ip_nat_1to1_json',        [WebInterfaceController::class, 'publicIpNat1to1Json']);
+    Route::get('public_port_forwards_txt',       [WebInterfaceController::class, 'publicPortForwardsTxt']);
+    Route::get('public_ip_nat_1to1_txt',         [WebInterfaceController::class, 'publicIpNat1to1Txt']);
+    Route::get('smtp_exceptions_json',           [WebInterfaceController::class, 'smtpExceptionsJson']);
+    Route::get('smtp_exceptions_txt',            [WebInterfaceController::class, 'smtpExceptionsTxt']);
+});
+
 // Login / logout
 Route::get('/login', [LoginController::class, 'showLoginForm'])->name('login')->middleware('guest');
 Route::post('/login', [LoginController::class, 'login'])->middleware(['guest', 'throttle:5,1']);
