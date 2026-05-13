@@ -19,13 +19,32 @@
     <h2>Smlouvy</h2>
 </div>
 
+<form method="GET" action="{{ route('contracts.index') }}" style="margin:8px 0 16px;display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+    <input type="text" name="q" value="{{ $q ?? '' }}"
+           placeholder="Hledat: č. smlouvy, jméno, VS, ID člena"
+           style="flex:1;min-width:260px;padding:6px 10px;border:1px solid #ccc;border-radius:4px">
+    <select name="status" style="padding:6px 10px;border:1px solid #ccc;border-radius:4px">
+        <option value="">— Všechny stavy —</option>
+        <option value="signed"       {{ ($status ?? '') === 'signed'       ? 'selected' : '' }}>Podepsané</option>
+        <option value="draft"        {{ ($status ?? '') === 'draft'        ? 'selected' : '' }}>Rozpracované</option>
+        <option value="otp_sent"     {{ ($status ?? '') === 'otp_sent'     ? 'selected' : '' }}>OTP odesláno</option>
+        <option value="otp_verified" {{ ($status ?? '') === 'otp_verified' ? 'selected' : '' }}>OTP ověřeno</option>
+        <option value="canceled"     {{ ($status ?? '') === 'canceled'     ? 'selected' : '' }}>Zrušené</option>
+    </select>
+    <button class="m-btn" type="submit">Hledat</button>
+    @if(($q ?? '') !== '' || ($status ?? '') !== '')
+    <a class="m-link" href="{{ route('contracts.index') }}">Zrušit filtr</a>
+    @endif
+</form>
+
 <div class="m-metrics">
     @php
-        $byStatus = $contracts->groupBy('status');
         $counts = [
-            'signed'       => $byStatus->get('signed', collect())->count(),
-            'draft'        => $byStatus->get('draft', collect())->count() + $byStatus->get('otp_sent', collect())->count() + $byStatus->get('otp_verified', collect())->count(),
-            'canceled'     => $byStatus->get('canceled', collect())->count(),
+            'signed'       => (int) ($totalCounts['signed']       ?? 0),
+            'draft'        => (int) ($totalCounts['draft']        ?? 0)
+                            + (int) ($totalCounts['otp_sent']     ?? 0)
+                            + (int) ($totalCounts['otp_verified'] ?? 0),
+            'canceled'     => (int) ($totalCounts['canceled']     ?? 0),
         ];
     @endphp
     <div class="m-metric"><div class="m-metric-label">Podepsané</div><div class="m-metric-value green">{{ $counts['signed'] }}</div></div>

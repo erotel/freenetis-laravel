@@ -206,14 +206,43 @@ class ContractController extends Controller
         ]);
     }
 
-    public function index(): View
+    public function index(\Illuminate\Http\Request $request): View
     {
         abort_unless($this->can('view_all'), 403);
 
-        $contracts = Contract::with(['parties' => fn($q) => $q->where('active', true)])
-            ->orderByDesc('id')
-            ->paginate(50);
+        $q      = trim((string) $request->input('q', ''));
+        $status = $request->input('status', '');
 
-        return view('contracts.index', compact('contracts'));
+        $query = Contract::with(['parties' => fn($qb) => $qb->where('active', true)])
+            ->orderByDesc('id');
+
+        if ($q !== '') {
+            // Hledá v čísle smlouvy, jméně strany, VS i (pokud je číslo) v member_id.
+            $like = '%' . str_replace(['%', '_'], ['\%', '\_'], $q) . '%';
+            $query->where(function ($w) use ($like, $q) {
+                $w->where('contract_no', 'like', $like)
+                  ->orWhereHas('parties', function ($pq) use ($like) {
+                      $pq->where('full_name', 'like', $like)
+                         ->orWhere('variable_symbol', 'like', $like);
+                  });
+                if (ctype_digit($q)) {
+                    $w->orWhere('member_id', (int) $q);
+                }
+            });
+        }
+
+        if ($status !== '' && in_array($status, ['draft', 'otp_sent', 'otp_verified', 'signed', 'canceled'], true)) {
+            $query->where('status', $status);
+        }
+
+        $contracts = $query->paginate(50)->withQueryString();
+
+        // Globální počty (přes celou DB, ne přes aktuální stránku ani filtr) — pro horní metriky.
+        $totalCounts = Contract::selectRaw('status, COUNT(*) AS cnt')
+            ->groupBy('status')
+            ->pluck('cnt', 'status')
+            ->all();
+
+        return view('contracts.index', compact('contracts', 'q', 'status', 'totalCounts'));
     }
 }
