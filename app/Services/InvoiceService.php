@@ -13,11 +13,15 @@ use Mpdf\Mpdf;
 
 class InvoiceService
 {
-    // TODO CUTOVER: After Kohana removal, change to storage_path('app/invoices')
-    // and run: UPDATE invoices SET pdf_filename = REPLACE(pdf_filename, '/var/www/html/freenetis/data/invoices', '/var/www/html/freenetis-laravel/storage/app/invoices')
-    // and: mv /var/www/html/freenetis/data/invoices /var/www/html/freenetis-laravel/storage/app/invoices
-    const PDF_BASE_PATH = '/var/www/html/freenetis/data/invoices';
-    const VAT_RATE      = 0.21;
+    // Faktury patří mezi citlivé soubory (osobní údaje, částky), proto storage/app/private,
+    // konzistentně s contracts/, contract-attachments/, certs/. Pro migraci existujících
+    // PDF z legacy Kohana umístění slouží příkaz `php artisan invoices:migrate-pdf-storage`.
+    const VAT_RATE = 0.21;
+
+    public static function pdfBasePath(): string
+    {
+        return storage_path('app/private/invoices');
+    }
 
     /**
      * Generate invoice for services payment (payment_purpose=1).
@@ -184,10 +188,10 @@ class InvoiceService
             $bankAccount = BankAccount::find($invoice->bank_account_id);
 
             $year = (int) substr($invoice->date_inv, 0, 4) ?: now()->year;
-            $dir  = self::PDF_BASE_PATH . '/' . $year;
+            $dir  = self::pdfBasePath() . '/' . $year;
 
             if (!is_dir($dir)) {
-                mkdir($dir, 0777, true);
+                mkdir($dir, 0775, true);
             }
 
             $pdfPath = $dir . '/' . (int)$invoice->invoice_nr . '.pdf';

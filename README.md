@@ -87,6 +87,31 @@ Volby:
 - `--reload-apache` — pokud máš `opcache.validate_timestamps=0`
 - `--skip-migrate` — když ručně řešíš schéma
 
+### Migrace PDF faktur z legacy Kohana umístění
+
+Faktury v legacy systému se ukládaly do `/usr/share/freenetis/data/invoices/<rok>/`
+(příp. `/var/www/html/freenetis-kohana/data/invoices/<rok>/`). Laravel verze je
+ukládá do `storage/app/private/invoices/<rok>/`. Při přechodu z Kohany je třeba
+přesunout existující PDFs a updatovat cesty v `invoices.pdf_filename` i
+`email_queue_attachments.path`:
+
+```bash
+sudo -u www-data php artisan invoices:migrate-pdf-storage --dry-run   # nejdřív zobraz co by se stalo
+sudo -u www-data php artisan invoices:migrate-pdf-storage             # ostrý běh
+```
+
+Příkaz je idempotentní — opakované spuštění přeskočí už přesunuté soubory.
+Originální soubory v legacy umístění zůstanou na disku (kopíruje, nemaže) — po
+ověření, že vše stáhnete, smaž ručně:
+
+```bash
+sudo rm -rf /usr/share/freenetis/data/invoices
+```
+
+Volby:
+- `--legacy-path=/jina/cesta` — pokud máš PDFs na nestandardním místě (lze opakovat)
+- `--no-files` — jen update DB cest, bez kopírování (když už soubory existují na cíli)
+
 ---
 
 ## Volitelné: phpMyAdmin
@@ -210,6 +235,7 @@ scripts/
 app/Console/Commands/
 ├── FreenetisInstall.php           php artisan freenetis:install — bootstrap admin
 ├── MigrateReconcile.php           php artisan migrate:reconcile — registruje existující schéma
+├── MigrateInvoicePdfStorage.php   php artisan invoices:migrate-pdf-storage — přesun PDF faktur do storage/
 ├── ImportBankStatements.php       Cron — FIO API automatický import
 ├── SendEmailQueue.php             Cron — odesílání emailů z fronty
 ├── SmsSend.php                    Cron — odesílání SMS z fronty
