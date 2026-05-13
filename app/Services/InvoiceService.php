@@ -158,14 +158,61 @@ class InvoiceService
         $emails = $this->getMemberEmails($memberId);
         if (empty($emails)) return;
 
+        // Použije systémovou Message id=9 ("Received payment notice", DAŇOVÝ DOKLAD).
+        // Tu už má každá Kohana instance v seedu, takže neimplementuju lookup by name —
+        // používám konstantu. Pokud by chyběla, fallback na konzervativní hardcoded text.
+        $message = \App\Models\Message::find(9);
+
         $from    = Setting::get('email_default_email', 'no-reply@freenetis.org');
-        $subject = 'Oznámení o přijaté platbě';
-        $body    = '<p>Vážený člene,</p>'
-            . '<p>potvrzujeme přijetí Vaší platby ve výši <strong>'
-            . number_format($amount, 2, ',', ' ') . ' Kč</strong>'
-            . ' na účet <strong>' . htmlspecialchars($bankAccountName) . '</strong>.</p>'
-            . '<p>Částka byla připsána na Váš virtuální účet.</p>'
-            . '<p>S pozdravem,<br>PVfree.net, z.s.</p>';
+        $subject = $message
+            ? Setting::get('email_subject_prefix', 'PVfree.net') . ' :: ' . $message->name
+            : 'Oznámení o přijaté platbě';
+
+        if (!$message || empty($message->email_text)) {
+            $body = '<p>Vážený člene,</p>'
+                . '<p>potvrzujeme přijetí Vaší platby ve výši <strong>'
+                . number_format($amount, 2, ',', ' ') . ' Kč</strong>'
+                . ' na účet <strong>' . htmlspecialchars($bankAccountName) . '</strong>.</p>'
+                . '<p>Částka byla připsána na Váš virtuální účet.</p>'
+                . '<p>S pozdravem,<br>PVfree.net, z.s.</p>';
+        } else {
+            $member = Member::with([
+                'accounts.variableSymbols',
+                'addressPoint.street',
+                'addressPoint.town',
+            ])->find($memberId);
+
+            $vatRate     = self::VAT_RATE;
+            $amountNoVat = round($amount / (1 + $vatRate), 2);
+            $vatAmount   = round($amount - $amountNoVat, 2);
+
+            $varSym = (string) ($member?->accounts
+                ->flatMap(fn($a) => $a->variableSymbols)
+                ->first()
+                ?->variable_symbol ?? $memberId);
+
+            $ap        = $member?->addressPoint;
+            $paymentId = !empty($bankTransferIds) ? (string) $bankTransferIds[0] : '';
+
+            $extra = [
+                'payment_id'                  => $paymentId,
+                'payment_amount'              => number_format($amount,      2, ',', ' '),
+                'payment_amount_novat'        => number_format($amountNoVat, 2, ',', ' '),
+                'payment_vat'                 => number_format($vatAmount,   2, ',', ' '),
+                'payment_date'                => now()->format('d.m.Y'),
+                'variable_symbol'             => $varSym,
+                'address_street'              => (string) ($ap?->street?->street ?? ''),
+                'address_street_number'       => (string) ($ap?->street_number ?? ''),
+                'address_town'                => (string) ($ap?->town?->town ?? ''),
+                'organization_identifier'     => (string) ($member?->organization_identifier ?? ''),
+                'vat_organization_identifier' => (string) ($member?->vat_organization_identifier ?? ''),
+            ];
+
+            $body = \App\Models\Message::substitute(
+                $message->email_text,
+                \App\Models\Message::buildPlaceholders($memberId, $extra)
+            );
+        }
 
         foreach ($emails as $email) {
             DB::table('email_queues')->insert([
@@ -242,14 +289,30 @@ class InvoiceService
 
         $from    = Setting::get('email_default_email', 'no-reply@freenetis.org');
         $subject = 'Faktura ' . (int)$invoice->invoice_nr;
-        $total   = number_format($invoice->price_vat_total, 2, ',', ' ');
-        $ids     = implode(', ', $bankTransferIds);
-        $body    = '<p>Vážený zákazníku,</p>'
-            . '<p>v příloze zasíláme fakturu č. <strong>' . (int)$invoice->invoice_nr . '</strong>'
-            . ' na částku <strong>' . $total . ' Kč</strong>.</p>'
-            . ($ids ? '<p>ID platby: ' . htmlspecialchars($ids) . '</p>' : '')
-            . '<p>Datum splatnosti: ' . $invoice->date_due . '</p>'
-            . '<p>S pozdravem,<br>PVfree.net, z.s.</p>';
+
+        // Šablona 'Payment confirmation - customer' založena migrací
+        // 2026_05_13_140000. Pokud chybí, fallback na hardcoded text.
+        $message = \App\Models\Message::where('name', 'Payment confirmation - customer')->first();
+        $extra   = [
+            'invoice_nr'     => (string)(int) $invoice->invoice_nr,
+            'payment_amount' => number_format((float) $invoice->price_vat_total, 2, ',', ' '),
+            'payment_ids'    => implode(', ', $bankTransferIds),
+            'date_due'       => (string) $invoice->date_due,
+        ];
+
+        if ($message && !empty($message->email_text)) {
+            $body = \App\Models\Message::substitute(
+                $message->email_text,
+                \App\Models\Message::buildPlaceholders($member->id, $extra)
+            );
+        } else {
+            $body = '<p>Vážený zákazníku,</p>'
+                . '<p>v příloze zasíláme fakturu č. <strong>' . $extra['invoice_nr'] . '</strong>'
+                . ' na částku <strong>' . $extra['payment_amount'] . ' Kč</strong>.</p>'
+                . ($extra['payment_ids'] ? '<p>ID platby: ' . htmlspecialchars($extra['payment_ids']) . '</p>' : '')
+                . '<p>Datum splatnosti: ' . $extra['date_due'] . '</p>'
+                . '<p>S pozdravem,<br>PVfree.net, z.s.</p>';
+        }
 
         foreach ($emails as $email) {
             $emailQueueId = DB::table('email_queues')->insertGetId([
