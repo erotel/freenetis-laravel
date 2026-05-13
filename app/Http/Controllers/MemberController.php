@@ -805,9 +805,20 @@ class MemberController extends Controller
                             ->value('c.value');
 
                         if ($email) {
+                            // Při vratce (mód 3) musíme doplnit {ucet} z formuláře a override
+                            // {balance} na refund_amount — buildPlaceholders by jinak vrátil 0,
+                            // protože kreditní účet se před tímhle bodem vynuloval.
+                            $extra = [];
+                            if ($endMode === 3) {
+                                $extra['ucet']    = $validated['refund_account'] ?? '';
+                                $extra['balance'] = number_format(
+                                    (float) ($validated['refund_amount'] ?? 0),
+                                    2, ',', ' '
+                                );
+                            }
                             $body = \App\Models\Message::substitute(
                                 $message->email_text,
-                                \App\Models\Message::buildPlaceholders($id)
+                                \App\Models\Message::buildPlaceholders($id, $extra)
                             );
                             DB::table('email_queues')->insert([
                                 'from'    => \App\Models\Setting::get('email_default_email', 'noreply@pvfree.net'),
