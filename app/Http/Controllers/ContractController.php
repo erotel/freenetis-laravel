@@ -213,8 +213,24 @@ class ContractController extends Controller
         $q      = trim((string) $request->input('q', ''));
         $status = $request->input('status', '');
 
+        // Vyloučit smlouvy patřící bývalým členům/zákazníkům (typ 15/16). Smlouvy
+        // bez přiřazeného člena (member_id IS NULL) v seznamu zůstávají.
+        // Cross-DB query — contracts jsou v contractsdb, members v freenetis.
+        $formerMemberIds = \Illuminate\Support\Facades\DB::connection('mysql')
+            ->table('members')
+            ->whereIn('type', [\App\Helpers\MemberType::FORMER, \App\Helpers\MemberType::FORMER_CUSTOMER])
+            ->pluck('id')
+            ->all();
+
         $query = Contract::with(['parties' => fn($qb) => $qb->where('active', true)])
             ->orderByDesc('id');
+
+        if (!empty($formerMemberIds)) {
+            $query->where(function ($w) use ($formerMemberIds) {
+                $w->whereNull('member_id')
+                  ->orWhereNotIn('member_id', $formerMemberIds);
+            });
+        }
 
         if ($q !== '') {
             // Hledá v čísle smlouvy, jméně strany, VS i (pokud je číslo) v member_id.
@@ -237,11 +253,17 @@ class ContractController extends Controller
 
         $contracts = $query->paginate(50)->withQueryString();
 
-        // Globální počty (přes celou DB, ne přes aktuální stránku ani filtr) — pro horní metriky.
-        $totalCounts = Contract::selectRaw('status, COUNT(*) AS cnt')
-            ->groupBy('status')
-            ->pluck('cnt', 'status')
-            ->all();
+        // Globální počty po stavech (bez ohledu na hledání, ale se stejným vyloučením
+        // bývalých členů jako hlavní seznam — aby čísla v metrice nematchovala víc, než
+        // je v tabulce reálně zobrazené).
+        $countsQuery = Contract::selectRaw('status, COUNT(*) AS cnt')->groupBy('status');
+        if (!empty($formerMemberIds)) {
+            $countsQuery->where(function ($w) use ($formerMemberIds) {
+                $w->whereNull('member_id')
+                  ->orWhereNotIn('member_id', $formerMemberIds);
+            });
+        }
+        $totalCounts = $countsQuery->pluck('cnt', 'status')->all();
 
         return view('contracts.index', compact('contracts', 'q', 'status', 'totalCounts'));
     }
