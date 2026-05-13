@@ -64,7 +64,7 @@
 @if($log->exception_backtrace)
 <div class="m-section">{{ $log->type == \App\Models\LogQueue::TYPE_INFO ? 'Zpráva' : 'Výjimka' }}</div>
 <div class="m-card" style="margin-bottom:16px;padding:10px">
-    <pre style="font-size:14px;margin:0;overflow-x:auto;white-space:pre-wrap;word-break:break-all;background:#f7f7f5;padding:8px;border-radius:4px">{{ $log->exception_backtrace }}</pre>
+    <pre style="font-size:14px;margin:0;overflow-x:auto;white-space:pre-wrap;word-break:break-all;background:var(--fn-quote-bg);color:var(--fn-text);padding:8px;border-radius:4px">{{ $log->exception_backtrace }}</pre>
 </div>
 @endif
 

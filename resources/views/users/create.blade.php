@@ -24,7 +24,7 @@
         <label class="m-form-label" for="member_id">Člen <span style="color:#c0392b">*</span></label>
         @if($member)
             <input type="hidden" name="member_id" value="{{ $member->id }}">
-            <div class="m-form-input" style="background:#f7f7f5;cursor:default">{{ $member->name }}</div>
+            <div class="m-form-input" style="background:var(--fn-quote-bg);color:var(--fn-text);cursor:default">{{ $member->name }}</div>
         @else
             <select class="m-form-select" id="member_id" name="member_id">
                 <option value="">— vyberte člena —</option>

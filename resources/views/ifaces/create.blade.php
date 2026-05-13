@@ -24,7 +24,7 @@
     <div class="m-form-group">
         <label class="m-form-label">Zařízení</label>
         @if($device)
-            <div class="m-form-input" style="background:#f7f7f5;cursor:default"><strong>{{ $device->name }}</strong></div>
+            <div class="m-form-input" style="background:var(--fn-quote-bg);color:var(--fn-text);cursor:default"><strong>{{ $device->name }}</strong></div>
             <input type="hidden" name="device_id" value="{{ $device->id }}">
         @else
             <input class="m-form-input" type="number" name="device_id" value="{{ old('device_id') }}" placeholder="ID zařízení">

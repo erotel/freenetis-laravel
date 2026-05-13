@@ -38,7 +38,7 @@
     @endif
     <div class="m-field" style="align-items:flex-start;flex-direction:column;gap:4px">
         <span class="m-field-label">Text</span>
-        <div style="font-size:16px;background:#f7f7f5;border-radius:6px;padding:8px 10px;width:100%;white-space:pre-wrap">{{ $sms->text }}</div>
+        <div style="font-size:16px;background:var(--fn-quote-bg);color:var(--fn-text);border-radius:6px;padding:8px 10px;width:100%;white-space:pre-wrap">{{ $sms->text }}</div>
     </div>
 </div>
 </div>

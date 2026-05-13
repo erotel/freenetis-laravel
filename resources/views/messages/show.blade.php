@@ -33,19 +33,19 @@
     @if($message->text)
     <div class="m-field" style="align-items:flex-start;flex-direction:column;gap:4px">
         <span class="m-field-label">Text přesměrování</span>
-        <div style="font-size:16px;background:#f7f7f5;border-radius:6px;padding:8px 10px;width:100%;white-space:pre-wrap">{{ $message->text }}</div>
+        <div style="font-size:16px;background:var(--fn-quote-bg);color:var(--fn-text);border-radius:6px;padding:8px 10px;width:100%;white-space:pre-wrap">{{ $message->text }}</div>
     </div>
     @endif
     @if($message->email_text)
     <div class="m-field" style="align-items:flex-start;flex-direction:column;gap:4px">
         <span class="m-field-label">Text emailu</span>
-        <div style="font-size:16px;background:#f7f7f5;border-radius:6px;padding:8px 10px;width:100%;white-space:pre-wrap">{{ $message->email_text }}</div>
+        <div style="font-size:16px;background:var(--fn-quote-bg);color:var(--fn-text);border-radius:6px;padding:8px 10px;width:100%;white-space:pre-wrap">{{ $message->email_text }}</div>
     </div>
     @endif
     @if($message->sms_text)
     <div class="m-field" style="align-items:flex-start;flex-direction:column;gap:4px">
         <span class="m-field-label">Text SMS</span>
-        <div style="font-size:16px;background:#f7f7f5;border-radius:6px;padding:8px 10px;width:100%">{{ $message->sms_text }}</div>
+        <div style="font-size:16px;background:var(--fn-quote-bg);color:var(--fn-text);border-radius:6px;padding:8px 10px;width:100%">{{ $message->sms_text }}</div>
     </div>
     @endif
 </div>

@@ -23,7 +23,7 @@
         <label class="m-form-label" for="user_id">Uživatel <span style="color:#c0392b">*</span></label>
         @if($preselectedUserId)
             <input type="hidden" name="user_id" value="{{ $preselectedUserId }}">
-            <div class="m-form-input" style="background:#f7f7f5;cursor:default">{{ $users->firstWhere('id', $preselectedUserId)?->full_name ?? $preselectedUserId }}</div>
+            <div class="m-form-input" style="background:var(--fn-quote-bg);color:var(--fn-text);cursor:default">{{ $users->firstWhere('id', $preselectedUserId)?->full_name ?? $preselectedUserId }}</div>
         @else
             <select class="m-form-select" id="user_id" name="user_id">
                 <option value="">— vyberte uživatele —</option>

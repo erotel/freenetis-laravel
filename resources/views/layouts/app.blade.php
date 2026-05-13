@@ -37,6 +37,7 @@ $isDark = ($userSettings['dark_mode'] ?? 0) == 1;
         --fn-card-bg:#fff;
         --fn-input-bg:#fff;
         --fn-table-hover:#fafafa;
+        --fn-quote-bg:#f7f7f5;
     }
     [data-theme="dark"]{
         --fn-header-bg:#111;
@@ -52,6 +53,7 @@ $isDark = ($userSettings['dark_mode'] ?? 0) == 1;
         --fn-card-bg:#1e1e1e;
         --fn-input-bg:#252525;
         --fn-table-hover:#1a1a1a;
+        --fn-quote-bg:#2a2a2a;
     }
 
     /* ── Dark mode — sidebar background override ── */

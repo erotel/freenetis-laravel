@@ -35,7 +35,7 @@
                    value="{{ old('public_ip') }}" maxlength="45" style="font-family:monospace">
             @error('public_ip') <div class="m-form-hint" style="color:#c0392b">{{ $message }}</div> @enderror
         @else
-            <div class="m-form-input" style="background:#f7f7f5;cursor:default;font-family:monospace">{{ $record->public_ip }}</div>
+            <div class="m-form-input" style="background:var(--fn-quote-bg);color:var(--fn-text);cursor:default;font-family:monospace">{{ $record->public_ip }}</div>
         @endif
     </div>
     <div class="m-form-group">

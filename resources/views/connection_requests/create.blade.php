@@ -45,7 +45,7 @@
         <label class="m-form-label">MAC adresa <span style="color:#c0392b">*</span></label>
         @php $macValue = old('mac_address', $detectedMac ?? ''); @endphp
         @if($detectedMac && !$canEditDevices)
-            <div class="m-form-input" style="background:#f7f7f5;cursor:default;font-family:monospace">{{ $detectedMac }}</div>
+            <div class="m-form-input" style="background:var(--fn-quote-bg);color:var(--fn-text);cursor:default;font-family:monospace">{{ $detectedMac }}</div>
             <input type="hidden" name="mac_address" value="{{ $detectedMac }}">
             <div class="m-form-hint">Automaticky detekováno přes SNMP.</div>
         @else
