@@ -57,12 +57,30 @@ if [ "$(id -u)" -eq 0 ] && [ -n "$WEB_USER" ]; then
 fi
 
 step "1/5 git pull"
-if ! git -C "$REPO_ROOT" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
-    echo "Tento adresář není git repo: $REPO_ROOT" >&2
+# Git má od 2.36 ochranu "dubious ownership" — když root volá git na repo
+# vlastněném www-data, odmítne ho. Proto git pouštíme pod vlastníkem repa
+# (stejně jako composer/artisan), což ochranu obejde čistě a bez `safe.directory` hacků.
+GIT_AS_OWNER=()
+if [ "$(id -u)" -eq 0 ]; then
+    REPO_OWNER="$(stat -c '%U' "$REPO_ROOT/.git" 2>/dev/null || true)"
+    if [ -n "$REPO_OWNER" ] && [ "$REPO_OWNER" != "root" ]; then
+        GIT_AS_OWNER=(sudo -u "$REPO_OWNER" -H)
+    fi
+fi
+if ! "${GIT_AS_OWNER[@]}" git -C "$REPO_ROOT" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+    # Diagnostiku poskytneme cíleně podle stavu:
+    if [ ! -d "$REPO_ROOT/.git" ]; then
+        echo "Tento adresář není git repo (chybí .git/): $REPO_ROOT" >&2
+        echo "Pokud jsi instaloval ZIPem místo git clone, naklonuj repo znovu — viz README sekce 'Update existující instance'." >&2
+    else
+        echo "Git odmítl repo $REPO_ROOT — nejspíš špatná vlastnictví .git/." >&2
+        echo "Detail:" >&2
+        "${GIT_AS_OWNER[@]}" git -C "$REPO_ROOT" rev-parse --is-inside-work-tree 2>&1 | sed 's/^/  /' >&2
+    fi
     exit 1
 fi
-BRANCH="$(git -C "$REPO_ROOT" rev-parse --abbrev-ref HEAD)"
-git -C "$REPO_ROOT" pull --ff-only origin "$BRANCH"
+BRANCH="$("${GIT_AS_OWNER[@]}" git -C "$REPO_ROOT" rev-parse --abbrev-ref HEAD)"
+"${GIT_AS_OWNER[@]}" git -C "$REPO_ROOT" pull --ff-only origin "$BRANCH"
 ok "Větev $BRANCH aktuální."
 
 step "2/5 composer install"
