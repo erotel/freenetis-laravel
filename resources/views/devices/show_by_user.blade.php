@@ -44,9 +44,11 @@
     <tbody>
         @foreach($devices as $device)
         @php
-            $firstIface  = $device->ifaces->first();
-            $firstIp     = $firstIface?->ipAddresses->first();
-            $subnet      = $firstIp?->subnet;
+            // Bereme první neprázdnou MAC napříč všemi rozhraními (ne jen z prvního
+            // iface) — typicky eth1 bývá první ale bez MAC, kdežto wlan1 ji má.
+            $firstMac = $device->ifaces->pluck('mac')->filter(fn($m) => $m !== null && $m !== '')->first();
+            $firstIp  = $device->ifaces->flatMap(fn($i) => $i->ipAddresses)->first();
+            $subnet   = $firstIp?->subnet;
             $subnetLabel = $subnet ? ($subnet->name ?? $subnet->network_address) : '—';
         @endphp
         <tr>
@@ -55,7 +57,7 @@
                 <a class="m-link" href="{{ route('devices.show', $device->id) }}">{{ $device->name }}</a>
             </td>
             <td>{{ $device->enumType?->value ?? '—' }}</td>
-            <td style="font-family:monospace;font-size:14px">{{ $firstIface?->mac ?? '—' }}</td>
+            <td style="font-family:monospace;font-size:14px">{{ $firstMac ?? '—' }}</td>
             <td style="font-family:monospace;font-size:14px">{{ $firstIp?->ip_address ?? '—' }}</td>
             <td>{{ $subnetLabel }}</td>
             <td>
