@@ -73,7 +73,9 @@ Route::prefix('web-interface')->name('web-interface.')->group(function () {
 
 // Legacy Kohana URL aliasy (web_interface/foo_bar) — produkční zařízení (MikroTik
 // firewally, qos skripty atd.) je mají natvrdo. Mapujeme na nové dashed URL.
-Route::prefix('web_interface')->group(function () {
+// Zaregistrujeme s a bez i18n prefixu (cs/, en/, sk/), protože Kohana URL měla
+// jazykový prefix a venkovní zařízení ho mají hardcoded ve své konfiguraci.
+$webInterfaceLegacyRoutes = function () {
     Route::get('redirected_ranges',              [WebInterfaceController::class, 'redirectedRanges']);
     Route::get('allowed_ip_addresses',           [WebInterfaceController::class, 'allowedIpAddresses']);
     Route::get('unallowed_ip_addresses/{type?}', [WebInterfaceController::class, 'unallowedIpAddresses']);
@@ -87,7 +89,12 @@ Route::prefix('web_interface')->group(function () {
     Route::get('public_ip_nat_1to1_txt',         [WebInterfaceController::class, 'publicIpNat1to1Txt']);
     Route::get('smtp_exceptions_json',           [WebInterfaceController::class, 'smtpExceptionsJson']);
     Route::get('smtp_exceptions_txt',            [WebInterfaceController::class, 'smtpExceptionsTxt']);
-});
+};
+
+Route::prefix('web_interface')->group($webInterfaceLegacyRoutes);
+foreach (['cs', 'en', 'sk'] as $lang) {
+    Route::prefix($lang . '/web_interface')->group($webInterfaceLegacyRoutes);
+}
 
 // Login / logout
 Route::get('/login', [LoginController::class, 'showLoginForm'])->name('login')->middleware('guest');
