@@ -42,10 +42,6 @@ class FioCsvParser
         $lines = preg_split('/\r?\n/', $content);
         $errors = [];
 
-        // --- Parse header key-value pairs ---
-        $header = [];
-        $lineIdx = 0;
-
         $headerKeys = [
             'accountId'      => 'accountId',
             'bankId'         => 'bankId',
@@ -60,14 +56,26 @@ class FioCsvParser
             'idTo'           => 'idTo',
         ];
 
-        // Read header lines until blank line
-        while ($lineIdx < count($lines)) {
-            $line = $lines[$lineIdx];
-            $lineIdx++;
-
-            if (trim($line) === '') {
-                break; // blank line separates header from data
+        // Najdi řádek se záhlavím sloupců podle obsahu (ne podle blank separátoru).
+        // FIO někdy vrací CSV s prázdným řádkem mezi metadaty a sloupci (fetchPeriod),
+        // jindy bez něj (fetchLast po setLastId) — viz reálné odpovědi z produkce.
+        // Sloupce v každém případě začínají na "ID pohybu" (nebo "ID operace").
+        $columnHeaderIdx = null;
+        $totalLines      = count($lines);
+        for ($i = 0; $i < $totalLines; $i++) {
+            $first = strtolower(trim(explode(';', $lines[$i], 2)[0] ?? ''));
+            if ($first === 'id pohybu' || $first === 'id operace') {
+                $columnHeaderIdx = $i;
+                break;
             }
+        }
+
+        // --- Parse header key-value pairs (řádky 0..columnHeaderIdx-1, nebo všechny pokud sloupce chybí) ---
+        $header = [];
+        $metadataEnd = $columnHeaderIdx ?? $totalLines;
+        for ($lineIdx = 0; $lineIdx < $metadataEnd; $lineIdx++) {
+            $line = $lines[$lineIdx];
+            if (trim($line) === '') continue;
 
             $parts = str_getcsv($line, ';', '"', '');
             if (count($parts) >= 2) {
@@ -97,16 +105,14 @@ class FioCsvParser
             $header['dateEnd'] = $this->parseDate($header['dateEnd']) ?? $header['dateEnd'];
         }
 
-        // --- Parse column headers ---
         // Když FIO API nemá žádné nové pohyby od posledního bookmarku (setLastId),
-        // vrátí CSV jen s metadata hlavičkou bez data sekce — legitimní stav,
-        // ne chyba. Vrátíme prázdný výsledek a necháme caller pokračovat.
-        if ($lineIdx >= count($lines) || trim((string) ($lines[$lineIdx] ?? '')) === '') {
+        // vrátí CSV jen s metadata hlavičkou bez sloupců — legitimní stav, ne chyba.
+        if ($columnHeaderIdx === null) {
             return ['header' => $header, 'rows' => [], 'errors' => $errors];
         }
 
-        $columnLine = $lines[$lineIdx];
-        $lineIdx++;
+        $columnLine = $lines[$columnHeaderIdx];
+        $lineIdx    = $columnHeaderIdx + 1;
 
         $rawColumns = str_getcsv($columnLine, ';', '"', '');
         $columnMap  = []; // position => internal key
