@@ -136,20 +136,18 @@ class WebInterfaceController extends Controller
     {
         $this->guardRedirection();
 
-        // SELF_CANCEL_DISABLED = 0; we want only IPs where self_cancel > 0.
-        // The subquery picks the row with the lowest self_cancel per IP (ORDER ASC + GROUP BY).
+        // Vrátí jen IP, jejichž nejmenší self_cancel hodnota (přes všechny napojené
+        // messages) je > 0. Tj. všechny zprávy které danou IP odkazují, jsou self-cancelable.
+        // Původní Kohana query stavěla na starém MySQL chování "ORDER BY uvnitř subselectu
+        // + GROUP BY vrátí první řádek" — to MariaDB s ONLY_FULL_GROUP_BY odmítne.
+        // Přepsáno na MIN() s explicit GROUP BY (kompatibilní s ONLY_FULL_GROUP_BY).
         $rows = DB::select("
-            SELECT ip_address FROM (
-                SELECT * FROM (
-                    SELECT ip.id, ip.ip_address, IFNULL(m.self_cancel, 0) AS self_cancel
-                    FROM ip_addresses ip
-                    JOIN messages_ip_addresses mip ON mip.ip_address_id = ip.id
-                    JOIN messages m ON mip.message_id = m.id
-                    ORDER BY self_cancel ASC
-                ) ip
-                GROUP BY ip.id
-            ) ip
-            WHERE self_cancel > 0
+            SELECT ip.ip_address
+            FROM ip_addresses ip
+            JOIN messages_ip_addresses mip ON mip.ip_address_id = ip.id
+            JOIN messages m ON m.id = mip.message_id
+            GROUP BY ip.id, ip.ip_address
+            HAVING MIN(IFNULL(m.self_cancel, 0)) > 0
         ");
 
         Setting::set('redirection_state', now()->format('Y-m-d H:i:s'));
