@@ -60,13 +60,19 @@ class TransferController extends Controller
 
         $account = Account::with(['member', 'accountAttribute'])->findOrFail($accountId);
 
-        $transfers = Transfer::where('origin_id', $accountId)
-            ->orWhere('destination_id', $accountId)
-            ->with(['origin.member', 'destination.member'])
-            ->orderBy('id', 'desc')
-            ->paginate(50);
+        $sort = in_array($request->sort, ['id', 'datetime', 'amount'], true) ? $request->sort : 'datetime';
+        $dir  = $request->dir === 'asc' ? 'asc' : 'desc';
 
-        return view('transfers.show_by_account', compact('account', 'transfers', 'accountId'));
+        $transfers = Transfer::where(function ($q) use ($accountId) {
+                $q->where('origin_id', $accountId)
+                  ->orWhere('destination_id', $accountId);
+            })
+            ->with(['origin.member', 'destination.member'])
+            ->orderBy($sort, $dir)
+            ->paginate(50)
+            ->withQueryString();
+
+        return view('transfers.show_by_account', compact('account', 'transfers', 'accountId', 'sort', 'dir'));
     }
 
     public function show(int $id)

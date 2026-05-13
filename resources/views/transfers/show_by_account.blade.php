@@ -41,13 +41,20 @@
 <div style="margin-bottom:8px">{{ $transfers->links() }}</div>
 
 <div class="m-card" style="padding:0;overflow-x:auto">
+@php
+    $sortUrl = function ($col) use ($sort, $dir) {
+        $nextDir = ($sort === $col && $dir === 'desc') ? 'asc' : 'desc';
+        return request()->fullUrlWithQuery(['sort' => $col, 'dir' => $nextDir, 'page' => null]);
+    };
+    $arrow = fn($col) => $sort === $col ? ($dir === 'desc' ? ' ▼' : ' ▲') : '';
+@endphp
 <table class="m-table" style="margin-bottom:0">
     <thead>
         <tr>
-            <th style="width:50px">ID</th>
+            <th style="width:50px"><a class="m-link-sm" href="{{ $sortUrl('id') }}">ID{{ $arrow('id') }}</a></th>
             <th>Protiúčet</th>
-            <th style="width:90px">Datum</th>
-            <th style="width:120px;text-align:right">Částka</th>
+            <th style="width:90px"><a class="m-link-sm" href="{{ $sortUrl('datetime') }}">Datum{{ $arrow('datetime') }}</a></th>
+            <th style="width:120px;text-align:right"><a class="m-link-sm" href="{{ $sortUrl('amount') }}">Částka{{ $arrow('amount') }}</a></th>
             <th>Text</th>
             <th style="width:60px">Akce</th>
         </tr>
