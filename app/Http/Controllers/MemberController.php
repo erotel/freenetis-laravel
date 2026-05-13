@@ -672,16 +672,21 @@ class MemberController extends Controller
                 }
             }
 
-            // Mód 3: vratka — vložit do outgoing_payments
+            // Mód 3: vratka — vložit do outgoing_payments + pohoda_refund_queue.
+            // Pro zákazníka (CUSTOMER=2) navíc vystavit vratnou fakturu (dobropis).
+            $refundInvoicePdf = null;
+            $refundDocNumber  = null;
             if ($endMode === 3 && !empty($validated['refund_account']) && ($validated['refund_amount'] ?? 0) > 0) {
                 $configKey     = 'bank_account_member_type_' . $member->type;
                 $bankAccountId = (int) \App\Models\Setting::get($configKey, 0);
 
                 if ($bankAccountId) {
-                    DB::table('outgoing_payments')->insert([
+                    $refundAmount = round((float)$validated['refund_amount'], 2);
+
+                    $outgoingPaymentId = DB::table('outgoing_payments')->insertGetId([
                         'bank_account_id' => $bankAccountId,
                         'target_account'  => $validated['refund_account'],
-                        'amount'          => round((float)$validated['refund_amount'], 2),
+                        'amount'          => $refundAmount,
                         'currency'        => 'CZK',
                         'message'         => 'Vratka při ukončení členství',
                         'reason'          => 'termination_refund',
@@ -689,6 +694,39 @@ class MemberController extends Controller
                         'created_by'      => auth()->id() ?? 1,
                         'created_at'      => now(),
                         'updated_at'      => now(),
+                    ]);
+
+                    // Vygeneruj číslo dobropisu podle typu člena (stejně jako legacy Kohana):
+                    //   - CUSTOMER (2)   → "YY###"    (např. 26011)
+                    //   - REGULAR  (90)  → "YYČL####" (např. 26ČL0010)
+                    $isCustomer       = in_array($member->type, [MemberType::CUSTOMER, MemberType::PENDING_CUSTOMER], true);
+                    $refundDocNumber  = $this->nextRefundDocNumber($isCustomer);
+
+                    // PDF dobropisu — pro oba typy. Záměrně NEvkládáme řádek do invoices —
+                    // vratka je samostatný typ dokumentu (creditNote v Pohodě), stejný
+                    // pattern jako legacy Kohana Refund_Pdf lib.
+                    $refundInvoicePdf = (new \App\Services\RefundPdfService())->generate(
+                        $id,
+                        $refundDocNumber,
+                        (int) $member->type,
+                        (string) $validated['leaving_date'],
+                        (string) $validated['refund_account'],
+                        $refundAmount
+                    );
+
+                    // Vždy zápis do pohoda_refund_queue (zákazník i člen)
+                    DB::table('pohoda_refund_queue')->insert([
+                        'member_id'           => $id,
+                        'member_type'         => $member->type,  // PŮVODNÍ typ (2 nebo 90), ne FORMER
+                        'doc_number'          => $refundDocNumber,
+                        'outgoing_payment_id' => $outgoingPaymentId,
+                        'refund_account'      => $validated['refund_account'],
+                        'amount'              => $refundAmount,
+                        'currency'            => 'CZK',
+                        'reason'              => 'termination_refund',
+                        'note'                => 'Vratka při ukončení ' . ($isCustomer ? 'smlouvy' : 'členství'),
+                        'created_at'          => now(),
+                        'status'              => 'new',
                     ]);
 
                     // Vymazání kreditního účtu člena
@@ -822,9 +860,6 @@ class MemberController extends Controller
                             ->value('c.value');
 
                         if ($email) {
-                            // Při vratce (mód 3) musíme doplnit {ucet} z formuláře a override
-                            // {balance} na refund_amount — buildPlaceholders by jinak vrátil 0,
-                            // protože kreditní účet se před tímhle bodem vynuloval.
                             $extra = [];
                             if ($endMode === 3) {
                                 $extra['ucet']    = $validated['refund_account'] ?? '';
@@ -837,13 +872,26 @@ class MemberController extends Controller
                                 $message->email_text,
                                 \App\Models\Message::buildPlaceholders($id, $extra)
                             );
-                            DB::table('email_queues')->insert([
+                            $emailQueueId = DB::table('email_queues')->insertGetId([
                                 'from'    => \App\Models\Setting::get('email_default_email', 'noreply@pvfree.net'),
                                 'to'      => $email,
                                 'subject' => \App\Models\Setting::get('email_subject_prefix', 'PVfree.net') . ' :: ' . $message->name,
                                 'body'    => $body,
                                 'state'   => 0,
                             ]);
+
+                            // Pro zákazníka při vratce přilož PDF dobropisu k emailu.
+                            // $refundInvoicePdf a $refundDocNumber jsou nastavené výš v sekci
+                            // outgoing_payment, pokud se opravdu vystavila faktura.
+                            if ($endMode === 3 && $refundInvoicePdf && file_exists($refundInvoicePdf)) {
+                                DB::table('email_queue_attachments')->insert([
+                                    'email_queue_id' => $emailQueueId,
+                                    'path'           => $refundInvoicePdf,
+                                    'name'           => 'dobropis_' . $refundDocNumber . '.pdf',
+                                    'mime'           => 'application/pdf',
+                                    'created_at'     => now(),
+                                ]);
+                            }
                         }
                     }
                 }
@@ -853,6 +901,35 @@ class MemberController extends Controller
         $label = ($newType == MemberType::FORMER_CUSTOMER) ? 'zákazník' : 'člen';
         return redirect()->route('members.show', $id)
             ->with('success', "Členství bylo ukončeno. {$member->name} označen jako bývalý {$label}.");
+    }
+
+    /**
+     * Vrátí další číslo dobropisu (refund doc_number) v aktuálním roce.
+     *  - Zákazník: "YY###"     (např. 26011 = rok 26, sekvence 011)
+     *  - Člen:     "YYČL####"  (např. 26ČL0010)
+     * Sekvence je per-rok + per-typ; reset každý kalendářní rok.
+     * RIGHT() místo SUBSTRING() ať MySQL korektně rozezná multibyte 'Č' v "ČL".
+     */
+    private function nextRefundDocNumber(bool $isCustomer): string
+    {
+        $year2 = date('y');
+        if ($isCustomer) {
+            $maxSeq = (int) DB::table('pohoda_refund_queue')
+                ->where('member_type', MemberType::CUSTOMER)
+                ->where('doc_number', 'like', $year2 . '%')
+                ->where('doc_number', 'not like', $year2 . 'ČL%')
+                ->selectRaw('MAX(CAST(RIGHT(doc_number, 3) AS UNSIGNED)) AS m')
+                ->value('m');
+            return $year2 . str_pad((string) ($maxSeq + 1), 3, '0', STR_PAD_LEFT);
+        }
+
+        $prefix = $year2 . 'ČL';
+        $maxSeq = (int) DB::table('pohoda_refund_queue')
+            ->where('member_type', MemberType::REGULAR)
+            ->where('doc_number', 'like', $prefix . '%')
+            ->selectRaw('MAX(CAST(RIGHT(doc_number, 4) AS UNSIGNED)) AS m')
+            ->value('m');
+        return $prefix . str_pad((string) ($maxSeq + 1), 4, '0', STR_PAD_LEFT);
     }
 
     public function restore(int $id)
