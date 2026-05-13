@@ -170,8 +170,11 @@ class WebInterfaceController extends Controller
             WHERE mip.ip_address_id IS NULL
         ");
 
-        $prefix = Setting::get('ipv6_prefix', '2a07:9c0');
-        $mask   = Setting::get('ipv6_mask',   '56');
+        // Setting::get vrátí default jen pokud řádek neexistuje — pokud je hodnota
+        // v DB prázdná (legacy import bez vyplnění), fallback by se neuplatnil
+        // a výstup by byl ":Y:Z00::/" bez prefixu a masky. ?: ošetří i prázdné string.
+        $prefix = Setting::get('ipv6_prefix') ?: '2a07:9c0';
+        $mask   = Setting::get('ipv6_mask')   ?: '56';
 
         $items = [];
         foreach ($rows as $row) {
