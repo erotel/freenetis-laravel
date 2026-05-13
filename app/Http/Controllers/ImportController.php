@@ -433,17 +433,28 @@ class ImportController extends Controller
             }
         });
 
-        // Run invoice/email generation outside the transaction (PDF is filesystem-based)
+        // Run invoice/email generation outside the transaction (PDF is filesystem-based).
+        // Selhání jedné post-akce (PDF generation, email queue, ...) nesmí zastavit
+        // zbytek — bank_transfers už jsou zacommitované a další scheduler běh by je
+        // znovu fetchLast nevrátil (max(transaction_code) se posunul). Log + pokračujeme.
         if (!empty($postImport)) {
             $invoiceService = new InvoiceService();
             foreach ($postImport as $job) {
-                $this->handlePostImport(
-                    $invoiceService,
-                    $job['bankTransferId'],
-                    $job['memberId'],
-                    $job['amount'],
-                    $account
-                );
+                try {
+                    $this->handlePostImport(
+                        $invoiceService,
+                        $job['bankTransferId'],
+                        $job['memberId'],
+                        $job['amount'],
+                        $account
+                    );
+                } catch (\Throwable $e) {
+                    \Illuminate\Support\Facades\Log::error(
+                        sprintf('handlePostImport failed for bank_transfer #%d (member #%d, amount %.2f): %s',
+                            $job['bankTransferId'], $job['memberId'], $job['amount'], $e->getMessage()),
+                        ['trace' => $e->getTraceAsString()]
+                    );
+                }
             }
         }
 
