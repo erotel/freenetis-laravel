@@ -98,8 +98,11 @@ class FioCsvParser
         }
 
         // --- Parse column headers ---
-        if ($lineIdx >= count($lines)) {
-            throw new \RuntimeException('CSV neobsahuje řádek se záhlavím sloupců.');
+        // Když FIO API nemá žádné nové pohyby od posledního bookmarku (setLastId),
+        // vrátí CSV jen s metadata hlavičkou bez data sekce — legitimní stav,
+        // ne chyba. Vrátíme prázdný výsledek a necháme caller pokračovat.
+        if ($lineIdx >= count($lines) || trim((string) ($lines[$lineIdx] ?? '')) === '') {
+            return ['header' => $header, 'rows' => [], 'errors' => $errors];
         }
 
         $columnLine = $lines[$lineIdx];
