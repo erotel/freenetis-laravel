@@ -49,6 +49,9 @@
     @if($canViewAllowedSubnets)
     <a class="m-btn" href="{{ route('allowed_subnets.by_member', $member->id) }}">Povolené podsítě</a>
     @endif
+    @if($mainUser && $canViewDevices)
+    <a class="m-btn" href="{{ route('devices.by_user', $mainUser->id) }}">Zařízení</a>
+    @endif
     @if($canViewInvoices)
     <a class="m-btn" href="{{ route('invoices.by_member', $member->id) }}">Faktury</a>
     @endif

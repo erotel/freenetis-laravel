@@ -11,6 +11,7 @@
 <div class="m-title-row"><h2>{{ $device->name }}</h2></div>
 
 <div class="m-actions">
+    <a class="m-btn" href="{{ $device->user_id ? route('devices.by_user', $device->user_id) : route('devices.index') }}">← Zpět</a>
     @if($canEdit)
     <a class="m-btn" href="{{ route('devices.edit', $device->id) }}">Upravit</a>
     @endif
