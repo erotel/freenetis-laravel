@@ -131,7 +131,7 @@ $credit = $creditBalance ? number_format((float)$creditBalance, 2, ',', ' ') . '
 {{-- ── Intro text (registration only) ── --}}
 @if($isRegistration)
     @if($registrationInfo)
-        <div class="intro">{!! nl2br(e($registrationInfo)) !!}</div>
+        <div class="intro">{!! $registrationInfo !!}</div>
     @else
         <p class="intro">
             Žadatel se tímto stává čekatelem na členství v {{ $assoc->name }} se sídlem v {{ $assoc->town }},
@@ -204,7 +204,7 @@ $credit = $creditBalance ? number_format((float)$creditBalance, 2, ',', ' ') . '
 @if($isRegistration)
     {{-- ── Warning ── --}}
     @if($registrationLicense)
-        <div class="intro">{!! nl2br(e($registrationLicense)) !!}</div>
+        <div class="intro">{!! $registrationLicense !!}</div>
     @else
         <p class="warning">
             POZOR! Registrací se nerozumí předání žádosti o technické řešení připojení.
