@@ -586,6 +586,9 @@ class DeviceController extends Controller
     {
         abort_unless($this->aclCheck('view_all', 'Devices_Controller', 'devices'), 403);
 
+        // s.dhcp = 1 filtruje vypnuté subnety — bez toho zombie dhcp_expired=1 na
+        // subnetech, kde admin DHCP vypnul, drží zařízení trvale ve stavu 'Změněno'
+        // (export nikdy nezresetuje flag u subnetů s subnet.dhcp=0).
         $devices = DB::select("
             SELECT DISTINCT d.id, d.name, d.access_time,
                 GROUP_CONCAT(DISTINCT s.name ORDER BY s.name SEPARATOR ', ') AS subnets,
@@ -594,7 +597,7 @@ class DeviceController extends Controller
             JOIN ifaces i ON i.device_id = d.id
             JOIN ip_addresses ip ON ip.iface_id = i.id
             JOIN subnets s ON s.id = ip.subnet_id
-            WHERE ip.gateway = 1 AND ip.dhcp = 1
+            WHERE ip.gateway = 1 AND ip.dhcp = 1 AND s.dhcp = 1
             GROUP BY d.id, d.name, d.access_time
             ORDER BY d.access_time ASC
         ");

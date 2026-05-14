@@ -146,6 +146,14 @@ class SubnetController extends Controller
         }
 
         $data = $this->validateSubnet($request, $id);
+
+        // Když admin vypne DHCP na subnetu, vyresetuj i dhcp_expired flag —
+        // jinak by zůstal viset na 1 (export ho resetuje jen u subnet.dhcp=1)
+        // a zařízení by se v DHCP listing tvářilo trvale jako 'Změněno'.
+        if (!($data['dhcp'] ?? false) && $subnet->dhcp_expired) {
+            $data['dhcp_expired'] = 0;
+        }
+
         $subnet->update($data);
 
         session()->flash('success', 'Subnet byl úspěšně upraven.');
