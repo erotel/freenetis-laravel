@@ -68,6 +68,24 @@ class Transfer extends Model
     }
 
     /**
+     * Transfers that point back to this one — typically returns (vratky), opravy
+     * nebo storna, které referencují tento převod jako svůj `previous_transfer_id`.
+     */
+    public function dependentTransfers()
+    {
+        return $this->hasMany(Transfer::class, 'previous_transfer_id');
+    }
+
+    /**
+     * Bankovní převod (FIO/import), pokud byl tento účetní převod vytvořen
+     * spárováním s bank statementem. Skrz bank_transfers.transfer_id.
+     */
+    public function bankTransfer()
+    {
+        return $this->hasOne(BankTransfer::class, 'transfer_id');
+    }
+
+    /**
      * Signed amount from the perspective of a given account:
      * positive = inbound (account is destination), negative = outbound (account is origin).
      */

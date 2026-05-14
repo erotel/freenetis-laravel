@@ -84,8 +84,18 @@ class TransferController extends Controller
             'destination.member',
             'member',
             'user',
-            'previousTransfer.origin',
-            'previousTransfer.destination',
+            'previousTransfer.origin.member',
+            'previousTransfer.destination.member',
+            'previousTransfer.member',
+            'previousTransfer.user',
+            'previousTransfer.bankTransfer.originAccount',
+            'previousTransfer.bankTransfer.destinationAccount',
+            'previousTransfer.bankTransfer.bankStatement',
+            'bankTransfer.originAccount',
+            'bankTransfer.destinationAccount',
+            'bankTransfer.bankStatement',
+            'dependentTransfers.origin',
+            'dependentTransfers.destination',
         ])->findOrFail($id);
 
         return view('transfers.show', compact('transfer'));
