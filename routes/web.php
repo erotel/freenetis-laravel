@@ -434,6 +434,7 @@ Route::middleware('auth')->group(function () {
     Route::put('settings/sledovanitv',  [SettingController::class, 'updateSledovaniTv'])->name('settings.update-sledovanitv');
     Route::post('settings/sledovanitv/sync', [SettingController::class, 'syncSledovaniTv'])->name('settings.sledovanitv-sync');
     Route::put('settings/smlouvy',  [SettingController::class, 'updateSmlouvy'])->name('settings.update-smlouvy');
+    Route::put('settings/registration', [SettingController::class, 'updateRegistration'])->name('settings.update-registration');
     Route::put('settings',          [SettingController::class, 'update'])->name('settings.update');
 
     Route::get('acl/create',       [AroGroupController::class, 'aclCreate'])->name('acl.create');

@@ -42,6 +42,12 @@ class SettingController extends Controller
         'association_court', 'association_court_ref',
     ];
 
+    // HTML šablony pro registrační PDF (export_registration_pdf). Obě se v PDF
+    // renderují jako HTML (members/registration_pdf.blade.php → {!! $registrationInfo !!}).
+    public const REGISTRATION_KEYS = [
+        'registration_info', 'registration_license',
+    ];
+
     public const USERS_KEYS = [
         'security_password_length', 'security_password_level', 'former_member_auto_device_remove',
     ];
@@ -173,6 +179,11 @@ class SettingController extends Controller
             $networkSettings[$key] = Setting::get($key, '');
         }
 
+        $registrationSettings = [];
+        foreach (self::REGISTRATION_KEYS as $key) {
+            $registrationSettings[$key] = Setting::get($key, '');
+        }
+
         if (!Setting::get('dhcp_api_token')) {
             Setting::set('dhcp_api_token', Str::random(32));
         }
@@ -237,6 +248,7 @@ class SettingController extends Controller
             'emailSettings', 'bccRules', 'messages', 'activeTab',
             'pohodaEmail', 'financeSettings', 'feesForSelect',
             'systemSettings', 'usersSettings', 'networkSettings',
+            'registrationSettings',
             'smsSettings', 'smsDriverSettings', 'gponSettings', 'gponOlts',
             'dhcpApiToken', 'smlouvySettings', 'sledovanitvSettings'
         ));
@@ -375,6 +387,21 @@ class SettingController extends Controller
         Setting::set('former_member_auto_device_remove', $request->boolean('former_member_auto_device_remove') ? 1 : 0);
         return redirect()->route('settings.index', ['tab' => 'users'])
             ->with('success', 'Nastavení uživatelů bylo uloženo.');
+    }
+
+    public function updateRegistration(Request $request)
+    {
+        abort_unless($this->can('edit_all'), 403);
+
+        // Žádný strip_tags/sanitize — admin píše HTML přes TinyMCE editor,
+        // PDF je renderováno mPDF (server-side, žádné XSS). Stejný pattern
+        // jako messages/_form (registration_info_text v Kohaně).
+        foreach (self::REGISTRATION_KEYS as $key) {
+            Setting::set($key, (string) $request->input($key, ''));
+        }
+
+        return redirect()->route('settings.index', ['tab' => 'registrace'])
+            ->with('success', 'Šablony registračního PDF byly uloženy.');
     }
 
     public function updateNetwork(Request $request)

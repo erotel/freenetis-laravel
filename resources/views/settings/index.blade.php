@@ -10,7 +10,7 @@
 
 {{-- Tabs --}}
 <div style="display:flex;gap:4px;margin-bottom:20px;flex-wrap:wrap">
-    @foreach(['banka' => 'Banka', 'email' => 'Email', 'finance' => 'Finance', 'system' => 'Systém', 'users' => 'Uživatelé', 'network' => 'Síť', 'sms' => 'SMS', 'gpon' => 'GPON', 'smlouvy' => 'Smlouvy', 'sledovanitv' => 'SledovaniTV'] as $tabKey => $tabLabel)
+    @foreach(['banka' => 'Banka', 'email' => 'Email', 'finance' => 'Finance', 'system' => 'Systém', 'users' => 'Uživatelé', 'network' => 'Síť', 'registrace' => 'Registrace', 'sms' => 'SMS', 'gpon' => 'GPON', 'smlouvy' => 'Smlouvy', 'sledovanitv' => 'SledovaniTV'] as $tabKey => $tabLabel)
     <a class="m-btn @if($activeTab === $tabKey) m-btn-primary @endif"
        href="{{ route('settings.index', ['tab' => $tabKey]) }}">{{ $tabLabel }}</a>
     @endforeach
@@ -539,6 +539,56 @@ function addBccRow() {
         <button type="submit" class="m-btn">Regenerovat token</button>
     </form>
 </div>
+@endif
+
+@if($activeTab === 'registrace')
+<form method="POST" action="{{ route('settings.update-registration') }}">
+@csrf @method('PUT')
+
+<div class="m-card" style="margin-bottom:16px">
+    <div class="m-card-title">Šablony registračního PDF</div>
+    <p class="m-form-hint" style="margin-bottom:12px">
+        HTML šablony zobrazené v PDF, které vzniká při registraci nového člena
+        (/members/{id}/registration-export/registration). Pole jsou volitelná —
+        když je necháte prázdná, použije se vestavěný fallback text.
+    </p>
+
+    <div class="m-form-group">
+        <label class="m-form-label">Úvodní text (registration_info)</label>
+        <textarea class="m-form-input wysiwyg" name="registration_info" rows="12">{{ old('registration_info', $registrationSettings['registration_info'] ?? '') }}</textarea>
+        <div class="m-form-hint">Zobrazí se v horní části PDF, hned pod identifikací žadatele.</div>
+    </div>
+
+    <div class="m-form-group">
+        <label class="m-form-label">Licence / souhlas (registration_license)</label>
+        <textarea class="m-form-input wysiwyg" name="registration_license" rows="14">{{ old('registration_license', $registrationSettings['registration_license'] ?? '') }}</textarea>
+        <div class="m-form-hint">Zobrazí se před podpisovým polem (GDPR souhlas, kontakty na spolek apod.).</div>
+    </div>
+</div>
+
+<div class="m-actions">
+    <button class="m-btn m-btn-primary" type="submit">Uložit šablony registrace</button>
+</div>
+</form>
+
+{{-- TinyMCE 7 editor — stejná inicializace jako messages/_form.blade.php --}}
+<script src="https://cdn.jsdelivr.net/npm/tinymce@7/tinymce.min.js" referrerpolicy="origin"></script>
+<script>
+tinymce.init({
+    selector: '#tab-registrace-wrap textarea.wysiwyg, textarea.wysiwyg',
+    license_key: 'gpl',
+    height: 360,
+    menubar: false,
+    branding: false,
+    promotion: false,
+    language: 'cs',
+    language_url: 'https://cdn.jsdelivr.net/npm/tinymce-i18n@latest/langs7/cs.js',
+    convert_urls: false,
+    entity_encoding: 'raw',
+    plugins: 'lists link image table code fullscreen searchreplace charmap',
+    toolbar: 'undo redo | styles | bold italic underline strikethrough | alignleft aligncenter alignright | bullist numlist | link image table charmap | searchreplace code fullscreen',
+});
+</script>
 @endif
 
 @if($activeTab === 'sms')
