@@ -6,6 +6,28 @@ formát podle [Keep a Changelog](https://keepachangelog.com/cs/1.1.0/).
 Verzi v souboru `config/version.php` bumpni samostatným commitem `chore: bump version to X.Y.Z`,
 ať lze changelog snadno regenerovat přes `git log vX..vY --oneline`.
 
+## [2.1.2] — 2026-05-14
+
+### Fixed
+- `freenetis/contracts` zobrazovalo `Člen #XXXX` u smluv ve stavu **návrh** —
+  eager load `parties` filtroval na `active=true`, ale draft strany mají `active=0`
+  dokud se nepodepíše. Filtr odstraněn ([ContractController.php:225](app/Http/Controllers/ContractController.php#L225)).
+- `freenetis/devices/dhcp-servers` ukazovalo `Změněno` i u zařízení, kde žádný DHCP
+  subnet nebyl expired — listing SQL agregoval `MAX(s.dhcp_expired)` i přes subnety
+  s `s.dhcp=0` (zombie flag po vypnutí DHCP). Přidáno `AND s.dhcp = 1` v JOIN
+  ([DeviceController.php:589](app/Http/Controllers/DeviceController.php#L589))
+  + `SubnetController::update` při vypnutí DHCP vynuluje `dhcp_expired`,
+  ať se v DB nehromadí nekonzistence.
+- `freenetis/members/{id}/registration-export/registration` ukazoval v PDF
+  HTML source (`<p><span style="…">…`) místo formátovaného textu — blade dělal
+  `{!! nl2br(e($registrationInfo)) !!}` a escapoval HTML. Sjednoceno na `{!! ... !!}`.
+
+### Changed
+- Z `config.registration_license` odstraněn paragraf začínající "POZOR! Registrací
+  se nerozumí…" (DB update mimo commit). GDPR + kontaktní paragraf zachován.
+- DB cleanup: 272 zombie záznamů `dhcp_expired=1` na subnetech s `dhcp=0`
+  vyresetováno (`UPDATE subnets SET dhcp_expired=0 WHERE dhcp=0 AND dhcp_expired=1`).
+
 ## [2.1.1] — 2026-05-14
 
 ### Fixed
