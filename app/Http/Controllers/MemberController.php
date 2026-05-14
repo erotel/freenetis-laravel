@@ -872,10 +872,11 @@ class MemberController extends Controller
                                 $message->email_text,
                                 \App\Models\Message::buildPlaceholders($id, $extra)
                             );
+                            $prefix = \App\Models\Setting::get('email_subject_prefix', '');
                             $emailQueueId = DB::table('email_queues')->insertGetId([
                                 'from'    => \App\Models\Setting::get('email_default_email', 'noreply@pvfree.net'),
                                 'to'      => $email,
-                                'subject' => \App\Models\Setting::get('email_subject_prefix', 'PVfree.net') . ' :: ' . $message->name,
+                                'subject' => ($prefix ? $prefix . ' :: ' : '') . $message->name,
                                 'body'    => $body,
                                 'state'   => 0,
                             ]);
@@ -994,10 +995,11 @@ class MemberController extends Controller
                         $message->email_text,
                         \App\Models\Message::buildPlaceholders($id)
                     );
+                    $prefix = \App\Models\Setting::get('email_subject_prefix', '');
                     DB::table('email_queues')->insert([
                         'from'    => \App\Models\Setting::get('email_default_email', 'noreply@pvfree.net'),
                         'to'      => $email,
-                        'subject' => \App\Models\Setting::get('email_subject_prefix', 'PVfree.net') . ' :: ' . $message->name,
+                        'subject' => ($prefix ? $prefix . ' :: ' : '') . $message->name,
                         'body'    => $body,
                         'state'   => 0,
                     ]);

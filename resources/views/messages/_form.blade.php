@@ -2,7 +2,7 @@
 @csrf
 @if($method === 'PUT') @method('PUT') @endif
 
-<div class="m-card" style="margin-bottom:16px;max-width:600px">
+<div class="m-card" style="margin-bottom:16px;max-width:900px">
     <div class="m-form-group">
         <label class="m-form-label">Název</label>
         <input class="m-form-input" type="text" name="name" value="{{ old('name', $message?->name) }}">
@@ -25,11 +25,11 @@
     </div>
     <div class="m-form-group">
         <label class="m-form-label">Text přesměrování <span style="font-weight:400;color:#aaa">(HTML)</span></label>
-        <textarea class="m-form-input" name="text" rows="6">{{ old('text', $message?->text) }}</textarea>
+        <textarea class="m-form-input wysiwyg" name="text" rows="12">{{ old('text', $message?->text) }}</textarea>
     </div>
     <div class="m-form-group">
         <label class="m-form-label">Text emailu <span style="font-weight:400;color:#aaa">(HTML)</span></label>
-        <textarea class="m-form-input" name="email_text" rows="6">{{ old('email_text', $message?->email_text) }}</textarea>
+        <textarea class="m-form-input wysiwyg" name="email_text" rows="12">{{ old('email_text', $message?->email_text) }}</textarea>
     </div>
     <div class="m-form-group">
         <label class="m-form-label">Text SMS <span style="font-weight:400;color:#aaa">(max 760 znaků)</span></label>
@@ -43,3 +43,24 @@
     <a class="m-btn" href="{{ route('messages.index') }}">Zrušit</a>
 </div>
 </form>
+
+{{-- TinyMCE 7 (GPL/community license) — náhrada za TinyMCE 3 v Kohaně.
+     CDN bez API klíče (jsdelivr); license_key 'gpl' potvrzuje free GPL použití
+     a tím vypne premium-feature notifikace. --}}
+<script src="https://cdn.jsdelivr.net/npm/tinymce@7/tinymce.min.js" referrerpolicy="origin"></script>
+<script>
+tinymce.init({
+    selector: 'textarea.wysiwyg',
+    license_key: 'gpl',
+    height: 420,
+    menubar: false,
+    branding: false,
+    promotion: false,
+    language: 'cs',
+    language_url: 'https://cdn.jsdelivr.net/npm/tinymce-i18n@latest/langs7/cs.js',
+    convert_urls: false,
+    entity_encoding: 'raw',
+    plugins: 'lists link image table code fullscreen searchreplace charmap',
+    toolbar: 'undo redo | styles | bold italic underline strikethrough | alignleft aligncenter alignright | bullist numlist | link image table charmap | searchreplace code fullscreen',
+});
+</script>

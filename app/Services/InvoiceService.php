@@ -164,8 +164,9 @@ class InvoiceService
         $message = \App\Models\Message::find(9);
 
         $from    = Setting::get('email_default_email', 'no-reply@freenetis.org');
+        $prefix  = Setting::get('email_subject_prefix', '');
         $subject = $message
-            ? Setting::get('email_subject_prefix', 'PVfree.net') . ' :: ' . $message->name
+            ? ($prefix ? $prefix . ' :: ' : '') . $message->name
             : 'Oznámení o přijaté platbě';
 
         if (!$message || empty($message->email_text)) {

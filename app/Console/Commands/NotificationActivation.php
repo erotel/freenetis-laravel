@@ -12,6 +12,10 @@ class NotificationActivation extends Command
     protected $signature   = 'notifications:activate {--force : Skip time rule checks}';
     protected $description = 'Activate notifications for debtors, low credit members etc.';
 
+    // Mirrors Kohana scheduler::AM_NOTIFICATION — rules only fire on this minute of the hour,
+    // so an hour-matching rule sends exactly once per hour instead of 60× when cron runs every minute.
+    const APPLY_MINUTE = 10;
+
     // Message types that can be auto-activated
     const AUTO_TYPES = [
         Message::DEBTOR_MESSAGE,               // 5 - zákazník dlužník
@@ -41,6 +45,11 @@ class NotificationActivation extends Command
         $hour      = $now->hour;
         $weekday   = $now->dayOfWeek ?: 7; // 1=Mon, 7=Sun
         $deductDay = (int) Setting::get('deduct_day', 26);
+
+        // Gate: only run on the apply minute so each rule fires once per hour, not every minute.
+        if (!$this->option('force') && $now->minute !== self::APPLY_MINUTE) {
+            return 0;
+        }
 
         $messages = Message::whereIn('type', self::AUTO_TYPES)->get();
 
@@ -73,10 +82,14 @@ class NotificationActivation extends Command
 
                 $this->info("Message [{$message->id}] {$message->name}: {$members->count()} members.");
 
+                $emailsSent  = 0;
+                $smsSent     = 0;
+                $ipsRedirect = 0;
+
                 foreach ($members as $member) {
                     // Send email
                     if ($doEmail && !empty($member->email)) {
-                        $subject = $subjectPrefix . ' ::' . $message->name;
+                        $subject = ($subjectPrefix ? $subjectPrefix . ' :: ' : '') . $message->name;
                         $body    = Message::substitute(
                             $message->email_text ?? $message->text ?? '',
                             Message::buildPlaceholders((int) $member->id)
@@ -88,6 +101,7 @@ class NotificationActivation extends Command
                             'body'    => $body,
                             'state'   => 0,
                         ]);
+                        $emailsSent++;
                     }
 
                     // Activate redirect on all member IPs
@@ -100,7 +114,7 @@ class NotificationActivation extends Command
                             ->pluck('ip.id');
 
                         foreach ($ipIds as $ipId) {
-                            DB::table('messages_ip_addresses')->insertOrIgnore([
+                            $ipsRedirect += DB::table('messages_ip_addresses')->insertOrIgnore([
                                 'message_id'    => $message->id,
                                 'ip_address_id' => $ipId,
                                 'user_id'       => 1,
@@ -111,9 +125,26 @@ class NotificationActivation extends Command
                     }
                 }
 
+                // Log to log_queues (mirrors Kohana Log_queue_Model::info — type=3, state=0,
+                // stats stored in exception_backtrace column, same as Kohana did).
+                if ($emailsSent || $smsSent || $ipsRedirect) {
+                    $stats = [];
+                    if ($doRedirect) $stats[] = "Přesměrování bylo aktivováno pro {$ipsRedirect} IP adres.";
+                    if ($doEmail)    $stats[] = "E-mail byl odeslán pro {$emailsSent} e-mailových adres.";
+                    if ($doSms)      $stats[] = "SMS zpráva byla odeslána pro {$smsSent} telefonních čísel.";
+
+                    DB::table('log_queues')->insert([
+                        'type'                => 3, // TYPE_INFO
+                        'state'               => 0, // STATE_NEW
+                        'created_at'          => now(),
+                        'description'         => 'Upozorňovací zpráva "' . $message->name . '" byla automaticky aktivována',
+                        'exception_backtrace' => implode("\n", $stats),
+                    ]);
+                }
+
                 // Send activation report email if configured
                 if (!empty($rule->send_activation_to_email)) {
-                    $subject = $subjectPrefix . ' ::Aktivace zprávy: ' . $message->name;
+                    $subject = ($subjectPrefix ? $subjectPrefix . ' :: ' : '') . 'Aktivace zprávy: ' . $message->name;
                     $body    = "Aktivována zpráva: {$message->name}\n";
                     $body   .= "Počet členů: {$members->count()}\n";
                     $body   .= "Datum: " . now()->format('d.m.Y H:i') . "\n";
