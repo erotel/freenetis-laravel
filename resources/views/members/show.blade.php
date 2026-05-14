@@ -205,10 +205,10 @@
         <div class="m-card" style="margin-bottom:16px">
             <div class="m-card-title">Adresa</div>
             @if($member->addressPoint)
-                @if($member->addressPoint->street)
+                @if($member->addressPoint->street || $member->addressPoint->street_number)
                 <div class="m-field">
-                    <span class="m-field-label">Ulice</span>
-                    <span class="m-field-value">{{ $member->addressPoint->street->street }} {{ $member->addressPoint->street_number }}</span>
+                    <span class="m-field-label">{{ $member->addressPoint->street ? 'Ulice' : 'Č. p.' }}</span>
+                    <span class="m-field-value">{{ trim(($member->addressPoint->street?->street ?? '') . ' ' . ($member->addressPoint->street_number ?? '')) }}</span>
                 </div>
                 @endif
                 @if($member->addressPoint->town)
