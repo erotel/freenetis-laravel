@@ -222,8 +222,9 @@ class ContractController extends Controller
             ->pluck('id')
             ->all();
 
-        $query = Contract::with(['parties' => fn($qb) => $qb->where('active', true)])
-            ->orderByDesc('id');
+        // Bez filtru active=true — u draft smluv je party.active=0 dokud se nepodepíše,
+        // a view by jinak padal na fallback 'Člen #XXXX' místo plného jména.
+        $query = Contract::with('parties')->orderByDesc('id');
 
         if (!empty($formerMemberIds)) {
             $query->where(function ($w) use ($formerMemberIds) {
