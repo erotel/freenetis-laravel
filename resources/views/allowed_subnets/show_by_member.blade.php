@@ -20,6 +20,22 @@
     $enabledCount = $allowedSubnets->where('enabled', true)->count();
 @endphp
 
+<div class="m-card m-alert-info" style="max-width:720px;margin-bottom:16px;background:#eef6ff;border-left:4px solid #3b82f6;padding:12px 14px;font-size:14px;line-height:1.5">
+    <div style="font-weight:600;margin-bottom:6px">Jak funguje přepínání podsítí</div>
+    <p style="margin:0 0 8px 0">
+        Povolené podsítě omezují provoz vašich zařízení na určitý počet současně aktivních přípojných míst.
+        Předpokládá se, že každé přípojné místo se nachází v jiné podsíti.
+        IP adresám <strong>mimo</strong> aktivní podsítě bude blokován přístup na internet (formou přesměrování).
+    </p>
+    <p style="margin:0">
+        <span style="color:#27ae60;font-weight:600">✓ zelené</span> = podsíť je aktivní (internet funguje).
+        <span style="color:#aaa;font-weight:600">✗ šedé</span> = podsíť je vypnutá.
+        Kliknutím na ikonu ji zapnete nebo vypnete.
+        <strong>POZOR:</strong> pokud máte limit překročený, zapnutím jedné podsítě se automaticky vypne ta nejstarší aktivní —
+        nelze mít zapnutých víc než povoluje limit ({{ $maxCount > 0 ? $maxCount : '∞' }}).
+    </p>
+</div>
+
 <div class="m-card" style="max-width:520px;margin-bottom:16px">
     <div class="m-card-title">Nastavení</div>
     @if($canEditCount)
