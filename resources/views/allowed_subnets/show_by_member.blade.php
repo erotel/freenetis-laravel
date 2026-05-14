@@ -18,25 +18,35 @@
 
 @php
     $enabledCount = $allowedSubnets->where('enabled', true)->count();
-    $maxCount = $member->allowed_subnets_count;
 @endphp
 
-<div class="m-card" style="max-width:420px;margin-bottom:16px">
+<div class="m-card" style="max-width:520px;margin-bottom:16px">
     <div class="m-card-title">Nastavení</div>
-    <form method="POST" action="{{ route('allowed_subnets.update_count', $member->id) }}" style="display:flex;align-items:center;gap:8px;padding:6px 0">
+    @if($canEditCount)
+    <form method="POST" action="{{ route('allowed_subnets.update_count', $member->id) }}" style="display:flex;align-items:center;gap:8px;padding:6px 0;flex-wrap:wrap">
         @csrf
         @method('PUT')
         <span class="m-field-label">Max. povolených podsítí:</span>
         <input class="m-form-input" type="number" name="allowed_subnets_count" min="0"
-               value="{{ $member->allowed_subnets_count }}" style="max-width:80px">
+               value="{{ $maxCount }}" style="max-width:80px"
+               {{ $hasOwnLimit ? '' : 'disabled' }}>
+        <label style="display:flex;align-items:center;gap:4px;font-size:14px;cursor:pointer">
+            <input type="checkbox" name="use_global" value="1" onchange="this.form.querySelector('input[name=allowed_subnets_count]').disabled=this.checked"
+                   {{ $hasOwnLimit ? '' : 'checked' }}>
+            Použít globální ({{ $globalCount }})
+        </label>
         <button class="m-btn m-btn-primary" type="submit" style="padding:5px 10px;font-size:14px">Uložit</button>
     </form>
+    @endif
     <div class="m-field">
         <span class="m-field-label">Zapnutých podsítí</span>
         <span class="m-field-value">
             {{ $enabledCount }}
             @if($maxCount > 0) / {{ $maxCount }} (max)
             @else (neomezeno) @endif
+            @if(!$hasOwnLimit && $canEditCount)
+                <span style="color:#888;font-size:13px">(globální default)</span>
+            @endif
         </span>
     </div>
 </div>
@@ -75,7 +85,7 @@
                 {{ $as->subnet->network_address ?? '—' }}/{{ $as->subnet->netmask ?? '' }}
             </td>
             <td style="text-align:center">
-                @if($canEdit)
+                @if($canToggle)
                 <form method="POST" action="{{ route('allowed_subnets.toggle', $as->id) }}" style="display:inline">
                     @csrf
                     <button type="submit" style="border:none;background:none;cursor:pointer;padding:0;font-size:19px"

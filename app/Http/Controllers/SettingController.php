@@ -49,7 +49,7 @@ class SettingController extends Controller
     public const NETWORK_KEYS = [
         'redirection_enabled', 'networks_enabled', 'address_ranges', 'dns_servers',
         'ipv6_prefix', 'ipv6_mask', 'connection_request_notify_email',
-        'dhcp_lease_time',
+        'dhcp_lease_time', 'allowed_subnets_default_count',
     ];
 
     public const GPON_KEYS = [
@@ -388,6 +388,7 @@ class SettingController extends Controller
         Setting::set('ipv6_mask',                      $request->input('ipv6_mask', ''));
         Setting::set('connection_request_notify_email', $request->input('connection_request_notify_email', ''));
         Setting::set('dhcp_lease_time', $request->input('dhcp_lease_time', '10800'));
+        Setting::set('allowed_subnets_default_count', (int) $request->input('allowed_subnets_default_count', 1));
         return redirect()->route('settings.index', ['tab' => 'network'])
             ->with('success', 'Nastavení sítě bylo uloženo.');
     }

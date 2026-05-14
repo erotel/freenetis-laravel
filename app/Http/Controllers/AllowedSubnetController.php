@@ -3,7 +3,9 @@
 namespace App\Http\Controllers;
 
 use App\Models\AllowedSubnet;
+use App\Models\AllowedSubnetsCount;
 use App\Models\Member;
+use App\Models\Setting;
 use App\Models\Subnet;
 use Illuminate\Http\Request;
 
@@ -17,9 +19,35 @@ class AllowedSubnetController extends Controller
         return $this->aclCheck($action, self::ACL_SECTION, self::ACL_VALUE);
     }
 
+    /**
+     * Člen má self-service přístup k vlastnímu záznamu allowed_subnets:
+     *  - prohlížet seznam (showByMember)
+     *  - přepínat existující podsítě on/off (toggle)
+     * Změna limitu počtu, přidání nové podsítě a smazání zůstává adminům.
+     */
+    private function isOwner(int $memberId): bool
+    {
+        return auth()->check() && (int) auth()->user()->member_id === $memberId;
+    }
+
+    /**
+     * Limit pro daného člena: per-member z `allowed_subnets_counts`, jinak fallback
+     * na globální `allowed_subnets_default_count` (Kohana výchozí 1). Vrací 0 =
+     * neomezeno, jak očekává volající kód (`if ($maxCount > 0)`).
+     */
+    private function maxCount(int $memberId): int
+    {
+        $row = AllowedSubnetsCount::firstWhere('member_id', $memberId);
+        if ($row) {
+            return (int) $row->count;
+        }
+        return (int) Setting::get('allowed_subnets_default_count', 1);
+    }
+
     public function showByMember(int $memberId)
     {
-        if (!$this->can('view_all')) {
+        $isAdmin = $this->can('view_all');
+        if (!$isAdmin && !$this->isOwner($memberId)) {
             abort(403);
         }
 
@@ -31,18 +59,29 @@ class AllowedSubnetController extends Controller
             ->orderBy('id')
             ->get();
 
-        $assignedSubnetIds = $allowedSubnets->pluck('subnet_id');
+        // Členové bez admin oprávnění nepotřebují seznam dostupných podsítí
+        // (nemůžou je stejně přidávat), tak ho ani nenačítáme.
+        $availableSubnets = $isAdmin
+            ? Subnet::whereNotIn('id', $allowedSubnets->pluck('subnet_id'))
+                ->orderBy('name')
+                ->get()
+            : collect();
 
-        $availableSubnets = Subnet::whereNotIn('id', $assignedSubnetIds)
-            ->orderBy('name')
-            ->get();
+        $hasOwnLimit  = AllowedSubnetsCount::where('member_id', $memberId)->exists();
+        $maxCount     = $this->maxCount($memberId);
+        $globalCount  = (int) Setting::get('allowed_subnets_default_count', 1);
 
         return view('allowed_subnets.show_by_member', [
             'member'           => $member,
             'allowedSubnets'   => $allowedSubnets,
             'availableSubnets' => $availableSubnets,
+            'maxCount'         => $maxCount,
+            'hasOwnLimit'      => $hasOwnLimit,
+            'globalCount'      => $globalCount,
+            // Toggle smí člen sám (self-service), zbytek jen admin
+            'canToggle'        => $isAdmin || $this->isOwner($memberId),
+            'canEditCount'     => $this->can('edit_all'),
             'canNew'           => $this->can('new_all'),
-            'canEdit'          => $this->can('edit_all'),
             'canDelete'        => $this->can('delete_all'),
         ]);
     }
@@ -75,7 +114,7 @@ class AllowedSubnetController extends Controller
         ]);
 
         // Rebalance: if over limit, disable oldest enabled subnets (not the one just added)
-        $maxCount = (int) $member->allowed_subnets_count;
+        $maxCount = $this->maxCount($memberId);
         if ($maxCount > 0) {
             $enabledCount = AllowedSubnet::where('member_id', $memberId)
                 ->where('enabled', true)->count();
@@ -102,22 +141,35 @@ class AllowedSubnetController extends Controller
             abort(403);
         }
 
-        $member = Member::findOrFail($memberId);
-        $request->validate(['allowed_subnets_count' => 'required|integer|min:0']);
-        $member->update(['allowed_subnets_count' => $request->allowed_subnets_count]);
+        Member::findOrFail($memberId);
+        $request->validate([
+            'allowed_subnets_count' => 'nullable|integer|min:0',
+            'use_global'            => 'nullable|in:1',
+        ]);
+
+        // 'use_global' checkbox smaže per-member řádek → vrátí na globální default.
+        if ($request->boolean('use_global')) {
+            AllowedSubnetsCount::where('member_id', $memberId)->delete();
+            return back()->with('success', 'Limit vrácen na globální default.');
+        }
+
+        AllowedSubnetsCount::updateOrCreate(
+            ['member_id' => $memberId],
+            ['count'     => (int) $request->input('allowed_subnets_count', 0)]
+        );
 
         return back()->with('success', 'Maximum povolených podsítí bylo uloženo.');
     }
 
     public function toggle(int $id)
     {
-        if (!$this->can('edit_all')) {
-            abort(403);
-        }
-
         $as = AllowedSubnet::with('member')->findOrFail($id);
         $member = $as->member;
-        $maxCount = (int) $member->allowed_subnets_count;
+
+        if (!$this->can('edit_all') && !$this->isOwner((int) $as->member_id)) {
+            abort(403);
+        }
+        $maxCount = $this->maxCount($member->id);
 
         if ($as->enabled) {
             // Disable — always allowed

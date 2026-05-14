@@ -511,6 +511,12 @@ function addBccRow() {
             value="{{ $networkSettings['connection_request_notify_email'] ?? '' }}" placeholder="admin@example.com">
         <div class="m-form-hint">Po odeslání žádosti bude na tento email odesláno upozornění. Prázdné = deaktivace.</div>
     </div>
+    <div class="m-form-group">
+        <label class="m-form-label">Výchozí max. počet povolených podsítí</label>
+        <input class="m-form-input" type="number" name="allowed_subnets_default_count"
+            value="{{ $networkSettings['allowed_subnets_default_count'] ?? '1' }}" min="0" style="max-width:120px">
+        <div class="m-form-hint">Globální default pro nové i existující členy bez per-member nastavení. Per-member přepis: <em>Profil člena → Povolené podsítě</em>. <strong>0 = neomezeno.</strong></div>
+    </div>
 </div>
 
 <div class="m-actions">

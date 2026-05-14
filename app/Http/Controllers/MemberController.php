@@ -205,7 +205,7 @@ class MemberController extends Controller
             'canViewDevices'      => $this->aclCheck('view_all', 'Devices_Controller', 'devices'),
             'canViewFees'         => $this->aclCheck('view_all', 'Members_Controller', 'fees'),
             'canViewQos'           => $this->aclCheck('view_all', 'Members_Controller', 'qos_ceil'),
-            'canViewAllowedSubnets'=> $this->aclCheck('view_all', 'Allowed_subnets_Controller', 'allowed_subnet'),
+            'canViewAllowedSubnets'=> $isOwnProfile || $this->aclCheck('view_all', 'Allowed_subnets_Controller', 'allowed_subnet'),
             'canViewInvoices'      => $isOwnProfile || $this->aclCheck('view_all', 'Accounts_Controller', 'invoices'),
             'canNotify'            => $this->aclCheck('new_all', 'Notifications_Controller', 'member'),
             'canExportRegistration'=> $this->aclCheck('view_all', 'Members_Controller', 'registration_export'),
