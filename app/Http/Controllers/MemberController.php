@@ -600,11 +600,32 @@ class MemberController extends Controller
             ->where('account_attribute_id', 221100)
             ->first(['id', 'balance']);
 
-        // Každý člen má historicky placeholder záznam s account_nr=NULL,
-        // bank_nr=NULL (vytvořený Kohanou při registraci). Skutečné účty
-        // přicházejí z FIO importu (vyšší id). Bereme proto nejnovější
-        // záznam, kde jsou obě pole vyplněná.
-        $bankAccount = DB::table('bank_accounts')
+        // Předvyplnit účet, na který se má vrátit přeplatek. Logika:
+        // 1) Vzít poslední bankovní platbu, která reálně přistála na kreditním
+        //    účtu PRÁVĚ TOHOTO člena (chain: dependent transfer → previous transfer
+        //    → bank_transfer.origin). To pokrývá případy, kdy má jeden plátce
+        //    v `bank_accounts` víc záznamů a jen některé reálně používal pro
+        //    tenhle členský účet (např. zvlášť pro type 2 vs type 90).
+        // 2) Pokud žádná taková platba neexistuje (např. nový člen bez plateb
+        //    nebo manuálně vložený kredit), fallback na nejnovější platný
+        //    `bank_accounts` záznam tohoto člena.
+        // 3) Pokud ani ten není, prázdné pole — admin vyplní ručně.
+        $lastFromAccount = DB::table('accounts AS a')
+            ->join('transfers AS t2',         't2.destination_id', '=', 'a.id')
+            ->join('transfers AS t1',         't1.id', '=', 't2.previous_transfer_id')
+            ->join('bank_transfers AS bt',    'bt.transfer_id', '=', 't1.id')
+            ->join('bank_accounts AS ba',     'ba.id', '=', 'bt.origin_id')
+            ->whereNull('bt.deleted_at')
+            ->where('a.member_id', $id)
+            ->where('a.account_attribute_id', 221100)
+            ->whereNotNull('ba.account_nr')
+            ->whereNotNull('ba.bank_nr')
+            ->where('ba.account_nr', '!=', '')
+            ->where('ba.bank_nr',    '!=', '')
+            ->orderByDesc('t2.datetime')
+            ->first(['ba.account_nr', 'ba.bank_nr']);
+
+        $bankAccount = $lastFromAccount ?: DB::table('bank_accounts')
             ->where('member_id', $id)
             ->whereNotNull('account_nr')
             ->whereNotNull('bank_nr')
