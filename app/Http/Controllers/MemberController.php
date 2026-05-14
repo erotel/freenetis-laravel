@@ -600,8 +600,17 @@ class MemberController extends Controller
             ->where('account_attribute_id', 221100)
             ->first(['id', 'balance']);
 
+        // Každý člen má historicky placeholder záznam s account_nr=NULL,
+        // bank_nr=NULL (vytvořený Kohanou při registraci). Skutečné účty
+        // přicházejí z FIO importu (vyšší id). Bereme proto nejnovější
+        // záznam, kde jsou obě pole vyplněná.
         $bankAccount = DB::table('bank_accounts')
             ->where('member_id', $id)
+            ->whereNotNull('account_nr')
+            ->whereNotNull('bank_nr')
+            ->where('account_nr', '!=', '')
+            ->where('bank_nr', '!=', '')
+            ->orderByDesc('id')
             ->first(['account_nr', 'bank_nr']);
 
         $refundAccount = $bankAccount
