@@ -359,8 +359,21 @@
             <span class="m-field-value">{{ $contact->value }}</span>
         </div>
         @endforeach
+        @if($mainUser->birthday)
+        <div class="m-field">
+            <span class="m-field-label">Datum narození</span>
+            <span class="m-field-value">{{ \Carbon\Carbon::parse($mainUser->birthday)->format('d.m.Y') }}</span>
+        </div>
+        @endif
         <div style="margin-top:6px;">
             <a class="m-link" href="{{ route('contacts.show_by_user', $mainUser->id) }}">Přidávání/editace kontaktů</a>
+        </div>
+    </div>
+    @elseif($mainUser->birthday)
+    <div style="padding-top:8px">
+        <div class="m-field">
+            <span class="m-field-label">Datum narození</span>
+            <span class="m-field-value">{{ \Carbon\Carbon::parse($mainUser->birthday)->format('d.m.Y') }}</span>
         </div>
     </div>
     @endif
