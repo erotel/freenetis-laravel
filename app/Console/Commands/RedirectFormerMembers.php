@@ -35,33 +35,98 @@ class RedirectFormerMembers extends Command
             $this->info("Marked {$updated} members as former (type=15).");
         }
 
-        // Step 2: Remove devices if auto-remove enabled
+        // Step 2: Auto-remove zařízení u členů, jejichž leaving_date právě uplynul.
+        // Nezávisíme na $updated z předchozího kroku (Step 1 přepíše jen members,
+        // co nejsou FORMER — admin co ukončil přes endMembership form má type=15/16
+        // už zaznamenaný, takže $updated=0 a původní gate to skipnul).
+        //
+        // Okno (today-7 days, today) limituje blast radius — kdyby admin teď
+        // zapnul auto-remove poprvé, nechceme retroaktivně smazat zařízení 2700+
+        // historických former členů. Cron běží denně, 7 dní zpětně je dostatečná
+        // rezerva pro vynechané běhy. Smazání je idempotentní (foreach po
+        // ifaces/devices), takže opakovaný běh nic nezpůsobí.
         $autoRemove = (bool) \App\Models\Setting::get('former_member_auto_device_remove', 0);
-        if ($autoRemove && $updated > 0) {
-            // Find newly marked former members' devices
+        if ($autoRemove) {
+            $sevenDaysAgo = now()->subDays(7)->format('Y-m-d');
+
             $memberIds = DB::table('members')
                 ->whereIn('type', self::FORMER_TYPES)
-                ->where('leaving_date', '<=', $today)
                 ->where('leaving_date', '!=', '9999-12-31')
                 ->where('leaving_date', '!=', '0000-00-00')
+                ->whereBetween('leaving_date', [$sevenDaysAgo, $today])
                 ->pluck('id');
 
+            $removed = 0;
             foreach ($memberIds as $memberId) {
+                // Sbírej IP adresy PŘED mazáním a zapiš je jako prefix do members.comment
+                // (stejný pattern jako endMembership: [YYYY-MM-DD] ip1,ip2,...).
+                // Bez tohoto kroku by se po mazání ztratila stopa, na kterých IP
+                // adresách bývalý člen byl — což admin občas potřebuje dohledat.
+                $ips1 = DB::table('ip_addresses')
+                    ->where('member_id', $memberId)
+                    ->whereNotNull('ip_address')
+                    ->pluck('ip_address');
+
+                $ips2 = DB::table('ip_addresses as ia')
+                    ->join('ifaces as i', 'i.id', '=', 'ia.iface_id')
+                    ->join('devices as d', 'd.id', '=', 'i.device_id')
+                    ->join('users as u', 'u.id', '=', 'd.user_id')
+                    ->where('u.member_id', $memberId)
+                    ->whereNotNull('ia.ip_address')
+                    ->pluck('ia.ip_address');
+
+                $ips = $ips1->merge($ips2)->unique()->sort()->values()->all();
+
+                if (!empty($ips)) {
+                    $prefix = "[{$today}] ";
+                    $maxLen = 250;
+                    $out    = $prefix;
+                    $shown  = 0;
+                    foreach ($ips as $ip) {
+                        $add = ($shown ? ',' : '') . $ip;
+                        if (strlen($out . $add) > $maxLen) break;
+                        $out .= $add;
+                        $shown++;
+                    }
+                    $rest = count($ips) - $shown;
+                    if ($rest > 0) {
+                        $suffix = " (+{$rest} další)";
+                        if (strlen($out . $suffix) > $maxLen) {
+                            $out = rtrim(substr($out, 0, max(0, $maxLen - strlen($suffix))), ', ');
+                        }
+                        $out .= $suffix;
+                    }
+                    DB::statement("
+                        UPDATE members
+                        SET comment = LEFT(
+                            CONCAT(?, IF(comment IS NULL OR comment = '', '', '\n'), IFNULL(comment, '')),
+                            250
+                        )
+                        WHERE id = ?
+                    ", [$out, $memberId]);
+                }
+
                 $userIds = DB::table('users')->where('member_id', $memberId)->pluck('id');
                 foreach ($userIds as $userId) {
                     $deviceIds = DB::table('devices')->where('user_id', $userId)->pluck('id');
                     foreach ($deviceIds as $deviceId) {
-                        // Remove IP addresses via ifaces
                         $ifaceIds = DB::table('ifaces')->where('device_id', $deviceId)->pluck('id');
                         foreach ($ifaceIds as $ifaceId) {
+                            DB::table('ip6_addresses')->where('iface_id', $ifaceId)->delete();
                             DB::table('ip_addresses')->where('iface_id', $ifaceId)->delete();
                         }
                         DB::table('ifaces')->where('device_id', $deviceId)->delete();
+                        $removed++;
                     }
                     DB::table('devices')->where('user_id', $userId)->delete();
                 }
+                // Smaž i ip_addresses napojené přímo na member_id (mimo ifaces)
+                DB::table('ip_addresses')->where('member_id', $memberId)->delete();
+                DB::table('subnets_owners')->where('member_id', $memberId)->delete();
             }
-            $this->info("Removed devices for former members (auto-remove enabled).");
+            if ($removed > 0) {
+                $this->info("Removed {$removed} devices for former members in window (last 7d).");
+            }
         }
 
         // Step 3: Get FORMER_MEMBER_MESSAGE (type=19)
@@ -71,9 +136,17 @@ class RedirectFormerMembers extends Command
             return 1;
         }
 
-        // Step 4: Get all former members with their IP addresses
+        // Step 4: Získat former členy, jejichž leaving_date už **uplynul**.
+        // Pokud admin ukončí s datem 14 dní v budoucnosti (např. dohrání služby
+        // do data odjezdu), member dostane type=15/16 hned, ale internet má
+        // dojet až do leaving_date — proto redirect aktivujeme až k datu.
+        // Sentinel hodnoty 9999-12-31 / 0000-00-00 znamenají "datum neurčeno"
+        // a takové členy raději nepřesměrováváme (defensive: admin to doplní).
         $formerMembers = DB::table('members as m')
             ->whereIn('m.type', self::FORMER_TYPES)
+            ->where('m.leaving_date', '<=', $today)
+            ->where('m.leaving_date', '!=', '9999-12-31')
+            ->where('m.leaving_date', '!=', '0000-00-00')
             ->pluck('m.id');
 
         // Step 5: Clear old redirections for this message
