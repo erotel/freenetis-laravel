@@ -5,6 +5,7 @@ namespace App\Services\Contracts;
 use App\Models\Contract;
 use App\Models\ContractEvent;
 use App\Models\Setting;
+use App\Services\KlikniavolejDriver;
 use App\Services\SmsManagerDriver;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
@@ -280,15 +281,31 @@ class OtpService
             return false;
         }
 
-        // Klíč číst podle aktivního driveru (sms_password{id}) — stejně jako
-        // cron SmsSend.php:123. Hardcoded 'sms_password5' (pozůstatek z času,
-        // kdy SmsManager měl id=5) klíč nenacházel a OTP SMS hned padaly.
-        // env() po config:cache vrací default — používáme config() jako fallback.
+        // Driver instantiate dynamicky podle Setting('sms_driver') — admin
+        // může mít aktivní KLIKNIAVOLEJ (id=3) nebo SMSMANAGER (id=5).
+        // Cron SmsSend.php má stejnou logiku (resolveDriver); OTP nemůže
+        // čekat na cron, proto se posílá synchronně tady.
         $driverId = (int) Setting::get('sms_driver', SmsManagerDriver::DRIVER_ID);
-        $apiKey   = (string) (Setting::get('sms_password' . $driverId) ?: config('services.sms.api_key', ''));
-        $sender   = (string) (Setting::get('sms_sender_number')        ?: config('services.sms.sender', ''));
-        if ($apiKey === '' || $sender === '') {
-            Log::warning("SMS skip: missing API key or sender (sms_password{$driverId} / sms_sender_number)");
+        $sender   = (string) (Setting::get('sms_sender_number') ?: config('services.sms.sender', ''));
+
+        $driver = null;
+        if ($driverId === SmsManagerDriver::DRIVER_ID) {
+            $apiKey = (string) (Setting::get('sms_password' . $driverId) ?: config('services.sms.api_key', ''));
+            if ($apiKey !== '') {
+                $driver = new SmsManagerDriver($apiKey);
+            }
+        } elseif ($driverId === KlikniavolejDriver::DRIVER_ID) {
+            $user     = (string) Setting::get('sms_user'     . $driverId, '');
+            $password = (string) Setting::get('sms_password' . $driverId, '');
+            if ($user !== '' && $password !== '') {
+                $hostname = (string) Setting::get('sms_hostname'  . $driverId, KlikniavolejDriver::DEFAULT_HOSTNAME);
+                $testMode = (bool)   Setting::get('sms_test_mode' . $driverId, 0);
+                $driver   = new KlikniavolejDriver($user, $password, $hostname, $testMode);
+            }
+        }
+
+        if ($driver === null || $sender === '') {
+            Log::warning("SMS skip: no usable driver (sms_driver={$driverId}) or missing sender");
             return false;
         }
 
@@ -299,14 +316,13 @@ class OtpService
             'text'      => mb_substr($text, 0, 800),
             'sender'    => mb_substr($sender, 0, 14),
             'receiver'  => mb_substr($to, 0, 14),
-            'driver'    => SmsManagerDriver::DRIVER_ID,
+            'driver'    => $driverId,
             'type'      => 1,            // SENT (outgoing)
             'state'     => 1,            // SENT_UNSENT (pending)
             'message'   => '',
         ]);
 
-        $driver = new SmsManagerDriver($apiKey);
-        $ok     = $driver->send($sender, $to, $text);
+        $ok = $driver->send($sender, $to, $text);
 
         DB::table('sms_messages')->where('id', $smsId)->update([
             'state'     => $ok ? 0 : 2,  // SENT_OK | SENT_FAILED
