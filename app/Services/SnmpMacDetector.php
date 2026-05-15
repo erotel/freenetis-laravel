@@ -46,6 +46,19 @@ class SnmpMacDetector
      */
     public function detect(string $gatewayIp, string $targetIp): ?string
     {
+        // Bez PHP-SNMP extension by níže snmp2_get vyhodilo fatal Error
+        // (ne \Exception, takže try/catch v isCompatible/getDhcpMac to
+        // nepokryje). Když je extension off, vrátíme null tiše — admin
+        // vyplní MAC ručně. Logujeme jen jednou za request přes static.
+        if (!function_exists('snmp2_get') || !function_exists('snmp2_real_walk')) {
+            static $warned = false;
+            if (!$warned) {
+                Log::warning('SNMP MAC detection skipped: PHP snmp extension not loaded');
+                $warned = true;
+            }
+            return null;
+        }
+
         if (!filter_var($gatewayIp, FILTER_VALIDATE_IP)
             || !filter_var($targetIp, FILTER_VALIDATE_IP)) {
             return null;
