@@ -280,11 +280,15 @@ class OtpService
             return false;
         }
 
-        // env() po config:cache vrací default — používáme config().
-        $apiKey = (string) (Setting::get('sms_password5')      ?: config('services.sms.api_key', ''));
-        $sender = (string) (Setting::get('sms_sender_number')  ?: config('services.sms.sender', ''));
+        // Klíč číst podle aktivního driveru (sms_password{id}) — stejně jako
+        // cron SmsSend.php:123. Hardcoded 'sms_password5' (pozůstatek z času,
+        // kdy SmsManager měl id=5) klíč nenacházel a OTP SMS hned padaly.
+        // env() po config:cache vrací default — používáme config() jako fallback.
+        $driverId = (int) Setting::get('sms_driver', SmsManagerDriver::DRIVER_ID);
+        $apiKey   = (string) (Setting::get('sms_password' . $driverId) ?: config('services.sms.api_key', ''));
+        $sender   = (string) (Setting::get('sms_sender_number')        ?: config('services.sms.sender', ''));
         if ($apiKey === '' || $sender === '') {
-            Log::warning('SMS skip: missing API key or sender (sms_password5 / sms_sender_number)');
+            Log::warning("SMS skip: missing API key or sender (sms_password{$driverId} / sms_sender_number)");
             return false;
         }
 
