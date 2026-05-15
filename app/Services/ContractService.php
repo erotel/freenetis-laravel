@@ -80,6 +80,15 @@ class ContractService
             'phone'       => $phone,
         ]);
 
+        // Birthday brát z users.birthday hlavního uživatele — PDF má fallback
+        // 'ico → birthday', takže bez něj zůstává buňka u fyzických osob prázdná.
+        $birthday = $mainUser?->birthday;
+        if ($birthday instanceof \DateTimeInterface) {
+            $birthday = $birthday->format('Y-m-d');
+        }
+        $birthday = (is_string($birthday) && $birthday !== '' && $birthday !== '0000-00-00')
+            ? $birthday : null;
+
         ContractParty::create([
             'contract_id'          => $contract->id,
             'full_name'            => $member->name,
@@ -92,6 +101,7 @@ class ContractService
             'country'              => 'CZ',
             'ico'                  => $member->organization_identifier,
             'dic'                  => $member->vat_organization_identifier,
+            'birthday'             => $birthday,
             'speed_name'           => $speedName,
             'variable_symbol'      => $vs,
             'price'                => 320.00,
