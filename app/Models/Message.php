@@ -23,6 +23,10 @@ class Message extends Model
     const RECEIVED_PAYMENT_NOTICE        = 8;
     const DEBTOR_MESSAGE_CLEN            = 25;
     const PAYMENT_NOTICE_MESSAGE_CLEN    = 26;
+    const CONTRACT_SIGN_LINK             = 28;
+    const CONTRACT_ADDON_SIGN_LINK       = 29;
+    const CONTRACT_SIGNED                = 30;
+    const CONTRACT_ADDON_SIGNED          = 31;
 
     // Self-cancel options
     const SELF_CANCEL_DISABLED = 0;
@@ -43,6 +47,10 @@ class Message extends Model
             self::RECEIVED_PAYMENT_NOTICE        => 'Přijatá platba',
             self::DEBTOR_MESSAGE_CLEN            => 'Dlužník (člen)',
             self::PAYMENT_NOTICE_MESSAGE_CLEN    => 'Nízký kredit (člen)',
+            self::CONTRACT_SIGN_LINK             => 'Smlouva — odkaz pro podpis',
+            self::CONTRACT_ADDON_SIGN_LINK       => 'Dodatek smlouvy — odkaz pro podpis',
+            self::CONTRACT_SIGNED                => 'Smlouva — po podpisu',
+            self::CONTRACT_ADDON_SIGNED          => 'Dodatek smlouvy — po podpisu',
             default                              => 'Systémová zpráva (typ ' . $type . ')',
         };
     }

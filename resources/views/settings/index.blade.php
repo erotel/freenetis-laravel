@@ -1009,51 +1009,10 @@ function gponOltReset() {
     </div>
 </div>
 
-<div class="m-card" style="margin-bottom:16px">
-    <div class="m-card-title">Email s odkazem pro podpis smlouvy</div>
-    <p class="m-form-hint" style="margin-bottom:12px">
-        Šablona emailu, který se zákazníkovi odešle z administrace ke smlouvě
-        (ContractService → <code>queueSignLinkEmail</code>). Zástupce <code>{url}</code>
-        se nahradí konkrétním odkazem pro podpis. Když pole necháte prázdné, použije
-        se vestavěná výchozí šablona. Dodatek smlouvy má vlastní (zatím hardcoded) text.
-    </p>
-
-    <div class="m-form-group">
-        <label class="m-form-label">Předmět</label>
-        <input class="m-form-input" type="text" name="contract_sign_link_email_subject"
-            value="{{ $smlouvySettings['contract_sign_link_email_subject'] }}">
-    </div>
-
-    <div class="m-form-group">
-        <label class="m-form-label">Tělo (HTML)</label>
-        <textarea class="m-form-input wysiwyg" name="contract_sign_link_email_body" rows="12">{{ $smlouvySettings['contract_sign_link_email_body'] }}</textarea>
-        <div class="m-form-hint">Použijte <code>{url}</code> pro vložení odkazu — bez něj zákazník neuvidí podpisový link.</div>
-    </div>
-</div>
-
 <div class="m-actions">
     <button class="m-btn m-btn-primary" type="submit">Uložit nastavení smluv</button>
 </div>
 </form>
-
-{{-- TinyMCE 7 — stejná init jako tab Registrace --}}
-<script src="https://cdn.jsdelivr.net/npm/tinymce@7/tinymce.min.js" referrerpolicy="origin"></script>
-<script>
-tinymce.init({
-    selector: 'textarea.wysiwyg',
-    license_key: 'gpl',
-    height: 360,
-    menubar: false,
-    branding: false,
-    promotion: false,
-    language: 'cs',
-    language_url: 'https://cdn.jsdelivr.net/npm/tinymce-i18n@latest/langs7/cs.js',
-    convert_urls: false,
-    entity_encoding: 'raw',
-    plugins: 'lists link image table code fullscreen searchreplace charmap',
-    toolbar: 'undo redo | styles | bold italic underline strikethrough | alignleft aligncenter alignright | bullist numlist | link image table charmap | searchreplace code fullscreen',
-});
-</script>
 @endif
 
 @if($activeTab === 'sledovanitv')

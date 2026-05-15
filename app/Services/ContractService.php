@@ -7,6 +7,7 @@ use App\Models\ContractEvent;
 use App\Models\ContractParty;
 use App\Models\EmailQueue;
 use App\Models\Member;
+use App\Models\Message;
 use App\Models\Setting;
 use App\Models\User;
 use Illuminate\Support\Facades\DB;
@@ -215,35 +216,24 @@ class ContractService
             return null;
         }
 
-        $urlHtml = htmlspecialchars($url, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+        // Šablonu načítáme ze systémové zprávy (messages tabulka) — admin ji
+        // edituje v UI Sdělení. Když řádek chybí (např. nezaběhla migrace),
+        // padá na hardcoded fallback, aby podpisový flow nikdy neztichnul.
+        $type = $isAddon ? Message::CONTRACT_ADDON_SIGN_LINK : Message::CONTRACT_SIGN_LINK;
+        $tpl  = Message::where('type', $type)->first();
 
-        if ($isAddon) {
-            // Dodatek smlouvy — zatím hardcoded, samostatná šablona není v Nastavení.
-            $subject = 'Odkaz pro podpis dodatku smlouvy - PVfree.net';
+        if ($tpl && trim((string) $tpl->email_text) !== '') {
+            $body    = Message::substitute($tpl->email_text, ['url' => $url]);
+            $subject = $this->buildSubject($tpl->name);
+        } else {
+            $urlHtml = htmlspecialchars($url, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+            $what    = $isAddon ? 'dodatku smlouvy' : 'smlouvy';
+            $subject = $this->buildSubject('Odkaz pro podpis ' . $what);
             $body = '<p>Dobrý den,</p>'
-                . '<p>zasíláme Vám odkaz pro elektronický podpis dodatku smlouvy:</p>'
+                . '<p>zasíláme Vám odkaz pro elektronický podpis ' . $what . ':</p>'
                 . '<p><a href="' . $urlHtml . '">' . $urlHtml . '</a></p>'
                 . '<p>Odkaz je platný 7 dní.</p>'
                 . '<p>S pozdravem<br>PVfree.net</p>';
-        } else {
-            // Šablonu načítáme z Nastavení → Smlouvy. Když je pole prázdné,
-            // padá to na výchozí text z SettingController konstant.
-            $subjectTpl = (string) Setting::get(
-                'contract_sign_link_email_subject',
-                \App\Http\Controllers\SettingController::CONTRACT_SIGN_LINK_EMAIL_DEFAULT_SUBJECT
-            );
-            $bodyTpl = (string) Setting::get(
-                'contract_sign_link_email_body',
-                \App\Http\Controllers\SettingController::CONTRACT_SIGN_LINK_EMAIL_DEFAULT_BODY
-            );
-            if (trim($subjectTpl) === '') {
-                $subjectTpl = \App\Http\Controllers\SettingController::CONTRACT_SIGN_LINK_EMAIL_DEFAULT_SUBJECT;
-            }
-            if (trim($bodyTpl) === '') {
-                $bodyTpl = \App\Http\Controllers\SettingController::CONTRACT_SIGN_LINK_EMAIL_DEFAULT_BODY;
-            }
-            $subject = strtr($subjectTpl, ['{url}' => $url]);
-            $body    = strtr($bodyTpl,    ['{url}' => $urlHtml]);
         }
 
         try {
@@ -361,6 +351,16 @@ class ContractService
     }
 
     // ── Private helpers ─────────────────────────────────────────────────────
+
+    /**
+     * Build the email subject using the same prefix pattern as Controller::sendMessageToMember,
+     * so that contract emails match the rest of the system ("PREFIX :: Subject").
+     */
+    private function buildSubject(string $name): string
+    {
+        $prefix = (string) Setting::get('email_subject_prefix', '');
+        return ($prefix !== '' ? $prefix . ' :: ' : '') . $name;
+    }
 
     private function generateContractNo(): string
     {

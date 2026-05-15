@@ -68,16 +68,7 @@ class SettingController extends Controller
         'pdf_sign_cert', 'pdf_sign_pass', 'pdf_sign_name', 'pdf_sign_location', 'pdf_sign_reason',
         'contract_email_attachments_enabled',
         'contract_email_pricelist_pdf', 'contract_email_vop_pdf',
-        'contract_sign_link_email_subject', 'contract_sign_link_email_body',
     ];
-
-    public const CONTRACT_SIGN_LINK_EMAIL_DEFAULT_SUBJECT = 'Odkaz pro podpis smlouvy - PVfree.net';
-
-    public const CONTRACT_SIGN_LINK_EMAIL_DEFAULT_BODY = '<p>Dobrý den,</p>'
-        . '<p>zasíláme Vám odkaz pro elektronický podpis smlouvy:</p>'
-        . '<p><a href="{url}">{url}</a></p>'
-        . '<p>Odkaz je platný 7 dní.</p>'
-        . '<p>S pozdravem<br>PVfree.net</p>';
 
     public const SLEDOVANITV_KEYS = [
         'sledovanitv_enabled', 'sledovanitv_partner', 'sledovanitv_password',
@@ -238,8 +229,6 @@ class SettingController extends Controller
             'contract_email_attachments_enabled' => '0',
             'contract_email_pricelist_pdf'       => 'storage/app/private/contract-attachments/cenik.pdf',
             'contract_email_vop_pdf'             => 'storage/app/private/contract-attachments/vop.pdf',
-            'contract_sign_link_email_subject'   => self::CONTRACT_SIGN_LINK_EMAIL_DEFAULT_SUBJECT,
-            'contract_sign_link_email_body'      => self::CONTRACT_SIGN_LINK_EMAIL_DEFAULT_BODY,
         ];
         $smlouvySettings = [];
         foreach (self::SMLOUVY_KEYS as $key) {
@@ -464,8 +453,6 @@ class SettingController extends Controller
             'pdf_sign_reason'              => 'nullable|string|max:200',
             'contract_email_pricelist_pdf' => 'nullable|string|max:255',
             'contract_email_vop_pdf'       => 'nullable|string|max:255',
-            'contract_sign_link_email_subject' => 'nullable|string|max:255',
-            'contract_sign_link_email_body'    => 'nullable|string|max:20000',
             // Uploady: PFX (~ pár kB) a PDF (do 10 MB)
             'pdf_sign_cert_file'                => 'nullable|file|max:1024|extensions:pfx,p12',
             'contract_email_pricelist_pdf_file' => 'nullable|file|max:10240|mimes:pdf',
@@ -500,8 +487,7 @@ class SettingController extends Controller
         // Plain string fields — empty input clears the value
         foreach (['otp_ttl_min', 'otp_max_attempts', 'otp_resend_window_sec', 'otp_test_code',
                   'pdf_sign_cert', 'pdf_sign_name', 'pdf_sign_location', 'pdf_sign_reason',
-                  'contract_email_pricelist_pdf', 'contract_email_vop_pdf',
-                  'contract_sign_link_email_subject', 'contract_sign_link_email_body'] as $key) {
+                  'contract_email_pricelist_pdf', 'contract_email_vop_pdf'] as $key) {
             Setting::set($key, (string) $request->input($key, ''));
         }
 

@@ -9,6 +9,7 @@ use App\Models\ContractParty;
 use App\Models\EmailQueue;
 use App\Models\EmailQueueAttachment;
 use App\Models\Member;
+use App\Models\Message;
 use App\Models\Setting;
 use App\Services\Contracts\OtpService;
 use App\Services\Contracts\PdfService;
@@ -241,16 +242,22 @@ class PublicSignController extends Controller
         }
 
         try {
-            $contractNo = htmlspecialchars((string) $contract->contract_no, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
-            $emailQueue = EmailQueue::create([
-                'from'    => Setting::get('email_default_email', 'noreply@pvfree.net'),
-                'to'      => $email,
-                'subject' => 'Podepsaná smlouva ' . $contract->contract_no . ' - PVfree.net',
-                'body'    => '<p>Dobrý den,</p>'
-                    . '<p>v příloze Vám zasíláme podepsanou smlouvu <strong>' . $contractNo . '</strong>'
+            [$subject, $body] = $this->renderContractEmail(
+                Message::CONTRACT_SIGNED,
+                (string) $contract->contract_no,
+                fn(string $contractNoHtml) => 'Podepsaná smlouva ' . $contract->contract_no . ' - PVfree.net',
+                fn(string $contractNoHtml) => '<p>Dobrý den,</p>'
+                    . '<p>v příloze Vám zasíláme podepsanou smlouvu <strong>' . $contractNoHtml . '</strong>'
                     . ', ceník služeb a Všeobecné obchodní podmínky.</p>'
                     . '<p>Dokumenty si prosím uschovejte pro svoji evidenci.</p>'
-                    . '<p>S pozdravem,<br>PVfree.net, z.s.</p>',
+                    . '<p>S pozdravem,<br>PVfree.net, z.s.</p>'
+            );
+
+            $emailQueue = EmailQueue::create([
+                'from'        => Setting::get('email_default_email', 'noreply@pvfree.net'),
+                'to'          => $email,
+                'subject'     => $subject,
+                'body'        => $body,
                 'state'       => EmailQueue::STATE_NEW,
                 'access_time' => now(),
             ]);
@@ -279,6 +286,29 @@ class PublicSignController extends Controller
     }
 
     /**
+     * Resolve the email subject + body for a contract-related message type.
+     * Loads the admin-editable template from messages table; if missing/empty,
+     * falls back to the hardcoded $subjectFallback / $bodyFallback closures
+     * (both receive HTML-escaped contract_no). Supports {contract_no} placeholder.
+     *
+     * @return array{0:string,1:string} [subject, body]
+     */
+    private function renderContractEmail(int $type, string $contractNo, \Closure $subjectFallback, \Closure $bodyFallback): array
+    {
+        $contractNoHtml = htmlspecialchars($contractNo, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+        $tpl = Message::where('type', $type)->first();
+
+        if ($tpl && trim((string) $tpl->email_text) !== '') {
+            $prefix  = (string) Setting::get('email_subject_prefix', '');
+            $subject = ($prefix !== '' ? $prefix . ' :: ' : '') . $tpl->name;
+            $body    = Message::substitute($tpl->email_text, ['contract_no' => $contractNo]);
+            return [$subject, $body];
+        }
+
+        return [$subjectFallback($contractNoHtml), $bodyFallback($contractNoHtml)];
+    }
+
+    /**
      * Queue an email to the customer with the signed addon attached.
      * Silently no-op if no email on file or addon PDF missing.
      */
@@ -296,15 +326,21 @@ class PublicSignController extends Controller
         }
 
         try {
-            $contractNo = htmlspecialchars((string) $contract->contract_no, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
-            $emailQueue = EmailQueue::create([
-                'from'    => Setting::get('email_default_email', 'noreply@pvfree.net'),
-                'to'      => $email,
-                'subject' => 'Podepsaný dodatek ke smlouvě ' . $contract->contract_no . ' - PVfree.net',
-                'body'    => '<p>Dobrý den,</p>'
-                    . '<p>v příloze Vám zasíláme podepsaný dodatek ke smlouvě <strong>' . $contractNo . '</strong>.</p>'
+            [$subject, $body] = $this->renderContractEmail(
+                Message::CONTRACT_ADDON_SIGNED,
+                (string) $contract->contract_no,
+                fn(string $contractNoHtml) => 'Podepsaný dodatek ke smlouvě ' . $contract->contract_no . ' - PVfree.net',
+                fn(string $contractNoHtml) => '<p>Dobrý den,</p>'
+                    . '<p>v příloze Vám zasíláme podepsaný dodatek ke smlouvě <strong>' . $contractNoHtml . '</strong>.</p>'
                     . '<p>Dokument si prosím uschovejte pro svoji evidenci.</p>'
-                    . '<p>S pozdravem,<br>PVfree.net, z.s.</p>',
+                    . '<p>S pozdravem,<br>PVfree.net, z.s.</p>'
+            );
+
+            $emailQueue = EmailQueue::create([
+                'from'        => Setting::get('email_default_email', 'noreply@pvfree.net'),
+                'to'          => $email,
+                'subject'     => $subject,
+                'body'        => $body,
                 'state'       => EmailQueue::STATE_NEW,
                 'access_time' => now(),
             ]);
