@@ -35,6 +35,22 @@ class RedirectFormerMembers extends Command
             $this->info("Marked {$updated} members as former (type=15).");
         }
 
+        // Zamknout členy, kteří byli ukončeni s budoucím datem (type už je
+        // FORMER, ale locked=0, protože endMembership zamyká jen pokud datum
+        // už nastalo). V den D je tady dorovnáme.
+        $locked = DB::table('members')
+            ->whereIn('type', self::FORMER_TYPES)
+            ->where('locked', 0)
+            ->whereNotNull('leaving_date')
+            ->where('leaving_date', '!=', '9999-12-31')
+            ->where('leaving_date', '!=', '0000-00-00')
+            ->where('leaving_date', '<=', $today)
+            ->update(['locked' => 1]);
+
+        if ($locked > 0) {
+            $this->info("Locked {$locked} former members whose leaving_date arrived.");
+        }
+
         // Step 2: Auto-remove zařízení u členů, jejichž leaving_date právě uplynul.
         // Nezávisíme na $updated z předchozího kroku (Step 1 přepíše jen members,
         // co nejsou FORMER — admin co ukončil přes endMembership form má type=15/16

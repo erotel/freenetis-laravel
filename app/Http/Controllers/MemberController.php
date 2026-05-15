@@ -678,10 +678,17 @@ class MemberController extends Controller
             }
         }
 
-        DB::transaction(function () use ($id, $member, $newType, $validated, $endMode) {
+        // Zamknout přihlášení do portálu jen pokud leaving_date už nastalo.
+        // Pro budoucí datum (typicky "dohrání služby do data odjezdu") nechat
+        // locked=0 — cron RedirectFormerMembers zamkne v den D, stejně jako
+        // aktivuje redirect internetu a smazání zařízení. Pattern viz Kohana
+        // members.php:4076 (if leaving_date <= today { locked = 1 }).
+        $lockNow = $validated['leaving_date'] <= now()->format('Y-m-d') ? 1 : 0;
+
+        DB::transaction(function () use ($id, $member, $newType, $validated, $endMode, $lockNow) {
             DB::table('members')->where('id', $id)->update([
                 'type'         => $newType,
-                'locked'       => 1,
+                'locked'       => $lockNow,
                 'leaving_date' => $validated['leaving_date'],
             ]);
 
