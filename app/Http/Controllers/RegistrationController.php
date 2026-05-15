@@ -125,7 +125,7 @@ class RegistrationController extends Controller
             ]);
 
             $phoneContactId = DB::table('contacts')->insertGetId([
-                'type'  => 5,
+                'type'  => 21, // CONTACT_PHONE (enum_types.id=21 = "Telefon")
                 'value' => $validated['phone'],
             ]);
             DB::table('users_contacts')->insert([
