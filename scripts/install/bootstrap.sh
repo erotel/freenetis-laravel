@@ -7,10 +7,11 @@
 # Použití:
 #   curl -fsSL https://raw.githubusercontent.com/erotel/freenetis-laravel/laravel-migration/scripts/install/bootstrap.sh | sudo bash
 #
-# Volitelně:
-#   REPO_BRANCH=jina-vetev  curl ... | sudo bash
-#   APP_DIR=/srv/freenetis  curl ... | sudo bash
-#   SKIP_PHASE_2=1          curl ... | sudo bash    # jen systémové balíčky, 02 spustíš ručně
+# Volitelně — env proměnné je nutné předat až sudo bashi (před curl by je
+# pipa zahodila a sudo navíc env defaultně filtruje):
+#   curl ... | sudo REPO_BRANCH=jina-vetev bash
+#   curl ... | sudo APP_DIR=/srv/freenetis bash
+#   curl ... | sudo SKIP_PHASE_2=1 bash             # jen systémové balíčky, 02 spustíš ručně
 
 set -euo pipefail
 

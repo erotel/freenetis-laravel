@@ -25,10 +25,10 @@ Bootstrap zařídí git, naklonuje repo přímo do `/var/www/html/freenetis-lara
 spustí 01 (systémové balíčky) a 02 (interaktivní konfigurace s otázkami na doménu,
 e-mail pro Let's Encrypt, …). 02 čte vstup z `/dev/tty`, takže `curl | bash` funguje.
 
-ENV overrides:
+ENV overrides — proměnné je nutné předat až `sudo bash` (před `curl` by se neprošlapaly pipou):
 ```bash
-REPO_BRANCH=jina-vetev APP_DIR=/srv/freenetis SKIP_PHASE_2=1 \
-    curl -fsSL https://raw.githubusercontent.com/erotel/freenetis-laravel/laravel-migration/scripts/install/bootstrap.sh | sudo bash
+curl -fsSL https://raw.githubusercontent.com/erotel/freenetis-laravel/laravel-migration/scripts/install/bootstrap.sh \
+    | sudo REPO_BRANCH=jina-vetev APP_DIR=/srv/freenetis SKIP_PHASE_2=1 bash
 ```
 
 ### Varianta B — manuální (žádný stažený third-party skript)
