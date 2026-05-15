@@ -215,17 +215,36 @@ class ContractService
             return null;
         }
 
-        $subject = $isAddon
-            ? 'Odkaz pro podpis dodatku smlouvy - PVfree.net'
-            : 'Odkaz pro podpis smlouvy - PVfree.net';
-
-        $what    = $isAddon ? 'dodatku smlouvy' : 'smlouvy';
         $urlHtml = htmlspecialchars($url, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
-        $body = '<p>Dobrý den,</p>'
-            . '<p>zasíláme Vám odkaz pro elektronický podpis ' . $what . ':</p>'
-            . '<p><a href="' . $urlHtml . '">' . $urlHtml . '</a></p>'
-            . '<p>Odkaz je platný 7 dní.</p>'
-            . '<p>S pozdravem<br>PVfree.net</p>';
+
+        if ($isAddon) {
+            // Dodatek smlouvy — zatím hardcoded, samostatná šablona není v Nastavení.
+            $subject = 'Odkaz pro podpis dodatku smlouvy - PVfree.net';
+            $body = '<p>Dobrý den,</p>'
+                . '<p>zasíláme Vám odkaz pro elektronický podpis dodatku smlouvy:</p>'
+                . '<p><a href="' . $urlHtml . '">' . $urlHtml . '</a></p>'
+                . '<p>Odkaz je platný 7 dní.</p>'
+                . '<p>S pozdravem<br>PVfree.net</p>';
+        } else {
+            // Šablonu načítáme z Nastavení → Smlouvy. Když je pole prázdné,
+            // padá to na výchozí text z SettingController konstant.
+            $subjectTpl = (string) Setting::get(
+                'contract_sign_link_email_subject',
+                \App\Http\Controllers\SettingController::CONTRACT_SIGN_LINK_EMAIL_DEFAULT_SUBJECT
+            );
+            $bodyTpl = (string) Setting::get(
+                'contract_sign_link_email_body',
+                \App\Http\Controllers\SettingController::CONTRACT_SIGN_LINK_EMAIL_DEFAULT_BODY
+            );
+            if (trim($subjectTpl) === '') {
+                $subjectTpl = \App\Http\Controllers\SettingController::CONTRACT_SIGN_LINK_EMAIL_DEFAULT_SUBJECT;
+            }
+            if (trim($bodyTpl) === '') {
+                $bodyTpl = \App\Http\Controllers\SettingController::CONTRACT_SIGN_LINK_EMAIL_DEFAULT_BODY;
+            }
+            $subject = strtr($subjectTpl, ['{url}' => $url]);
+            $body    = strtr($bodyTpl,    ['{url}' => $urlHtml]);
+        }
 
         try {
             EmailQueue::create([
