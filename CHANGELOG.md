@@ -6,6 +6,54 @@ formát podle [Keep a Changelog](https://keepachangelog.com/cs/1.1.0/).
 Verzi v souboru `config/version.php` bumpni samostatným commitem `chore: bump version to X.Y.Z`,
 ať lze changelog snadno regenerovat přes `git log vX..vY --oneline`.
 
+## [2.1.4] — 2026-05-15
+
+### Fixed
+- **OTP SMS na podpisové stránce smlouvy nešla odeslat** — `OtpService::sendSms`
+  byl natvrdo na `SmsManagerDriver` + četl klíč z `sms_password5`, jenže
+  na produkci je aktivní KlikniaVolej (driver id=3) s klíčem v `sms_password3`.
+  Klikniavolej heslo se posílalo jako `x-api-key` na SmsManager API a vracelo
+  „Access denied". Driver se teď instanciuje podle `Setting('sms_driver')`
+  (KLIKNIAVOLEJ=3 nebo SMSMANAGER=5), stejně jako cron `SmsSend.php:113`
+  ([OtpService.php:283](app/Services/Contracts/OtpService.php#L283)).
+- **Datum narození chybělo v PDF smlouvy u fyzických osob** —
+  `ContractService::createContract` neukládal `birthday` do `contract_parties`.
+  PdfService má fallback `ico → birthday`, takže firma s IČO se v PDF vyplnila,
+  ale FO s datem narození měla buňku „Datum narození (IČO, DIČ):" prázdnou.
+  Birthday se teď bere z `users.birthday` hlavního uživatele
+  ([ContractService.php:83](app/Services/ContractService.php#L83)).
+- **U nově registrovaných zákazníků se telefon zobrazoval s labelem „Nečlen"** —
+  `RegistrationController` v self-registraci ukládal `contacts.type=5`, což
+  v `enum_types` odpovídá row id=5 = „Nečlen" (member type, ne contact type).
+  Mělo být 21 = „Telefon" (jako v adminském `MemberController.php:364`).
+  Doplněna migrace, která dorovná historické řádky
+  (`contacts.type=5 → 21`) a přejmenuje `enum_types.id=21` z „Phone" na „Telefon"
+  (na dev DB ručně mimo commit, na produkci čekalo).
+- **SNMP MAC detector** při registraci nového zařízení vyhazoval fatal Error,
+  pokud chyběla PHP extension `snmp` — existující try/catch chytal jen `\Exception`,
+  ne `\Error` z `Call to undefined function snmp2_get()`. Přidána defenzivní
+  kontrola `function_exists`; bez extension se vrátí `null` (admin vyplní MAC
+  ručně), do logu jednou za request warning
+  ([SnmpMacDetector.php:47](app/Services/SnmpMacDetector.php#L47)).
+
+### Added
+- **Šablony smluvních emailů jako systémové zprávy** (typy 28–31 v `messages`
+  tabulce) — admin je edituje v UI Sdělení stejným TinyMCE editorem jako
+  „Žádost o členství schválena" atd. Nahrazuje hardcoded texty ve dvou
+  místech (`ContractService::queueSignLinkEmail` + `PublicSignController`
+  post-sign emaily). Typy:
+  `28` Smlouva — odkaz pro podpis (placeholder `{url}`),
+  `29` Dodatek smlouvy — odkaz pro podpis (`{url}`),
+  `30` Smlouva — po podpisu (`{contract_no}`),
+  `31` Dodatek smlouvy — po podpisu (`{contract_no}`).
+  Pokud řádek v `messages` chybí nebo má prázdné `email_text`, padá to na
+  původní hardcoded text — žádný silent failure podpisového flow.
+
+### Docs
+- README ENV override one-liner instalace měl chybný tvar
+  (`VAR=… curl … | sudo bash` — proměnné se k bootstrap.sh nedostaly).
+  Opraveno: `curl … | sudo VAR=… bash`. Ověřeno smoke testem.
+
 ## [2.1.3] — 2026-05-15
 
 ### Fixed
