@@ -6,6 +6,34 @@ formát podle [Keep a Changelog](https://keepachangelog.com/cs/1.1.0/).
 Verzi v souboru `config/version.php` bumpni samostatným commitem `chore: bump version to X.Y.Z`,
 ať lze changelog snadno regenerovat přes `git log vX..vY --oneline`.
 
+## [2.1.3] — 2026-05-15
+
+### Fixed
+- **End-membership** zamykal `members.locked=1` okamžitě, i když admin nastavil
+  `leaving_date` v budoucnosti — člen ztratil přístup do portálu hned, ačkoliv
+  mu internet ještě dojížděl do data odjezdu. Sjednoceno s redirectem internetu
+  i auto-mazáním zařízení: `locked` se nastaví jen pokud `leaving_date <= dnes`,
+  jinak ho v den D dorovná cron `members:redirect-former`
+  ([MemberController.php:686](app/Http/Controllers/MemberController.php#L686),
+  [RedirectFormerMembers.php:38](app/Console/Commands/RedirectFormerMembers.php#L38)).
+  Pattern mirrors legacy Kohana `members.php:4076`.
+- **Former members cron** — trojice bugů kolem budoucího `leaving_date`:
+  Step 4 (aktivace redirectu) bral všechny FORMER bez ohledu na datum —
+  doplněna podmínka `leaving_date <= today` + guard na sentinely
+  `9999-12-31` / `0000-00-00`. Step 2 (auto-remove devices) byl gated na
+  `$updated > 0`, takže pro členy ukončené přes `endMembership` form
+  (už FORMER, `$updated=0`) se zařízení nikdy nesmazala — gate odstraněn,
+  místo toho okno `BETWEEN today-7d AND today` (limituje blast radius
+  retroaktivního smazání). Auto-remove navíc nepsal IP do `members.comment`
+  jako endMembership form — doplněn stejný `[YYYY-MM-DD] ip1,ip2,…` prefix
+  + mazání `ip6_addresses`, `ip_addresses` (`member_id` direct) a `subnets_owners`.
+
+### Added
+- **Nastavení → Registrace**: TinyMCE 7 WYSIWYG pro `registration_info`
+  a `registration_license` (texty v PDF registrace). Předtím šly upravit
+  jen přímo v DB. `SettingController::updateRegistration`, route
+  `PUT /settings/registration`, stejná TinyMCE config jako `messages/_form`.
+
 ## [2.1.2] — 2026-05-14
 
 ### Fixed
