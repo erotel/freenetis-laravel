@@ -20,6 +20,7 @@ return Application::configure(basePath: dirname(__DIR__))
         // se token soubor smaže a middleware je trvale no-op.
         $middleware->web(append: [
             \App\Http\Middleware\EnsureSetupComplete::class,
+            \App\Http\Middleware\EnableDebugForAdmins::class,
         ]);
         // Public sign endpoints are token-gated and serve cross-origin clients,
         // so they cannot rely on the session-bound CSRF token.

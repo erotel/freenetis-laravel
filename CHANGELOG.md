@@ -6,6 +6,27 @@ formát podle [Keep a Changelog](https://keepachangelog.com/cs/1.1.0/).
 Verzi v souboru `config/version.php` bumpni samostatným commitem `chore: bump version to X.Y.Z`,
 ať lze changelog snadno regenerovat přes `git log vX..vY --oneline`.
 
+## [2.1.6] — 2026-05-16
+
+### Changed
+- **Login IP throttle z 5/min na 10/min** — `routes/web.php:101`
+  `throttle:5,1` → `throttle:10,1`. Kanceláře se sdílenou veřejnou IP
+  (NAT, několik lidí současně) trefovaly limit při běžném používání.
+  Per-username throttle (10 neúspěšných pokusů / 5 min) zůstává
+  beze změny — pořád chrání proti distributed brute-force.
+
+### Added
+- **Debug mód pro adminy přes ACL** — místo globálního `APP_DEBUG=true`
+  v `.env` (které leakne stack trace + ENV + SQL všem) je teď debug
+  zapínán per-request middlewarem `EnableDebugForAdmins`, pokud má
+  přihlášený uživatel ACL právo `Debug_Controller#debug view_all`.
+  Default přiřazení: skupina **System administrators** (group_id=32).
+  Admin si může v ACL panelu přidat/odebrat toto právo dalším skupinám
+  bez deploye nebo .env úprav. Migrace
+  `2026_05_16_155257_add_debug_acl.php` vytvoří axo + acl + mapy
+  ([EnableDebugForAdmins.php](app/Http/Middleware/EnableDebugForAdmins.php),
+  [bootstrap/app.php](bootstrap/app.php#L18)).
+
 ## [2.1.5] — 2026-05-16
 
 ### Fixed

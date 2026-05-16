@@ -98,7 +98,7 @@ foreach (['cs', 'en', 'sk'] as $lang) {
 
 // Login / logout
 Route::get('/login', [LoginController::class, 'showLoginForm'])->name('login')->middleware('guest');
-Route::post('/login', [LoginController::class, 'login'])->middleware(['guest', 'throttle:5,1']);
+Route::post('/login', [LoginController::class, 'login'])->middleware(['guest', 'throttle:10,1']);
 Route::post('/logout', [LoginController::class, 'logout'])->name('logout')->middleware('auth');
 
 // Public self-registration (guest only)

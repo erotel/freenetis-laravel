@@ -12,7 +12,7 @@ use Illuminate\View\View;
 
 class LoginController extends Controller
 {
-    /** Per-username limit (komplementuje IP throttle:5,1 v routes/web.php) */
+    /** Per-username limit (komplementuje IP throttle:10,1 v routes/web.php) */
     private const LOGIN_MAX_ATTEMPTS = 10;
     private const LOGIN_DECAY_SECONDS = 300; // 5 min
 
