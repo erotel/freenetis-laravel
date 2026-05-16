@@ -6,6 +6,33 @@ formát podle [Keep a Changelog](https://keepachangelog.com/cs/1.1.0/).
 Verzi v souboru `config/version.php` bumpni samostatným commitem `chore: bump version to X.Y.Z`,
 ať lze changelog snadno regenerovat přes `git log vX..vY --oneline`.
 
+## [2.1.5] — 2026-05-16
+
+### Fixed
+- **SNMP detekce MAC adresy nefungovala na Huawei S6720** —
+  `SnmpMacDetector::isCompatible` parsoval sysDescr regexem
+  `/STRING: "?(.*?)"?\s*$/` bez `s` (dotall) modifikátoru. Huawei VRP
+  vrací sysDescr na 4 řádcích (`S6720-30C-EI-24S-AC\nHuawei Versatile
+  Routing Platform Software\n VRP (R) software,Version 5.170 …`),
+  `.` newliny defaultně nematchuje → match selhal → `linux` driver se
+  ani neaktivoval. Mikrotik (jednořádkový `RouterOS 6.x`) tím nebyl
+  postižen, takže to vypadalo, že SNMP funguje. Regex teď používá flag
+  `s`, detekce `linux` driveru navíc rozpozná `Huawei` / `VRP` /
+  `S6720` substringem. ARP walk nově preferuje moderní
+  `ipNetToMediaPhysAddress` (`1.3.6.1.2.1.4.22.1.2`, RFC 4293) a
+  deprecated `atPhysAddress` (`1.3.6.1.2.1.3.1.1.2`, RFC 826) je jen
+  fallback pro starší Linuxy
+  ([SnmpMacDetector.php:118](app/Services/SnmpMacDetector.php#L118)).
+- **Stránka detailu subnetu (`/subnets/{id}`) padala s `ParseError`** —
+  inline pattern `@else Ne@endif` v `subnets/show.blade.php` a
+  `device_templates/show.blade.php` se nekompiloval správně. Laravel
+  Blade používá regex `\B@…` pro detekci direktiv, který nematchuje
+  `@endif` přilepené k slovu (`Ne@endif`), ale následný
+  `replaceFirstStatement` pak přes `strpos` chybně spotřebuje sousední
+  standalone `@endif`. Výsledný kompilát končil literálním `@endif`,
+  což PHP odmítlo s „unexpected end of file". Doplněn jediný znak
+  mezery: `Ne @endif` (5× ve 2 souborech).
+
 ## [2.1.4] — 2026-05-15
 
 ### Fixed

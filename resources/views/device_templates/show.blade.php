@@ -29,7 +29,7 @@
         <div class="m-field"><span class="m-field-label">Typ zařízení</span><span class="m-field-value">{{ $template->enumType?->value ?? '—' }}</span></div>
         <div class="m-field">
             <span class="m-field-label">Výchozí pro typ</span>
-            <span class="m-field-value">@if($template->default)<span class="m-tag m-tag-green">Ano</span>@else Ne@endif</span>
+            <span class="m-field-value">@if($template->default)<span class="m-tag m-tag-green">Ano</span>@else Ne @endif</span>
         </div>
     </div>
     <div></div>

@@ -30,24 +30,24 @@
     @if($showDhcp)
     <div class="m-field">
         <span class="m-field-label">DHCP</span>
-        <span class="m-field-value">@if($subnet->dhcp)<span class="m-tag m-tag-green">Ano</span>@else Ne@endif</span>
+        <span class="m-field-value">@if($subnet->dhcp)<span class="m-tag m-tag-green">Ano</span>@else Ne @endif</span>
     </div>
     @endif
     @if($showDns)
     <div class="m-field">
         <span class="m-field-label">DNS</span>
-        <span class="m-field-value">@if($subnet->dns)<span class="m-tag m-tag-green">Ano</span>@else Ne@endif</span>
+        <span class="m-field-value">@if($subnet->dns)<span class="m-tag m-tag-green">Ano</span>@else Ne @endif</span>
     </div>
     @endif
     @if($showQos)
     <div class="m-field">
         <span class="m-field-label">QoS</span>
-        <span class="m-field-value">@if($subnet->qos)<span class="m-tag m-tag-blue">Ano</span>@else Ne@endif</span>
+        <span class="m-field-value">@if($subnet->qos)<span class="m-tag m-tag-blue">Ano</span>@else Ne @endif</span>
     </div>
     @endif
     <div class="m-field">
         <span class="m-field-label">Redirect</span>
-        <span class="m-field-value">@if($subnet->redirect)<span class="m-tag m-tag-amber">Ano</span>@else Ne@endif</span>
+        <span class="m-field-value">@if($subnet->redirect)<span class="m-tag m-tag-amber">Ano</span>@else Ne @endif</span>
     </div>
 </div>
 

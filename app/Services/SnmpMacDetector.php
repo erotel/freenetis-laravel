@@ -115,7 +115,8 @@ class SnmpMacDetector
             return false;
         }
 
-        if (!preg_match('/STRING: "?(.*?)"?\s*$/', $row, $m)) {
+        // `s` modifier: sysDescr může být multi-line (Huawei VRP vrací 4 řádky)
+        if (!preg_match('/STRING:\s*"?(.+?)"?\s*$/s', $row, $m)) {
             return false;
         }
 
@@ -123,7 +124,10 @@ class SnmpMacDetector
 
         return match ($driver) {
             'mikrotik' => str_starts_with($desc, 'RouterOS'),
-            'linux'    => str_starts_with($desc, 'Linux') || str_starts_with($desc, 'S6720'),
+            'linux'    => str_starts_with($desc, 'Linux')
+                       || str_contains($desc, 'S6720')
+                       || str_contains($desc, 'Huawei')
+                       || str_contains($desc, 'VRP'),
             default    => false,
         };
     }
@@ -175,37 +179,48 @@ class SnmpMacDetector
 
     private function getArpMac(string $driver, string $gatewayIp, string $targetIp): string
     {
-        // Mikrotik: ipNetToMediaPhysAddress (RFC 1213)
-        // Linux:    atPhysAddress
-        $oid = ($driver === 'mikrotik')
-            ? 'iso.3.6.1.2.1.4.22.1.2'
-            : 'iso.3.6.1.2.1.3.1.1.2';
-
-        $table = snmp2_real_walk(
-            $gatewayIp, $this->community,
-            $oid,
-            $this->timeout, $this->retries
-        );
-
-        if ($table === false || !is_array($table)) {
-            throw new \RuntimeException('ARP walk failed on ' . $gatewayIp);
+        // Modern ipNetToMediaPhysAddress (RFC 4293) first — podporují Mikrotik
+        // i Huawei VRP (S6720) i nové net-snmp. Deprecated atPhysAddress (RFC 826)
+        // jen jako fallback pro starší Linuxy, které nepublikují moderní MIB.
+        $oids = ['iso.3.6.1.2.1.4.22.1.2'];
+        if ($driver === 'linux') {
+            $oids[] = 'iso.3.6.1.2.1.3.1.1.2';
         }
 
-        $regex = '/Hex-STRING:.*?(([0-9a-fA-F]{2}\s){5}[0-9a-fA-F]{2})/';
+        $regex      = '/Hex-STRING:.*?(([0-9a-fA-F]{2}\s){5}[0-9a-fA-F]{2})/';
+        $lastError  = null;
 
-        foreach ($table as $key => $val) {
-            if (!str_ends_with($key, '.' . $targetIp)) {
+        foreach ($oids as $oid) {
+            try {
+                $table = snmp2_real_walk(
+                    $gatewayIp, $this->community,
+                    $oid,
+                    $this->timeout, $this->retries
+                );
+            } catch (\Exception $e) {
+                $lastError = $e->getMessage();
                 continue;
             }
-            if (preg_match($regex, $val, $m)) {
-                $pieces = array_map(
-                    fn($p) => str_pad($p, 2, '0', STR_PAD_LEFT),
-                    explode(' ', trim($m[1]))
-                );
-                return strtoupper(implode(':', $pieces));
+
+            if ($table === false || !is_array($table) || empty($table)) {
+                continue;
+            }
+
+            foreach ($table as $key => $val) {
+                if (!str_ends_with($key, '.' . $targetIp)) {
+                    continue;
+                }
+                if (preg_match($regex, $val, $m)) {
+                    $pieces = array_map(
+                        fn($p) => str_pad($p, 2, '0', STR_PAD_LEFT),
+                        explode(' ', trim($m[1]))
+                    );
+                    return strtoupper(implode(':', $pieces));
+                }
             }
         }
 
-        throw new \RuntimeException($targetIp . ' not found in ARP table on ' . $gatewayIp);
+        throw new \RuntimeException($targetIp . ' not found in ARP table on ' . $gatewayIp
+            . ($lastError ? ' (' . $lastError . ')' : ''));
     }
 }
