@@ -98,9 +98,23 @@ class NotificationActivation extends Command
 
             $this->info("Message [{$message->id}] {$message->name}: {$members->count()} members.");
 
-            $emailsSent  = 0;
-            $smsSent     = 0;
-            $ipsRedirect = 0;
+            $emailsSent   = 0;
+            $smsSent      = 0;
+            $ipsRedirect  = 0;
+            $ipsDeleted   = 0;
+
+            // Clean slate před přepsáním redirectu: smažeme všechny existující řádky
+            // messages_ip_addresses pro tuto zprávu a o pár řádků níž je naplníme
+            // znovu jen pro aktuální dlužníky. Tím:
+            //   - člen, co mezitím doplatil, vypadne z přesměrování,
+            //   - člen, co si redirect odklikl přes self_cancel, ho do hodiny dostane
+            //     zpět, dokud má dluh (= chování Kohana Notifications_Controller::notify
+            //     s $truncate_redir=true).
+            if ($doRedirect) {
+                $ipsDeleted = DB::table('messages_ip_addresses')
+                    ->where('message_id', $message->id)
+                    ->delete();
+            }
 
             foreach ($members as $member) {
                 if ($doEmail && !empty($member->email)) {
@@ -128,24 +142,30 @@ class NotificationActivation extends Command
                         ->pluck('ip.id');
 
                     foreach ($ipIds as $ipId) {
-                        $ipsRedirect += DB::table('messages_ip_addresses')->insertOrIgnore([
+                        DB::table('messages_ip_addresses')->insert([
                             'message_id'    => $message->id,
                             'ip_address_id' => $ipId,
                             'user_id'       => 1,
                             'comment'       => 'Auto-aktivace: ' . $message->name,
                             'datetime'      => now(),
                         ]);
+                        $ipsRedirect++;
                     }
                 }
             }
 
             // Log to log_queues (mirrors Kohana Log_queue_Model::info — type=3, state=0,
             // stats stored in exception_backtrace column, same as Kohana did).
-            if ($emailsSent || $smsSent || $ipsRedirect) {
+            // Logujeme vždy, když některý kanál byl aktivovaný — i kdyby čísla
+            // vyšla 0/0 (např. žádní dlužníci) — aby admin viděl, že běh proběhl.
+            if ($doEmail || $doSms || $doRedirect) {
                 $stats = [];
-                if ($doRedirect) $stats[] = "Přesměrování bylo aktivováno pro {$ipsRedirect} IP adres.";
-                if ($doEmail)    $stats[] = "E-mail byl odeslán pro {$emailsSent} e-mailových adres.";
-                if ($doSms)      $stats[] = "SMS zpráva byla odeslána pro {$smsSent} telefonních čísel.";
+                if ($doRedirect) {
+                    $stats[] = "Přesměrování bylo deaktivováno pro {$ipsDeleted} IP adres.";
+                    $stats[] = "Přesměrování bylo aktivováno pro {$ipsRedirect} IP adres.";
+                }
+                if ($doEmail) $stats[] = "E-mail byl odeslán pro {$emailsSent} e-mailových adres.";
+                if ($doSms)   $stats[] = "SMS zpráva byla odeslána pro {$smsSent} telefonních čísel.";
 
                 DB::table('log_queues')->insert([
                     'type'                => 3, // TYPE_INFO
