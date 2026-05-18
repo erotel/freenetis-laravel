@@ -74,21 +74,23 @@ class SearchController extends Controller
             }
         }
 
-        // DEVICES + IP + MAC - requires networks_enabled and view_all
+        // DEVICES + IP + MAC + IPv6 - requires networks_enabled and view_all
         if ($this->can('view_all', 'Devices_Controller', 'devices') && Setting::get('networks_enabled', 0)) {
             $devices = DB::table('devices as d')
                 ->join('users as u', 'u.id', '=', 'd.user_id')
                 ->join('members as m', 'm.id', '=', 'u.member_id')
                 ->leftJoin('ifaces as i', 'i.device_id', '=', 'd.id')
                 ->leftJoin('ip_addresses as ip', 'ip.iface_id', '=', 'i.id')
+                ->leftJoin('ip6_addresses as ip6', 'ip6.iface_id', '=', 'i.id')
                 ->where(function($q) use ($like) {
                     $q->where('d.name', 'LIKE', $like)
                       ->orWhere('i.mac', 'LIKE', $like)
-                      ->orWhere('ip.ip_address', 'LIKE', $like);
+                      ->orWhere('ip.ip_address', 'LIKE', $like)
+                      ->orWhere('ip6.ip_address', 'LIKE', $like);
                 })
                 ->select(
                     'd.id', 'd.name as device_name',
-                    'i.mac', 'ip.ip_address',
+                    'i.mac', 'ip.ip_address', 'ip6.ip_address as ipv6_address',
                     'm.id as member_id', 'm.name as member_name'
                 )
                 ->distinct()
@@ -176,23 +178,25 @@ class SearchController extends Controller
             }
         }
 
-        // Devices/IP/MAC
+        // Devices/IP/MAC/IPv6
         if ($this->can('view_all', 'Devices_Controller', 'devices') && Setting::get('networks_enabled', 0)) {
             $devices = DB::table('devices as d')
                 ->join('users as u', 'u.id', '=', 'd.user_id')
                 ->join('members as m', 'm.id', '=', 'u.member_id')
                 ->leftJoin('ifaces as i', 'i.device_id', '=', 'd.id')
                 ->leftJoin('ip_addresses as ip', 'ip.iface_id', '=', 'i.id')
+                ->leftJoin('ip6_addresses as ip6', 'ip6.iface_id', '=', 'i.id')
                 ->where(function($q) use ($like) {
                     $q->where('d.name', 'LIKE', $like)
                       ->orWhere('i.mac', 'LIKE', $like)
-                      ->orWhere('ip.ip_address', 'LIKE', $like);
+                      ->orWhere('ip.ip_address', 'LIKE', $like)
+                      ->orWhere('ip6.ip_address', 'LIKE', $like);
                 })
-                ->select('d.id', 'd.name as device_name', 'i.mac', 'ip.ip_address', 'm.id as member_id', 'm.name as member_name')
+                ->select('d.id', 'd.name as device_name', 'i.mac', 'ip.ip_address', 'ip6.ip_address as ipv6_address', 'm.id as member_id', 'm.name as member_name')
                 ->distinct()->limit(5)->get();
 
             foreach ($devices as $d) {
-                $detail = collect([$d->ip_address, $d->mac])->filter()->implode(' / ');
+                $detail = collect([$d->ip_address, $d->ipv6_address, $d->mac])->filter()->implode(' / ');
                 $results[] = [
                     'url'    => route('devices.show', $d->id),
                     'title'  => 'Zařízení ' . $d->device_name,
