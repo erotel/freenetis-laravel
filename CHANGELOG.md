@@ -9,6 +9,14 @@ ať lze changelog snadno regenerovat přes `git log vX..vY --oneline`.
 ## [2.1.8] — 2026-05-18
 
 ### Fixed
+- **Login přes IPv6 padal s 500 (`1406 Data too long for column 'IP_address'`)** —
+  legacy `login_logs.IP_address` byl `varchar(15)` (max IPv4 "255.255.255.255"),
+  IPv6 adresa typu `2a07:9c0:17:1702:afd9:df4d:41d2:fbea` (39 znaků) insert
+  shodila. Insert se ale volá až **za** `Auth::attempt` — session už je
+  regenerovaná, takže po F5 chytne `RedirectIfAuthenticated` a uživatel skončí
+  v dashboardu („po F5 to jede"). Migrace
+  `2026_05_18_220000_expand_login_logs_ip_address_for_ipv6` rozšiřuje sloupec
+  na `varchar(45)` (max IPv4-mapped IPv6 `::ffff:255.255.255.255`).
 - **`notifications:activate` neloggoval hodinový redirect dlužníků** — kvůli
   `insertOrIgnore` druhý běh se stejnými IP nepřidal 0 řádků → log entry se
   přeskočil (gate `if ($ipsRedirect)`). Admin pak v `log_queues` nevidél, že
