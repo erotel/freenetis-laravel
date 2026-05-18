@@ -792,7 +792,11 @@ class DeviceController extends Controller
 
     private function renderMikrotikFull(array $servers): string
     {
+        // Setting::get vrací uloženou hodnotu — když admin v UI uloží prázdné
+        // pole, vrátí '' a default '10800' v get() se neuplatní. Cast na int
+        // pak udělá 0 → lease-time=00:00:00. 3 h fallback bereme i pro 0.
         $leaseSeconds = (int) Setting::get('dhcp_lease_time', '10800');
+        if ($leaseSeconds <= 0) $leaseSeconds = 10800;
         $leaseTime    = sprintf('%02d:%02d:%02d', intdiv($leaseSeconds, 3600), intdiv($leaseSeconds % 3600, 60), $leaseSeconds % 60);
 
         $out = '';
