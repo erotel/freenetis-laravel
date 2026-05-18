@@ -7,6 +7,7 @@ use App\Models\Device;
 use App\Models\Iface;
 use App\Models\IpAddress;
 use App\Models\Subnet;
+use App\Services\AllowedSubnetSyncService;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
 
@@ -208,6 +209,20 @@ class IfaceController extends Controller
             }
         }
 
+        // Allowed subnets — přidá každý nový subnet do allowed; staré odebere,
+        // jen pokud členovi v subnetu už žádná IP nezbyla.
+        $memberId = $iface->device?->user?->member_id;
+        if ($memberId) {
+            $sync = app(AllowedSubnetSyncService::class);
+            foreach (array_keys($touchedSubnetIds) as $sid) {
+                if ($iface->ipAddresses()->where('subnet_id', $sid)->exists()) {
+                    $sync->onIpAdded($memberId, (int) $sid);
+                } else {
+                    $sync->onIpRemoved($memberId, (int) $sid);
+                }
+            }
+        }
+
         session()->flash('success', 'Rozhraní bylo úspěšně upraveno.');
         return redirect()->route('devices.show', $iface->device_id);
     }
@@ -216,18 +231,28 @@ class IfaceController extends Controller
     {
         abort_unless($this->can('delete_all'), 403);
 
-        $iface = Iface::with('ipAddresses.subnet')->findOrFail($id);
+        $iface = Iface::with('ipAddresses.subnet', 'device.user')->findOrFail($id);
         $deviceId = $iface->device_id;
+        $memberId = $iface->device?->user?->member_id;
 
+        $touchedSubnetIds = [];
         foreach ($iface->ipAddresses as $ip) {
             if ($ip->subnet && $ip->subnet->dhcp) {
                 $ip->subnet->setExpired();
             }
+            if ($ip->subnet_id) $touchedSubnetIds[$ip->subnet_id] = true;
         }
 
         $iface->ip6Addresses()->delete();
         $iface->ipAddresses()->delete();
         $iface->delete();
+
+        if ($memberId) {
+            $sync = app(AllowedSubnetSyncService::class);
+            foreach (array_keys($touchedSubnetIds) as $sid) {
+                $sync->onIpRemoved($memberId, (int) $sid);
+            }
+        }
 
         session()->flash('success', 'Rozhraní bylo smazáno.');
         return redirect()->route('devices.show', $deviceId);

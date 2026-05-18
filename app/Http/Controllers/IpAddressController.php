@@ -7,6 +7,7 @@ use App\Models\Iface;
 use App\Models\IpAddress;
 use App\Models\Member;
 use App\Models\Subnet;
+use App\Services\AllowedSubnetSyncService;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
 
@@ -111,6 +112,7 @@ class IpAddressController extends Controller
         $this->syncIp6Add($ip->iface_id, $ip->ip_address);
         $this->syncSubnetDhcp($ip->subnet);
         $ip->subnet?->setExpired();
+        $this->syncAllowedSubnetOnAdd($ip);
 
         session()->flash('success', 'IP adresa byla úspěšně přidána.');
         return redirect()->route('ip_addresses.show', $ip->id);
@@ -163,6 +165,7 @@ class IpAddressController extends Controller
             $this->syncSubnetDhcp($oldSubnet);
             $oldSubnet?->setExpired();
         }
+        $this->syncAllowedSubnetOnUpdate($ip, $oldSubnetId);
 
         session()->flash('success', 'IP adresa byla úspěšně upravena.');
         return redirect()->route('ip_addresses.show', $id);
@@ -179,11 +182,16 @@ class IpAddressController extends Controller
             abort(404);
         }
 
-        $subnet = $ip->subnet;
+        $subnet      = $ip->subnet;
+        $subnetId    = $ip->subnet_id;
+        $memberId    = $this->memberIdOfIp($ip);
         $this->syncIp6Delete($ip->ip_address);
         $ip->delete();
         $this->syncSubnetDhcp($subnet);
         $subnet?->setExpired();
+        if ($memberId && $subnetId) {
+            app(AllowedSubnetSyncService::class)->onIpRemoved($memberId, $subnetId);
+        }
 
         session()->flash('success', 'IP adresa byla úspěšně smazána.');
         return redirect()->route('ip_addresses.index');
@@ -196,6 +204,31 @@ class IpAddressController extends Controller
         if (!$subnet) return;
         $hasDhcpGateway = $subnet->ipAddresses()->where('gateway', 1)->where('dhcp', 1)->exists();
         $subnet->update(['dhcp' => $hasDhcpGateway ? 1 : 0]);
+    }
+
+    private function memberIdOfIp(IpAddress $ip): ?int
+    {
+        // member_id na ip_addresses je nullable (gateway/service IP); pro
+        // allowed_subnets potřebujeme membera vlastnícího device přes ifaces.
+        $ip->loadMissing('iface.device.user');
+        return (int) ($ip->iface?->device?->user?->member_id ?? 0) ?: null;
+    }
+
+    private function syncAllowedSubnetOnAdd(IpAddress $ip): void
+    {
+        $memberId = $this->memberIdOfIp($ip);
+        if ($memberId && $ip->subnet_id) {
+            app(AllowedSubnetSyncService::class)->onIpAdded($memberId, (int) $ip->subnet_id);
+        }
+    }
+
+    private function syncAllowedSubnetOnUpdate(IpAddress $ip, ?int $oldSubnetId): void
+    {
+        $memberId = $this->memberIdOfIp($ip);
+        if ($memberId && $ip->subnet_id) {
+            app(AllowedSubnetSyncService::class)
+                ->onIpMoved($memberId, $oldSubnetId, (int) $ip->subnet_id);
+        }
     }
 
     private function formData(?int $deviceId = null, ?int $ifaceId = null): array

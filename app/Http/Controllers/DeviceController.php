@@ -15,6 +15,7 @@ use App\Models\IpAddress;
 use App\Models\Setting;
 use App\Models\Subnet;
 use App\Models\User;
+use App\Services\AllowedSubnetSyncService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 
@@ -428,6 +429,15 @@ class DeviceController extends Controller
             Subnet::find($sid)?->setExpired();
         }
 
+        // Allowed subnets — auto-přidat každý subnet, do kterého padla nová IP
+        $memberId = User::find($validated['user_id'])?->member_id;
+        if ($memberId) {
+            $sync = app(AllowedSubnetSyncService::class);
+            foreach (array_keys($touchedSubnetIds) as $sid) {
+                $sync->onIpAdded($memberId, (int) $sid);
+            }
+        }
+
         // Approve connection request if device was created from one
         if ($crId = (int) $request->input('connection_request_id')) {
             $cr = ConnectionRequest::with('member')
@@ -573,8 +583,9 @@ class DeviceController extends Controller
             abort(403);
         }
 
-        $device = Device::with('ifaces.ipAddresses')->findOrFail($id);
-        $userId = $device->user_id;
+        $device = Device::with('ifaces.ipAddresses', 'user')->findOrFail($id);
+        $userId   = $device->user_id;
+        $memberId = $device->user?->member_id;
 
         // Posbíráme subnety dotčené smazáním (aby ->ipAddresses()->delete()
         // jako mass-delete bez Eloquent eventů nezamlčel dhcp_expired flag).
@@ -596,6 +607,15 @@ class DeviceController extends Controller
 
         foreach (array_keys($touchedSubnetIds) as $sid) {
             Subnet::find($sid)?->setExpired();
+        }
+
+        // Allowed subnets — pokud člen v subnetu nemá už žádnou jinou IP,
+        // subnet odebereme z allowed (sync sám zkontroluje, zda zbyla jiná).
+        if ($memberId) {
+            $sync = app(AllowedSubnetSyncService::class);
+            foreach (array_keys($touchedSubnetIds) as $sid) {
+                $sync->onIpRemoved($memberId, (int) $sid);
+            }
         }
 
         return redirect()->route('devices.by_user', $userId)
