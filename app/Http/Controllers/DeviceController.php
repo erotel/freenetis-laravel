@@ -715,8 +715,18 @@ class DeviceController extends Controller
 
     private function buildDhcpServers(Device $device): array
     {
-        $dnsRaw     = Setting::get('dns_servers', '');
-        $dnsServers = array_values(array_filter(array_map('trim', preg_split('/[,\s]+/', $dnsRaw))));
+        // Admin v UI typicky odděluje DNS servery Enterem (LF/CRLF), ale legacy
+        // data z Kohana migrace občas obsahují literální `\n` (backslash-n).
+        // Sjednotíme separátor a po splitu validujeme IPv4 — kdyby v hodnotě
+        // bylo cokoliv jiného, do Mikrotik exportu prosakovala garbage jako
+        // `dns-server=10.133.37.3710.133.37.38` (chybějící čárka, nebo dvojice
+        // IP slepená do sebe).
+        $dnsRaw     = (string) Setting::get('dns_servers', '');
+        $dnsRaw     = str_replace('\\n', "\n", $dnsRaw);
+        $dnsServers = array_values(array_filter(
+            array_map('trim', preg_split('/[,;\s|]+/', $dnsRaw)),
+            fn($v) => $v !== '' && filter_var($v, FILTER_VALIDATE_IP, FILTER_FLAG_IPV4)
+        ));
 
         $servers = [];
 
