@@ -37,12 +37,17 @@ foreach ($items as $item) {
         'total'     => $total,
     ];
 
-    $rate_key = (string)$vat_rate;
-    if (!isset($vat_totals[$rate_key])) {
-        $vat_totals[$rate_key] = ['base' => 0, 'vat' => 0, 'rate' => $vat_rate];
+    // Položka "Zaokrouhlení" (code ROUND, vat=0) musí být v itemech kvůli součtu
+    // s původní platbou, ale do rekapitulace DPH nepatří — není to zdanitelné
+    // plnění, jen halířové vyrovnání.
+    if ((string)($item->code ?? '') !== 'ROUND' && $vat_rate > 0) {
+        $rate_key = (string)$vat_rate;
+        if (!isset($vat_totals[$rate_key])) {
+            $vat_totals[$rate_key] = ['base' => 0, 'vat' => 0, 'rate' => $vat_rate];
+        }
+        $vat_totals[$rate_key]['base'] += $net;
+        $vat_totals[$rate_key]['vat']  += $vat_value;
     }
-    $vat_totals[$rate_key]['base'] += $net;
-    $vat_totals[$rate_key]['vat']  += $vat_value;
 
     $total_net += $net;
     $total_vat += $vat_value;
@@ -474,7 +479,7 @@ foreach ($items as $item) {
                                     <?php foreach ($vat_totals as $rate => $values): ?>
                                         <tr>
                                             <td class="num"><?= $format_money($values['base']) ?></td>
-                                            <td> 21%</td>
+                                            <td> <?= rtrim(rtrim(number_format($values['rate'] * 100, 2, ',', ''), '0'), ',') ?>%</td>
                                             <td class="num"><?= $format_money($values['vat']) ?></td>
                                             <td class="num"><?= $format_money($values['base'] + $values['vat']) ?></td>
                                         </tr>
