@@ -149,12 +149,17 @@ class IfaceController extends Controller
 
         $iface->update($validated);
 
+        // Sbíráme všechny dotčené subnety (i staré, když IP přesouvá subnet),
+        // aby DHCP server po reloadu měl správný obraz na obou stranách změny.
+        $touchedSubnetIds = [];
+
         // Update existing IP addresses
         foreach ($iface->ipAddresses as $n => $existingIp) {
             $newIpVal = $request->input("ip_address_{$n}");
             $subnetId = $request->input("ip_subnet_{$n}");
             if ($newIpVal && $subnetId) {
-                $oldIpVal = $existingIp->ip_address;
+                $oldIpVal    = $existingIp->ip_address;
+                $oldSubnetId = $existingIp->subnet_id;
                 if ($newIpVal !== $oldIpVal) {
                     if (IpAddress::where('ip_address', $newIpVal)->where('subnet_id', $subnetId)->where('id', '!=', $existingIp->id)->exists()) {
                         return back()->withInput()->withErrors(["ip_address_{$n}" => "IP adresa {$newIpVal} je již použita."]);
@@ -167,6 +172,10 @@ class IfaceController extends Controller
                 ]);
                 if ($newIpVal !== $oldIpVal) {
                     $this->syncIp6Add($iface->id, $newIpVal);
+                }
+                $touchedSubnetIds[(int) $subnetId] = true;
+                if ($oldSubnetId && (int) $oldSubnetId !== (int) $subnetId) {
+                    $touchedSubnetIds[(int) $oldSubnetId] = true;
                 }
             }
         }
@@ -189,12 +198,13 @@ class IfaceController extends Controller
                 'service'    => 0,
             ]);
             $this->syncIp6Add($iface->id, $newIp);
+            $touchedSubnetIds[(int) $newSubnet] = true;
         }
 
-        $iface->load('ipAddresses.subnet');
-        foreach ($iface->ipAddresses as $ip) {
-            if ($ip->subnet && $ip->subnet->dhcp) {
-                $ip->subnet->setExpired();
+        foreach (array_keys($touchedSubnetIds) as $sid) {
+            $subnet = Subnet::find($sid);
+            if ($subnet && $subnet->dhcp) {
+                $subnet->setExpired();
             }
         }
 

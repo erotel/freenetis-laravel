@@ -380,7 +380,9 @@ class DeviceController extends Controller
 
         $deviceId = null;
 
-        DB::transaction(function () use ($validated, $ifaceDefs, $request, &$deviceId) {
+        $touchedSubnetIds = [];
+
+        DB::transaction(function () use ($validated, $ifaceDefs, $request, &$deviceId, &$touchedSubnetIds) {
             $memberId = User::find($validated['user_id'])?->member_id;
 
             $device = Device::create([
@@ -404,10 +406,11 @@ class DeviceController extends Controller
                 ]);
 
                 if ($def['has_ip'] && $request->filled("iface_ip_{$n}")) {
-                    $ipVal = $request->input("iface_ip_{$n}");
+                    $ipVal    = $request->input("iface_ip_{$n}");
+                    $subnetId = (int) $request->input("iface_subnet_{$n}");
                     IpAddress::create([
                         'iface_id'   => $iface->id,
-                        'subnet_id'  => $request->input("iface_subnet_{$n}"),
+                        'subnet_id'  => $subnetId,
                         'ip_address' => $ipVal,
                         'member_id'  => $memberId,
                         'dhcp'       => 0,
@@ -415,9 +418,15 @@ class DeviceController extends Controller
                         'service'    => 0,
                     ]);
                     $this->syncIp6Add($iface->id, $ipVal);
+                    $touchedSubnetIds[$subnetId] = true;
                 }
             }
         });
+
+        // dhcp_expired=1 pro DHCP subnety, aby DHCP server přečetl nový lease
+        foreach (array_keys($touchedSubnetIds) as $sid) {
+            Subnet::find($sid)?->setExpired();
+        }
 
         // Approve connection request if device was created from one
         if ($crId = (int) $request->input('connection_request_id')) {
@@ -564,8 +573,17 @@ class DeviceController extends Controller
             abort(403);
         }
 
-        $device = Device::findOrFail($id);
+        $device = Device::with('ifaces.ipAddresses')->findOrFail($id);
         $userId = $device->user_id;
+
+        // Posbíráme subnety dotčené smazáním (aby ->ipAddresses()->delete()
+        // jako mass-delete bez Eloquent eventů nezamlčel dhcp_expired flag).
+        $touchedSubnetIds = [];
+        foreach ($device->ifaces as $iface) {
+            foreach ($iface->ipAddresses as $ip) {
+                if ($ip->subnet_id) $touchedSubnetIds[$ip->subnet_id] = true;
+            }
+        }
 
         DB::transaction(function () use ($device) {
             foreach ($device->ifaces as $iface) {
@@ -575,6 +593,10 @@ class DeviceController extends Controller
             $device->ifaces()->delete();
             $device->delete();
         });
+
+        foreach (array_keys($touchedSubnetIds) as $sid) {
+            Subnet::find($sid)?->setExpired();
+        }
 
         return redirect()->route('devices.by_user', $userId)
             ->with('success', 'Zařízení bylo smazáno.');
