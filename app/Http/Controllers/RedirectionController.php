@@ -49,10 +49,40 @@ class RedirectionController extends Controller
             ')
             ->first();
 
-        // 2) Žádný záznam → generic stránka.
+        // 2) Žádný záznam v messages_ip_addresses → rozdělíme dva stavy:
+        //    - IP není vůbec v ip_addresses    → neevidované zařízení, msg type 3
+        //    - IP je evidovaná, ale bez flagu  → fn-redirector ji sem neměl poslat,
+        //                                        ukážeme generickou "vše v pořádku".
         if (!$row) {
+            $isKnownIp = DB::table('ip_addresses')->where('ip_address', $clientIp)->exists();
+
+            if (!$isKnownIp) {
+                $unknownMsg = Message::where('type', Message::UNKNOWN_DEVICE_MESSAGE)->first();
+                Log::info('redirection: unknown device IP', [
+                    'client_ip' => $clientIp,
+                    'has_msg_template' => (bool) $unknownMsg,
+                ]);
+
+                if ($unknownMsg && trim((string) $unknownMsg->text) !== '') {
+                    return $this->render([
+                        'has_message'     => true,
+                        'client_ip'       => $clientIp,
+                        'message_name'    => $unknownMsg->name,
+                        'message_text'    => (string) $unknownMsg->text,
+                        'comment'         => null,
+                        'redirected_at'   => null,
+                        'member'          => null,
+                        'balance'         => null,
+                        'expiration_date' => null,
+                        'variable_symbol' => null,
+                        'support'         => $this->supportContact(),
+                    ]);
+                }
+            }
+
             Log::info('redirection: no active message', [
-                'client_ip' => $clientIp,
+                'client_ip'    => $clientIp,
+                'is_known_ip'  => $isKnownIp,
             ]);
 
             return $this->render([
