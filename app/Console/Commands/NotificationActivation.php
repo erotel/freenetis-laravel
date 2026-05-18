@@ -60,102 +60,114 @@ class NotificationActivation extends Command
 
             if ($rules->isEmpty()) continue;
 
+            // Agregace přes OR — pokud má zpráva víc pravidel, která zrovna matchují
+            // (typicky --force nebo dvě pravidla na stejnou minutu), pošleme JEDNU sadu
+            // notifikací, ne N. Stejné chování má i Kohana Scheduler_Controller::notification_activation.
+            $aEmail    = false;
+            $aSms      = false;
+            $aRedirect = false;
+            $reportTo  = [];
+
             foreach ($rules as $rule) {
-                // Check time rule
                 if (!$this->option('force') && !$this->isRuleActive($rule, $today, $hour, $weekday, $deductDay)) {
                     continue;
                 }
-
-                $doEmail    = $rule->email_enabled    && $emailEnabled;
-                $doSms      = $rule->sms_enabled      && $smsEnabled;
-                $doRedirect = $rule->redirection_enabled && $redirectEnabled;
-
-                if (!$doEmail && !$doSms && !$doRedirect) continue;
-
-                // Get members to notify
-                $members = $this->getMembersToNotify($message->type, $debtorBoundary, $bigDebtorBoundary, $debtorImmunity);
-
-                if ($members->isEmpty()) {
-                    $this->info("Message [{$message->id}] {$message->name}: no members to notify.");
-                    continue;
-                }
-
-                $this->info("Message [{$message->id}] {$message->name}: {$members->count()} members.");
-
-                $emailsSent  = 0;
-                $smsSent     = 0;
-                $ipsRedirect = 0;
-
-                foreach ($members as $member) {
-                    // Send email
-                    if ($doEmail && !empty($member->email)) {
-                        $subject = ($subjectPrefix ? $subjectPrefix . ' :: ' : '') . $message->name;
-                        $body    = Message::substitute(
-                            $message->email_text ?? $message->text ?? '',
-                            Message::buildPlaceholders((int) $member->id)
-                        );
-                        DB::table('email_queues')->insert([
-                            'from'    => $fromEmail,
-                            'to'      => $member->email,
-                            'subject' => $subject,
-                            'body'    => $body,
-                            'state'   => 0,
-                        ]);
-                        $emailsSent++;
-                    }
-
-                    // Activate redirect on all member IPs
-                    if ($doRedirect) {
-                        $ipIds = DB::table('ip_addresses as ip')
-                            ->join('ifaces as i', 'i.id', '=', 'ip.iface_id')
-                            ->join('devices as d', 'd.id', '=', 'i.device_id')
-                            ->join('users as u', 'u.id', '=', 'd.user_id')
-                            ->where('u.member_id', $member->id)
-                            ->pluck('ip.id');
-
-                        foreach ($ipIds as $ipId) {
-                            $ipsRedirect += DB::table('messages_ip_addresses')->insertOrIgnore([
-                                'message_id'    => $message->id,
-                                'ip_address_id' => $ipId,
-                                'user_id'       => 1,
-                                'comment'       => 'Auto-aktivace: ' . $message->name,
-                                'datetime'      => now(),
-                            ]);
-                        }
-                    }
-                }
-
-                // Log to log_queues (mirrors Kohana Log_queue_Model::info — type=3, state=0,
-                // stats stored in exception_backtrace column, same as Kohana did).
-                if ($emailsSent || $smsSent || $ipsRedirect) {
-                    $stats = [];
-                    if ($doRedirect) $stats[] = "Přesměrování bylo aktivováno pro {$ipsRedirect} IP adres.";
-                    if ($doEmail)    $stats[] = "E-mail byl odeslán pro {$emailsSent} e-mailových adres.";
-                    if ($doSms)      $stats[] = "SMS zpráva byla odeslána pro {$smsSent} telefonních čísel.";
-
-                    DB::table('log_queues')->insert([
-                        'type'                => 3, // TYPE_INFO
-                        'state'               => 0, // STATE_NEW
-                        'created_at'          => now(),
-                        'description'         => 'Upozorňovací zpráva "' . $message->name . '" byla automaticky aktivována',
-                        'exception_backtrace' => implode("\n", $stats),
-                    ]);
-                }
-
-                // Send activation report email if configured
+                $aEmail    = $aEmail    || (bool) $rule->email_enabled;
+                $aSms      = $aSms      || (bool) $rule->sms_enabled;
+                $aRedirect = $aRedirect || (bool) $rule->redirection_enabled;
                 if (!empty($rule->send_activation_to_email)) {
-                    $subject = ($subjectPrefix ? $subjectPrefix . ' :: ' : '') . 'Aktivace zprávy: ' . $message->name;
-                    $body    = "Aktivována zpráva: {$message->name}\n";
-                    $body   .= "Počet členů: {$members->count()}\n";
-                    $body   .= "Datum: " . now()->format('d.m.Y H:i') . "\n";
+                    foreach (explode(',', $rule->send_activation_to_email) as $e) {
+                        $e = trim($e);
+                        if ($e !== '') $reportTo[$e] = true;
+                    }
+                }
+            }
+
+            $doEmail    = $aEmail    && $emailEnabled;
+            $doSms      = $aSms      && $smsEnabled;
+            $doRedirect = $aRedirect && $redirectEnabled;
+
+            if (!$doEmail && !$doSms && !$doRedirect) continue;
+
+            $members = $this->getMembersToNotify($message->type, $debtorBoundary, $bigDebtorBoundary, $debtorImmunity);
+
+            if ($members->isEmpty()) {
+                $this->info("Message [{$message->id}] {$message->name}: no members to notify.");
+                continue;
+            }
+
+            $this->info("Message [{$message->id}] {$message->name}: {$members->count()} members.");
+
+            $emailsSent  = 0;
+            $smsSent     = 0;
+            $ipsRedirect = 0;
+
+            foreach ($members as $member) {
+                if ($doEmail && !empty($member->email)) {
+                    $subject = ($subjectPrefix ? $subjectPrefix . ' :: ' : '') . $message->name;
+                    $body    = Message::substitute(
+                        $message->email_text ?? $message->text ?? '',
+                        Message::buildPlaceholders((int) $member->id)
+                    );
                     DB::table('email_queues')->insert([
                         'from'    => $fromEmail,
-                        'to'      => $rule->send_activation_to_email,
+                        'to'      => $member->email,
                         'subject' => $subject,
-                        'body'    => nl2br(htmlspecialchars($body)),
+                        'body'    => $body,
                         'state'   => 0,
                     ]);
+                    $emailsSent++;
                 }
+
+                if ($doRedirect) {
+                    $ipIds = DB::table('ip_addresses as ip')
+                        ->join('ifaces as i', 'i.id', '=', 'ip.iface_id')
+                        ->join('devices as d', 'd.id', '=', 'i.device_id')
+                        ->join('users as u', 'u.id', '=', 'd.user_id')
+                        ->where('u.member_id', $member->id)
+                        ->pluck('ip.id');
+
+                    foreach ($ipIds as $ipId) {
+                        $ipsRedirect += DB::table('messages_ip_addresses')->insertOrIgnore([
+                            'message_id'    => $message->id,
+                            'ip_address_id' => $ipId,
+                            'user_id'       => 1,
+                            'comment'       => 'Auto-aktivace: ' . $message->name,
+                            'datetime'      => now(),
+                        ]);
+                    }
+                }
+            }
+
+            // Log to log_queues (mirrors Kohana Log_queue_Model::info — type=3, state=0,
+            // stats stored in exception_backtrace column, same as Kohana did).
+            if ($emailsSent || $smsSent || $ipsRedirect) {
+                $stats = [];
+                if ($doRedirect) $stats[] = "Přesměrování bylo aktivováno pro {$ipsRedirect} IP adres.";
+                if ($doEmail)    $stats[] = "E-mail byl odeslán pro {$emailsSent} e-mailových adres.";
+                if ($doSms)      $stats[] = "SMS zpráva byla odeslána pro {$smsSent} telefonních čísel.";
+
+                DB::table('log_queues')->insert([
+                    'type'                => 3, // TYPE_INFO
+                    'state'               => 0, // STATE_NEW
+                    'created_at'          => now(),
+                    'description'         => 'Upozorňovací zpráva "' . $message->name . '" byla automaticky aktivována',
+                    'exception_backtrace' => implode("\n", $stats),
+                ]);
+            }
+
+            foreach (array_keys($reportTo) as $email) {
+                $subject = ($subjectPrefix ? $subjectPrefix . ' :: ' : '') . 'Aktivace zprávy: ' . $message->name;
+                $body    = "Aktivována zpráva: {$message->name}\n";
+                $body   .= "Počet členů: {$members->count()}\n";
+                $body   .= "Datum: " . now()->format('d.m.Y H:i') . "\n";
+                DB::table('email_queues')->insert([
+                    'from'    => $fromEmail,
+                    'to'      => $email,
+                    'subject' => $subject,
+                    'body'    => nl2br(htmlspecialchars($body)),
+                    'state'   => 0,
+                ]);
             }
         }
 

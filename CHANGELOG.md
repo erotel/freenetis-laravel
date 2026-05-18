@@ -6,6 +6,27 @@ formát podle [Keep a Changelog](https://keepachangelog.com/cs/1.1.0/).
 Verzi v souboru `config/version.php` bumpni samostatným commitem `chore: bump version to X.Y.Z`,
 ať lze changelog snadno regenerovat přes `git log vX..vY --oneline`.
 
+## [2.1.7] — 2026-05-18
+
+### Fixed
+- **`{variable_symbol}` se nenahrazoval v e-mailech dlužníkům** (zprávy 5, 6, 25, 26
+  a uživatelské 114/115) — `Message::buildPlaceholders` znal jen `member_name`,
+  `member_id`, `balance`, `entrance_date`, `leaving_date`, ale ne `variable_symbol`.
+  V šablonách typu „doplať VS {variable_symbol}" tak v odeslaném e-mailu zůstalo
+  prázdné místo. VS čtu jako `GROUP_CONCAT` z `variable_symbols` přes
+  `accounts.id` člena (`account_attribute_id=221100`), stejně jako Kohana SQL
+  v `users_contacts::get_contacts_by_member_and_type` ([Message.php#L94](app/Models/Message.php#L94)).
+- **`notifications:activate` posílal e-maily Nx, když měla zpráva víc pravidel** —
+  loop iteroval přes každé pravidlo a pro každé vytvořil zvlášť sadu e-mailů
+  pro všechny členy. Při `--force` (catch-up po výpadku CRONu) tak msg 6 se
+  3 pravidly poslal každému dlužníkovi 2× e-mail (rule 26 + 49 oba
+  `email_enabled=1`), msg 115 se 2 pravidly taktéž 2×. Refactor agreguje
+  `email/sms/redirect` flagy přes OR napříč pravidly (kopie Kohana
+  `Scheduler_Controller::notification_activation`), takže jedna zpráva =
+  jedna sada notifikací, ať má pravidel kolik chce. `send_activation_to_email`
+  adresáti se taktéž deduplikují
+  ([NotificationActivation.php#L52](app/Console/Commands/NotificationActivation.php#L52)).
+
 ## [2.1.6] — 2026-05-16
 
 ### Changed

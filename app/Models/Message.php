@@ -96,17 +96,29 @@ class Message extends Model
         $member = DB::table('members')->where('id', $memberId)->first();
         if (!$member) return $extra;
 
-        $balance = (float) DB::table('accounts')
+        $account = DB::table('accounts')
             ->where('member_id', $memberId)
             ->where('account_attribute_id', 221100)
-            ->value('balance');
+            ->first(['id', 'balance']);
+
+        // VS visí na účtu přes variable_symbols (jako v Kohaně) — typicky 1 VS,
+        // GROUP_CONCAT pro případ víc symbolů na účet.
+        $variableSymbol = '';
+        if ($account) {
+            $variableSymbol = DB::table('variable_symbols')
+                ->where('account_id', $account->id)
+                ->orderBy('id')
+                ->pluck('variable_symbol')
+                ->implode(',');
+        }
 
         return array_merge([
-            'member_name'   => $member->name ?? '',
-            'member_id'     => $member->id,
-            'leaving_date'  => $member->leaving_date ?? '',
-            'entrance_date' => $member->entrance_date ?? '',
-            'balance'       => number_format($balance, 2, ',', ' '),
+            'member_name'     => $member->name ?? '',
+            'member_id'       => $member->id,
+            'leaving_date'    => $member->leaving_date ?? '',
+            'entrance_date'   => $member->entrance_date ?? '',
+            'balance'         => number_format((float) ($account->balance ?? 0), 2, ',', ' '),
+            'variable_symbol' => $variableSymbol,
         ], $extra);
     }
 }
