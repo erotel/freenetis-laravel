@@ -6,6 +6,64 @@ formát podle [Keep a Changelog](https://keepachangelog.com/cs/1.1.0/).
 Verzi v souboru `config/version.php` bumpni samostatným commitem `chore: bump version to X.Y.Z`,
 ať lze changelog snadno regenerovat přes `git log vX..vY --oneline`.
 
+## [2.1.8] — 2026-05-18
+
+### Fixed
+- **`notifications:activate` neloggoval hodinový redirect dlužníků** — kvůli
+  `insertOrIgnore` druhý běh se stejnými IP nepřidal 0 řádků → log entry se
+  přeskočil (gate `if ($ipsRedirect)`). Admin pak v `log_queues` nevidél, že
+  hodinová aktivace vůbec proběhla. Refactor kopíruje Kohana
+  `Notifications_Controller::notify($truncate_redir=true)`: napřed `DELETE
+  FROM messages_ip_addresses WHERE message_id = X`, pak `INSERT` pro
+  aktuální dlužníky, log se píše vždy. Bonus: člen, který doplatil, hodinou
+  vypadne z přesměrování; člen, co si redirect odklikl self_cancel, ho
+  do hodiny dostane zpět, dokud je v dluhu
+  ([NotificationActivation.php#L100](app/Console/Commands/NotificationActivation.php#L100)).
+- **`subnets.dhcp_expired` se neflagoval ve všech IP CRUD místech** — DHCP
+  server tak po některých změnách nedostal impulz k reloadu. Tři díry:
+  `DeviceController::storeWithTemplate` (nová IP přes šablonu),
+  `DeviceController::destroy` (mass-delete `ipAddresses()->delete()` netriggeruje
+  Eloquent events) a `IfaceController::update` (při změně subnetu na IP se
+  flagoval jen nový, ne starý). Všechny tři sbírají dotčené subnet IDs a
+  po commitu volají `Subnet::setExpired()`. `IpAddressController` a
+  `IfaceController::destroy` byly OK.
+- **DNS servery slepené bez separátoru v Mikrotik DHCP exportu** —
+  `dns-server=10.133.37.3710.133.37.38` místo `10.133.37.37,10.133.37.38`.
+  Příčina: produkční `config.dns_servers` obsahoval literální `\n`
+  (backslash-n) z legacy Kohana data migrace, ne skutečný LF. Parser teď
+  normalizuje `\\n → \n`, splittuje na `[,;\s|]+` a každý element validuje
+  přes `FILTER_VALIDATE_IP`.
+- **DHCP lease-time `00:00:00`, když je v Nastavení prázdno** —
+  `Setting::get('dhcp_lease_time', '10800')` aplikoval default jen na úplně
+  chybějící klíč, ne na uloženou prázdnou hodnotu. Po cast na int teď
+  fallback na 10800 i pro `≤ 0`.
+- **Zaokrouhlení v rekapitulaci DPH na faktuře za přijatou platbu** —
+  haléřová položka `code=ROUND` (vat=0) figurovala v sekci „Rekapitulace
+  DPH v Kč" jako řádek s 0 % (a render hardcoded „21 %", takže to bylo
+  dvojnásob matoucí). Není to zdanitelné plnění → vyřazena z `$vat_totals`.
+  Sazba se navíc už nehardcoduje, čte se z dat.
+- **Hlavní vyhledávání neumí hledat podle IPv6** — `2a07:9c0:8b:7200::/56`
+  vrátil nic, IPv6 jsou v separátní tabulce `ip6_addresses`. Plný search
+  i ajax dropdown teď LEFT-JOIN-ují `ip6_addresses`, results tabulka má
+  nový sloupec IPv6.
+- **IP přesměrované na `/redirection`, která není v ip_addresses, zobrazila
+  „Vaše připojení je v pořádku"** — fn-redirector totiž posílá i
+  neevidovaná zařízení na captive portal. Pro `$row=null` se teď ještě
+  zeptáme, jestli IP **vůbec existuje** v `ip_addresses`; pokud ne, vrátíme
+  msg type 3 „Neznámé zařízení" (Kohana parita).
+
+### Added
+- **Auto-sync IP ↔ allowed_subnets** — nová třída
+  `App\Services\AllowedSubnetSyncService` mirror Kohana
+  `Allowed_subnets_Controller::update_enabled`. Wired do IP CRUD míst
+  (`IpAddressController` store/update/destroy, `DeviceController`
+  storeWithTemplate/destroy, `IfaceController` update/destroy). Když členovi
+  přibude IP, subnet se automaticky přidá do allowed (priority na začátek,
+  enabled=1 pokud pod `allowed_subnets_counts.count` limitem). Když IP zmizí
+  a v subnetu už žádnou jinou nemá, subnet se odebere. Předtím admin musel
+  manuálně přes UI Povolené podsítě, jinak `UpdateAllowedSubnets` cron
+  hned aktivoval redirect „nepovolená podsíť" (msg 7).
+
 ## [2.1.7] — 2026-05-18
 
 ### Fixed
