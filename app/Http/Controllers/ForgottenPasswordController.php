@@ -103,11 +103,20 @@ class ForgottenPasswordController extends Controller
         $fromEmail = Setting::get('email_default_email', 'noreply@freenetis.org');
         $ttlMin    = self::TOKEN_TTL_MIN;
 
+        $urlHtml   = htmlspecialchars($resetUrl, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+        $titleHtml = htmlspecialchars($siteTitle, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+
+        $body = '<p>Dobrý den,</p>'
+            . '<p>pro reset hesla klikněte na tento odkaz (platnost ' . $ttlMin . ' minut):</p>'
+            . '<p><a href="' . $urlHtml . '">' . $urlHtml . '</a></p>'
+            . '<p>Pokud jste o reset hesla nežádali, ignorujte tento email.</p>'
+            . '<p>' . $titleHtml . '</p>';
+
         DB::table('email_queues')->insert([
             'from'    => $fromEmail,
             'to'      => $email,
             'subject' => $siteTitle . ' :: Reset hesla',
-            'body'    => "Dobrý den,\n\nPro reset hesla klikněte na tento odkaz (platnost {$ttlMin} minut):\n{$resetUrl}\n\nPokud jste o reset hesla nežádali, ignorujte tento email.\n\n{$siteTitle}",
+            'body'    => $body,
             'state'   => 0,
         ]);
 
