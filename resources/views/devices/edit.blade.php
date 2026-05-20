@@ -28,7 +28,7 @@
             <option value="">— vyberte člena —</option>
             @foreach($members as $m)
                 <option value="{{ $m->id }}" @selected(old('member_id', $currentMemberId) == $m->id)>
-                    {{ $m->name }} ({{ $m->login }})
+                    {{ $m->display_name }} ({{ $m->login }})
                 </option>
             @endforeach
         </select>

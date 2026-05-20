@@ -23,13 +23,13 @@
         <label class="m-form-label" for="member_id">Člen <span style="color:#c0392b">*</span></label>
         @if($preselectedMemberId)
             <input type="hidden" name="member_id" value="{{ $preselectedMemberId }}">
-            <div class="m-form-input" style="background:var(--fn-quote-bg);color:var(--fn-text);cursor:default">{{ $members->firstWhere('id', $preselectedMemberId)?->name ?? $preselectedMemberId }}</div>
+            <div class="m-form-input" style="background:var(--fn-quote-bg);color:var(--fn-text);cursor:default">{{ $members->firstWhere('id', $preselectedMemberId)?->display_name ?? $preselectedMemberId }}</div>
         @else
             <select class="m-form-select" id="member_id" name="member_id">
                 <option value="">— vyberte člena —</option>
                 @foreach($members as $m)
                     <option value="{{ $m->id }}" @selected(old('member_id') == $m->id)>
-                        {{ $m->name }} ({{ $m->login }})
+                        {{ $m->display_name }} ({{ $m->login }})
                     </option>
                 @endforeach
             </select>

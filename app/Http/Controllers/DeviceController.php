@@ -51,7 +51,17 @@ class DeviceController extends Controller
             ->orderBy('u.id')
             ->get()
             ->unique('id')
-            ->values();
+            ->values()
+            ->map(function ($row) {
+                // Pro fyzické osoby zobrazujeme "Příjmení Jméno" (sjednoceno se sortem).
+                // Pokud surname/name chybí (organizace, legacy), fallback na members.name.
+                $surname = trim((string) $row->surname);
+                $name    = trim((string) $row->user_name);
+                $row->display_name = ($surname !== '' && $name !== '')
+                    ? $surname . ' ' . $name
+                    : $row->name;
+                return $row;
+            });
     }
 
     /**
