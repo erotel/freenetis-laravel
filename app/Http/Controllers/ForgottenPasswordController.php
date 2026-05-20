@@ -42,21 +42,34 @@ class ForgottenPasswordController extends Controller
         // 1) Try by login
         $user = DB::table('users')->where('login', $input)->first();
 
-        // 2) Try by email via contacts (jen pokud se vejde právě jeden uživatel)
+        // 2) Try by email via contacts.
+        // Email může být v `contacts` ve více řádcích (legacy duplikáty) i jeden řádek
+        // může být sdílený mezi víc usery (rodinný email). Vybereme všechny adepty
+        // a zúžíme na ty, co mají povolený přístup do FreenetISu (`members.locked = 0`
+        // nebo žádný member). Pošleme jen když zbude právě 1 — jinak generic response.
         if (!$user) {
-            $contact = DB::table('contacts')
+            $contactIds = DB::table('contacts')
                 ->where('type', 20)
                 ->where('value', $input)
-                ->first();
-            if ($contact) {
+                ->pluck('id');
+
+            if ($contactIds->isNotEmpty()) {
                 $userIds = DB::table('users_contacts')
-                    ->where('contact_id', $contact->id)
-                    ->pluck('user_id');
-                if ($userIds->count() === 1) {
-                    $user = DB::table('users')->where('id', $userIds->first())->first();
+                    ->whereIn('contact_id', $contactIds)
+                    ->pluck('user_id')
+                    ->unique();
+
+                $activeUserIds = DB::table('users')
+                    ->leftJoin('members', 'members.id', '=', 'users.member_id')
+                    ->whereIn('users.id', $userIds)
+                    ->where(function ($q) {
+                        $q->whereNull('members.locked')->orWhere('members.locked', 0);
+                    })
+                    ->pluck('users.id');
+
+                if ($activeUserIds->count() === 1) {
+                    $user = DB::table('users')->where('id', $activeUserIds->first())->first();
                 }
-                // Více shod (sdílený email) → ignoruj, vrátí generic response. Bezpečnější
-                // než původní explicitní hláška, která potvrdila existenci emailu v systému.
             }
         }
 
