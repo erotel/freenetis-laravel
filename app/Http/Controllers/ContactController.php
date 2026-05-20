@@ -166,8 +166,29 @@ class ContactController extends Controller
 
         $data = $request->validate($rules);
 
-        $contact->value = $data['value'];
-        $contact->save();
+        // Legacy Kohana data sdílí jeden řádek v `contacts` mezi víc uživateli přes
+        // pivot `users_contacts` (typicky stejný email u rodinných příslušníků).
+        // Přímý UPDATE by změnil hodnotu všem napojeným uživatelům. Pokud je řádek
+        // sdílený, "forkujeme": odpojíme od tohoto usera a napojíme ho na vlastní
+        // (existující nebo nový) contact řádek s novou hodnotou.
+        $sharedUserCount = $contact->users()->count();
+
+        if ($sharedUserCount > 1) {
+            DB::transaction(function () use ($contact, $userId, $data) {
+                $contact->users()->detach($userId);
+
+                $target = Contact::firstOrCreate(
+                    ['type' => $contact->type, 'value' => $data['value']]
+                );
+
+                if (!$target->users()->where('users.id', $userId)->exists()) {
+                    $target->users()->attach($userId, ['mail_redirection' => 0]);
+                }
+            });
+        } else {
+            $contact->value = $data['value'];
+            $contact->save();
+        }
 
         session()->flash('success', 'Kontakt byl úspěšně upraven.');
         return redirect()->route('users.show', $userId);
