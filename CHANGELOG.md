@@ -6,6 +6,50 @@ formát podle [Keep a Changelog](https://keepachangelog.com/cs/1.1.0/).
 Verzi v souboru `config/version.php` bumpni samostatným commitem `chore: bump version to X.Y.Z`,
 ať lze changelog snadno regenerovat přes `git log vX..vY --oneline`.
 
+## [2.1.9] — 2026-05-20
+
+### Fixed
+- **Reset hesla padal s 500 (`SQLSTATE[22001] 1406 Data too long for column 'password_request'`)** —
+  `users.password_request` byl legacy Kohana `varchar(10)`, ale
+  `ForgottenPasswordController::store()` generuje 40znakový token přes
+  `Str::random(40)`. Migrace
+  `2026_05_20_120000_expand_password_request_for_token` rozšiřuje sloupec na
+  `varchar(40)`. Stejný pattern jako fix `login_logs.IP_address` z 2.1.8.
+- **Email pro reset hesla měl odkaz jako text místo aktivního linku** —
+  `EmailSenderService::sendOne` posílá body přes `->html()`, ale tělo bylo
+  plain text s `\n`. Přepsáno na HTML s `<p>`/`<a href>`, fallback text part
+  vzniká přes `htmlToText` (pattern z `ContractService`).
+- **Editace sdíleného `contacts` řádku měnila email/telefon všem napojeným
+  uživatelům** — `ContactController::update` dělal in-place UPDATE na
+  `contacts.value`, takže rodinný/firemní email se přepsal i ostatním. Pokud
+  je řádek sdílený s ≥2 usery, kontakt se „forkuje" (detach od aktuálního
+  usera → `firstOrCreate` vlastní řádek → attach). Při 1 userovi zůstává
+  in-place UPDATE. Sdílené řádky se tak postupně rozpadnou na samostatné.
+
+### Changed
+- **Zapomenuté heslo — sdílený email: pošli reset, jen pokud zbude 1 aktivní
+  uživatel.** Email může být v `contacts` ve více řádcích (legacy duplikáty)
+  i jeden řádek může být napojený přes pivot na víc userů. Nový kód sbírá
+  userIDs napříč všemi `contacts` řádky se zadaným emailem a filtruje na
+  `members.locked != 1` (přístup do FreenetISu). Když je aktivní právě 1
+  (typicky rodina, kde druhý člen už je „bývalý"), pošle se reset jemu.
+  Jinak generic response (anti-enumeration).
+- **Picker uživatele ve formulářích zařízení nahrazen pickerem člena.**
+  `devices/{id}/edit`, `devices/add`, `devices/add/{userId}`,
+  `devices/create-from-cr/{crId}` a `devices/create` (resource) teď v dropdownu
+  ukazují **členy**, ne usery. Na save se přes `resolveMainUserId()` najde
+  main user (type=1) zvoleného člena a uloží do `devices.user_id` — schéma
+  beze změny, všech 3679 stávajících devices už koukalo na main usery.
+  Třídění podle příjmení (`users.surname`, `users.name`), label „Příjmení
+  Jméno (login)"; pro organizace s prázdným surname fallback na `members.name`.
+  Legacy URL `devices/add/{userId}` zůstává funkční.
+- **Hlavní vyhledávání umí slova v libovolném pořadí.** Dosud `LIKE
+  '%query%'` na celém řetězci znamenalo, že „zatloukal martin" nenašlo
+  „Martin Zatloukal" (stačí prohodit). `SearchController::index` i `ajax`
+  teď multi-slovo dotazy tokenizují a aplikují AND-LIKE per token na
+  `members.name` a `CONCAT(users.name, ' ', users.surname)`. Single-slovo
+  dotazy beze změny.
+
 ## [2.1.8] — 2026-05-18
 
 ### Fixed
