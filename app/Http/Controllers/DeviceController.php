@@ -34,6 +34,9 @@ class DeviceController extends Controller
      * Member picker pro device formuláře. Vrací jen členy, kteří mají main usera
      * (type=1) — pro ostatní se nemá co uložit do devices.user_id. Pokud má člen
      * víc main userů (legacy data), bere nejnižší id.
+     *
+     * Třídění podle příjmení (u.surname) → jméno → login. members.name je sice
+     * "Jméno Příjmení", ale picker řadí podle příjmení, jak admin čeká.
      */
     private function loadMembersForPicker(): \Illuminate\Support\Collection
     {
@@ -42,8 +45,9 @@ class DeviceController extends Controller
                 $j->on('u.member_id', '=', 'm.id')
                   ->where('u.type', '=', User::MAIN_USER);
             })
-            ->select('m.id', 'm.name', 'u.id as user_id', 'u.login')
-            ->orderBy('m.name')
+            ->select('m.id', 'm.name', 'u.id as user_id', 'u.login', 'u.surname', 'u.name as user_name')
+            ->orderBy('u.surname')
+            ->orderBy('u.name')
             ->orderBy('u.id')
             ->get()
             ->unique('id')

@@ -21,7 +21,11 @@ class SearchController extends Controller
             return view('search.index', compact('query', 'results'));
         }
 
-        $like = '%' . $query . '%';
+        $like   = '%' . $query . '%';
+        // Tokenizace pro multi-slovo dotazy ("zatloukal martin" → najdi i "Martin Zatloukal").
+        // Každý token musí matchnout (AND) v daném name fieldu — pořadí slov je jedno.
+        $tokens = preg_split('/\s+/', $query, -1, PREG_SPLIT_NO_EMPTY);
+        $multi  = count($tokens) > 1;
 
         // MEMBERS - requires view_all on members
         if ($this->can('view_all', 'Members_Controller', 'members')) {
@@ -33,7 +37,7 @@ class SearchController extends Controller
                 ->leftJoin('address_points as ap', 'ap.id', '=', 'm.address_point_id')
                 ->leftJoin('towns as t', 't.id', '=', 'ap.town_id')
                 ->leftJoin('streets as s', 's.id', '=', 'ap.street_id')
-                ->where(function($q) use ($like, $query) {
+                ->where(function($q) use ($like, $query, $tokens, $multi) {
                     $q->where('m.name', 'LIKE', $like)
                       ->orWhere('m.id', '=', is_numeric($query) ? $query : -1)
                       ->orWhere('vs.variable_symbol', 'LIKE', $like)
@@ -42,6 +46,13 @@ class SearchController extends Controller
                       ->orWhere('t.town', 'LIKE', $like)
                       ->orWhere('s.street', 'LIKE', $like)
                       ->orWhere('ap.street_number', 'LIKE', $like);
+                    if ($multi) {
+                        $q->orWhere(function ($q) use ($tokens) {
+                            foreach ($tokens as $t) {
+                                $q->where('m.name', 'LIKE', '%' . $t . '%');
+                            }
+                        });
+                    }
                 })
                 ->select('m.id', 'm.name', 'm.type', 't.town', 'vs.variable_symbol')
                 ->distinct()
@@ -59,10 +70,17 @@ class SearchController extends Controller
                 ->join('members as m', 'm.id', '=', 'u.member_id')
                 ->leftJoin('users_contacts as uc', 'uc.user_id', '=', 'u.id')
                 ->leftJoin('contacts as c', 'c.id', '=', 'uc.contact_id')
-                ->where(function($q) use ($like) {
+                ->where(function($q) use ($like, $tokens, $multi) {
                     $q->where('u.login', 'LIKE', $like)
                       ->orWhere(DB::raw("CONCAT(u.name, ' ', u.surname)"), 'LIKE', $like)
                       ->orWhere('c.value', 'LIKE', $like);
+                    if ($multi) {
+                        $q->orWhere(function ($q) use ($tokens) {
+                            foreach ($tokens as $t) {
+                                $q->where(DB::raw("CONCAT(u.name, ' ', u.surname)"), 'LIKE', '%' . $t . '%');
+                            }
+                        });
+                    }
                 })
                 ->select('u.id', 'u.login', 'u.name', 'u.surname', 'm.id as member_id', 'm.name as member_name')
                 ->distinct()
@@ -127,6 +145,8 @@ class SearchController extends Controller
         if (strlen($query) < 3) return response()->json([]);
 
         $like    = '%' . $query . '%';
+        $tokens  = preg_split('/\s+/', $query, -1, PREG_SPLIT_NO_EMPTY);
+        $multi   = count($tokens) > 1;
         $results = [];
 
         // Members
@@ -138,11 +158,18 @@ class SearchController extends Controller
                 })
                 ->leftJoin('address_points as ap', 'ap.id', '=', 'm.address_point_id')
                 ->leftJoin('towns as t', 't.id', '=', 'ap.town_id')
-                ->where(function($q) use ($like, $query) {
+                ->where(function($q) use ($like, $query, $tokens, $multi) {
                     $q->where('m.name', 'LIKE', $like)
                       ->orWhere('vs.variable_symbol', 'LIKE', $like)
                       ->orWhere('m.organization_identifier', 'LIKE', $like)
                       ->orWhere('t.town', 'LIKE', $like);
+                    if ($multi) {
+                        $q->orWhere(function ($q) use ($tokens) {
+                            foreach ($tokens as $t) {
+                                $q->where('m.name', 'LIKE', '%' . $t . '%');
+                            }
+                        });
+                    }
                 })
                 ->select('m.id', 'm.name', 'm.type', 'vs.variable_symbol')
                 ->distinct()->limit(5)->get();
@@ -162,9 +189,16 @@ class SearchController extends Controller
                 ->join('members as m', 'm.id', '=', 'u.member_id')
                 ->leftJoin('users_contacts as uc', 'uc.user_id', '=', 'u.id')
                 ->leftJoin('contacts as c', 'c.id', '=', 'uc.contact_id')
-                ->where(function($q) use ($like) {
+                ->where(function($q) use ($like, $tokens, $multi) {
                     $q->where('u.login', 'LIKE', $like)
                       ->orWhere('c.value', 'LIKE', $like);
+                    if ($multi) {
+                        $q->orWhere(function ($q) use ($tokens) {
+                            foreach ($tokens as $t) {
+                                $q->where(DB::raw("CONCAT(u.name, ' ', u.surname)"), 'LIKE', '%' . $t . '%');
+                            }
+                        });
+                    }
                 })
                 ->select('m.id as member_id', 'm.name as member_name', 'u.login', 'c.value as contact')
                 ->distinct()->limit(5)->get();
