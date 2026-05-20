@@ -25,16 +25,16 @@
 <div class="m-card" style="margin-bottom:16px;max-width:560px">
     <div class="m-card-title">Zařízení</div>
     <div class="m-form-group">
-        <label class="m-form-label" for="user_id">Uživatel <span style="color:#c0392b">*</span></label>
-        <select class="m-form-select" id="user_id" name="user_id">
-            <option value="">— vyberte uživatele —</option>
-            @foreach($users as $u)
-                <option value="{{ $u->id }}" @selected(old('user_id', $user?->id) == $u->id)>
-                    {{ $u->surname }} {{ $u->name }} – {{ $u->login }}
+        <label class="m-form-label" for="member_id">Člen <span style="color:#c0392b">*</span></label>
+        <select class="m-form-select" id="member_id" name="member_id">
+            <option value="">— vyberte člena —</option>
+            @foreach($members as $m)
+                <option value="{{ $m->id }}" @selected(old('member_id', $preselectedMemberId ?? null) == $m->id)>
+                    {{ $m->name }} – {{ $m->login }}
                 </option>
             @endforeach
         </select>
-        @error('user_id') <div class="m-form-hint" style="color:#c0392b">{{ $message }}</div> @enderror
+        @error('member_id') <div class="m-form-hint" style="color:#c0392b">{{ $message }}</div> @enderror
     </div>
     <div class="m-form-row">
         <div class="m-form-group">
@@ -170,8 +170,8 @@ typeSelect.addEventListener('change', function() { renderTemplateOptions(parseIn
 function reloadWithTemplate(templateId) {
     var url = new URL(window.location.href);
     url.searchParams.set('template_id', templateId);
-    var userId = document.getElementById('user_id').value;
-    if (userId) url.searchParams.set('user_id', userId);
+    var memberId = document.getElementById('member_id').value;
+    if (memberId) url.searchParams.set('member_id', memberId);
     var typeId = document.getElementById('type').value;
     if (typeId) url.searchParams.set('type_id', typeId);
     window.location.href = url.toString();

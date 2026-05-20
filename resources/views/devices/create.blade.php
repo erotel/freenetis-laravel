@@ -20,21 +20,21 @@
 @csrf
 <div class="m-card" style="margin-bottom:16px;max-width:560px">
     <div class="m-form-group">
-        <label class="m-form-label" for="user_id">Uživatel <span style="color:#c0392b">*</span></label>
-        @if($preselectedUserId)
-            <input type="hidden" name="user_id" value="{{ $preselectedUserId }}">
-            <div class="m-form-input" style="background:var(--fn-quote-bg);color:var(--fn-text);cursor:default">{{ $users->firstWhere('id', $preselectedUserId)?->full_name ?? $preselectedUserId }}</div>
+        <label class="m-form-label" for="member_id">Člen <span style="color:#c0392b">*</span></label>
+        @if($preselectedMemberId)
+            <input type="hidden" name="member_id" value="{{ $preselectedMemberId }}">
+            <div class="m-form-input" style="background:var(--fn-quote-bg);color:var(--fn-text);cursor:default">{{ $members->firstWhere('id', $preselectedMemberId)?->name ?? $preselectedMemberId }}</div>
         @else
-            <select class="m-form-select" id="user_id" name="user_id">
-                <option value="">— vyberte uživatele —</option>
-                @foreach($users as $user)
-                    <option value="{{ $user->id }}" @selected(old('user_id') == $user->id)>
-                        {{ $user->full_name }} ({{ $user->login }})
+            <select class="m-form-select" id="member_id" name="member_id">
+                <option value="">— vyberte člena —</option>
+                @foreach($members as $m)
+                    <option value="{{ $m->id }}" @selected(old('member_id') == $m->id)>
+                        {{ $m->name }} ({{ $m->login }})
                     </option>
                 @endforeach
             </select>
         @endif
-        @error('user_id') <div class="m-form-hint" style="color:#c0392b">{{ $message }}</div> @enderror
+        @error('member_id') <div class="m-form-hint" style="color:#c0392b">{{ $message }}</div> @enderror
     </div>
     <div class="m-form-row">
         <div class="m-form-group">

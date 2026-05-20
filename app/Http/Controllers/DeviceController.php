@@ -30,6 +30,38 @@ class DeviceController extends Controller
         return $this->aclCheck($action, self::ACL_SECTION, $value);
     }
 
+    /**
+     * Member picker pro device formuláře. Vrací jen členy, kteří mají main usera
+     * (type=1) — pro ostatní se nemá co uložit do devices.user_id. Pokud má člen
+     * víc main userů (legacy data), bere nejnižší id.
+     */
+    private function loadMembersForPicker(): \Illuminate\Support\Collection
+    {
+        return DB::table('members as m')
+            ->join('users as u', function ($j) {
+                $j->on('u.member_id', '=', 'm.id')
+                  ->where('u.type', '=', User::MAIN_USER);
+            })
+            ->select('m.id', 'm.name', 'u.id as user_id', 'u.login')
+            ->orderBy('m.name')
+            ->orderBy('u.id')
+            ->get()
+            ->unique('id')
+            ->values();
+    }
+
+    /**
+     * Najde main user_id pro daného člena. Vrací null pokud člen nebo main user neexistuje.
+     */
+    private function resolveMainUserId(int $memberId): ?int
+    {
+        return DB::table('users')
+            ->where('member_id', $memberId)
+            ->where('type', User::MAIN_USER)
+            ->orderBy('id')
+            ->value('id');
+    }
+
     public function index(Request $request)
     {
         if (!$this->can('view_all')) {
@@ -192,7 +224,12 @@ class DeviceController extends Controller
         abort_unless($this->can('new_all'), 403);
 
         $user        = $userId ? User::findOrFail($userId) : null;
-        $users       = User::orderBy('surname')->orderBy('name')->get();
+        $members     = $this->loadMembersForPicker();
+        // Preselect: primárně z query ?member_id= (po reload form), fallback na member_id
+        // hlavního usera v URL path (legacy "/devices/add/{userId}").
+        $preselectedMemberId = $request->filled('member_id')
+            ? (int) $request->query('member_id')
+            : $user?->member_id;
         $deviceTypes = EnumType::where('type_id', EnumType::DEVICE_GROUP_ID)->orderBy('value')->get();
         $rawTemplates = DeviceTemplate::with('enumType')->get();
         $subnets     = Subnet::orderBy('name')->get();
@@ -240,7 +277,7 @@ class DeviceController extends Controller
         })->values()->toArray();
 
         return view('devices.add', compact(
-            'user', 'users', 'deviceTypes', 'templates',
+            'user', 'members', 'preselectedMemberId', 'deviceTypes', 'templates',
             'subnets', 'selectedTemplate', 'ifaceDefinitions', 'selectedTypeId',
             'subnetData'
         ));
@@ -254,7 +291,8 @@ class DeviceController extends Controller
 
         // Find first user of the member
         $user = User::where('member_id', $cr->member_id)->orderBy('id')->first();
-        $users       = User::orderBy('surname')->orderBy('name')->get();
+        $members     = $this->loadMembersForPicker();
+        $preselectedMemberId = $cr->member_id;
         $deviceTypes = EnumType::where('type_id', EnumType::DEVICE_GROUP_ID)->orderBy('value')->get();
         $rawTemplates = DeviceTemplate::with('enumType')->get();
         $subnets     = Subnet::orderBy('name')->get();
@@ -293,11 +331,10 @@ class DeviceController extends Controller
         })->values()->toArray();
 
         return view('devices.add', array_merge(compact(
-            'user', 'users', 'deviceTypes', 'templates',
+            'user', 'members', 'preselectedMemberId', 'deviceTypes', 'templates',
             'subnets', 'selectedTemplate', 'ifaceDefinitions', 'selectedTypeId',
             'subnetData'
         ), [
-            'preselectedUserId'   => $user?->id,
             'preselectedMac'      => $cr->mac_address,
             'preselectedIp'       => $cr->ip_address,
             'preselectedSubnetId' => $cr->subnet_id,
@@ -312,6 +349,18 @@ class DeviceController extends Controller
         try {
 
         abort_unless($this->can('new_all'), 403);
+
+        // Formulář posílá member_id; resolvneme na main user_id ještě před validací
+        // a strčíme zpět do requestu jako 'user_id', aby zbytek pipeline (FormRequest,
+        // validated array, downstream inserty) zůstal beze změny.
+        if ($request->filled('member_id') && !$request->filled('user_id')) {
+            $resolvedUserId = $this->resolveMainUserId((int) $request->input('member_id'));
+            if (!$resolvedUserId) {
+                return back()->withInput()
+                    ->withErrors(['member_id' => 'Zvolený člen nemá hlavního uživatele.']);
+            }
+            $request->merge(['user_id' => $resolvedUserId]);
+        }
 
         $baseRules = [
             'user_id'            => 'required|integer|exists:users,id',
@@ -477,14 +526,20 @@ class DeviceController extends Controller
             abort(403);
         }
 
-        $preselectedUserId = $request->query('user_id') ? (int) $request->query('user_id') : null;
+        // Pro zpětnou kompatibilitu URL i podporujeme ?user_id=, převedeme na member_id.
+        $preselectedMemberId = null;
+        if ($request->filled('member_id')) {
+            $preselectedMemberId = (int) $request->query('member_id');
+        } elseif ($request->filled('user_id')) {
+            $preselectedMemberId = DB::table('users')->where('id', (int) $request->query('user_id'))->value('member_id');
+        }
         $deviceTypes = EnumType::where('type_id', EnumType::DEVICE_GROUP_ID)->orderBy('id')->pluck('value', 'id');
-        $users = User::orderBy('surname')->orderBy('name')->get();
+        $members     = $this->loadMembersForPicker();
 
         return view('devices.create', [
-            'deviceTypes'       => $deviceTypes,
-            'users'             => $users,
-            'preselectedUserId' => $preselectedUserId,
+            'deviceTypes'         => $deviceTypes,
+            'members'             => $members,
+            'preselectedMemberId' => $preselectedMemberId,
         ]);
     }
 
@@ -495,7 +550,7 @@ class DeviceController extends Controller
         }
 
         $data = $request->validate([
-            'user_id'         => 'required|integer|exists:users,id',
+            'member_id'       => 'required|integer|exists:members,id',
             'name'            => 'required|string|max:255',
             'type'            => 'required|integer|exists:enum_types,id',
             'trade_name'      => 'nullable|string|max:50',
@@ -508,6 +563,14 @@ class DeviceController extends Controller
             'buy_date'        => 'nullable|date',
             'comment'         => 'nullable|string|max:254',
         ]);
+
+        $userId = $this->resolveMainUserId((int) $data['member_id']);
+        if (!$userId) {
+            return back()->withInput()
+                ->withErrors(['member_id' => 'Zvolený člen nemá hlavního uživatele.']);
+        }
+        $data['user_id'] = $userId;
+        unset($data['member_id']);
 
         $device = Device::create($data);
 
@@ -527,12 +590,16 @@ class DeviceController extends Controller
         }
 
         $deviceTypes = EnumType::where('type_id', EnumType::DEVICE_GROUP_ID)->orderBy('id')->pluck('value', 'id');
-        $users = User::orderBy('surname')->orderBy('name')->get();
+        $members     = $this->loadMembersForPicker();
+        // Preselect aktuálního člena přes user → member_id (všechny existující devices
+        // koukají na main usera, takže member_id je vždy dostupný).
+        $currentMemberId = DB::table('users')->where('id', $device->user_id)->value('member_id');
 
         return view('devices.edit', [
             'device'             => $device,
             'deviceTypes'        => $deviceTypes,
-            'users'              => $users,
+            'members'            => $members,
+            'currentMemberId'    => $currentMemberId,
             'canEditLogin'       => $this->can('view_all', 'login'),
             'canEditPassword'    => $this->can('view_all', 'password'),
         ]);
@@ -550,7 +617,7 @@ class DeviceController extends Controller
         }
 
         $rules = [
-            'user_id'         => 'required|integer|exists:users,id',
+            'member_id'       => 'required|integer|exists:members,id',
             'name'            => 'required|string|max:255',
             'type'            => 'required|integer|exists:enum_types,id',
             'trade_name'      => 'nullable|string|max:50',
@@ -571,6 +638,15 @@ class DeviceController extends Controller
         }
 
         $data = $request->validate($rules);
+
+        $userId = $this->resolveMainUserId((int) $data['member_id']);
+        if (!$userId) {
+            return back()->withInput()
+                ->withErrors(['member_id' => 'Zvolený člen nemá hlavního uživatele.']);
+        }
+        $data['user_id'] = $userId;
+        unset($data['member_id']);
+
         $device->update($data);
 
         session()->flash('success', 'Zařízení bylo úspěšně upraveno.');

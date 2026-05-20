@@ -23,16 +23,16 @@
 @method('PUT')
 <div class="m-card" style="margin-bottom:16px;max-width:560px">
     <div class="m-form-group">
-        <label class="m-form-label" for="user_id">Uživatel <span style="color:#c0392b">*</span></label>
-        <select class="m-form-select" id="user_id" name="user_id">
-            <option value="">— vyberte uživatele —</option>
-            @foreach($users as $user)
-                <option value="{{ $user->id }}" @selected(old('user_id', $device->user_id) == $user->id)>
-                    {{ $user->full_name }} ({{ $user->login }})
+        <label class="m-form-label" for="member_id">Člen <span style="color:#c0392b">*</span></label>
+        <select class="m-form-select" id="member_id" name="member_id">
+            <option value="">— vyberte člena —</option>
+            @foreach($members as $m)
+                <option value="{{ $m->id }}" @selected(old('member_id', $currentMemberId) == $m->id)>
+                    {{ $m->name }} ({{ $m->login }})
                 </option>
             @endforeach
         </select>
-        @error('user_id') <div class="m-form-hint" style="color:#c0392b">{{ $message }}</div> @enderror
+        @error('member_id') <div class="m-form-hint" style="color:#c0392b">{{ $message }}</div> @enderror
     </div>
     <div class="m-form-row">
         <div class="m-form-group">
