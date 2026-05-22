@@ -38,7 +38,7 @@ class RegistrationController extends Controller
             'phone'                       => 'required|string|max:30',
             'town_id'                     => 'required|integer|exists:towns,id',
             'street_id'                   => 'required|integer|exists:streets,id',
-            'street_number'               => 'required|string|max:50',
+            'street_number'               => ['required', 'string', 'max:15', 'regex:/^(ev\.?\s*č\.?\s*)?\d[\dA-Za-z\/\- ]*$/iu'],
             'organization_identifier'     => 'nullable|string|max:20',
             'vat_organization_identifier' => 'nullable|string|max:20',
             'comment'                     => 'nullable|string|max:250',

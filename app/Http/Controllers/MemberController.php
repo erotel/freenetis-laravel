@@ -209,6 +209,7 @@ class MemberController extends Controller
             'canViewInvoices'      => $isOwnProfile || $this->aclCheck('view_all', 'Accounts_Controller', 'invoices'),
             'canNotify'            => $this->aclCheck('new_all', 'Notifications_Controller', 'member'),
             'canExportRegistration'=> $this->aclCheck('view_all', 'Members_Controller', 'registration_export'),
+            'canViewComment'       => $this->aclCheck('view_all',   'Members_Controller', 'comment'),
             'canComment'           => $this->aclCheck('new_all',    'Members_Controller', 'comment'),
             'canEditComment'       => $this->aclCheck('edit_all',   'Members_Controller', 'comment'),
             'canDeleteComment'     => $this->aclCheck('delete_all', 'Members_Controller', 'comment'),
@@ -277,7 +278,7 @@ class MemberController extends Controller
             'phone'                       => 'required|string|max:40',
             'town_id'                     => 'required|integer|exists:towns,id',
             'street_id'                   => 'required|integer|exists:streets,id',
-            'street_number'               => 'required|string|max:50',
+            'street_number'               => ['required', 'string', 'max:15', 'regex:/^(ev\.?\s*č\.?\s*)?\d[\dA-Za-z\/\- ]*$/iu'],
             'organization_identifier'     => 'nullable|string|max:20',
             'vat_organization_identifier' => 'nullable|string|max:30',
             'birthday'                    => 'required|date',
@@ -421,7 +422,7 @@ class MemberController extends Controller
             'vat_organization_identifier' => 'nullable|string|max:30',
             'town_id'         => 'nullable|integer|exists:towns,id',
             'street_id'       => 'nullable|integer|exists:streets,id',
-            'street_number'   => 'nullable|string|max:50',
+            'street_number'   => ['nullable', 'string', 'max:15', 'regex:/^(ev\.?\s*č\.?\s*)?\d[\dA-Za-z\/\- ]*$/iu'],
             'speed_class_id'         => 'nullable|integer|exists:speed_classes,id',
         ]);
 

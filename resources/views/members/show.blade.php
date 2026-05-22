@@ -176,7 +176,7 @@
             <span class="m-field-value">{{ $member->registration ? 'ano' : 'ne' }}</span>
         </div>
         <div class="m-field"><span class="m-field-label">Přístup do systému</span><span class="m-field-value">{{ $member->locked ? 'Zamčen' : 'Odemčen' }}</span></div>
-        @if($member->comment)
+        @if($member->comment && $canViewComment)
         <div class="m-field"><span class="m-field-label">Komentář</span><span class="m-field-value">{{ $member->comment }}</span></div>
         @endif
         @if($tvEnabled)
@@ -244,7 +244,7 @@
 </div>
 
 {{-- Komentáře k účtu --}}
-@if($creditAccount && $accountCommentsList->count() && $canComment)
+@if($creditAccount && $accountCommentsList->count() && $canViewComment)
 <div class="m-section">Komentáře k účtu</div>
 <div class="m-card" style="margin-bottom:16px">
     @foreach($accountCommentsList as $ac)

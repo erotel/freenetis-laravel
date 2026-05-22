@@ -118,7 +118,11 @@
         <div class="m-form-group">
             <label class="m-form-label" for="street-number-edit">Číslo popisné</label>
             <input class="m-form-input" type="text" id="street-number-edit" name="street_number"
-                   value="{{ old('street_number', $member->addressPoint?->street_number) }}" maxlength="50" style="max-width:140px">
+                   value="{{ old('street_number', $member->addressPoint?->street_number) }}" maxlength="15"
+                   pattern="([eE][vV]\.?\s*[čČ]\.?\s*)?\d[\dA-Za-z\/\- ]*"
+                   title="Začíná číslicí nebo &quot;ev. č.&quot;; povolené jsou číslice, písmena, lomítko, pomlčka (např. 123, 123/4a, ev. č. 503)"
+                   placeholder="123, 123/4a nebo ev. č. 503"
+                   style="max-width:160px">
             @error('street_number') <div class="m-form-hint" style="color:#c0392b">{{ $message }}</div> @enderror
         </div>
         <div></div>
