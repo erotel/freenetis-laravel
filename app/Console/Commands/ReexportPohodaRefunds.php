@@ -19,35 +19,63 @@ use Illuminate\Support\Facades\DB;
 class ReexportPohodaRefunds extends Command
 {
     protected $signature = 'pohoda:reexport-refunds
-                                {--month= : YYYY-MM, filtr na created_at (povinné)}
+                                {--month= : YYYY-MM, filtr na created_at měsíc}
+                                {--from= : YYYY-MM-DD, dolní hranice created_at (>=)}
+                                {--to= : YYYY-MM-DD, horní hranice created_at (<=)}
                                 {--type= : member_type — 2=zákazník, 90=řádný člen; default všechny}
                                 {--no-pdf : nepřegenerovávat PDF, jen XML}
-                                {--xml-only : alias pro --no-pdf}';
+                                {--xml-only : alias pro --no-pdf}
+                                {--pdf-only : jen přegenerovat PDF, žádné XML}';
 
-    protected $description = 'Re-export PDF dobropisů a Pohoda XML pro vybraný měsíc + typ z pohoda_refund_queue (nemění status)';
+    protected $description = 'Re-export PDF dobropisů a Pohoda XML z pohoda_refund_queue dle filtru (nemění status)';
 
     public function handle(): int
     {
-        $monthOpt = (string) $this->option('month');
-        if (!preg_match('/^(\d{4})-(\d{2})$/', $monthOpt, $m)) {
-            $this->error('Použij --month=YYYY-MM (např. --month=2026-04).');
-            return 1;
+        $dateFrom = null;
+        $dateTo   = null;
+
+        if ($monthOpt = (string) $this->option('month')) {
+            if (!preg_match('/^(\d{4})-(\d{2})$/', $monthOpt, $m)) {
+                $this->error('--month musí být YYYY-MM (např. 2026-04).');
+                return 1;
+            }
+            $dateFrom = sprintf('%04d-%02d-01 00:00:00', (int) $m[1], (int) $m[2]);
+            $dateTo   = date('Y-m-t 23:59:59', strtotime($dateFrom));
         }
-        $year     = (int) $m[1];
-        $monthNum = (int) $m[2];
-        $dateFrom = sprintf('%04d-%02d-01 00:00:00', $year, $monthNum);
-        $dateTo   = date('Y-m-t 23:59:59', strtotime($dateFrom));
+        if ($fromOpt = (string) $this->option('from')) {
+            if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $fromOpt)) {
+                $this->error('--from musí být YYYY-MM-DD.');
+                return 1;
+            }
+            $dateFrom = $fromOpt . ' 00:00:00';
+        }
+        if ($toOpt = (string) $this->option('to')) {
+            if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $toOpt)) {
+                $this->error('--to musí být YYYY-MM-DD.');
+                return 1;
+            }
+            $dateTo = $toOpt . ' 23:59:59';
+        }
 
         $typeOpt    = $this->option('type');
         $memberType = ($typeOpt === null || $typeOpt === '') ? null : (int) $typeOpt;
         $skipPdf    = (bool) ($this->option('no-pdf') || $this->option('xml-only'));
+        $skipXml    = (bool) $this->option('pdf-only');
+
+        if ($skipPdf && $skipXml) {
+            $this->error('--pdf-only a --no-pdf/--xml-only se navzájem vylučují.');
+            return 1;
+        }
+        if ($dateFrom === null && $dateTo === null && $memberType === null) {
+            $this->error('Zadej aspoň jeden filtr: --month, --from, --to nebo --type. Bez nich by se přegenerovalo všechno.');
+            return 1;
+        }
 
         $q = DB::table('pohoda_refund_queue as q')
             ->join('members as m', 'm.id', '=', 'q.member_id')
             ->leftJoin('address_points as ap', 'ap.id', '=', 'm.address_point_id')
             ->leftJoin('streets as s', 's.id', '=', 'ap.street_id')
             ->leftJoin('towns as t', 't.id', '=', 'ap.town_id')
-            ->whereBetween('q.created_at', [$dateFrom, $dateTo])
             ->orderBy('q.id')
             ->select(
                 'q.*',
@@ -61,14 +89,13 @@ class ReexportPohodaRefunds extends Command
                 't.zip_code'
             );
 
-        if ($memberType !== null) {
-            $q->where('q.member_type', $memberType);
-        }
+        if ($dateFrom !== null) $q->where('q.created_at', '>=', $dateFrom);
+        if ($dateTo   !== null) $q->where('q.created_at', '<=', $dateTo);
+        if ($memberType !== null) $q->where('q.member_type', $memberType);
 
         $items = $q->get();
         if ($items->isEmpty()) {
-            $this->warn("V queue není žádný řádek pro {$monthOpt}"
-                . ($memberType !== null ? " a type={$memberType}" : '') . '.');
+            $this->warn('V queue není žádný řádek pro daný filtr.');
             return 0;
         }
 
@@ -96,6 +123,11 @@ class ReexportPohodaRefunds extends Command
                 }
             }
             $this->info("PDF přegenerováno: {$okPdf}/" . $items->count());
+        }
+
+        if ($skipXml) {
+            $this->info('Hotovo (--pdf-only). XML přeskočeno. Status řádků v queue se NEZMĚNIL.');
+            return 0;
         }
 
         // 2. XML — kopie logiky z PohodaExportService::exportRefunds, ale
@@ -180,13 +212,17 @@ class ReexportPohodaRefunds extends Command
         $xml->endElement(); // dat:dataPack
         $xml->endDocument();
 
-        $typeTag  = $memberType === MemberType::CUSTOMER ? '_customer'
-                  : ($memberType === MemberType::REGULAR ? '_regular'
-                  : ($memberType !== null ? '_type' . $memberType : ''));
+        $typeTag = $memberType === MemberType::CUSTOMER ? '_customer'
+                 : ($memberType === MemberType::REGULAR ? '_regular'
+                 : ($memberType !== null ? '_type' . $memberType : ''));
+        $rangeTag = '';
+        if ($dateFrom !== null) $rangeTag .= '_from' . substr($dateFrom, 0, 10);
+        if ($dateTo   !== null) $rangeTag .= '_to'   . substr($dateTo,   0, 10);
+
         $exportDir = '/var/www/html/freenetis/data/export/';
         is_dir($exportDir) || mkdir($exportDir, 0755, true);
-        $filename = $exportDir . sprintf('pohoda_refunds_reexport_%04d_%02d%s_%s.xml',
-            $year, $monthNum, $typeTag, date('His'));
+        $filename = $exportDir . sprintf('pohoda_refunds_reexport%s%s_%s.xml',
+            $rangeTag, $typeTag, date('His'));
         file_put_contents($filename, $xml->outputMemory());
 
         $this->info('XML: ' . $filename);
