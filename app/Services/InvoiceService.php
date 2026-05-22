@@ -46,13 +46,6 @@ class InvoiceService
 
         $bankAccount = BankAccount::find($bankAccountId);
 
-        // Sequential invoice_nr: YYYY00001 format
-        $year  = now()->year;
-        $minNr = $year * 100000;
-        $maxNr = $year * 100000 + 99999;
-        $maxExisting = Invoice::whereBetween('invoice_nr', [$minNr, $maxNr])->max('invoice_nr');
-        $invoiceNr   = $maxExisting ? ((int)$maxExisting + 1) : ($minNr + 1);
-
         // Variable symbol from first account's first variable symbol, else member_id
         $varSym = $member->accounts
             ->flatMap(fn($a) => $a->variableSymbols)
@@ -65,8 +58,22 @@ class InvoiceService
         $town     = $ap?->town?->town ?? '';
         $zip      = $ap?->town?->zip_code ?? '';
 
+        // Sequential invoice_nr: YYYY00001 format.
+        // MAX musí běžet UVNITŘ transakce a s lockForUpdate(), jinak by dvě
+        // paralelní volání (souběžný bank import, retry po výjimce) přečetla
+        // stejné MAX a vyrobila stejné invoice_nr. UNIQUE index v DB je
+        // poslední pojistka, ale chceme se k němu nedostat.
+        $year  = now()->year;
+        $minNr = $year * 100000;
+        $maxNr = $year * 100000 + 99999;
+
         DB::beginTransaction();
         try {
+            $maxExisting = Invoice::whereBetween('invoice_nr', [$minNr, $maxNr])
+                ->lockForUpdate()
+                ->max('invoice_nr');
+            $invoiceNr = $maxExisting ? ((int)$maxExisting + 1) : ($minNr + 1);
+
             $invoice = Invoice::create([
                 'member_id'                   => $memberId,
                 'invoice_nr'                  => $invoiceNr,
