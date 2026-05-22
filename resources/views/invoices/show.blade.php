@@ -49,6 +49,21 @@
         @if($invoice->note)
         <div class="m-field"><span class="m-field-label">Poznámka</span><span class="m-field-value">{{ $invoice->note }}</span></div>
         @endif
+        <div class="m-field">
+            <span class="m-field-label">Pohoda</span>
+            <span class="m-field-value">
+                @if($invoice->pohoda_status === 'exported')
+                    <span class="m-tag m-tag-green">odesláno</span>
+                    @if($invoice->pohoda_exported_at)
+                        <span style="color:#666;font-size:13px;margin-left:6px">
+                            {{ \Carbon\Carbon::parse($invoice->pohoda_exported_at)->format('d.m.Y H:i') }}
+                        </span>
+                    @endif
+                @else
+                    <span class="m-tag" style="background:#fef3c7;color:#92400e">čeká na export</span>
+                @endif
+            </span>
+        </div>
     </div>
 
     <div class="m-card">

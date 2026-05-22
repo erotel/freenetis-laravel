@@ -29,8 +29,13 @@
         <option value="0" @selected($filterType === '0')>Vydané</option>
         <option value="1" @selected($filterType === '1')>Přijaté</option>
     </select>
+    <select class="m-form-select" style="width:160px" name="pohoda" title="Stav exportu do Pohody">
+        <option value="all"      @selected(($filterPohoda ?? 'all') === 'all')>Pohoda: vše</option>
+        <option value="new"      @selected(($filterPohoda ?? 'all') === 'new')>Pohoda: čeká na export</option>
+        <option value="exported" @selected(($filterPohoda ?? 'all') === 'exported')>Pohoda: odesláno</option>
+    </select>
     <button class="m-btn" type="submit">Hledat</button>
-    @if(($q ?? '') !== '' || $filterType !== 'all')
+    @if(($q ?? '') !== '' || $filterType !== 'all' || ($filterPohoda ?? 'all') !== 'all')
     <a class="m-link" href="{{ route('invoices.index') }}">Zrušit filtr</a>
     @endif
 </form>
@@ -50,6 +55,7 @@
             <th style="width:100px">Splatnost</th>
             <th style="width:110px;text-align:right">Bez DPH</th>
             <th style="width:110px;text-align:right">S DPH</th>
+            <th style="width:90px">Pohoda</th>
             <th style="width:70px">Akce</th>
         </tr>
     </thead>
@@ -69,6 +75,16 @@
             <td style="font-size:14px">{{ $invoice->date_due }}</td>
             <td style="text-align:right;font-family:monospace;font-size:14px">{{ number_format($invoice->price_total, 2, ',', ' ') }} {{ $invoice->currency }}</td>
             <td style="text-align:right;font-family:monospace;font-size:14px">{{ number_format($invoice->price_vat_total, 2, ',', ' ') }} {{ $invoice->currency }}</td>
+            <td style="font-size:13px">
+                @if($invoice->pohoda_status === 'exported')
+                    <span class="m-tag m-tag-green"
+                          title="{{ $invoice->pohoda_exported_at ? 'Odesláno '.\Carbon\Carbon::parse($invoice->pohoda_exported_at)->format('d.m.Y') : 'Odesláno' }}">
+                        odesláno
+                    </span>
+                @else
+                    <span class="m-tag" style="background:#fef3c7;color:#92400e">čeká</span>
+                @endif
+            </td>
             <td>
                 <div style="display:flex;gap:6px">
                     <a class="m-link-sm" href="{{ route('invoices.show', $invoice->id) }}">Detail</a>
@@ -79,7 +95,7 @@
             </td>
         </tr>
         @empty
-        <tr><td colspan="9" style="text-align:center;color:#aaa;padding:2rem">Žádné faktury.</td></tr>
+        <tr><td colspan="10" style="text-align:center;color:#aaa;padding:2rem">Žádné faktury.</td></tr>
         @endforelse
     </tbody>
 </table>

@@ -15,7 +15,8 @@ class InvoiceController extends Controller
 
     public function index(Request $request)
     {
-        $q = trim((string) $request->query('q', ''));
+        $q           = trim((string) $request->query('q', ''));
+        $pohodaState = $request->input('pohoda', 'all');
 
         $query = Invoice::with(['member', 'items'])
             ->orderBy('date_inv', 'desc')
@@ -26,6 +27,9 @@ class InvoiceController extends Controller
         }
         if ($request->filled('type') && $request->type !== 'all') {
             $query->where('invoice_type', (int) $request->type);
+        }
+        if (in_array($pohodaState, ['new', 'exported'], true)) {
+            $query->where('pohoda_status', $pohodaState);
         }
 
         if ($q !== '') {
@@ -48,10 +52,11 @@ class InvoiceController extends Controller
         $invoices = $query->paginate(50)->withQueryString();
 
         return view('invoices.index', [
-            'invoices'   => $invoices,
-            'member'     => null,
-            'filterType' => $request->input('type', 'all'),
-            'q'          => $q,
+            'invoices'     => $invoices,
+            'member'       => null,
+            'filterType'   => $request->input('type', 'all'),
+            'filterPohoda' => $pohodaState,
+            'q'            => $q,
         ]);
     }
 
@@ -103,10 +108,11 @@ class InvoiceController extends Controller
             ->withQueryString();
 
         return view('invoices.index', [
-            'invoices'   => $invoices,
-            'member'     => $member,
-            'filterType' => 'all',
-            'q'          => '',
+            'invoices'     => $invoices,
+            'member'       => $member,
+            'filterType'   => 'all',
+            'filterPohoda' => 'all',
+            'q'            => '',
         ]);
     }
 }
