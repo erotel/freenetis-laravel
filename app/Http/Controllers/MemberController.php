@@ -945,17 +945,27 @@ class MemberController extends Controller
      * Vrátí další číslo dobropisu (refund doc_number) v aktuálním roce.
      *  - Zákazník: "YY###"     (např. 26011 = rok 26, sekvence 011)
      *  - Člen:     "YYČL####"  (např. 26ČL0010)
-     * Sekvence je per-rok + per-typ; reset každý kalendářní rok.
-     * RIGHT() místo SUBSTRING() ať MySQL korektně rozezná multibyte 'Č' v "ČL".
+     * Sekvence je per-rok + per-formát (ne per member_type — viz níž).
+     *
+     * Filtr přes `doc_number` LIKE/NOT LIKE sám o sobě jednoznačně rozlišuje
+     * zákazníka od člena, takže explicitní `member_type` filtr je zbytečný a
+     * navíc nebezpečný: PENDING_CUSTOMER (18) i HONORARY/FEE_FREE dostávají
+     * zákaznický/členský formát, ale do queue se ukládá jejich vlastní typ a
+     * filtr by je vynechal → duplicitní sekvence.
+     *
+     * lockForUpdate() drží gap-lock přes celou MAX-skupinu do commitu transakce
+     * — chrání proti tomu, aby dvě paralelní endMembership() volání přečetla
+     * stejné MAX a vygenerovala stejné číslo. Musí se volat uvnitř transakce.
+     * RIGHT() místo SUBSTRING() ať MySQL korektně rozezná multibyte 'Č'.
      */
     private function nextRefundDocNumber(bool $isCustomer): string
     {
         $year2 = date('y');
         if ($isCustomer) {
             $maxSeq = (int) DB::table('pohoda_refund_queue')
-                ->where('member_type', MemberType::CUSTOMER)
                 ->where('doc_number', 'like', $year2 . '%')
                 ->where('doc_number', 'not like', $year2 . 'ČL%')
+                ->lockForUpdate()
                 ->selectRaw('MAX(CAST(RIGHT(doc_number, 3) AS UNSIGNED)) AS m')
                 ->value('m');
             return $year2 . str_pad((string) ($maxSeq + 1), 3, '0', STR_PAD_LEFT);
@@ -963,8 +973,8 @@ class MemberController extends Controller
 
         $prefix = $year2 . 'ČL';
         $maxSeq = (int) DB::table('pohoda_refund_queue')
-            ->where('member_type', MemberType::REGULAR)
             ->where('doc_number', 'like', $prefix . '%')
+            ->lockForUpdate()
             ->selectRaw('MAX(CAST(RIGHT(doc_number, 4) AS UNSIGNED)) AS m')
             ->value('m');
         return $prefix . str_pad((string) ($maxSeq + 1), 4, '0', STR_PAD_LEFT);
