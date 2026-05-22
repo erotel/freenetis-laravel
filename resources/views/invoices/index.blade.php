@@ -20,16 +20,20 @@
     <a class="m-btn" href="{{ route('members.show', $member->id) }}">&larr; Profil člena</a>
 </div>
 @else
-<div class="m-card" style="margin-bottom:16px;padding:14px 1.25rem">
-    <form method="GET" action="{{ route('invoices.index') }}" style="display:flex;align-items:center;gap:8px">
-        <div class="m-form-label">Typ:</div>
-        <select class="m-form-select" style="width:130px" name="type" onchange="this.form.submit()">
-            <option value="all" @selected($filterType === 'all')>Všechny</option>
-            <option value="0" @selected($filterType === '0')>Vydané</option>
-            <option value="1" @selected($filterType === '1')>Přijaté</option>
-        </select>
-    </form>
-</div>
+<form method="GET" action="{{ route('invoices.index') }}" style="margin:8px 0 16px;display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+    <input type="text" name="q" value="{{ $q ?? '' }}"
+           placeholder="Hledat: č. faktury, partner, jméno člena, VS, ID"
+           style="flex:1;min-width:260px;padding:6px 10px;border:1px solid #ccc;border-radius:4px">
+    <select class="m-form-select" style="width:130px" name="type">
+        <option value="all" @selected($filterType === 'all')>Všechny</option>
+        <option value="0" @selected($filterType === '0')>Vydané</option>
+        <option value="1" @selected($filterType === '1')>Přijaté</option>
+    </select>
+    <button class="m-btn" type="submit">Hledat</button>
+    @if(($q ?? '') !== '' || $filterType !== 'all')
+    <a class="m-link" href="{{ route('invoices.index') }}">Zrušit filtr</a>
+    @endif
+</form>
 @endif
 
 <div style="margin-bottom:8px">{{ $invoices->links() }}</div>

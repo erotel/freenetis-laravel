@@ -15,6 +15,8 @@ class InvoiceController extends Controller
 
     public function index(Request $request)
     {
+        $q = trim((string) $request->query('q', ''));
+
         $query = Invoice::with(['member', 'items'])
             ->orderBy('date_inv', 'desc')
             ->orderBy('id', 'desc');
@@ -26,12 +28,30 @@ class InvoiceController extends Controller
             $query->where('invoice_type', (int) $request->type);
         }
 
+        if ($q !== '') {
+            $like = '%' . str_replace(['%', '_'], ['\\%', '\\_'], $q) . '%';
+            $query->where(function ($w) use ($like, $q) {
+                $w->where('partner_name',    'like', $like)
+                  ->orWhere('partner_company', 'like', $like)
+                  ->orWhere('note',           'like', $like)
+                  ->orWhereHas('member', fn ($m) => $m->where('name', 'like', $like));
+                if (ctype_digit($q)) {
+                    $n = (int) $q;
+                    $w->orWhere('id', $n)
+                      ->orWhere('invoice_nr', $n)
+                      ->orWhere('member_id',  $n)
+                      ->orWhere('var_sym',    $n);
+                }
+            });
+        }
+
         $invoices = $query->paginate(50)->withQueryString();
 
         return view('invoices.index', [
             'invoices'   => $invoices,
             'member'     => null,
             'filterType' => $request->input('type', 'all'),
+            'q'          => $q,
         ]);
     }
 
@@ -86,6 +106,7 @@ class InvoiceController extends Controller
             'invoices'   => $invoices,
             'member'     => $member,
             'filterType' => 'all',
+            'q'          => '',
         ]);
     }
 }
