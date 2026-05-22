@@ -6,6 +6,9 @@
 @endsection
 @section('content')
 <div class="m-page">
+<div class="m-actions" style="margin-bottom:8px">
+    <a class="m-btn" href="{{ url()->previous() }}">← Zpět</a>
+</div>
 <div class="m-title-row"><h2>Bankovní účty spolku</h2></div>
 
 <div class="m-card" style="padding:0;overflow-x:auto;margin-bottom:24px">

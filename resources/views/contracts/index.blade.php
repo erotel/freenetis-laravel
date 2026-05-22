@@ -15,6 +15,10 @@
 @section('content')
 <div class="member-page">
 
+<div class="m-actions" style="margin-bottom:8px">
+    <a class="m-btn" href="{{ url()->previous() }}">← Zpět</a>
+</div>
+
 <div class="member-title-row">
     <h2>Smlouvy</h2>
 </div>
