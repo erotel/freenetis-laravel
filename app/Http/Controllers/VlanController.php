@@ -29,8 +29,23 @@ class VlanController extends Controller
             $perPage = 50;
         }
 
-        $vlans = Vlan::withCount('ifaces')
-            ->orderBy($sort, $dir)
+        $q = trim((string) $request->query('q', ''));
+
+        $query = Vlan::withCount('ifaces');
+
+        if ($q !== '') {
+            $like = '%' . str_replace(['%', '_'], ['\\%', '\\_'], $q) . '%';
+            $query->where(function ($w) use ($like, $q) {
+                $w->where('name', 'like', $like)
+                  ->orWhere('comment', 'like', $like);
+                if (ctype_digit($q)) {
+                    $w->orWhere('id', (int) $q)
+                      ->orWhere('tag_802_1q', (int) $q);
+                }
+            });
+        }
+
+        $vlans = $query->orderBy($sort, $dir)
             ->paginate($perPage)
             ->withQueryString();
 
@@ -39,6 +54,7 @@ class VlanController extends Controller
             'sort'      => $sort,
             'dir'       => $dir,
             'perPage'   => $perPage,
+            'q'         => $q,
             'canNew'    => $this->can('new_all'),
             'canEdit'   => $this->can('edit_all'),
             'canDelete' => $this->can('delete_all'),

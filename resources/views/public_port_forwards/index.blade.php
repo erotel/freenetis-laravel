@@ -6,10 +6,17 @@
 @endsection
 @section('content')
 <div class="m-page">
-<div class="m-actions" style="margin-bottom:8px">
-    <a class="m-btn" href="{{ url()->previous() }}">← Zpět</a>
-</div>
 <div class="m-title-row"><h2>Veřejné porty (port forwarding)</h2></div>
+
+<form method="GET" action="{{ route('public-port-forwards.index') }}" style="margin:8px 0 16px;display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+    <input type="text" name="q" value="{{ $q ?? '' }}"
+           placeholder="Hledat: IP, port, protokol, jméno člena, ID"
+           style="flex:1;min-width:260px;padding:6px 10px;border:1px solid #ccc;border-radius:4px">
+    <button class="m-btn" type="submit">Hledat</button>
+    @if(($q ?? '') !== '')
+    <a class="m-link" href="{{ route('public-port-forwards.index') }}">Zrušit filtr</a>
+    @endif
+</form>
 
 @if($canEdit)
 <div class="m-actions">

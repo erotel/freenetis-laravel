@@ -35,6 +35,7 @@ class AccountController extends Controller
         }
 
         $type = $request->query('type', 'all');
+        $q    = trim((string) $request->query('q', ''));
 
         $query = Account::with(['member', 'accountAttribute']);
 
@@ -46,6 +47,18 @@ class AccountController extends Controller
             default   => null,
         };
 
+        if ($q !== '') {
+            $like = '%' . str_replace(['%', '_'], ['\\%', '\\_'], $q) . '%';
+            $query->where(function ($w) use ($like, $q) {
+                $w->where('name', 'like', $like)
+                  ->orWhereHas('member', fn ($m) => $m->where('name', 'like', $like));
+                if (ctype_digit($q)) {
+                    $w->orWhere('id', (int) $q)
+                      ->orWhere('member_id', (int) $q);
+                }
+            });
+        }
+
         $accounts = $query->orderBy($sort, $dir)
             ->paginate($perPage)
             ->withQueryString();
@@ -56,6 +69,7 @@ class AccountController extends Controller
             'dir'             => $dir,
             'perPage'         => $perPage,
             'type'            => $type,
+            'q'               => $q,
             'canNew'          => $this->can('new_all'),
             'canEdit'         => $this->can('edit_all'),
             'canViewTransfers'=> $this->can('view_all', 'transfers'),

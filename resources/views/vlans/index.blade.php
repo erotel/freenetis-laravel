@@ -6,11 +6,18 @@
 @endsection
 @section('content')
 <div class="m-page">
-<div class="m-actions" style="margin-bottom:8px">
-    <a class="m-btn" href="{{ url()->previous() }}">← Zpět</a>
-</div>
 <div class="m-title-row"><h2>Seznam VLANů</h2></div>
 <div class="m-subtitle">Celkem: {{ $vlans->total() }} záznamů</div>
+
+<form method="GET" action="{{ route('vlans.index') }}" style="margin:8px 0 16px;display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+    <input type="text" name="q" value="{{ $q ?? '' }}"
+           placeholder="Hledat: název, komentář, 802.1Q tag, ID"
+           style="flex:1;min-width:260px;padding:6px 10px;border:1px solid #ccc;border-radius:4px">
+    <button class="m-btn" type="submit">Hledat</button>
+    @if(($q ?? '') !== '')
+    <a class="m-link" href="{{ route('vlans.index') }}">Zrušit filtr</a>
+    @endif
+</form>
 
 @if($canNew)
 <div class="m-actions">

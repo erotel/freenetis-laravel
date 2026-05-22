@@ -6,11 +6,19 @@
 @endsection
 @section('content')
 <div class="m-page">
-<div class="m-actions" style="margin-bottom:8px">
-    <a class="m-btn" href="{{ url()->previous() }}">← Zpět</a>
-</div>
 <div class="m-title-row"><h2>Seznam účtů</h2></div>
 <div class="m-subtitle">Celkem: {{ $accounts->total() }} záznamů</div>
+
+<form method="GET" action="{{ route('accounts.index') }}" style="margin:8px 0 16px;display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+    <input type="text" name="q" value="{{ $q ?? '' }}"
+           placeholder="Hledat: název účtu, jméno člena, ID účtu, ID člena"
+           style="flex:1;min-width:260px;padding:6px 10px;border:1px solid #ccc;border-radius:4px">
+    <input type="hidden" name="type" value="{{ $type ?? 'all' }}">
+    <button class="m-btn" type="submit">Hledat</button>
+    @if(($q ?? '') !== '')
+    <a class="m-link" href="{{ route('accounts.index', ['type' => $type ?? 'all']) }}">Zrušit filtr</a>
+    @endif
+</form>
 
 @php
     $tabs = ['all' => 'Všechny', 'credit' => 'Členské', 'project' => 'Projektové', 'other' => 'Ostatní'];

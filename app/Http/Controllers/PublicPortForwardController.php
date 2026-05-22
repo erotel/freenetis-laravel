@@ -15,11 +15,13 @@ class PublicPortForwardController extends Controller
         return $this->aclCheck($action, 'Network_Controller', 'public_ports');
     }
 
-    public function index()
+    public function index(Request $request)
     {
         abort_unless($this->can(), 403);
 
-        $rows = DB::table('public_port_forwards AS p')
+        $q = trim((string) $request->query('q', ''));
+
+        $query = DB::table('public_port_forwards AS p')
             ->leftJoin('ip_addresses AS ip', DB::raw('ip.ip_address COLLATE utf8mb3_uca1400_ai_ci'), '=', 'p.private_ip')
             ->leftJoin('ifaces AS i', 'i.id', '=', 'ip.iface_id')
             ->leftJoin('devices AS d', 'd.id', '=', 'i.device_id')
@@ -35,11 +37,33 @@ class PublicPortForwardController extends Controller
                 'mm.name AS modified_by_name',
                 'mc.name AS created_by_name'
             )
-            ->orderByRaw('INET_ATON(p.public_ip) ASC, p.protocol ASC, p.public_port_from ASC')
-            ->get();
+            ->orderByRaw('INET_ATON(p.public_ip) ASC, p.protocol ASC, p.public_port_from ASC');
+
+        if ($q !== '') {
+            $like = '%' . str_replace(['%', '_'], ['\\%', '\\_'], $q) . '%';
+            $query->where(function ($w) use ($like, $q) {
+                $w->where('p.public_ip', 'like', $like)
+                  ->orWhere('p.private_ip', 'like', $like)
+                  ->orWhere('p.protocol', 'like', $like)
+                  ->orWhere('om.name', 'like', $like);
+                if (ctype_digit($q)) {
+                    $port = (int) $q;
+                    $w->orWhere('p.id', $port)
+                      ->orWhere(function ($pp) use ($port) {
+                          $pp->where('p.public_port_from', '<=', $port)
+                             ->where('p.public_port_to',   '>=', $port);
+                      })
+                      ->orWhere(function ($pp) use ($port) {
+                          $pp->where('p.private_port_from', '<=', $port)
+                             ->where('p.private_port_to',   '>=', $port);
+                      });
+                }
+            });
+        }
 
         return view('public_port_forwards.index', [
-            'rows'    => $rows,
+            'rows'    => $query->get(),
+            'q'       => $q,
             'canEdit' => $this->can('edit_all'),
         ]);
     }

@@ -16,9 +16,28 @@ class BankAccountController extends Controller
         return $this->aclCheck($action, self::ACL_SECTION, self::ACL_VALUE);
     }
 
-    public function index()
+    public function index(Request $request)
     {
-        $all = BankAccount::with('member')->orderBy('id')->get();
+        $q = trim((string) $request->query('q', ''));
+
+        $query = BankAccount::with('member')->orderBy('id');
+
+        if ($q !== '') {
+            $like = '%' . str_replace(['%', '_'], ['\\%', '\\_'], $q) . '%';
+            $query->where(function ($w) use ($like, $q) {
+                $w->where('name', 'like', $like)
+                  ->orWhere('account_nr', 'like', $like)
+                  ->orWhere('bank_nr',    'like', $like)
+                  ->orWhere('IBAN',       'like', $like)
+                  ->orWhereHas('member', fn ($m) => $m->where('name', 'like', $like));
+                if (ctype_digit($q)) {
+                    $w->orWhere('id', (int) $q)
+                      ->orWhere('member_id', (int) $q);
+                }
+            });
+        }
+
+        $all = $query->get();
 
         $associationAccounts = $all->where('member_id', 1)->values();
         $memberAccounts      = $all->where('member_id', '!=', 1)->values();
@@ -36,7 +55,7 @@ class BankAccountController extends Controller
         }
 
         return view('bank_accounts.index', compact(
-            'associationAccounts', 'memberAccounts', 'canManageAutoDown', 'autoDownFlags'
+            'associationAccounts', 'memberAccounts', 'canManageAutoDown', 'autoDownFlags', 'q'
         ));
     }
 

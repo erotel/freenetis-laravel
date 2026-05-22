@@ -6,9 +6,17 @@
 @endsection
 @section('content')
 <div class="m-page">
-<div class="m-actions" style="margin-bottom:8px">
-    <a class="m-btn" href="{{ url()->previous() }}">← Zpět</a>
-</div>
+
+<form method="GET" action="{{ route('bank_accounts.index') }}" style="margin:0 0 16px;display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+    <input type="text" name="q" value="{{ $q ?? '' }}"
+           placeholder="Hledat: název, číslo účtu, IBAN, jméno člena, ID"
+           style="flex:1;min-width:260px;padding:6px 10px;border:1px solid #ccc;border-radius:4px">
+    <button class="m-btn" type="submit">Hledat</button>
+    @if(($q ?? '') !== '')
+    <a class="m-link" href="{{ route('bank_accounts.index') }}">Zrušit filtr</a>
+    @endif
+</form>
+
 <div class="m-title-row"><h2>Bankovní účty spolku</h2></div>
 
 <div class="m-card" style="padding:0;overflow-x:auto;margin-bottom:24px">
