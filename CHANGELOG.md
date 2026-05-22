@@ -21,6 +21,17 @@ ať lze changelog snadno regenerovat přes `git log vX..vY --oneline`.
   období. Původní `--month` filtroval obě věci stejně; nový rozsahový
   filtr + `--pdf-only`/`--xml-only` umožní každý výstup vyrobit zvlášť bez
   zásahu do `status` v queue.
+- **`pohoda_status` na fakturách (idempotentní měsíční export).**
+  Symetrie s `pohoda_refund_queue` — `invoices` mají nové sloupce
+  `pohoda_status` (default `new`) a `pohoda_exported_at`. Migrace
+  `2026_05_22_100000_add_pohoda_status_to_invoices` provedla backfill: vše
+  s `date_inv <= 2026-04-30` (4118 řádků) označeno jako `exported`, květnové
+  faktury (87 řádků) zůstaly `new` k odeslání. `PohodaExportService::exportInvoices`
+  teď filtruje `WHERE pohoda_status='new'` (místo dřívějšího `date_inv`
+  rangu) a po vyrobení XML hromadně překlopí ID várky na `exported`.
+  Re-spuštění `pohoda:export-monthly --force` už nevyrobí duplicity. Seznam
+  i detail faktury ukazují tag (`odesláno` / `čeká`) a v hlavičce seznamu
+  je filtr „Pohoda: vše / čeká na export / odesláno".
 
 ### Fixed
 - **Duplicitní `doc_number` v `pohoda_refund_queue` (5× v období 2026-02..05).**
