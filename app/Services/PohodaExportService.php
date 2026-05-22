@@ -11,17 +11,20 @@ class PohodaExportService
 
     public function exportInvoices(int $year, int $month): ?string
     {
-        $dateFrom = sprintf('%04d-%02d-01', $year, $month);
-        $dateTo   = date('Y-m-t', strtotime($dateFrom));
-
+        // Idempotentní výběr: bereme všechno status='new' (včetně případně
+        // zapomenutých faktur z dřívějších měsíců). Po úspěšném vyrobení XML
+        // celou várku překlopíme na 'exported'. Re-spuštění příkazu už
+        // pak nevyrobí nic — Pohoda nedostává duplicity.
         $invoices = DB::table('invoices')
-            ->whereBetween('date_inv', [$dateFrom, $dateTo])
+            ->where('pohoda_status', 'new')
             ->orderBy('invoice_nr')
             ->get();
 
         if ($invoices->isEmpty()) {
             return null;
         }
+
+        $exportedIds = $invoices->pluck('id')->all();
 
         $ico         = Setting::get('organization_identifier', '');
         $application = Setting::get('pohoda_application', 'Freenetis');
@@ -174,6 +177,13 @@ class PohodaExportService
         $filename = $this->exportDir . sprintf('pohoda_%04d_%02d.xml', $year, $month);
         is_dir($this->exportDir) || mkdir($this->exportDir, 0755, true);
         file_put_contents($filename, $xml->outputMemory());
+
+        DB::table('invoices')
+            ->whereIn('id', $exportedIds)
+            ->update([
+                'pohoda_status'      => 'exported',
+                'pohoda_exported_at' => now(),
+            ]);
 
         return $filename;
     }
