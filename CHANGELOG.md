@@ -6,6 +6,56 @@ formát podle [Keep a Changelog](https://keepachangelog.com/cs/1.1.0/).
 Verzi v souboru `config/version.php` bumpni samostatným commitem `chore: bump version to X.Y.Z`,
 ať lze changelog snadno regenerovat přes `git log vX..vY --oneline`.
 
+## [2.2.0] — 2026-05-22
+
+### Added
+- **Vyhledávání na seznamech faktur, VLAN, Veřejných portů, Účtů a Bank. účtů.**
+  Pole `q` se vzorem ze stránky Smluv — LIKE přes textové sloupce (název,
+  partner, IP, číslo účtu, IBAN, jméno člena, komentář…); pokud je vstup
+  číslo, hledá taky v ID, invoice_nr/var_sym/member_id, 802.1Q tagu a
+  v rozsahu portů. Existující filtry (type tabs na účtech, Vydané/Přijaté
+  na fakturách) zůstaly funkční a sort/pagination si přes
+  `request()->fullUrlWithQuery` drží aktivní `q`.
+- **`pohoda:reexport-refunds` umí `--from`/`--to` a `--pdf-only`.**
+  Účetní potřebovala odděleně PDF všech zákazníků a XML jen vybraného
+  období. Původní `--month` filtroval obě věci stejně; nový rozsahový
+  filtr + `--pdf-only`/`--xml-only` umožní každý výstup vyrobit zvlášť bez
+  zásahu do `status` v queue.
+
+### Fixed
+- **Duplicitní `doc_number` v `pohoda_refund_queue` (5× v období 2026-02..05).**
+  `MemberController::nextRefundDocNumber` filtroval přes `member_type =
+  CUSTOMER/REGULAR`, ale PENDING_CUSTOMER (18), HONORARY (3) a FEE_FREE (6)
+  dostávají zákaznický/členský formát se svým vlastním typem — MAX query je
+  pak nevidělo a generovala stejnou sekvenci dvakrát. Filtr přes
+  `member_type` zahozen (pattern `doc_number` LIKE/NOT LIKE už typ jednoznačně
+  rozlišuje), MAX-query opatřena `lockForUpdate()` proti race conditions,
+  migrace `2026_05_22_080000_add_unique_doc_number_to_pohoda_refund_queue`
+  přidává UNIQUE index na `doc_number`. Existující duplicity přečíslovány
+  ručně před spuštěním migrace.
+- **Race condition v `InvoiceService::generateServicesInvoice`.** MAX-query
+  pro nové `invoice_nr` běžela MIMO transakci a bez zámku — dva paralelní
+  bank importy (cron + ručně) by mohly vyrobit stejné číslo faktury.
+  Aktuálně žádné duplicity v DB nejsou (3594 faktur za 2026 sekvenčně, bez
+  mezer), ale latentní riziko bylo reálné. MAX přesunuta dovnitř transakce
+  s `lockForUpdate()`, migrace
+  `2026_05_22_090000_invoices_invoice_nr_bigint_unique` mění
+  `invoices.invoice_nr` z `DOUBLE` na `BIGINT UNSIGNED NOT NULL` a přidává
+  UNIQUE index jako tvrdou pojistku.
+- **Pole `street_number` brala 50 znaků bez regex validace** — uživatelé do
+  něj při registraci psali celou ulici s číslem („Jana Zrzavého 3993/12"),
+  pak v exportech dostával účetní dvojí cestu. Validace zúžena na max 15
+  znaků s regexem `/^(ev\.?\s*č\.?\s*)?\d[\dA-Za-z\/\- ]*$/iu` (musí začínat
+  číslicí, volitelný prefix „ev. č." pro evidenční čísla). Aplikováno
+  v registraci i v admin create/edit; HTML `pattern` + `title` dělá
+  user-friendly browser hint. Existující data nejsou migrována.
+- **Členové se základním ACL viděli admin komentáře na svém profilu.**
+  `members.comment` (interní poznámky adminu) a sekce „Komentáře k účtu"
+  byly v `members/show.blade.php` renderovány bez ACL gate, případně
+  jen pod `$canComment` (`new_all`). Přidán `$canViewComment =
+  view_all` na `Members_Controller::comment` a obě místa nově gateována přes
+  něj — kdo nemá `view_all`, komentáře vůbec neuvidí.
+
 ## [2.1.9] — 2026-05-20
 
 ### Fixed
