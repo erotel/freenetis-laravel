@@ -14,14 +14,23 @@ use Symfony\Component\Mime\Part\File;
 
 class SendEmailQueue extends Command
 {
-    protected $signature   = 'email:send-queue';
+    protected $signature   = 'email:send-queue {--limit= : Max emails to send this run (overrides email_send_batch_size)}';
     protected $description = 'Send queued emails from email_queues table';
 
     public function handle(): int
     {
+        // Dávkování — při hromadné rozesílce 2000+ mailů by jeden běh zatlačil SMTP
+        // a dál si držel paměť pro celou kolekci. Per-run limit drží rate < limit/min.
+        // Setting `email_send_batch_size` default 100 lze přebít CLI flagem --limit.
+        $limit = (int) ($this->option('limit') ?? Setting::get('email_send_batch_size', 100));
+        if ($limit < 1) {
+            $limit = 100;
+        }
+
         $emails = EmailQueue::with('attachments')
             ->where('state', EmailQueue::STATE_NEW)
             ->orderBy('id')
+            ->limit($limit)
             ->get();
 
         if ($emails->isEmpty()) {

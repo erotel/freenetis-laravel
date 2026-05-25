@@ -60,6 +60,8 @@ class NotificationController extends Controller
                 DB::raw('(SELECT 1 FROM members_whitelists mw WHERE mw.member_id = m.id AND mw.since <= ? AND mw.until >= ? LIMIT 1) AS whitelisted'),
                 DB::raw('(SELECT 1 FROM membership_interrupts mi WHERE mi.member_id = m.id LIMIT 1) AS interrupted'),
                 DB::raw('(SELECT 1 FROM messages_ip_addresses mia JOIN ip_addresses ia ON ia.id = mia.ip_address_id JOIN ifaces i ON i.id = ia.iface_id JOIN devices d ON d.id = i.device_id JOIN users u ON u.id = d.user_id WHERE mia.message_id = ? AND u.member_id = m.id LIMIT 1) AS has_redirection'),
+                DB::raw('(SELECT COUNT(*) FROM contacts c JOIN users_contacts uc ON uc.contact_id = c.id JOIN users u ON u.id = uc.user_id WHERE u.member_id = m.id AND c.type = 20) AS email_contacts_count'),
+                DB::raw('(SELECT COUNT(*) FROM contacts c JOIN users_contacts uc ON uc.contact_id = c.id JOIN users u ON u.id = uc.user_id WHERE u.member_id = m.id AND c.type = 21) AS phone_contacts_count'),
             ])
             ->addBinding([$today, $today, $mid], 'select')
             ->whereNotIn('m.type', [MemberType::FORMER, MemberType::FORMER_CUSTOMER])
@@ -106,11 +108,13 @@ class NotificationController extends Controller
             ->flip()
             ->toArray();
 
+        // ── Přesměrování ──────────────────────────────────────────────────────
+        // Drobná, rychlá modifikace pár stovek řádků v messages_ip_addresses —
+        // necháno v jediné transakci, ať je atomické vůči souběžnému cronu.
         DB::transaction(function () use (
             $messageId, $message, $comment, $userId, $now,
-            $redirections, $emails, $smss, $whitelistedIds, &$stats
+            $redirections, $whitelistedIds, &$stats
         ) {
-            // ── Přesměrování ─────────────────────────────────────────────────
             foreach ($redirections as $memberId => $action) {
                 $memberId = (int) $memberId;
                 $action   = (int) $action;
@@ -138,80 +142,111 @@ class NotificationController extends Controller
                         ->whereIn('ip_address_id', $ipIds)
                         ->delete();
 
-                    foreach ($ipIds as $ipId) {
-                        DB::statement(
-                            'INSERT INTO messages_ip_addresses (message_id, ip_address_id, user_id, comment, datetime)
-                             VALUES (?, ?, ?, ?, ?)
-                             ON DUPLICATE KEY UPDATE user_id=VALUES(user_id), comment=VALUES(comment), datetime=VALUES(datetime)',
-                            [$messageId, $ipId, $userId, $comment ?: null, $now]
-                        );
-                        $stats['redir_activated']++;
-                    }
-                }
-            }
-
-            // ── E-mail ────────────────────────────────────────────────────────
-            if ($message->email_text) {
-                $from    = Setting::get('email_default_email', 'noreply@freenetis.org');
-                $prefix  = Setting::get('email_subject_prefix', '');
-                $subject = ($prefix ? $prefix . ' :: ' : '') . $message->name;
-
-                foreach ($emails as $memberId => $action) {
-                    if ((int) $action !== self::ACTIVATE) continue;
-
-                    $body = str_replace('{comment}', $comment, $message->email_text);
-
-                    $contacts = DB::table('contacts as c')
-                        ->join('users_contacts as uc', 'uc.contact_id', '=', 'c.id')
-                        ->join('users as u', 'u.id', '=', 'uc.user_id')
-                        ->where('u.member_id', (int) $memberId)
-                        ->where('c.type', self::CONTACT_EMAIL)
-                        ->pluck('c.value');
-
-                    foreach ($contacts as $to) {
-                        DB::table('email_queues')->insert([
-                            'from' => $from, 'to' => $to,
-                            'subject' => $subject, 'body' => $body,
-                            'state' => 0, 'access_time' => $now,
-                        ]);
-                        $stats['emails_sent']++;
-                    }
-                }
-            }
-
-            // ── SMS ───────────────────────────────────────────────────────────
-            if ($message->sms_text) {
-                $smsEnabled = Setting::get('sms_enabled', '0');
-                $smsDriver  = Setting::get('sms_driver', '');
-                $smsSender  = Setting::get('sms_sender_number', '');
-
-                if ($smsEnabled && $smsDriver && $smsSender) {
-                    foreach ($smss as $memberId => $action) {
-                        if ((int) $action !== self::ACTIVATE) continue;
-
-                        $text = str_replace('{comment}', $comment, $message->sms_text);
-
-                        $contacts = DB::table('contacts as c')
-                            ->join('users_contacts as uc', 'uc.contact_id', '=', 'c.id')
-                            ->join('users as u', 'u.id', '=', 'uc.user_id')
-                            ->where('u.member_id', (int) $memberId)
-                            ->where('c.type', self::CONTACT_PHONE)
-                            ->pluck('c.value');
-
-                        foreach ($contacts as $phone) {
-                            DB::table('sms_messages')->insert([
-                                'user_id' => $userId, 'sms_message_id' => null,
-                                'stamp' => $now, 'send_date' => $now,
-                                'text' => $text, 'sender' => $smsSender,
-                                'receiver' => $phone, 'driver' => (int) $smsDriver,
-                                'type' => 1, 'state' => 1,
-                            ]);
-                            $stats['smss_sent']++;
-                        }
-                    }
+                    $rows = $ipIds->map(fn ($ipId) => [
+                        'message_id'    => $messageId,
+                        'ip_address_id' => $ipId,
+                        'user_id'       => $userId,
+                        'comment'       => $comment ?: null,
+                        'datetime'      => $now,
+                    ])->all();
+                    DB::table('messages_ip_addresses')->insertOrIgnore($rows);
+                    $stats['redir_activated'] += count($rows);
                 }
             }
         });
+
+        // ── E-mail (chunkovaně, mimo transakci — 2000 řádků by jinak drželo
+        // dlouhý lock + paměť. Když cokoliv selže v půlce, předchozí dávky
+        // už jsou bezpečně queue-d a `email:send-queue` je pošle.) ──────────
+        if ($message->email_text) {
+            $from    = Setting::get('email_default_email', 'noreply@freenetis.org');
+            $prefix  = Setting::get('email_subject_prefix', '');
+            $subject = ($prefix ? $prefix . ' :: ' : '') . $message->name;
+            $body    = str_replace('{comment}', $comment, $message->email_text);
+
+            $emailMemberIds = array_keys(array_filter(
+                $emails, fn ($a) => (int) $a === self::ACTIVATE
+            ));
+
+            if ($emailMemberIds) {
+                $rowsBuffer = [];
+                $contacts   = DB::table('contacts as c')
+                    ->join('users_contacts as uc', 'uc.contact_id', '=', 'c.id')
+                    ->join('users as u', 'u.id', '=', 'uc.user_id')
+                    ->whereIn('u.member_id', $emailMemberIds)
+                    ->where('c.type', self::CONTACT_EMAIL)
+                    ->pluck('c.value');
+
+                foreach ($contacts as $to) {
+                    $rowsBuffer[] = [
+                        'from'        => $from,
+                        'to'          => $to,
+                        'subject'     => $subject,
+                        'body'        => $body,
+                        'state'       => 0,
+                        'access_time' => $now,
+                    ];
+                    if (count($rowsBuffer) >= 500) {
+                        DB::table('email_queues')->insert($rowsBuffer);
+                        $stats['emails_sent'] += count($rowsBuffer);
+                        $rowsBuffer = [];
+                    }
+                }
+                if ($rowsBuffer) {
+                    DB::table('email_queues')->insert($rowsBuffer);
+                    $stats['emails_sent'] += count($rowsBuffer);
+                }
+            }
+        }
+
+        // ── SMS (stejný pattern jako e-mail) ──────────────────────────────────
+        if ($message->sms_text) {
+            $smsEnabled = Setting::get('sms_enabled', '0');
+            $smsDriver  = Setting::get('sms_driver', '');
+            $smsSender  = Setting::get('sms_sender_number', '');
+
+            if ($smsEnabled && $smsDriver && $smsSender) {
+                $text = str_replace('{comment}', $comment, $message->sms_text);
+
+                $smsMemberIds = array_keys(array_filter(
+                    $smss, fn ($a) => (int) $a === self::ACTIVATE
+                ));
+
+                if ($smsMemberIds) {
+                    $rowsBuffer = [];
+                    $phones     = DB::table('contacts as c')
+                        ->join('users_contacts as uc', 'uc.contact_id', '=', 'c.id')
+                        ->join('users as u', 'u.id', '=', 'uc.user_id')
+                        ->whereIn('u.member_id', $smsMemberIds)
+                        ->where('c.type', self::CONTACT_PHONE)
+                        ->pluck('c.value');
+
+                    foreach ($phones as $phone) {
+                        $rowsBuffer[] = [
+                            'user_id'        => $userId,
+                            'sms_message_id' => null,
+                            'stamp'          => $now,
+                            'send_date'      => $now,
+                            'text'           => $text,
+                            'sender'         => $smsSender,
+                            'receiver'       => $phone,
+                            'driver'         => (int) $smsDriver,
+                            'type'           => 1,
+                            'state'          => 1,
+                        ];
+                        if (count($rowsBuffer) >= 500) {
+                            DB::table('sms_messages')->insert($rowsBuffer);
+                            $stats['smss_sent'] += count($rowsBuffer);
+                            $rowsBuffer = [];
+                        }
+                    }
+                    if ($rowsBuffer) {
+                        DB::table('sms_messages')->insert($rowsBuffer);
+                        $stats['smss_sent'] += count($rowsBuffer);
+                    }
+                }
+            }
+        }
 
         $parts = [];
         if ($stats['redir_activated'])   $parts[] = "Přesměrování aktivováno pro {$stats['redir_activated']} IP.";
