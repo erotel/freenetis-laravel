@@ -42,5 +42,9 @@ Schedule::command('members:redirect-interrupted')->dailyAt('00:09');
 // Activate redirect for applicants with expired connection test (skips unless duration configured)
 Schedule::command('members:redirect-expired-applicants')->hourly();
 
+// Activate redirect for pending customers (type=18, unsigned contract); auto-clears when admin
+// changes type 18 → 2 after the contract is signed. Toggleable via pending_customer_redirect_enabled.
+Schedule::command('members:redirect-pending-customers')->hourly();
+
 // SledovaniTV — denně synchronizovat seznam aktivních TV zákazníků (skips unless module enabled)
 Schedule::command('sledovanitv:sync')->dailyAt('03:30');

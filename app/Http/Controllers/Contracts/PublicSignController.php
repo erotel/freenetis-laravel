@@ -182,6 +182,12 @@ class PublicSignController extends Controller
             }
             $member->update($updates);
 
+            // Po přechodu type 18 → 2 okamžitě uvolnit IP z přesměrování
+            // (jinak by zákazník čekal až na další běh cronu, max 1 h).
+            if ($oldType !== ($updates['type'] ?? $oldType)) {
+                app(\App\Services\PendingCustomerRedirectService::class)->refreshForMember($member->id);
+            }
+
             DB::connection('contracts')->table('contract_events')->insert([
                 'contract_id' => $contract->id,
                 'event'       => 'member_activated',

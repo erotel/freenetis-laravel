@@ -27,6 +27,7 @@ class Message extends Model
     const CONTRACT_ADDON_SIGN_LINK       = 29;
     const CONTRACT_SIGNED                = 30;
     const CONTRACT_ADDON_SIGNED          = 31;
+    const PENDING_CUSTOMER_MESSAGE       = 32;
 
     // Self-cancel options
     const SELF_CANCEL_DISABLED = 0;
@@ -51,6 +52,7 @@ class Message extends Model
             self::CONTRACT_ADDON_SIGN_LINK       => 'Dodatek smlouvy — odkaz pro podpis',
             self::CONTRACT_SIGNED                => 'Smlouva — po podpisu',
             self::CONTRACT_ADDON_SIGNED          => 'Dodatek smlouvy — po podpisu',
+            self::PENDING_CUSTOMER_MESSAGE       => 'Čekající zákazník — nepodepsaná smlouva',
             default                              => 'Systémová zpráva (typ ' . $type . ')',
         };
     }

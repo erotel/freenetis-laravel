@@ -499,6 +499,12 @@ class DeviceController extends Controller
             foreach (array_keys($touchedSubnetIds) as $sid) {
                 $sync->onIpAdded($memberId, (int) $sid);
             }
+
+            // Pokud byl device přidán čekajícímu zákazníkovi (type=18), aktivovat
+            // přesměrování okamžitě bez čekání na hodinový cron.
+            if (!empty($touchedSubnetIds)) {
+                app(\App\Services\PendingCustomerRedirectService::class)->refreshForMember((int) $memberId);
+            }
         }
 
         // Approve connection request if device was created from one

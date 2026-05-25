@@ -200,6 +200,10 @@ class IfaceController extends Controller
             ]);
             $this->syncIp6Add($iface->id, $newIp);
             $touchedSubnetIds[(int) $newSubnet] = true;
+
+            if ($memberId) {
+                app(\App\Services\PendingCustomerRedirectService::class)->refreshForMember((int) $memberId);
+            }
         }
 
         foreach (array_keys($touchedSubnetIds) as $sid) {

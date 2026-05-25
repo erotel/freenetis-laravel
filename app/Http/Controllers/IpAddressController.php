@@ -114,6 +114,14 @@ class IpAddressController extends Controller
         $ip->subnet?->setExpired();
         $this->syncAllowedSubnetOnAdd($ip);
 
+        // Pokud IP patří čekajícímu zákazníkovi (type=18), okamžitě aktivovat
+        // přesměrování — admin nemusí čekat na hodinový cron.
+        $memberId = $ip->member_id
+            ?? Iface::find($ip->iface_id)?->device?->user?->member_id;
+        if ($memberId) {
+            app(\App\Services\PendingCustomerRedirectService::class)->refreshForMember((int) $memberId);
+        }
+
         session()->flash('success', 'IP adresa byla úspěšně přidána.');
         return redirect()->route('ip_addresses.show', $ip->id);
     }
