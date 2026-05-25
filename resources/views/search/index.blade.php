@@ -27,15 +27,20 @@
 <div class="m-card" style="padding:0;overflow-x:auto;margin-bottom:16px">
 <table class="m-table" style="margin-bottom:0">
     <thead>
-        <tr><th style="width:50px">ID</th><th>Jméno</th><th style="width:160px">Typ</th><th>Město</th><th style="width:130px">Variabilní symbol</th></tr>
+        <tr><th style="width:50px">ID</th><th>Jméno</th><th style="width:160px">Typ</th><th>Adresa</th><th style="width:130px">Variabilní symbol</th></tr>
     </thead>
     <tbody>
         @foreach($results['members'] as $m)
+        @php
+            $streetPart = trim(($m->street ?? '') . ' ' . ($m->street_number ?? ''));
+            $townPart   = trim(($m->zip_code ?? '') . ' ' . ($m->town ?? ''));
+            $address    = trim(implode(', ', array_filter([$streetPart, $townPart])));
+        @endphp
         <tr>
             <td>{{ $m->id }}</td>
             <td><a class="m-link" href="{{ route('members.show', $m->id) }}">{{ $m->name }}</a></td>
             <td>{{ \App\Helpers\MemberType::label($m->type) }}</td>
-            <td>{{ $m->town ?? '—' }}</td>
+            <td>{{ $address !== '' ? $address : '—' }}</td>
             <td style="font-family:monospace;font-size:14px">{{ $m->variable_symbol ?? '—' }}</td>
         </tr>
         @endforeach

@@ -54,7 +54,12 @@ class SearchController extends Controller
                         });
                     }
                 })
-                ->select('m.id', 'm.name', 'm.type', 't.town', 'vs.variable_symbol')
+                ->select(
+                    'm.id', 'm.name', 'm.type',
+                    's.street', 'ap.street_number',
+                    't.town', 't.zip_code',
+                    'vs.variable_symbol'
+                )
                 ->distinct()
                 ->limit(20)
                 ->get();
