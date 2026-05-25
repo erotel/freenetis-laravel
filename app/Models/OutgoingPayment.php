@@ -49,11 +49,11 @@ class OutgoingPayment extends Model
     public static function statusColors(): array
     {
         return [
-            self::STATUS_DRAFT     => '#888',
-            self::STATUS_APPROVED  => '#0a0',
-            self::STATUS_EXPORTED  => '#00a',
-            self::STATUS_PAID      => '#070',
-            self::STATUS_CANCELLED => '#c00',
+            self::STATUS_DRAFT     => '#9aa0a6',
+            self::STATUS_APPROVED  => '#22c55e',
+            self::STATUS_EXPORTED  => '#3b82f6',
+            self::STATUS_PAID      => '#16a34a',
+            self::STATUS_CANCELLED => '#ef4444',
         ];
     }
 
