@@ -6,6 +6,49 @@ formát podle [Keep a Changelog](https://keepachangelog.com/cs/1.1.0/).
 Verzi v souboru `config/version.php` bumpni samostatným commitem `chore: bump version to X.Y.Z`,
 ať lze changelog snadno regenerovat přes `git log vX..vY --oneline`.
 
+## [2.3.0] — 2026-05-27
+
+### Added
+- **Auto-přesměrování čekajících zákazníků (type=18) s nepodepsanou smlouvou.**
+  Nová systémová zpráva (type=32) + `PendingCustomerRedirectService` jako
+  jediný zdroj pravdy pro přesměrování. Hodinový bezpečnostní cron
+  `members:redirect-pending-customers` (truncate + rebuild) a okamžité hooky:
+  po podpisu smlouvy (type 18→2) se přesměrování zruší, při přidání IP adminem
+  členovi typu 18 se nastaví hned. Přepínatelné přes
+  `pending_customer_redirect_enabled`.
+- **Předvyplnění data koupě u nového zařízení (jako Kohana).** Pole „Datum
+  koupě" se ve formuláři předvyplní dnešním datem a uloží se i když zůstane
+  prázdné (`store` i `storeWithTemplate`).
+
+### Changed
+- **Hromadné notifikace: filtr, potvrzovací dialog a dávkové odesílání.**
+  Notifikace jsou ve výchozím stavu vypnuté; přidán filtr (typ / kredit /
+  whitelist / přerušení), který nastaví aktivní řádky. Před odesláním se
+  zobrazí potvrzovací dialog s počtem e-mailů. E-maily/SMS se vkládají
+  po dávkách (chunk 500) mimo transakci a odesílají s limitem na běh
+  (`email_send_batch_size`), aby 2000 mailů nezpůsobilo problém. Per-řádkové
+  výběry nahrazeny informačními štítky řízenými filtrem.
+- **Vyhledávání ukazuje celou adresu místo jen města.** V hlavním
+  vyhledávání seznam zobrazuje „Ulice číslo, PSČ Město" místo samotného města.
+- **Výběr vlastníka připojení sjednocen s Devices.** V `connection-requests`
+  i `devices` se vlastník zobrazuje jako „Příjmení Jméno" z hlavního uživatele
+  (type=MAIN_USER) a řadí se podle příjmení; fallback na `members.name`
+  pro organizace.
+- **Systémové zprávy přeloženy do češtiny včetně názvů.** Migrace překládá
+  `messages.name` podle typu a zbývající anglické HTML/SMS texty (host
+  (un)reachable, velký dlužník).
+- **Čitelnější barvy stavů odchozích plateb na tmavém pozadí.** Tmavě modrá
+  „Exportováno" (#00a) a další stavy nahrazeny jasnější paletou.
+
+### Fixed
+- **Individuální členský poplatek se bral globálně místo per člen.**
+  Poddotaz pro `members_fees` v `DeductFees` měl globální `LIMIT 1` bez
+  korelace — vracel jediný řádek pro celou DB, takže se individuální tarify
+  ignorovaly a všem se strhával výchozí poplatek (a osvobození s 0 Kč byli
+  neoprávněně zatíženi). Nově korelovaný poddotaz (`mf2.member_id = m.id`)
+  bere nejvyšší-prioritní aktivní tarif každého člena; 0 Kč = osvobozený
+  (nestrhává se). Odhaleno suchým náhledem scheduleru k 1. dni měsíce.
+
 ## [2.2.0] — 2026-05-22
 
 ### Added
