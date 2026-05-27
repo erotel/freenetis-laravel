@@ -104,20 +104,20 @@ class DeductFees extends Command
         // Idempotency: LEFT JOIN transfers where type=1 and datetime=$date (exact)
         $accounts = DB::select("
             SELECT a.id AS account_id, a.balance, m.id AS member_id, m.type AS member_type,
-                mf.fee AS individual_fee
+                (
+                    SELECT f2.fee
+                    FROM members_fees mf2
+                    JOIN fees f2 ON f2.id = mf2.fee_id
+                    JOIN enum_types et2 ON et2.id = f2.type_id
+                    WHERE LOWER(et2.value) = 'regular member fee'
+                      AND mf2.member_id = m.id
+                      AND mf2.activation_date <= :date1
+                      AND mf2.deactivation_date >= :date2
+                    ORDER BY mf2.priority
+                    LIMIT 1
+                ) AS individual_fee
             FROM accounts a
             JOIN members m ON a.member_id = m.id
-            LEFT JOIN (
-                SELECT mf2.member_id, f2.fee
-                FROM members_fees mf2
-                JOIN fees f2 ON f2.id = mf2.fee_id
-                JOIN enum_types et2 ON et2.id = f2.type_id
-                WHERE LOWER(et2.value) = 'regular member fee'
-                  AND mf2.activation_date <= :date1
-                  AND mf2.deactivation_date >= :date2
-                ORDER BY mf2.priority
-                LIMIT 1
-            ) mf ON mf.member_id = m.id
             LEFT JOIN transfers t ON t.origin_id = a.id
                 AND t.type = :type AND t.datetime = :date3
             WHERE m.id <> 1
@@ -141,7 +141,8 @@ class DeductFees extends Command
         DB::beginTransaction();
         try {
             foreach ($accounts as $account) {
-                // Individuální tarif má přednost, pak výchozí dle typu, pak individuální z tabulky fees
+                // Individuální tarif (members_fees) má přednost — i 0 Kč = osvobozený člen
+                // (feeAmount 0 se níže přeskočí). Bez přiřazeného tarifu => výchozí poplatek dle typu.
                 if ($account->individual_fee !== null) {
                     $feeAmount = (float)$account->individual_fee;
                 } else {
