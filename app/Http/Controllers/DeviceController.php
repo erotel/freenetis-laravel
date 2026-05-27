@@ -453,7 +453,7 @@ class DeviceController extends Controller
                 'user_id'  => $validated['user_id'],
                 'name'     => $validated['name'],
                 'type'     => $validated['type'],
-                'buy_date' => $validated['buy_date'] ?? null,
+                'buy_date' => $validated['buy_date'] ?? now()->toDateString(),
                 'comment'  => $validated['comment'] ?? null,
             ]);
 
@@ -591,6 +591,11 @@ class DeviceController extends Controller
         }
         $data['user_id'] = $userId;
         unset($data['member_id']);
+
+        // Jako v Kohaně: pokud datum koupě není zadáno, ulož datum vytvoření.
+        if (empty($data['buy_date'])) {
+            $data['buy_date'] = now()->toDateString();
+        }
 
         $device = Device::create($data);
 

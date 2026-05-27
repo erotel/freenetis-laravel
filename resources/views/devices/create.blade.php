@@ -61,7 +61,7 @@
         </div>
         <div class="m-form-group">
             <label class="m-form-label" for="buy_date">Datum koupě</label>
-            <input class="m-form-input" type="date" id="buy_date" name="buy_date" value="{{ old('buy_date') }}">
+            <input class="m-form-input" type="date" id="buy_date" name="buy_date" value="{{ old('buy_date', date('Y-m-d')) }}">
             @error('buy_date') <div class="m-form-hint" style="color:#c0392b">{{ $message }}</div> @enderror
         </div>
     </div>
