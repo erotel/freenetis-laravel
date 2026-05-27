@@ -155,6 +155,51 @@ class ConnectionRequestController extends Controller
 
     // ── Create ────────────────────────────────────────────────────────────────
 
+    /**
+     * Seznam členů pro výběr vlastníka připojení.
+     * Fyzické osoby zobrazí jako „Příjmení Jméno" (příjmení = poslední slovo),
+     * firmy/organizace (s.r.o., z.s., obec, …) nechá v původním pořadí.
+     * Řazeno abecedně podle zobrazené podoby s českou kolací.
+     *
+     * @return \Illuminate\Support\Collection<int, string>  id => popisek
+     */
+    private function membersForSelect(): \Illuminate\Support\Collection
+    {
+        $orgMarkers = [
+            's.r.o', 's. r. o', 'a.s.', 'a. s.', 'v.o.s', 'k.s.', 'z.s.', 'z. s.',
+            'spol.', 'společenstv', 'sdružen', 'družstv', 'obec ', 'město ', 'městys',
+            ', ',
+        ];
+
+        $rows = Member::orderBy('name')->pluck('name', 'id')->map(function ($name, $id) use ($orgMarkers) {
+            $name = trim((string) $name);
+            $low  = mb_strtolower($name);
+
+            $isOrg = false;
+            foreach ($orgMarkers as $marker) {
+                if (str_contains($low, $marker)) { $isOrg = true; break; }
+            }
+
+            if (!$isOrg) {
+                $parts = preg_split('/\s+/', $name, -1, PREG_SPLIT_NO_EMPTY);
+                if (count($parts) >= 2) {
+                    $surname = array_pop($parts);
+                    $name    = $surname . ' ' . implode(' ', $parts);
+                }
+            }
+
+            return ['id' => $id, 'label' => $name];
+        })->values();
+
+        $collator = class_exists('Collator') ? new \Collator('cs_CZ') : null;
+        $rows = $rows->sort(fn ($a, $b) => $collator
+            ? $collator->compare($a['label'], $b['label'])
+            : strcasecmp($a['label'], $b['label'])
+        )->values();
+
+        return $rows->mapWithKeys(fn ($r) => [$r['id'] => $r['label']]);
+    }
+
     public function create(Request $request, int $subnetId, string $ipAddress = '')
     {
         $canNewAll = $this->aclCheck('new_all', self::ACL_SECTION, self::ACL_KEY);
@@ -175,7 +220,7 @@ class ConnectionRequestController extends Controller
             return redirect()->back()->with('warning', 'IP adresa již není volná nebo má čekající žádost.');
         }
 
-        $members        = Member::orderBy('name')->pluck('name', 'id');
+        $members        = $this->membersForSelect();
         $deviceTypes    = $this->deviceTypes();
         $templates      = DeviceTemplate::orderBy('name')->get(['id', 'name', 'enum_type_id']);
         $defaultType    = (int) Setting::get('connection_request_device_default_type', 0);
