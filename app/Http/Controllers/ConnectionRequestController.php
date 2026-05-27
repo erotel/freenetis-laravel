@@ -9,6 +9,7 @@ use App\Models\EnumType;
 use App\Models\Member;
 use App\Models\Setting;
 use App\Models\Subnet;
+use App\Models\User;
 use App\Services\SnmpMacDetector;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -157,47 +158,34 @@ class ConnectionRequestController extends Controller
 
     /**
      * Seznam členů pro výběr vlastníka připojení.
-     * Fyzické osoby zobrazí jako „Příjmení Jméno" (příjmení = poslední slovo),
-     * firmy/organizace (s.r.o., z.s., obec, …) nechá v původním pořadí.
-     * Řazeno abecedně podle zobrazené podoby s českou kolací.
+     * Stejná logika jako picker v Devices: fyzické osoby zobrazí jako
+     * „Příjmení Jméno" z hlavního uživatele (type = MAIN_USER), seřazené podle
+     * příjmení; pokud surname/jméno chybí (organizace, legacy), fallback na
+     * members.name.
      *
      * @return \Illuminate\Support\Collection<int, string>  id => popisek
      */
     private function membersForSelect(): \Illuminate\Support\Collection
     {
-        $orgMarkers = [
-            's.r.o', 's. r. o', 'a.s.', 'a. s.', 'v.o.s', 'k.s.', 'z.s.', 'z. s.',
-            'spol.', 'společenstv', 'sdružen', 'družstv', 'obec ', 'město ', 'městys',
-            ', ',
-        ];
-
-        $rows = Member::orderBy('name')->pluck('name', 'id')->map(function ($name, $id) use ($orgMarkers) {
-            $name = trim((string) $name);
-            $low  = mb_strtolower($name);
-
-            $isOrg = false;
-            foreach ($orgMarkers as $marker) {
-                if (str_contains($low, $marker)) { $isOrg = true; break; }
-            }
-
-            if (!$isOrg) {
-                $parts = preg_split('/\s+/', $name, -1, PREG_SPLIT_NO_EMPTY);
-                if (count($parts) >= 2) {
-                    $surname = array_pop($parts);
-                    $name    = $surname . ' ' . implode(' ', $parts);
-                }
-            }
-
-            return ['id' => $id, 'label' => $name];
-        })->values();
-
-        $collator = class_exists('Collator') ? new \Collator('cs_CZ') : null;
-        $rows = $rows->sort(fn ($a, $b) => $collator
-            ? $collator->compare($a['label'], $b['label'])
-            : strcasecmp($a['label'], $b['label'])
-        )->values();
-
-        return $rows->mapWithKeys(fn ($r) => [$r['id'] => $r['label']]);
+        return DB::table('members as m')
+            ->join('users as u', function ($j) {
+                $j->on('u.member_id', '=', 'm.id')
+                  ->where('u.type', '=', User::MAIN_USER);
+            })
+            ->select('m.id', 'm.name', 'u.surname', 'u.name as user_name')
+            ->orderBy('u.surname')
+            ->orderBy('u.name')
+            ->orderBy('u.id')
+            ->get()
+            ->unique('id')
+            ->mapWithKeys(function ($row) {
+                $surname = trim((string) $row->surname);
+                $name    = trim((string) $row->user_name);
+                $label   = ($surname !== '' && $name !== '')
+                    ? $surname . ' ' . $name
+                    : $row->name;
+                return [$row->id => $label];
+            });
     }
 
     public function create(Request $request, int $subnetId, string $ipAddress = '')
