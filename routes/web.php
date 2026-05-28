@@ -229,6 +229,7 @@ Route::middleware('auth')->group(function () {
     Route::resource('streets', StreetController::class)->except(['index']);
     Route::get('members/applicants', [MemberController::class, 'applicants'])->name('members.applicants');
     Route::get('members/{id}/registration-export/{type}', [MemberController::class, 'registrationExport'])->name('members.registration-export');
+    Route::post('members/{id}/registration-export-email/{type}', [MemberController::class, 'registrationExportEmail'])->name('members.registration-export-email');
     Route::get('members/{id}/end-membership', [MemberController::class, 'endMembershipForm'])->name('members.end-membership');
     Route::post('members/{id}/end-membership', [MemberController::class, 'endMembership'])->name('members.end-membership.store');
     Route::post('members/{id}/restore', [MemberController::class, 'restore'])->name('members.restore');

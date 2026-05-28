@@ -6,6 +6,8 @@ use App\Helpers\MemberType;
 use App\Models\AccountAttribute;
 use App\Models\AddressPoint;
 use App\Http\Filters\MemberFilter;
+use App\Models\EmailQueue;
+use App\Models\EmailQueueAttachment;
 use App\Models\IpAddress;
 use App\Models\Member;
 use App\Models\MemberFee;
@@ -1061,13 +1063,96 @@ class MemberController extends Controller
 
     /**
      * Export přihlášky nebo ukončení členství jako PDF (inline v prohlížeči).
-     * type: 'registration' = Přihláška, 'end' = Ukončení členství
+     * type: 'registration' = Přihláška, 'end' = Ukončení členství, 'contract_end' = Výpověď smlouvy
      */
     public function registrationExport(int $id, string $type)
     {
         abort_unless($this->aclCheck('view_all', 'Members_Controller', 'registration_export'), 403);
         abort_unless(in_array($type, ['registration', 'end', 'contract_end']), 404);
 
+        [$pdfString, $filename] = $this->buildRegistrationPdf($id, $type);
+
+        return response($pdfString, 200, [
+            'Content-Type'        => 'application/pdf',
+            'Content-Disposition' => 'inline; filename="' . $filename . '"',
+        ]);
+    }
+
+    /**
+     * Odeslat stejné PDF (přihláška / ukončení / výpověď) e-mailem na první
+     * e-mail kontakt hlavního uživatele. Stejný ACL gate jako inline export.
+     */
+    public function registrationExportEmail(int $id, string $type)
+    {
+        abort_unless($this->aclCheck('view_all', 'Members_Controller', 'registration_export'), 403);
+        abort_unless(in_array($type, ['registration', 'end', 'contract_end']), 404);
+
+        $mainUser = DB::table('users')
+            ->where('member_id', $id)
+            ->where('type', 1) // MAIN_USER
+            ->first();
+        abort_if(!$mainUser, 404);
+
+        $email = DB::table('contacts as c')
+            ->join('users_contacts as uc', 'uc.contact_id', '=', 'c.id')
+            ->where('uc.user_id', $mainUser->id)
+            ->where('c.type', 20) // TYPE_EMAIL
+            ->orderBy('c.id')
+            ->value('c.value');
+
+        if (!$email) {
+            return back()->with('error', 'Člen nemá v kontaktech žádný e-mail.');
+        }
+
+        [$pdfString, $filename] = $this->buildRegistrationPdf($id, $type);
+
+        // Storage dir je v allowed-list SendEmailQueue (storage/...). Soubor zůstává
+        // i po odeslání — admin akce, není to bulk, případný cleanup řešíme později.
+        $dir = storage_path('app/email-attachments');
+        if (!is_dir($dir)) {
+            mkdir($dir, 0775, true);
+        }
+        $storedName = preg_replace('/\.pdf$/', '', $filename) . '-' . uniqid() . '.pdf';
+        $path = $dir . DIRECTORY_SEPARATOR . $storedName;
+        file_put_contents($path, $pdfString);
+
+        $subject = match($type) {
+            'registration'  => 'Přihláška za člena',
+            'end'           => 'Ukončení členství',
+            'contract_end'  => 'Výpověď smlouvy',
+            default         => 'Dokument',
+        };
+
+        $assocName = \App\Models\Setting::get('association_name', 'Sdružení');
+
+        $emailQueue = EmailQueue::create([
+            'from'        => \App\Models\Setting::get('email_default_email', 'noreply@pvfree.net'),
+            'to'          => $email,
+            'subject'     => $subject,
+            'body'        => "<p>Dobrý den,</p>"
+                . "<p>v příloze posíláme dokument <strong>" . e($subject) . "</strong> ve formátu PDF.</p>"
+                . "<p>S pozdravem,<br>" . e($assocName) . "</p>",
+            'state'       => EmailQueue::STATE_NEW,
+            'access_time' => now(),
+        ]);
+
+        EmailQueueAttachment::create([
+            'email_queue_id' => $emailQueue->id,
+            'path'           => $path,
+            'name'           => $filename,
+            'mime'           => 'application/pdf',
+            'created_at'     => now(),
+        ]);
+
+        return back()->with('success', 'PDF „' . $subject . '" zařazeno do fronty k odeslání na ' . $email . '.');
+    }
+
+    /**
+     * Vygeneruje PDF (registrační/ukončovací/výpovědní) a vrátí [bytes, filename].
+     * Sdíleno mezi inline exportem a odesláním e-mailem.
+     */
+    private function buildRegistrationPdf(int $id, string $type): array
+    {
         $member = DB::table('members as m')
             ->join('address_points as ap', 'ap.id', '=', 'm.address_point_id')
             ->join('towns as t', 't.id', '=', 'ap.town_id')
@@ -1202,9 +1287,6 @@ class MemberController extends Controller
         };
         $filename = $filePrefix . '-' . $id . '.pdf';
 
-        return response($pdfString, 200, [
-            'Content-Type'        => 'application/pdf',
-            'Content-Disposition' => 'inline; filename="' . $filename . '"',
-        ]);
+        return [$pdfString, $filename];
     }
 }

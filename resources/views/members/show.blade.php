@@ -79,6 +79,41 @@
             @endif
         </select>
     </form>
+    @php
+        $mainEmail = optional($contacts->firstWhere('type', \App\Models\Contact::TYPE_EMAIL))->value;
+    @endphp
+    <form method="POST" action="" id="rx-email-form-{{ $member->id }}" style="display:inline;">
+        @csrf
+        <select onchange="rxEmailSubmit_{{ $member->id }}(this)" class="m-btn" style="padding:5px 8px;">
+            <option value="">— Odeslat na e-mail —</option>
+            @if($member->type == 90)
+                <option value="registration">Přihláška</option>
+                <option value="end">Ukončení členství</option>
+            @elseif($member->type == 2)
+                <option value="contract_end">Výpověď smlouvy</option>
+            @endif
+        </select>
+    </form>
+    <script>
+        function rxEmailSubmit_{{ $member->id }}(sel) {
+            var t = sel.value;
+            if (!t) return;
+            var email = @json($mainEmail ?? '');
+            if (!email) {
+                alert('Člen nemá v kontaktech žádný e-mail.');
+                sel.value = '';
+                return;
+            }
+            var label = sel.options[sel.selectedIndex].text;
+            if (!confirm('Odeslat „' + label + '" na ' + email + '?')) {
+                sel.value = '';
+                return;
+            }
+            var form = sel.form;
+            form.action = '{{ url('members/'.$member->id.'/registration-export-email') }}/' + encodeURIComponent(t);
+            form.submit();
+        }
+    </script>
     @endif
     @if($canEdit && in_array($member->type, [17, 18]) && $member->registration)
     <form method="POST" action="{{ route('members.approve', $member->id) }}" style="display:inline">
