@@ -1123,7 +1123,7 @@ class MemberController extends Controller
             default         => 'Dokument',
         };
 
-        $assocName = \App\Models\Setting::get('association_name', 'Sdružení');
+        $assocName = \App\Models\Setting::get('title', 'Sdružení');
 
         $emailQueue = EmailQueue::create([
             'from'        => \App\Models\Setting::get('email_default_email', 'noreply@pvfree.net'),
