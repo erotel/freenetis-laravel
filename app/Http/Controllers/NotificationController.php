@@ -90,9 +90,14 @@ class NotificationController extends Controller
         $comment     = trim((string) $request->input('comment', ''));
         $userId      = Auth::id();
         $now         = now()->format('Y-m-d H:i:s');
-        $redirections = $request->input('redirection', []);
-        $emails       = $request->input('email', []);
-        $smss         = $request->input('sms', []);
+
+        // Form posílá akce v jediném JSON inputu (`bulk_payload`), aby se vyhnul
+        // PHP limitu `max_input_vars=1000`. Pro 2000 členů by N×3 hidden inputů
+        // byl backend dostal jen prvních ~333 (chybný stav 264 → 120 hlášení).
+        $payload      = json_decode((string) $request->input('bulk_payload', '{}'), true) ?: [];
+        $redirections = $payload['redirection'] ?? [];
+        $emails       = array_fill_keys($payload['email'] ?? [], self::ACTIVATE);
+        $smss         = array_fill_keys($payload['sms']   ?? [], self::ACTIVATE);
 
         $stats = ['redir_activated' => 0, 'redir_deactivated' => 0, 'emails_sent' => 0, 'smss_sent' => 0];
 

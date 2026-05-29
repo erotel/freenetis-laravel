@@ -34,6 +34,12 @@
 
 <form method="POST" action="{{ route('notifications.members.notify', $message->id) }}" id="notify-form">
 @csrf
+{{-- Akce se posílají v jednom JSON inputu, ne v N×3 per-row hidden inputech.
+     Důvod: PHP `max_input_vars=1000` by jinak na ~333. členovi spadl a backend
+     by dostal oříznutý seznam (bug se projevoval jako 264 hlášených → 120
+     odeslaných e-mailů). Per-row inputy zůstávají v DOMu pro UI state, ale
+     submit handler je disabluje a místo nich posílá tenhle JSON. --}}
+<input type="hidden" name="bulk_payload" id="bulk-payload" value="">
 
 {{-- Komentář --}}
 <div class="m-card" style="margin-bottom:16px;padding:14px 1.25rem">
@@ -156,6 +162,7 @@
         $balanceNeg   = ($m->credit_balance !== null && $m->credit_balance < 0) ? '1' : '0';
     @endphp
     <tr class="fn-row"
+        data-member-id="{{ $m->id }}"
         data-type="{{ $m->type }}"
         data-balance-neg="{{ $balanceNeg }}"
         data-whitelisted="{{ $m->whitelisted ? 1 : 0 }}"
@@ -355,7 +362,26 @@
 
         if (!confirm(lines.join('\n'))) {
             ev.preventDefault();
+            return;
         }
+
+        // Sbal akce do jednoho JSON inputu (bulk_payload) a per-row inputy zahoď
+        // ze submitu (disabled). 1 input bez ohledu na počet členů → drží to i
+        // notifikaci na 2000+ lidí bez ohledu na PHP `max_input_vars`.
+        var payload = { redirection: {}, email: [], sms: [] };
+        document.querySelectorAll('.fn-row').forEach(function (tr) {
+            var memberId = parseInt(tr.dataset.memberId, 10);
+            var r = parseInt(tr.querySelector('.fn-redir')?.value || '0', 10);
+            var e = parseInt(tr.querySelector('.fn-email')?.value || '0', 10);
+            var s = parseInt(tr.querySelector('.fn-sms')?.value   || '0', 10);
+            if (r === ACTIVATE || r === DEACTIVATE) payload.redirection[memberId] = r;
+            if (e === ACTIVATE) payload.email.push(memberId);
+            if (s === ACTIVATE) payload.sms.push(memberId);
+        });
+        document.getElementById('bulk-payload').value = JSON.stringify(payload);
+        document.querySelectorAll('.fn-redir, .fn-email, .fn-sms').forEach(function (inp) {
+            inp.disabled = true;
+        });
     });
 })();
 </script>
