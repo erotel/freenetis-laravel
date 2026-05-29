@@ -23,7 +23,11 @@ produkční DB.
 - Žádosti o připojení (`connection_requests`) — formulář s auto-detekcí MAC
   zařízení přes SNMP na bráně subnetu (Mikrotik + Huawei S6720)
 - Schvalování žádostí, vytvoření zařízení z žádosti
-- Export registrací (PDF/CSV) přes `members/{id}/registration-export/{type}`
+- Export registrací (PDF/CSV) přes `members/{id}/registration-export/{type}` —
+  Přihláška (typ 90), Ukončení členství (typ 90), Výpověď smlouvy (typ 2)
+- Admin může PDF rovnou poslat e-mailem na první adresu z kontaktů hlavního
+  uživatele přes `members/{id}/registration-export-email/{type}` (zařadí do
+  `email_queues` s přílohou v `storage/app/email-attachments/`)
 
 ### Životní cyklus členství
 - Ukončení členství (`/members/{id}/end-membership`) — automaticky vyřadí
@@ -33,6 +37,11 @@ produkční DB.
   na splash stránku
 - Bývalí členové — denní cron `members:redirect-former` aktivuje redirect
   podle `leaving_date`
+- Čekající zákazníci (typ 18, nepodepsaná smlouva) — hodinový cron
+  `members:redirect-pending-customers` přes `PendingCustomerRedirectService`
+  (truncate + rebuild) + okamžité hooky: podpis smlouvy (typ 18→2) redirect
+  zruší, přidání IP adminem členovi typu 18 ho nastaví. Přepínatelné
+  `pending_customer_redirect_enabled`.
 - Whitelist členů (`member_whitelists`) — výjimky z platebních pravidel
 
 ### Uživatelé a kontakty
@@ -207,6 +216,15 @@ Vlastní DB connection `contracts` (separátní DB). UI je v
 - Auto-settings (`message_auto_settings`) — pravidla, kdy spustit
   který typ zprávy (např. dlužník po 30 dnech)
 - Cron `notifications:activate` (každou minutu) aplikuje pravidla
+- **Hromadné notifikace pro členy** (`/notifications/members/{message_id}`)
+  — admin UI s filtrem (typ, kredit, whitelist, přerušení) a bulk-apply
+  per kanál (přesměrování / e-mail / SMS) jen na vyfiltrované řádky.
+  Před odesláním potvrzovací dialog s počty (e-maily se počítají per
+  kontakt, ne per člen). E-maily/SMS se vkládají do front po dávkách 500
+  mimo transakci a posílá je scheduler s limitem na běh
+  (`email_send_batch_size`). Akce posílá form jako jeden JSON input
+  (`bulk_payload`), aby překonal default PHP `max_input_vars=1000` —
+  drží i 2000+ členů.
 - Komentáře (`comments`) k požadavkům a pracím
 
 ---
@@ -312,6 +330,7 @@ Definováno v [`routes/console.php`](routes/console.php):
 | `subnets:update-allowed` | each minute | Refresh allowed subnets |
 | `bank:import-statements` | hourly :55 | Fio API auto-import |
 | `members:redirect-expired-applicants` | hourly | Vypršené čekací doby |
+| `members:redirect-pending-customers` | hourly | Čekající zákazníci (typ 18) s nepodepsanou smlouvou |
 | `fees:deduct` | daily 00:03 | Strhávání poplatků |
 | `members:redirect-former` | daily 00:09 | Bývalí členové |
 | `members:redirect-interrupted` | daily 00:09 | Přerušená členství |
