@@ -6,6 +6,27 @@ formát podle [Keep a Changelog](https://keepachangelog.com/cs/1.1.0/).
 Verzi v souboru `config/version.php` bumpni samostatným commitem `chore: bump version to X.Y.Z`,
 ať lze changelog snadno regenerovat přes `git log vX..vY --oneline`.
 
+## [2.4.0] — 2026-05-29
+
+### Added
+- **Odeslat PDF přihlášky / ukončení členství / výpovědi smlouvy e-mailem.**
+  V detailu člena vedle dropdownu „Export PDF" přibyl druhý „Odeslat na e-mail"
+  se stejnými volbami (typ 90: Přihláška + Ukončení členství, typ 2: Výpověď
+  smlouvy). Po potvrzení dialogem se PDF vygeneruje, uloží do
+  `storage/app/email-attachments/` a zařadí do `email_queues` jako příloha
+  na první e-mail kontakt hlavního uživatele. Doručí scheduler
+  (`email:send-queue`). Podpis e-mailu se bere z nastavení „Titulek stránky".
+  Stejný ACL gate jako inline export.
+
+### Fixed
+- **Hromadné notifikace: hlášeno X, odesláno Y (truncated form).** Formulář
+  na `notifications/members` posílal `redirection[id]`/`email[id]`/`sms[id]`
+  jako N×3 hidden inputy. Pro 1000 členů (3002 inputů) PHP s defaultním
+  `max_input_vars=1000` zbytek tiše zahodil a backend zpracoval jen prvních
+  ~333 — typický projev byl „264 na odeslání → 120 odesláno". Akce nyní jdou
+  v jednom JSON inputu `bulk_payload`; pro 2000 členů má POST ~21.5 kB a
+  3 inputy (test prokázal úplné doručení 500+2000+200 akcí).
+
 ## [2.3.0] — 2026-05-27
 
 ### Added
