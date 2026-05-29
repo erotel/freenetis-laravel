@@ -39,6 +39,8 @@ class NotificationActivation extends Command
         $debtorImmunity     = (int)   Setting::get('initial_debtor_immunity', 0);
         $subjectPrefix      = Setting::get('email_subject_prefix', 'PVfree.net - FreenetIS');
         $fromEmail          = Setting::get('email_default_email', 'noreply@pvfree.net');
+        $smsDriver          = (int) Setting::get('sms_driver', 0);
+        $smsSender          = (string) Setting::get('sms_sender_number', '');
 
         $now       = now();
         $today     = $now->day;
@@ -84,7 +86,7 @@ class NotificationActivation extends Command
             }
 
             $doEmail    = $aEmail    && $emailEnabled;
-            $doSms      = $aSms      && $smsEnabled;
+            $doSms      = $aSms      && $smsEnabled && $smsDriver && $smsSender !== '';
             $doRedirect = $aRedirect && $redirectEnabled;
 
             if (!$doEmail && !$doSms && !$doRedirect) continue;
@@ -131,6 +133,26 @@ class NotificationActivation extends Command
                         'state'   => 0,
                     ]);
                     $emailsSent++;
+                }
+
+                if ($doSms && !empty($member->phone)) {
+                    $text = Message::substitute(
+                        $message->sms_text ?? $message->text ?? '',
+                        Message::buildPlaceholders((int) $member->id)
+                    );
+                    DB::table('sms_messages')->insert([
+                        'user_id'        => 1,
+                        'sms_message_id' => null,
+                        'stamp'          => now(),
+                        'send_date'      => now(),
+                        'text'           => $text,
+                        'sender'         => $smsSender,
+                        'receiver'       => $member->phone,
+                        'driver'         => $smsDriver,
+                        'type'           => 1,
+                        'state'          => 1,
+                    ]);
+                    $smsSent++;
                 }
 
                 if ($doRedirect) {
@@ -243,7 +265,7 @@ class NotificationActivation extends Command
             ->leftJoin('users_contacts as uc', 'uc.user_id', '=', 'u.id')
             ->leftJoin('contacts as c', function ($j) {
                 $j->on('c.id', '=', 'uc.contact_id')
-                  ->where('c.type', 20); // email contact type
+                  ->whereIn('c.type', [20, 21]); // 20=email, 21=phone
             })
             ->where('m.id', '!=', 1)
             ->where('m.entrance_date', '!=', '0000-00-00')
@@ -264,7 +286,11 @@ class NotificationActivation extends Command
                 return $base
                     ->where('m.type', 2)
                     ->where('a.balance', '<', $debtorBoundary)
-                    ->select('m.id', 'm.name', DB::raw('MAX(c.value) as email'))
+                    ->select(
+                        'm.id', 'm.name',
+                        DB::raw('MAX(CASE WHEN c.type = 20 THEN c.value END) as email'),
+                        DB::raw('MAX(CASE WHEN c.type = 21 THEN c.value END) as phone')
+                    )
                     ->groupBy('m.id', 'm.name', 'a.balance')
                     ->get();
 
@@ -283,7 +309,11 @@ class NotificationActivation extends Command
                     ->whereRaw('a.balance < COALESCE(f.fee, ?, 0)', [
                         (float) Setting::get('default_fee_member_type_2', 0),
                     ])
-                    ->select('m.id', 'm.name', DB::raw('MAX(c.value) as email'))
+                    ->select(
+                        'm.id', 'm.name',
+                        DB::raw('MAX(CASE WHEN c.type = 20 THEN c.value END) as email'),
+                        DB::raw('MAX(CASE WHEN c.type = 21 THEN c.value END) as phone')
+                    )
                     ->groupBy('m.id', 'm.name', 'a.balance')
                     ->get();
 
@@ -291,7 +321,11 @@ class NotificationActivation extends Command
                 return $base
                     ->where('m.type', 90)
                     ->where('a.balance', '<', $debtorBoundary)
-                    ->select('m.id', 'm.name', DB::raw('MAX(c.value) as email'))
+                    ->select(
+                        'm.id', 'm.name',
+                        DB::raw('MAX(CASE WHEN c.type = 20 THEN c.value END) as email'),
+                        DB::raw('MAX(CASE WHEN c.type = 21 THEN c.value END) as phone')
+                    )
                     ->groupBy('m.id', 'm.name', 'a.balance')
                     ->get();
 
@@ -310,7 +344,11 @@ class NotificationActivation extends Command
                     ->whereRaw('a.balance < COALESCE(f.fee, ?, 0)', [
                         (float) Setting::get('default_fee_member_type_90', 0),
                     ])
-                    ->select('m.id', 'm.name', DB::raw('MAX(c.value) as email'))
+                    ->select(
+                        'm.id', 'm.name',
+                        DB::raw('MAX(CASE WHEN c.type = 20 THEN c.value END) as email'),
+                        DB::raw('MAX(CASE WHEN c.type = 21 THEN c.value END) as phone')
+                    )
                     ->groupBy('m.id', 'm.name', 'a.balance')
                     ->get();
 
