@@ -51,10 +51,14 @@ class SearchController extends Controller
                       ->orWhere('t.town', 'LIKE', $like)
                       ->orWhere('s.street', 'LIKE', $like)
                       ->orWhere('ap.street_number', 'LIKE', $like);
+                    // Multi-token: každý token musí matchnout někde v compositu
+                    // (jméno + ulice + č.p. + obec). Pokrývá dotazy typu
+                    // „Stanislava Manharda 19" nebo „Zatloukal Martin Prostějov".
                     if ($multi) {
-                        $q->orWhere(function ($q) use ($tokens) {
+                        $composite = "CONCAT_WS(' ', m.name, IFNULL(s.street,''), IFNULL(ap.street_number,''), IFNULL(t.town,''))";
+                        $q->orWhere(function ($q) use ($tokens, $composite) {
                             foreach ($tokens as $t) {
-                                $q->where('m.name', 'LIKE', '%' . $t . '%');
+                                $q->where(DB::raw($composite), 'LIKE', '%' . $t . '%');
                             }
                         });
                     }

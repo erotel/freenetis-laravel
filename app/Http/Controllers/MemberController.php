@@ -138,9 +138,20 @@ class MemberController extends Controller
                 });
 
                 if ($multi) {
+                    // Composite přes podselect, aby každý token matchnul v aspoň jednom
+                    // z polí: jméno člena, ulice, č.p., obec. Mirror chování SearchController.
                     $q->orWhere(function ($qq) use ($tokens) {
                         foreach ($tokens as $t) {
-                            $qq->where('members.name', 'like', '%' . $t . '%');
+                            $qq->whereExists(function ($sub) use ($t) {
+                                $sub->from('address_points as ap')
+                                    ->leftJoin('streets as s', 's.id', '=', 'ap.street_id')
+                                    ->leftJoin('towns as tn', 'tn.id', '=', 'ap.town_id')
+                                    ->whereColumn('ap.id', 'members.address_point_id')
+                                    ->whereRaw(
+                                        "CONCAT_WS(' ', members.name, IFNULL(s.street,''), IFNULL(ap.street_number,''), IFNULL(tn.town,'')) LIKE ?",
+                                        ['%' . $t . '%']
+                                    );
+                            });
                         }
                     });
                 }
