@@ -16,12 +16,16 @@ class PohodaExportService
 
     public function exportInvoices(int $year, int $month): ?string
     {
-        // Idempotentní výběr: bereme všechno status='new' (včetně případně
-        // zapomenutých faktur z dřívějších měsíců). Po úspěšném vyrobení XML
-        // celou várku překlopíme na 'exported'. Re-spuštění příkazu už
-        // pak nevyrobí nic — Pohoda nedostává duplicity.
+        // Idempotentní výběr: bereme všechno status='new' s date_inv do konce
+        // cílového měsíce (včetně zapomenutých faktur z dřívějších měsíců).
+        // Cap zabrání tomu, aby export za květen pochytil i červnové faktury,
+        // které mezitím vygeneroval DeductFees 1. v měsíci. Po úspěšném
+        // vyrobení XML celou várku překlopíme na 'exported'.
+        $monthEnd = sprintf('%04d-%02d-%02d', $year, $month, (int) date('t', mktime(0, 0, 0, $month, 1, $year)));
+
         $invoices = DB::table('invoices')
             ->where('pohoda_status', 'new')
+            ->whereDate('date_inv', '<=', $monthEnd)
             ->orderBy('invoice_nr')
             ->get();
 
@@ -195,12 +199,17 @@ class PohodaExportService
 
     public function exportRefunds(int $year, int $month): ?string
     {
+        // Cap stejně jako u faktur — created_at do konce cílového měsíce,
+        // aby export za květen nepochytil červnové vratky.
+        $monthEnd = sprintf('%04d-%02d-%02d 23:59:59', $year, $month, (int) date('t', mktime(0, 0, 0, $month, 1, $year)));
+
         $items = DB::table('pohoda_refund_queue as q')
             ->join('members as m', 'm.id', '=', 'q.member_id')
             ->leftJoin('address_points as ap', 'ap.id', '=', 'm.address_point_id')
             ->leftJoin('streets as s', 's.id', '=', 'ap.street_id')
             ->leftJoin('towns as t', 't.id', '=', 'ap.town_id')
             ->where('q.status', 'new')
+            ->where('q.created_at', '<=', $monthEnd)
             ->orderBy('q.id')
             ->limit(500)
             ->select(
