@@ -307,7 +307,7 @@ class NotificationActivation extends Command
                     })
                     ->leftJoin('fees as f', 'f.id', '=', 'mf.fee_id')
                     ->whereRaw('a.balance < COALESCE(f.fee, ?, 0)', [
-                        (float) Setting::get('default_fee_member_type_2', 0),
+                        $this->defaultFeeAmount(2),
                     ])
                     ->select(
                         'm.id', 'm.name',
@@ -342,7 +342,7 @@ class NotificationActivation extends Command
                     })
                     ->leftJoin('fees as f', 'f.id', '=', 'mf.fee_id')
                     ->whereRaw('a.balance < COALESCE(f.fee, ?, 0)', [
-                        (float) Setting::get('default_fee_member_type_90', 0),
+                        $this->defaultFeeAmount(90),
                     ])
                     ->select(
                         'm.id', 'm.name',
@@ -355,5 +355,16 @@ class NotificationActivation extends Command
             default:
                 return collect();
         }
+    }
+
+    /**
+     * Setting default_fee_member_type_{2|90} drží fee_id (FK do fees), ne částku.
+     * Vrací skutečnou částku z fees.fee podle uložené id, jinak 0.
+     */
+    private function defaultFeeAmount(int $memberType): float
+    {
+        $feeId = (int) Setting::get("default_fee_member_type_{$memberType}", 0);
+        if ($feeId <= 0) return 0.0;
+        return (float) (DB::table('fees')->where('id', $feeId)->value('fee') ?? 0);
     }
 }
