@@ -101,7 +101,50 @@ class MemberController extends Controller
             ->with(['addressPoint.town', 'addressPoint.street']);
 
         if ($search !== '') {
-            $query->where('members.name', 'like', "%{$search}%");
+            // Stejná pole jako SearchController (jméno, IČO/DIČ, adresa, VS, multi-token jméno).
+            // Zajišťuje, že odkaz „Otevřít všechny v seznamu" z /search dojde ke stejné množině.
+            $like   = '%' . $search . '%';
+            $tokens = preg_split('/\s+/', $search, -1, PREG_SPLIT_NO_EMPTY);
+            $multi  = count($tokens) > 1;
+
+            $query->where(function ($q) use ($search, $like, $tokens, $multi) {
+                $q->where('members.name', 'like', $like)
+                  ->orWhere('members.organization_identifier', 'like', $like)
+                  ->orWhere('members.vat_organization_identifier', 'like', $like);
+
+                if (is_numeric($search)) {
+                    $q->orWhere('members.id', (int) $search);
+                }
+
+                // VS přes accounts/variable_symbols
+                $q->orWhereExists(function ($sub) use ($like) {
+                    $sub->from('variable_symbols as vs')
+                        ->join('accounts as a', 'a.id', '=', 'vs.account_id')
+                        ->whereColumn('a.member_id', 'members.id')
+                        ->where('vs.variable_symbol', 'like', $like);
+                });
+
+                // Adresa (obec, ulice, č.p.) přes address_points
+                $q->orWhereExists(function ($sub) use ($like) {
+                    $sub->from('address_points as ap')
+                        ->leftJoin('towns as t', 't.id', '=', 'ap.town_id')
+                        ->leftJoin('streets as s', 's.id', '=', 'ap.street_id')
+                        ->whereColumn('ap.id', 'members.address_point_id')
+                        ->where(function ($qq) use ($like) {
+                            $qq->where('t.town', 'like', $like)
+                               ->orWhere('s.street', 'like', $like)
+                               ->orWhere('ap.street_number', 'like', $like);
+                        });
+                });
+
+                if ($multi) {
+                    $q->orWhere(function ($qq) use ($tokens) {
+                        foreach ($tokens as $t) {
+                            $qq->where('members.name', 'like', '%' . $t . '%');
+                        }
+                    });
+                }
+            });
         }
         if (!empty($typesArray)) {
             $query->whereIn('members.type', $typesArray);

@@ -39,10 +39,30 @@ class UserController extends Controller
         $query = User::with('member')->select('users.*');
 
         if ($search !== '') {
-            $query->where(function ($q) use ($search) {
-                $q->where('users.name', 'like', "%{$search}%")
-                  ->orWhere('users.surname', 'like', "%{$search}%")
-                  ->orWhere('users.login', 'like', "%{$search}%");
+            // Stejná pole jako SearchController — login, jméno (i přes mezeru),
+            // kontakt (email/telefon), aby odkaz „Otevřít všechny v seznamu" z /search seděl.
+            $like   = '%' . $search . '%';
+            $tokens = preg_split('/\s+/', $search, -1, PREG_SPLIT_NO_EMPTY);
+            $multi  = count($tokens) > 1;
+
+            $query->where(function ($q) use ($like, $tokens, $multi) {
+                $q->where('users.login', 'like', $like)
+                  ->orWhere(DB::raw("CONCAT(users.name, ' ', users.surname)"), 'like', $like);
+
+                $q->orWhereExists(function ($sub) use ($like) {
+                    $sub->from('users_contacts as uc')
+                        ->join('contacts as c', 'c.id', '=', 'uc.contact_id')
+                        ->whereColumn('uc.user_id', 'users.id')
+                        ->where('c.value', 'like', $like);
+                });
+
+                if ($multi) {
+                    $q->orWhere(function ($qq) use ($tokens) {
+                        foreach ($tokens as $t) {
+                            $qq->where(DB::raw("CONCAT(users.name, ' ', users.surname)"), 'like', '%' . $t . '%');
+                        }
+                    });
+                }
             });
         }
 

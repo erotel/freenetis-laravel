@@ -67,7 +67,7 @@ class SearchController extends Controller
                 )
                 ->distinct();
 
-            $total   = (clone $membersQb)->getCountForPagination();
+            $total   = (clone $membersQb)->count(DB::raw('DISTINCT m.id'));
             $members = $membersQb->limit(self::SECTION_LIMIT)->get();
 
             if ($members->isNotEmpty()) {
@@ -97,7 +97,7 @@ class SearchController extends Controller
                 ->select('u.id', 'u.login', 'u.name', 'u.surname', 'm.id as member_id', 'm.name as member_name')
                 ->distinct();
 
-            $total = (clone $usersQb)->getCountForPagination();
+            $total = (clone $usersQb)->count(DB::raw('DISTINCT u.id'));
             $users = $usersQb->limit(self::SECTION_LIMIT)->get();
 
             if ($users->isNotEmpty()) {
@@ -127,7 +127,7 @@ class SearchController extends Controller
                 )
                 ->distinct();
 
-            $total   = (clone $devicesQb)->getCountForPagination();
+            $total   = (clone $devicesQb)->count(DB::raw('DISTINCT d.id'));
             $devices = $devicesQb->limit(self::SECTION_LIMIT)->get();
 
             if ($devices->isNotEmpty()) {
@@ -145,7 +145,7 @@ class SearchController extends Controller
                 })
                 ->select('id', 'name', 'network_address', 'netmask');
 
-            $total   = (clone $subnetsQb)->getCountForPagination();
+            $total   = (clone $subnetsQb)->count();
             $subnets = $subnetsQb->limit(self::SECTION_LIMIT)->get();
 
             if ($subnets->isNotEmpty()) {

@@ -98,7 +98,29 @@ class DeviceController extends Controller
         $query = Device::with(['user', 'enumType']);
 
         if ($search !== '') {
-            $query->where('name', 'like', "%{$search}%");
+            // Stejná pole jako SearchController — název zařízení, MAC, IPv4, IPv6,
+            // aby odkaz „Otevřít všechny v seznamu" z /search seděl.
+            $like = '%' . $search . '%';
+            $query->where(function ($q) use ($like) {
+                $q->where('devices.name', 'like', $like);
+                $q->orWhereExists(function ($sub) use ($like) {
+                    $sub->from('ifaces as i')
+                        ->whereColumn('i.device_id', 'devices.id')
+                        ->where('i.mac', 'like', $like);
+                });
+                $q->orWhereExists(function ($sub) use ($like) {
+                    $sub->from('ifaces as i')
+                        ->join('ip_addresses as ip', 'ip.iface_id', '=', 'i.id')
+                        ->whereColumn('i.device_id', 'devices.id')
+                        ->where('ip.ip_address', 'like', $like);
+                });
+                $q->orWhereExists(function ($sub) use ($like) {
+                    $sub->from('ifaces as i')
+                        ->join('ip6_addresses as ip6', 'ip6.iface_id', '=', 'i.id')
+                        ->whereColumn('i.device_id', 'devices.id')
+                        ->where('ip6.ip_address', 'like', $like);
+                });
+            });
         }
 
         $advancedFilters = $request->input('filters', []);
