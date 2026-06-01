@@ -22,8 +22,18 @@
 <div class="m-alert m-alert-info">Žádné výsledky pro <strong>{{ $query }}</strong>.</div>
 @endif
 
+@php
+    $sectionHeader = function (string $label, int $shown, int $total, ?string $listingUrl) {
+        $countLabel = $total > $shown ? "{$shown} z {$total}" : (string) $total;
+        $more = ($total > $shown && $listingUrl)
+            ? ' &nbsp;·&nbsp; <a class="m-link" href="' . e($listingUrl) . '">Otevřít všechny v seznamu →</a>'
+            : '';
+        return "<div class=\"m-section\">{$label} ({$countLabel}){$more}</div>";
+    };
+@endphp
+
 @if(!empty($results['members']))
-<div class="m-section">Členové ({{ count($results['members']) }})</div>
+{!! $sectionHeader('Členové', count($results['members']), $totals['members'] ?? count($results['members']), route('members.index', ['search' => $query])) !!}
 <div class="m-card" style="padding:0;overflow-x:auto;margin-bottom:16px">
 <table class="m-table" style="margin-bottom:0">
     <thead>
@@ -50,7 +60,7 @@
 @endif
 
 @if(!empty($results['users']))
-<div class="m-section">Uživatelé ({{ count($results['users']) }})</div>
+{!! $sectionHeader('Uživatelé', count($results['users']), $totals['users'] ?? count($results['users']), route('users.index', ['search' => $query])) !!}
 <div class="m-card" style="padding:0;overflow-x:auto;margin-bottom:16px">
 <table class="m-table" style="margin-bottom:0">
     <thead>
@@ -70,7 +80,7 @@
 @endif
 
 @if(!empty($results['devices']))
-<div class="m-section">Zařízení / IP adresy ({{ count($results['devices']) }})</div>
+{!! $sectionHeader('Zařízení / IP adresy', count($results['devices']), $totals['devices'] ?? count($results['devices']), route('devices.index', ['search' => $query])) !!}
 <div class="m-card" style="padding:0;overflow-x:auto;margin-bottom:16px">
 <table class="m-table" style="margin-bottom:0">
     <thead>
@@ -92,7 +102,7 @@
 @endif
 
 @if(!empty($results['subnets']))
-<div class="m-section">Subnety ({{ count($results['subnets']) }})</div>
+{!! $sectionHeader('Subnety', count($results['subnets']), $totals['subnets'] ?? count($results['subnets']), route('subnets.index', ['search' => $query])) !!}
 <div class="m-card" style="padding:0;overflow-x:auto;margin-bottom:16px">
 <table class="m-table" style="margin-bottom:0">
     <thead>

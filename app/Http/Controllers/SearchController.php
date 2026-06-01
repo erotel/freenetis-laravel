@@ -12,13 +12,18 @@ class SearchController extends Controller
         return $this->aclCheck($action, $section, $value);
     }
 
+    // Strop pro každou sekci na /search. Co je nad strop, zobrazí se přes
+    // odkaz na plnohodnotný listing (/members, /users, ...) s vlastní paginací.
+    const SECTION_LIMIT = 50;
+
     public function index(Request $request)
     {
         $query   = trim($request->get('q', ''));
         $results = [];
+        $totals  = [];
 
         if (strlen($query) < 2) {
-            return view('search.index', compact('query', 'results'));
+            return view('search.index', compact('query', 'results', 'totals'));
         }
 
         $like   = '%' . $query . '%';
@@ -29,7 +34,7 @@ class SearchController extends Controller
 
         // MEMBERS - requires view_all on members
         if ($this->can('view_all', 'Members_Controller', 'members')) {
-            $members = DB::table('members as m')
+            $membersQb = DB::table('members as m')
                 ->leftJoin('variable_symbols as vs', function($j) {
                     $j->join('accounts as a', 'a.id', '=', 'vs.account_id')
                       ->whereColumn('a.member_id', 'm.id');
@@ -60,18 +65,20 @@ class SearchController extends Controller
                     't.town', 't.zip_code',
                     'vs.variable_symbol'
                 )
-                ->distinct()
-                ->limit(20)
-                ->get();
+                ->distinct();
+
+            $total   = (clone $membersQb)->getCountForPagination();
+            $members = $membersQb->limit(self::SECTION_LIMIT)->get();
 
             if ($members->isNotEmpty()) {
                 $results['members'] = $members;
+                $totals['members']  = $total;
             }
         }
 
         // USERS - requires view_all on users
         if ($this->can('view_all', 'Users_Controller', 'users')) {
-            $users = DB::table('users as u')
+            $usersQb = DB::table('users as u')
                 ->join('members as m', 'm.id', '=', 'u.member_id')
                 ->leftJoin('users_contacts as uc', 'uc.user_id', '=', 'u.id')
                 ->leftJoin('contacts as c', 'c.id', '=', 'uc.contact_id')
@@ -88,18 +95,20 @@ class SearchController extends Controller
                     }
                 })
                 ->select('u.id', 'u.login', 'u.name', 'u.surname', 'm.id as member_id', 'm.name as member_name')
-                ->distinct()
-                ->limit(20)
-                ->get();
+                ->distinct();
+
+            $total = (clone $usersQb)->getCountForPagination();
+            $users = $usersQb->limit(self::SECTION_LIMIT)->get();
 
             if ($users->isNotEmpty()) {
                 $results['users'] = $users;
+                $totals['users']  = $total;
             }
         }
 
         // DEVICES + IP + MAC + IPv6 - requires networks_enabled and view_all
         if ($this->can('view_all', 'Devices_Controller', 'devices') && Setting::get('networks_enabled', 0)) {
-            $devices = DB::table('devices as d')
+            $devicesQb = DB::table('devices as d')
                 ->join('users as u', 'u.id', '=', 'd.user_id')
                 ->join('members as m', 'm.id', '=', 'u.member_id')
                 ->leftJoin('ifaces as i', 'i.device_id', '=', 'd.id')
@@ -116,32 +125,36 @@ class SearchController extends Controller
                     'i.mac', 'ip.ip_address', 'ip6.ip_address as ipv6_address',
                     'm.id as member_id', 'm.name as member_name'
                 )
-                ->distinct()
-                ->limit(20)
-                ->get();
+                ->distinct();
+
+            $total   = (clone $devicesQb)->getCountForPagination();
+            $devices = $devicesQb->limit(self::SECTION_LIMIT)->get();
 
             if ($devices->isNotEmpty()) {
                 $results['devices'] = $devices;
+                $totals['devices']  = $total;
             }
         }
 
         // SUBNETS - requires networks_enabled and view_all
         if ($this->can('view_all', 'Subnets_Controller', 'subnet') && Setting::get('networks_enabled', 0)) {
-            $subnets = DB::table('subnets')
+            $subnetsQb = DB::table('subnets')
                 ->where(function($q) use ($like) {
                     $q->where('name', 'LIKE', $like)
                       ->orWhere('network_address', 'LIKE', $like);
                 })
-                ->select('id', 'name', 'network_address', 'netmask')
-                ->limit(10)
-                ->get();
+                ->select('id', 'name', 'network_address', 'netmask');
+
+            $total   = (clone $subnetsQb)->getCountForPagination();
+            $subnets = $subnetsQb->limit(self::SECTION_LIMIT)->get();
 
             if ($subnets->isNotEmpty()) {
                 $results['subnets'] = $subnets;
+                $totals['subnets']  = $total;
             }
         }
 
-        return view('search.index', compact('query', 'results'));
+        return view('search.index', compact('query', 'results', 'totals'));
     }
 
     public function ajax(Request $request)
