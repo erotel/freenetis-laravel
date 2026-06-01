@@ -67,7 +67,7 @@ class SearchController extends Controller
                 )
                 ->distinct();
 
-            $total   = (clone $membersQb)->count(DB::raw('DISTINCT m.id'));
+            $total   = (clone $membersQb)->count('m.id');
             $members = $membersQb->limit(self::SECTION_LIMIT)->get();
 
             if ($members->isNotEmpty()) {
@@ -97,7 +97,7 @@ class SearchController extends Controller
                 ->select('u.id', 'u.login', 'u.name', 'u.surname', 'm.id as member_id', 'm.name as member_name')
                 ->distinct();
 
-            $total = (clone $usersQb)->count(DB::raw('DISTINCT u.id'));
+            $total = (clone $usersQb)->count('u.id');
             $users = $usersQb->limit(self::SECTION_LIMIT)->get();
 
             if ($users->isNotEmpty()) {
@@ -127,7 +127,7 @@ class SearchController extends Controller
                 )
                 ->distinct();
 
-            $total   = (clone $devicesQb)->count(DB::raw('DISTINCT d.id'));
+            $total   = (clone $devicesQb)->count('d.id');
             $devices = $devicesQb->limit(self::SECTION_LIMIT)->get();
 
             if ($devices->isNotEmpty()) {
