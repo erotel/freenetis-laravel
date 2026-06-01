@@ -7,7 +7,12 @@ use Illuminate\Support\Facades\DB;
 
 class PohodaExportService
 {
-    private string $exportDir = '/var/www/html/freenetis/data/export/';
+    private string $exportDir;
+
+    public function __construct()
+    {
+        $this->exportDir = storage_path('app/private/pohoda-exports/');
+    }
 
     public function exportInvoices(int $year, int $month): ?string
     {
