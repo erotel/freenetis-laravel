@@ -25,7 +25,9 @@
             @else — @endif
         </span>
     </div>
-    <div class="m-field"><span class="m-field-label">Počet adresních bodů</span><span class="m-field-value">{{ $street->addressPoints()->count() }}</span></div>
+    <div class="m-field"><span class="m-field-label">Počet adresních bodů</span><span class="m-field-value">{{ $apTotal }}</span></div>
+    <div class="m-field"><span class="m-field-label">Počet členů</span><span class="m-field-value">{{ $memberCount }}</span></div>
+    <div class="m-field"><span class="m-field-label">Prázdných AP <small style="color:#888">(bez člena/zařízení)</small></span><span class="m-field-value">{{ $apOrphan }}</span></div>
 </div>
 </div>
 @endsection

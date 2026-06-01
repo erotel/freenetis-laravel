@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\Street;
 use App\Models\Town;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
 
 class StreetController extends Controller
@@ -57,9 +58,23 @@ class StreetController extends Controller
             abort(404);
         }
 
+        $apTotal  = DB::table('address_points')->where('street_id', $id)->count();
+        $apOrphan = DB::table('address_points')->where('street_id', $id)
+            ->whereNotExists(fn($q) => $q->from('members')->whereColumn('members.address_point_id', 'address_points.id'))
+            ->whereNotExists(fn($q) => $q->from('devices')->whereColumn('devices.address_point_id', 'address_points.id'))
+            ->whereNotExists(fn($q) => $q->from('members_domiciles')->whereColumn('members_domiciles.address_point_id', 'address_points.id'))
+            ->count();
+        $memberCount = DB::table('members')
+            ->join('address_points as ap', 'ap.id', '=', 'members.address_point_id')
+            ->where('ap.street_id', $id)
+            ->count();
+
         return view('streets.show', [
-            'street'  => $street,
-            'canEdit' => $this->can('edit_all'),
+            'street'      => $street,
+            'apTotal'     => $apTotal,
+            'apOrphan'    => $apOrphan,
+            'memberCount' => $memberCount,
+            'canEdit'     => $this->can('edit_all'),
         ]);
     }
 

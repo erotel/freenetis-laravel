@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Town;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 
 class TownController extends Controller
 {
@@ -54,9 +55,25 @@ class TownController extends Controller
 
         $streets = $town->streets()->orderBy('street')->get();
 
+        // AP celkem + počet, kolik z nich obsazuje aspoň jeden člen/zařízení/domicil.
+        // „Prázdné AP" = AP v této obci bez jakékoli reference (kandidáti na úklid).
+        $apTotal  = DB::table('address_points')->where('town_id', $id)->count();
+        $apOrphan = DB::table('address_points')->where('town_id', $id)
+            ->whereNotExists(fn($q) => $q->from('members')->whereColumn('members.address_point_id', 'address_points.id'))
+            ->whereNotExists(fn($q) => $q->from('devices')->whereColumn('devices.address_point_id', 'address_points.id'))
+            ->whereNotExists(fn($q) => $q->from('members_domiciles')->whereColumn('members_domiciles.address_point_id', 'address_points.id'))
+            ->count();
+        $memberCount = DB::table('members')
+            ->join('address_points as ap', 'ap.id', '=', 'members.address_point_id')
+            ->where('ap.town_id', $id)
+            ->count();
+
         return view('towns.show', [
-            'town'    => $town,
-            'streets' => $streets,
+            'town'        => $town,
+            'streets'     => $streets,
+            'apTotal'     => $apTotal,
+            'apOrphan'    => $apOrphan,
+            'memberCount' => $memberCount,
             'canEdit'   => $this->can('edit_all'),
             'canDelete' => $this->can('delete_all'),
         ]);
