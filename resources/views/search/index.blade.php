@@ -84,15 +84,20 @@
 <div class="m-card" style="padding:0;overflow-x:auto;margin-bottom:16px">
 <table class="m-table" style="margin-bottom:0">
     <thead>
-        <tr><th>Zařízení</th><th style="width:150px">MAC</th><th style="width:140px">IP adresa</th><th style="width:200px">IPv6</th><th>Člen</th></tr>
+        <tr><th>Zařízení</th><th style="width:150px">MAC</th><th style="width:140px">IP adresa</th><th style="width:200px">IPv6</th><th>Adresa</th><th>Člen</th></tr>
     </thead>
     <tbody>
         @foreach($results['devices'] as $d)
+        @php
+            $streetPart = trim(($d->street ?? '') . ' ' . ($d->street_number ?? ''));
+            $address    = trim(implode(', ', array_filter([$streetPart, $d->town ?? null])));
+        @endphp
         <tr>
             <td><a class="m-link" href="{{ route('devices.show', $d->id) }}">{{ $d->device_name }}</a></td>
             <td style="font-family:monospace;font-size:14px">{{ $d->mac ?? '—' }}</td>
             <td style="font-family:monospace;font-size:14px">{{ $d->ip_address ?? '—' }}</td>
             <td style="font-family:monospace;font-size:14px">{{ $d->ipv6_address ?? '—' }}</td>
+            <td>{{ $address !== '' ? $address : '—' }}</td>
             <td><a class="m-link" href="{{ route('members.show', $d->member_id) }}">{{ $d->member_name }}</a></td>
         </tr>
         @endforeach

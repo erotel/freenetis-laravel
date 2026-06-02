@@ -98,10 +98,13 @@ class DeviceController extends Controller
         $query = Device::with(['user', 'enumType']);
 
         if ($search !== '') {
-            // Stejná pole jako SearchController — název zařízení, MAC, IPv4, IPv6,
-            // aby odkaz „Otevřít všechny v seznamu" z /search seděl.
-            $like = '%' . $search . '%';
-            $query->where(function ($q) use ($like) {
+            // Stejná pole jako SearchController — název, MAC, IPv4, IPv6 a adresa
+            // (town/street/č.p. + multi-token composite), aby odkaz „Otevřít všechny
+            // v seznamu" z /search seděl.
+            $like   = '%' . $search . '%';
+            $tokens = preg_split('/\s+/', $search, -1, PREG_SPLIT_NO_EMPTY);
+            $multi  = count($tokens) > 1;
+            $query->where(function ($q) use ($like, $tokens, $multi) {
                 $q->where('devices.name', 'like', $like);
                 $q->orWhereExists(function ($sub) use ($like) {
                     $sub->from('ifaces as i')
@@ -120,6 +123,33 @@ class DeviceController extends Controller
                         ->whereColumn('i.device_id', 'devices.id')
                         ->where('ip6.ip_address', 'like', $like);
                 });
+                $q->orWhereExists(function ($sub) use ($like) {
+                    $sub->from('address_points as ap')
+                        ->leftJoin('towns as t', 't.id', '=', 'ap.town_id')
+                        ->leftJoin('streets as s', 's.id', '=', 'ap.street_id')
+                        ->whereColumn('ap.id', 'devices.address_point_id')
+                        ->where(function ($qq) use ($like) {
+                            $qq->where('t.town', 'like', $like)
+                               ->orWhere('s.street', 'like', $like)
+                               ->orWhere('ap.street_number', 'like', $like);
+                        });
+                });
+                if ($multi) {
+                    $q->orWhere(function ($qq) use ($tokens) {
+                        foreach ($tokens as $t) {
+                            $qq->whereExists(function ($sub) use ($t) {
+                                $sub->from('address_points as ap')
+                                    ->leftJoin('streets as s', 's.id', '=', 'ap.street_id')
+                                    ->leftJoin('towns as tn', 'tn.id', '=', 'ap.town_id')
+                                    ->whereColumn('ap.id', 'devices.address_point_id')
+                                    ->whereRaw(
+                                        "CONCAT_WS(' ', devices.name, IFNULL(s.street,''), IFNULL(ap.street_number,''), IFNULL(tn.town,'')) LIKE ?",
+                                        ['%' . $t . '%']
+                                    );
+                            });
+                        }
+                    });
+                }
             });
         }
 

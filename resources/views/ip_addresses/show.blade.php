@@ -25,7 +25,14 @@
     <div class="m-card-title">Informace o IP adrese</div>
     <div class="m-field"><span class="m-field-label">ID</span><span class="m-field-value">{{ $ip->id }}</span></div>
     <div class="m-field"><span class="m-field-label">IP adresa</span><span class="m-field-value" style="font-family:monospace">{{ $ip->ip_address }}</span></div>
-    <div class="m-field"><span class="m-field-label">Subnet</span><span class="m-field-value">{{ $ip->subnet?->label ?? '—' }}</span></div>
+    <div class="m-field">
+        <span class="m-field-label">Subnet</span>
+        <span class="m-field-value">
+            @if($ip->subnet)
+                <a href="{{ route('subnets.show', $ip->subnet_id) }}">{{ $ip->subnet->label }}</a>
+            @else — @endif
+        </span>
+    </div>
     <div class="m-field">
         <span class="m-field-label">Člen</span>
         <span class="m-field-value">
