@@ -67,6 +67,11 @@ class PaymentBackchargeService
             $end    = new \DateTime($today);
             $end->modify('last day of this month');
 
+            // Pokud loop skončí brzy kvůli nedostatku kreditu na nějaký dlužný
+            // měsíc, flag musí zůstat 1 — pořád se dluží. Pokud projde celé (ať
+            // už strhl, nebo přeskočil 'alreadyDeducted'), může se odblokovat.
+            $brokeEarly = false;
+
             while ($cursor <= $end) {
                 $year         = (int) $cursor->format('Y');
                 $month        = (int) $cursor->format('n');
@@ -96,8 +101,8 @@ class PaymentBackchargeService
                 // jinak default podle members.type). Stejná logika jako DeductFees::deductMemberFees.
                 $feeAmount = $this->resolveFeeAmount((int) $member->id, (int) $member->type, $targetDate);
                 if ($feeAmount <= 0) {
-                    // Osvobozený měsíc — nic nestrhávat, ale flag nemá smysl držet, pokud je celý
-                    // tarif 0. Reset až po celkovém průchodu.
+                    // Osvobozený měsíc — nic nestrhávat. Loop pokračuje, flag se případně
+                    // zruší po celém průchodu.
                     $cursor->modify('first day of next month');
                     continue;
                 }
@@ -107,7 +112,8 @@ class PaymentBackchargeService
                     ->value('balance');
 
                 if ($currentBalance < $feeAmount) {
-                    // Pořád dluh → backcharge končí, flag zůstává.
+                    // Pořád dluh za tento měsíc → backcharge končí, flag zůstává.
+                    $brokeEarly = true;
                     break;
                 }
 
@@ -127,21 +133,19 @@ class PaymentBackchargeService
                 $cursor->modify('first day of next month');
             }
 
-            // Po dohnání: pokud má stále dost na příští měsíc, odblokuj.
-            // Test proti fee aktuálního měsíce (today) — pokud i ten měsíc se dá pokrýt,
-            // zákazník je v zelených číslech.
-            $finalBalance = (float) DB::table('accounts')
-                ->where('id', $creditAccount->id)
-                ->value('balance');
-            $feeNow = $this->resolveFeeAmount((int) $member->id, (int) $member->type, $today);
-
+            // Odblokuj pokud backcharge dohnal/přeskočil všechny dlužné měsíce.
+            // Zbytková bilance se nekontroluje — příští DeductFees (1. den měsíce)
+            // přirozeně zafláguje pokud nebude mít na poplatek. To je správný
+            // prepaid cyklus: zaplať dluh → obnovený provoz → příští měsíc
+            // znovu zaplať včas, jinak budeš znovu blokovaný.
             $unblocked = false;
-            if ($feeNow <= 0 || $finalBalance >= $feeNow) {
+            if (!$brokeEarly) {
                 DB::table('members')
                     ->where('id', $memberId)
                     ->update([
                         'payment_blocked'       => 0,
                         'payment_blocked_since' => null,
+                        'pending_termination'   => 0,
                     ]);
                 $unblocked = true;
             }
