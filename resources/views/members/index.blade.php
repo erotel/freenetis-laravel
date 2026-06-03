@@ -164,6 +164,11 @@ $redirectLabels = [
                 @else
                     <span style="color:#aaa">—</span>
                 @endif
+                @if($member->pending_termination)
+                    <br><span class="m-tag m-tag-red" title="Označen k ukončení smlouvy (od {{ $member->payment_blocked_since }})">K ukončení</span>
+                @elseif($member->payment_blocked)
+                    <br><span class="m-tag m-tag-amber" title="Nedostatečný kredit (od {{ $member->payment_blocked_since }})">Blokováno</span>
+                @endif
             </td>
             <td>{{ $wlLabel }}</td>
             @if($tvEnabled ?? false)

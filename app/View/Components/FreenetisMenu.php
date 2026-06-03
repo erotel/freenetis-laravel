@@ -44,6 +44,7 @@ class FreenetisMenu extends Component
         $countApplicants  = fn() => (int) DB::table('members')->whereIn('type', [1, 17, 18])->count();
         $countCustomers   = fn() => (int) DB::table('members')->where('type', 2)->count();
         $countRegular     = fn() => (int) DB::table('members')->where('type', 90)->count();
+        $countPendingTermination = fn() => (int) DB::table('members')->where('pending_termination', 1)->count();
         $countLogErrors   = fn() => (int) DB::table('log_queues')->whereIn('type', [0, 1])->where('state', 0)->count();
         $countEmailUnsent            = fn() => (int) DB::table('email_queues')->where('state', 0)->count();
         $countSmsUnsent              = fn() => (int) DB::table('sms_messages')->where('type', 1)->where('state', 1)->count();
@@ -70,6 +71,7 @@ class FreenetisMenu extends Component
                 ['url' => route('members.index', ['types' => '1,3,17,90']), 'path' => 'members', 'label' => 'Seznam členů', 'acl' => ['view_all', 'Members_Controller', 'members'], 'count' => $countRegular],
                 ['url' => route('members.index', ['types' => '2,18']), 'path' => 'members', 'label' => 'Seznam zákazníků', 'acl' => ['view_all', 'Members_Controller', 'members'], 'count' => $countCustomers],
                 ['url' => route('members.index', ['types' => '1,17,18']), 'path' => 'members/applicants', 'label' => 'Čekatelé', 'acl' => ['view_all', 'Members_Controller', 'members'], 'count' => $countApplicants],
+                ['url' => route('members.pending-termination'), 'path' => 'members/pending-termination', 'label' => 'Kandidáti na ukončení', 'acl' => ['view_all', 'Members_Controller', 'members'], 'count' => $countPendingTermination],
                 ['url' => route('users.index'), 'path' => 'users', 'label' => 'Uživatelé', 'acl' => ['view_all', 'Users_Controller', 'users']],
             ]],
             ['name' => 'network', 'label' => 'Síť', 'items' => array_filter([

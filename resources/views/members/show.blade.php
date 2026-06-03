@@ -29,6 +29,11 @@
         };
     @endphp
     <span class="m-badge {{ $badgeClass }}">{{ $member->typeLabel() }}</span>
+    @if($member->pending_termination)
+        <span class="m-badge" style="background:#c0392b;color:#fff" title="Označen k ukončení smlouvy (od {{ $member->payment_blocked_since }})">K ukončení</span>
+    @elseif($member->payment_blocked)
+        <span class="m-badge" style="background:#e67e22;color:#fff" title="Nedostatečný kredit (od {{ $member->payment_blocked_since }})">Blokováno</span>
+    @endif
 </div>
 <div class="member-id">ID člena: {{ $member->id }}</div>
 
@@ -211,6 +216,27 @@
             <span class="m-field-value">{{ $member->registration ? 'ano' : 'ne' }}</span>
         </div>
         <div class="m-field"><span class="m-field-label">Přístup do systému</span><span class="m-field-value">{{ $member->locked ? 'Zamčen' : 'Odemčen' }}</span></div>
+        @if($member->payment_blocked)
+        <div class="m-field">
+            <span class="m-field-label">Blokace platby</span>
+            <span class="m-field-value">
+                @if($member->pending_termination)
+                    <span style="color:#c0392b;font-weight:600">K ukončení smlouvy</span>
+                @else
+                    <span style="color:#e67e22;font-weight:600">Blokováno</span>
+                @endif
+                <small style="color:#888">od {{ $member->payment_blocked_since }}</small>
+                @if($canEdit)
+                <form method="POST" action="{{ route('members.payment-block.reset', $member->id) }}"
+                      style="display:inline;margin-left:8px"
+                      onsubmit="return confirm('Reset blokace u tohoto člena?')">
+                    @csrf
+                    <button class="m-link-sm" type="submit" style="background:none;border:none;color:#06c;cursor:pointer;padding:0">Reset blokace</button>
+                </form>
+                @endif
+            </span>
+        </div>
+        @endif
         @if($member->comment && $canViewComment)
         <div class="m-field"><span class="m-field-label">Komentář</span><span class="m-field-value">{{ $member->comment }}</span></div>
         @endif
