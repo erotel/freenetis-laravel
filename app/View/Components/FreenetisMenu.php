@@ -44,7 +44,10 @@ class FreenetisMenu extends Component
         $countApplicants  = fn() => (int) DB::table('members')->whereIn('type', [1, 17, 18])->count();
         $countCustomers   = fn() => (int) DB::table('members')->where('type', 2)->count();
         $countRegular     = fn() => (int) DB::table('members')->where('type', 90)->count();
-        $countPendingTermination = fn() => (int) DB::table('members')->where('pending_termination', 1)->count();
+        // Pouze aktivní (typ 2/90) — bývalí by se měli flagů zbavit při endMembership,
+        // ale i tak filtrujeme, aby case nesouladu nezpůsobil "ghost" counter.
+        $countPendingTermination = fn() => (int) DB::table('members')
+            ->where('pending_termination', 1)->whereIn('type', [2, 90])->count();
         $countLogErrors   = fn() => (int) DB::table('log_queues')->whereIn('type', [0, 1])->where('state', 0)->count();
         $countEmailUnsent            = fn() => (int) DB::table('email_queues')->where('state', 0)->count();
         $countSmsUnsent              = fn() => (int) DB::table('sms_messages')->where('type', 1)->where('state', 1)->count();

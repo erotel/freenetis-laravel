@@ -808,11 +808,20 @@ class MemberController extends Controller
         $lockNow = $validated['leaving_date'] <= now()->format('Y-m-d') ? 1 : 0;
 
         DB::transaction(function () use ($id, $member, $newType, $validated, $endMode, $lockNow) {
+            // Při ukončení reset prepaid flagů — bývalý člen už není kandidát
+            // na ukončení (vzhledem k tomu, že právě byl ukončen) ani na
+            // redirect pro nedostatek kreditu. Bez resetu zůstanou v menu/UI
+            // viset jako nesoulad: type=15/16 ale pending_termination=1.
             DB::table('members')->where('id', $id)->update([
-                'type'         => $newType,
-                'locked'       => $lockNow,
-                'leaving_date' => $validated['leaving_date'],
+                'type'                  => $newType,
+                'locked'                => $lockNow,
+                'leaving_date'          => $validated['leaving_date'],
+                'payment_blocked'       => 0,
+                'payment_blocked_since' => null,
+                'pending_termination'   => 0,
             ]);
+            // Když měl aktivní payment_blocked redirect, smaž ho.
+            app(\App\Services\PaymentBlockedRedirectService::class)->refreshForMember($id);
 
             // Přidat +U k variabilnímu symbolu (jako Kohana)
             $accountId = DB::table('accounts')

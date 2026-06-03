@@ -27,6 +27,7 @@
         <tr>
             <th style="width:50px">ID</th>
             <th>Jméno</th>
+            <th style="width:120px">Typ</th>
             <th style="width:140px">VS</th>
             <th style="width:120px;text-align:right">Stav účtu</th>
             <th style="width:120px">Blokováno od</th>
@@ -43,9 +44,18 @@
             $endLink = route('members.end-membership', $m->id)
                 . '?leaving_date=' . urlencode($today);
         @endphp
+        @php
+            $typeBadge = match((int)$m->type) {
+                2  => ['m-badge-blue',  'Zákazník'],
+                90 => ['m-badge-green', 'Člen'],
+                3  => ['m-badge-green', 'Čestný'],
+                default => ['m-badge-gray', 'Typ '.$m->type],
+            };
+        @endphp
         <tr>
             <td>{{ $m->id }}</td>
             <td><a class="m-link" href="{{ route('members.show', $m->id) }}">{{ $m->name }}</a></td>
+            <td><span class="m-badge {{ $typeBadge[0] }}" style="font-size:13px">{{ $typeBadge[1] }}</span></td>
             <td style="font-family:monospace;font-size:14px">{{ $m->variable_symbols ?? '—' }}</td>
             <td style="text-align:right;font-family:monospace;color:{{ $m->balance < 0 ? '#c00' : '#333' }}">
                 {{ number_format((float) $m->balance, 2, ',', ' ') }} Kč
