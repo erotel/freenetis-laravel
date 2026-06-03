@@ -6,6 +6,109 @@ formát podle [Keep a Changelog](https://keepachangelog.com/cs/1.1.0/).
 Verzi v souboru `config/version.php` bumpni samostatným commitem `chore: bump version to X.Y.Z`,
 ať lze changelog snadno regenerovat přes `git log vX..vY --oneline`.
 
+## [2.5.0] — 2026-06-03
+
+### Added
+- **Kreditový (prepaid) model strhávání poplatků.** `DeductFees` cron nově
+  pro každého kandidáta zkontroluje, jestli kredit pokryje měsíční poplatek.
+  Pokud ano, strhne jako dřív; pokud ne, NEstrhává a nastaví flag
+  `members.payment_blocked=1` + `payment_blocked_since`. Zákazník tím nepřejde
+  do mínusu — má jen 0 nebo positivní zůstatek a flagované přesměrování.
+  Entrance/device fees mají stejný balance check, ale bez flagu (jsou to
+  splátky, ne tarif). Tři nové sloupce na `members`: `payment_blocked`,
+  `payment_blocked_since`, `pending_termination`.
+- **Auto-přesměrování flagnutých členů.** Hodinový cron
+  `members:redirect-blocked` plus `PaymentBlockedRedirectService` vybírá
+  podle typu člena: zákazník (2/18) → `messages.id=5` „Nedostatečná výše konta
+  (zákazník)", člen (90/3) → `messages.id=114` „Nedostatečná výše konta
+  (členové)". Email rozesílá existující `NotificationActivation` cron přes
+  pravidla v `messages_automatical_activations`; predikát `getMembersToNotify`
+  pro `DEBTOR_MESSAGE`/`DEBTOR_MESSAGE_CLEN` rozšířen o `OR payment_blocked=1`,
+  ať flagnutí s balance ≥ 0 dostanou email i bez záporné bilance.
+  Přepínatelné přes setting `payment_blocked_redirect_enabled`.
+- **Dohánění poplatků po platbě.** `PaymentBackchargeService` se volá
+  z `ImportController.handlePostImport` po identifikované příchozí platbě:
+  prochází měsíce od `payment_blocked_since` chronologicky, strhává
+  každé `deduct_day` pokud bilance pokryje, jinak se zastaví. Pokud dohnal
+  celé období bez break (žádný dlužný měsíc nezůstal), reset flag a
+  `pending_termination` + smaže přesměrování přes `PaymentBlockedRedirectService`.
+- **Označení k ukončení smlouvy podle VOP.** Denní cron
+  `members:mark-pending-termination` (work jen v `Setting('pending_termination_day', 14)`,
+  default 14. den měsíce) projde flagnuté členy s `payment_blocked_since`
+  v předchozím měsíci nebo dřívějším a nastaví `pending_termination=1`.
+  Pošle e-mail adminovi (`admin_notification_email` / fallback
+  `email_default_email`) se seznamem kandidátů (jméno, VS, dluh, dní v blokaci).
+  Žádné auto-ukončení — admin schvaluje ručně ve `/members/pending-termination`.
+- **Admin view `/members/pending-termination`.** Tabulka kandidátů s
+  jménem, typem (Zákazník/Člen badge), VS, stavem účtu, datem blokace
+  a počtem dní. Akce „Ukončit" linkuje na `endMembership` form s
+  předvyplněným `leaving_date=dnes`. Nová položka v menu „Uživatelé →
+  Kandidáti na ukončení (N)" s counterem.
+- **Badge v seznamu členů a v detailu.** `members.index` ukazuje vedle
+  kreditu oranžový tag „Blokováno" pro `payment_blocked=1` a červený
+  „K ukončení" pro `pending_termination=1` (přebije „Blokováno"). Stejný
+  badge v titulku detailu člena + samostatné pole „Blokace platby" s
+  datem `payment_blocked_since`.
+- **Settings → Finance → Kreditový model.** Tři nová pole:
+  `payment_blocked_redirect_enabled` (přesměrovat při nedostatku kreditu),
+  `pending_termination_day` (den měsíce pro mark cron, default 14),
+  `admin_notification_email` (cíl pro e-mail s kandidáty na ukončení).
+- **Jednorázové migrační commandy.** `members:migrate-to-prepaid` (vynuluje
+  dluhy bývalých členů 15/16 transferem credit→operating, flagne stávající
+  s mínusovou bilancí včetně `payment_blocked_since` = poslední moment, kdy
+  bilance přestala být nezáporná). `members:reverse-blocked-deductions`
+  smaže historické srážky od `payment_blocked_since` u flagnutých členů —
+  bilance se vrátí na pre-deduct stav a `Account::getExpirationDate`
+  („Zaplaceno do") sedí s prepaid logikou. Oba defaultně `--dry-run`,
+  apply přes `--apply`.
+
+### Changed
+- **`endMembership` resetuje prepaid flagy.** Při ukončení členství
+  (`MemberController::endMembership`) se navíc nastavuje `payment_blocked=0`,
+  `payment_blocked_since=NULL`, `pending_termination=0` a smaže přesměrování
+  přes `PaymentBlockedRedirectService->refreshForMember`. Předchozí bug:
+  bývalí členové (typ 15/16) zůstávali v menu „Kandidáti na ukončení"
+  jako duch (`pending_termination=1` se nezrušil).
+- **Univerzální vyhledávání: zařízení podle adresy + subnet jako odkaz.**
+  `SearchController` device sekce joinuje `address_points`/`streets`/`towns`
+  přes `devices.address_point_id`, matchuje town/street/č.p. + multi-token
+  composite (CONCAT_WS přes jméno + ulice + č.p. + obec). `DeviceController.index`
+  rozšířen na stejnou množinu polí, aby odkaz „Otevřít všechny v seznamu →"
+  z `/search` seděl. V detailu IP adresy je subnet teď `<a>` na detail
+  subnetu.
+- **Town/Street detail ukazuje počet členů a prázdných AP.** Nový artisan
+  command `address-points:cleanup-orphans` (`--dry-run` / `--apply` /
+  `--town=` / `--street=`) najde a smaže address_points bez vazby na
+  `members`/`devices`/`members_domiciles`.
+
+### Fixed
+- **Pohoda export pulled June invoices into May export.** `pohoda:export-monthly`
+  pro cílový měsíc filtroval jen `pohoda_status='new'`, bez horního omezení
+  data → faktury vystavené v dalším měsíci pronikaly do exportu. Přidán
+  `whereDate('date_inv', '<=', $monthEnd)` cap.
+- **Pohoda export selhal s `mkdir(): Permission denied`.** Export
+  hardcodoval `/var/www/html/freenetis/data/export/` (vlastník root, www-data
+  nemůže psát). Přesunut do `storage_path('app/private/pohoda-exports/')`.
+- **`default_fee_member_type_2/90` čteno jako Kč částka místo fee_id.**
+  `NotificationActivation` četl setting jako float (25 Kč), ve skutečnosti
+  je to FK do `fees` tabulky. Helper `defaultFeeAmount()` resolvuje
+  přes `fees.fee`. Po opravě: typ 6 odběrné členy 434 → 626.
+- **Vyhledávání „Stanislava Manharda 19" nevracelo nic.** Multi-token
+  v `/search` matchoval jen `m.name`. Opraveno přes composite
+  CONCAT_WS přes jméno + ulici + č.p. + obec.
+- **Vyhledávání „určice" — univerzál 284, listing 3.** `MemberController`/
+  `UserController`/`DeviceController` index nepodporovaly stejnou množinu
+  polí jako `SearchController`. Sjednoceno.
+- **Vyhledávání: SQL error `count(distinct DISTINCT m.id)`.** Builder
+  s `->distinct()` + `->count(DB::raw('DISTINCT m.id'))` Laravel double-prefixoval.
+  Opraveno na `->count('m.id')`.
+- **Strop 20 výsledků na sekci v `/search`.** Bumpnuto na 50 + zobrazení
+  „X z Y · Otevřít všechny v seznamu →".
+- **Tmavé téma: částky/data v `m-metric-value` byly bílé pro mínusový
+  kredit / prošlé „Zaplaceno do".** `[data-theme="dark"] .m-metric-value`
+  s `!important` přebíjel `.green`/`.red`. Přidány specifické dark-mode
+  overrides (`#4ade80` / `#f87171`).
+
 ## [2.4.0] — 2026-05-29
 
 ### Added
