@@ -226,14 +226,6 @@
                     <span style="color:#e67e22;font-weight:600">Blokováno</span>
                 @endif
                 <small style="color:#888">od {{ $member->payment_blocked_since }}</small>
-                @if($canEdit)
-                <form method="POST" action="{{ route('members.payment-block.reset', $member->id) }}"
-                      style="display:inline;margin-left:8px"
-                      onsubmit="return confirm('Reset blokace u tohoto člena?')">
-                    @csrf
-                    <button class="m-link-sm" type="submit" style="background:none;border:none;color:#06c;cursor:pointer;padding:0">Reset blokace</button>
-                </form>
-                @endif
             </span>
         </div>
         @endif

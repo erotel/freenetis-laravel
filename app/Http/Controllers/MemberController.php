@@ -682,34 +682,6 @@ class MemberController extends Controller
         ]);
     }
 
-    /**
-     * Admin „udělí milost" — resetuje payment_blocked flag bez stržení dluhu.
-     * Použije se ve scénářích, kdy zákazník zaplatil mimo systém (hotovost,
-     * dohoda) a admin nechce čekat, až se import dostane k backcharge.
-     * NEpřidává žádný transfer — to ať admin udělá ručně přes finance UI,
-     * pokud potřebuje srovnat účet.
-     */
-    public function resetPaymentBlock(int $id)
-    {
-        abort_unless($this->can('edit_all'), 403);
-
-        $member = DB::table('members')->where('id', $id)->first();
-        abort_if(!$member, 404);
-
-        DB::table('members')->where('id', $id)->update([
-            'payment_blocked'       => 0,
-            'payment_blocked_since' => null,
-            'pending_termination'   => 0,
-        ]);
-
-        // Smaž přesměrování (idempotentní, smaže jen pokud byly).
-        app(\App\Services\PaymentBlockedRedirectService::class)->refreshForMember($id);
-
-        return redirect()
-            ->route('members.pending-termination')
-            ->with('success', sprintf('Blokace u člena „%s" byla resetována.', $member->name));
-    }
-
     public function endMembershipForm(int $id)
     {
         abort_unless($this->can('edit_all'), 403);

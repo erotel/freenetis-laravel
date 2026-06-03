@@ -63,17 +63,9 @@
             <td>{{ $m->payment_blocked_since }}</td>
             <td style="text-align:right">{{ $days }}</td>
             <td>
-                <div style="display:flex;gap:6px;align-items:center">
-                    @if($canEdit)
-                    <a class="m-btn m-btn-danger m-btn-sm" href="{{ $endLink }}">Ukončit</a>
-                    <form method="POST" action="{{ route('members.payment-block.reset', $m->id) }}"
-                          style="display:inline"
-                          onsubmit="return confirm('Reset blokace u {{ addslashes($m->name) }}?')">
-                        @csrf
-                        <button class="m-btn m-btn-sm" type="submit">Reset blokace</button>
-                    </form>
-                    @endif
-                </div>
+                @if($canEdit)
+                <a class="m-btn m-btn-danger m-btn-sm" href="{{ $endLink }}">Ukončit</a>
+                @endif
             </td>
         </tr>
         @endforeach
