@@ -46,5 +46,9 @@ Schedule::command('members:redirect-expired-applicants')->hourly();
 // changes type 18 → 2 after the contract is signed. Toggleable via pending_customer_redirect_enabled.
 Schedule::command('members:redirect-pending-customers')->hourly();
 
+// Activate redirect for members with insufficient credit (payment_blocked=1); auto-clears
+// po dorovnání kreditu (PaymentBackchargeService). Toggleable via payment_blocked_redirect_enabled.
+Schedule::command('members:redirect-blocked')->hourly();
+
 // SledovaniTV — denně synchronizovat seznam aktivních TV zákazníků (skips unless module enabled)
 Schedule::command('sledovanitv:sync')->dailyAt('03:30');

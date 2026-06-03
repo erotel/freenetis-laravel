@@ -135,7 +135,9 @@ class DeductFees extends Command
             'date5'  => $date,
         ]);
 
-        $count = 0;
+        $count   = 0; // úspěšně stržené
+        $flagged = 0; // přeskočené pro nedostatek kreditu (payment_blocked=1)
+        $cleared = 0; // strhlo se i přesto, že flag byl 1 → pojistka, flag se resetne
         $creationDatetime = date('Y-m-d H:i:s');
 
         DB::beginTransaction();
@@ -154,6 +156,22 @@ class DeductFees extends Command
                 }
                 if ($feeAmount <= 0) continue;
 
+                // Prepaid pravidlo: stržení proběhne pouze pokud kredit pokryje
+                // celou částku. Kdo nemá → payment_blocked=1, transfer se nevytvoří
+                // a dohánění proběhne po platbě (PaymentBackchargeService).
+                if ((float) $account->balance < $feeAmount) {
+                    // COALESCE — pokud byl flag už nastavený z dřívějška, datum
+                    // vzniku dluhu se nepřepisuje (drží se původní pro auto-ukončení).
+                    DB::table('members')
+                        ->where('id', $account->member_id)
+                        ->update([
+                            'payment_blocked'       => 1,
+                            'payment_blocked_since' => DB::raw("COALESCE(payment_blocked_since, " . DB::getPdo()->quote($date) . ")"),
+                        ]);
+                    $flagged++;
+                    continue;
+                }
+
                 DB::table('transfers')->insert([
                     'origin_id'         => $account->account_id,
                     'destination_id'    => $orgAccount,
@@ -167,6 +185,15 @@ class DeductFees extends Command
                 ]);
 
                 DB::table('accounts')->where('id', $account->account_id)->decrement('balance', $feeAmount);
+
+                // Pojistka: pokud byl flag 1 (např. nezavolal se Backcharge přes
+                // import platby), reset — kredit teď zjevně stačí, stržení proběhlo.
+                $reset = DB::table('members')
+                    ->where('id', $account->member_id)
+                    ->where('payment_blocked', 1)
+                    ->update(['payment_blocked' => 0, 'payment_blocked_since' => null]);
+                if ($reset) $cleared++;
+
                 $count++;
             }
 
@@ -182,7 +209,7 @@ class DeductFees extends Command
             $this->error('Member fee deduction failed: ' . $e->getMessage());
         }
 
-        $this->info("Member fees: {$count} deductions.");
+        $this->info("Member fees: {$count} deductions, {$flagged} skipped (low credit, payment_blocked=1), {$cleared} flag-reset.");
         return $count;
     }
 
@@ -193,7 +220,7 @@ class DeductFees extends Command
         // exclude: applicants (type=1), former members (type=15) whose leaving_date has passed
         // idempotency: exclude accounts that already have a type=2 transfer with datetime=$date
         $accounts = DB::select("
-            SELECT a.id AS account_id, ac.member_id,
+            SELECT a.id AS account_id, ac.member_id, ac.balance,
                 IF(debt > debt_payment_rate, debt_payment_rate, debt) AS amount
             FROM (
                 SELECT a.id, MIN(m.debt_payment_rate) AS debt_payment_rate,
@@ -231,7 +258,8 @@ class DeductFees extends Command
             'date3'      => $date,
         ]);
 
-        $count = 0;
+        $count   = 0;
+        $skipped = 0; // přeskočené pro nedostatek kreditu (entrance/device fee NEnastavuje payment_blocked)
         $creationDatetime = date('Y-m-d H:i:s');
 
         DB::beginTransaction();
@@ -239,6 +267,16 @@ class DeductFees extends Command
             foreach ($accounts as $account) {
                 $amount = (float)$account->amount;
                 if ($amount <= 0) continue;
+
+                // Prepaid pravidlo: stržení splátky proběhne jen pokud kredit pokryje.
+                // Vstupní poplatek je dluh, ne pravidelný měsíční poplatek za službu —
+                // proto NEnastavujeme payment_blocked (žádné přesměrování). Splátka
+                // se dohoní automaticky příští měsíc, kdy bude kredit (idempotentní
+                // přes podmínku t2.type=2 AND datetime=$date).
+                if ((float) $account->balance < $amount) {
+                    $skipped++;
+                    continue;
+                }
 
                 DB::table('transfers')->insert([
                     'origin_id'         => $account->account_id,
@@ -267,7 +305,7 @@ class DeductFees extends Command
             $this->error('Entrance fee deduction failed: ' . $e->getMessage());
         }
 
-        $this->info("Entrance fees: {$count} deductions.");
+        $this->info("Entrance fees: {$count} deductions, {$skipped} skipped (low credit).");
         return $count;
     }
 
@@ -277,7 +315,7 @@ class DeductFees extends Command
         // rate = devices.payment_rate
         // idempotency: exclude accounts that already have a type=5 transfer with datetime=$date
         $accounts = DB::select("
-            SELECT a.id AS account_id, ac.member_id,
+            SELECT a.id AS account_id, ac.member_id, ac.balance,
                 IF(debt > payment_rate, payment_rate, debt) AS amount
             FROM (
                 SELECT a.id, MIN(d.payment_rate) AS payment_rate,
@@ -301,7 +339,8 @@ class DeductFees extends Command
             'date1'  => $date,
         ]);
 
-        $count = 0;
+        $count   = 0;
+        $skipped = 0; // přeskočené pro nedostatek kreditu (NEnastavuje payment_blocked)
         $creationDatetime = date('Y-m-d H:i:s');
 
         DB::beginTransaction();
@@ -309,6 +348,13 @@ class DeductFees extends Command
             foreach ($accounts as $account) {
                 $amount = (float)$account->amount;
                 if ($amount <= 0) continue;
+
+                // Prepaid pravidlo (viz deductEntranceFees) — splátka za zařízení
+                // se přeskočí bez flagu, dohoní se příští měsíc.
+                if ((float) $account->balance < $amount) {
+                    $skipped++;
+                    continue;
+                }
 
                 DB::table('transfers')->insert([
                     'origin_id'         => $account->account_id,
@@ -337,7 +383,7 @@ class DeductFees extends Command
             $this->error('Device fee deduction failed: ' . $e->getMessage());
         }
 
-        $this->info("Device fees: {$count} deductions.");
+        $this->info("Device fees: {$count} deductions, {$skipped} skipped (low credit).");
         return $count;
     }
 

@@ -491,6 +491,25 @@ class ImportController extends Controller
                 [$bankTransferId]
             );
         }
+
+        // Prepaid backcharge — dohnat měsíční poplatky, které DeductFees přeskočil
+        // (payment_blocked=1) a pokud kredit teď stačí, odblokovat přístup. Volá se
+        // po každé identifikované příchozí platbě. Try/catch ať selhání backcharge
+        // nezahodí celý import — bank transfer už je zacommitnutý.
+        try {
+            $unblocked = app(\App\Services\PaymentBackchargeService::class)
+                ->backchargeForMember($memberId, date('Y-m-d'));
+            if ($unblocked) {
+                app(\App\Services\PaymentBlockedRedirectService::class)
+                    ->refreshForMember($memberId);
+            }
+        } catch (\Throwable $e) {
+            \Illuminate\Support\Facades\Log::error(
+                sprintf('PaymentBackcharge failed for member #%d (bank_transfer #%d): %s',
+                    $memberId, $bankTransferId, $e->getMessage()),
+                ['trace' => $e->getTraceAsString()]
+            );
+        }
     }
 
     /**
