@@ -282,10 +282,16 @@ class NotificationActivation extends Command
         }
 
         switch ($messageType) {
-            case Message::DEBTOR_MESSAGE: // type 5 - zákazník dlužník
+            case Message::DEBTOR_MESSAGE: // type 5 - zákazník 'Nedostatečná výše konta'
+                // Prepaid: zahrň i payment_blocked=1 i kdyby balance ≥ 0
+                // (DeductFees nestrhl, takže technicky není v mínusu, ale stále
+                // nemá dostatek kreditu na další měsíc).
                 return $base
                     ->where('m.type', 2)
-                    ->where('a.balance', '<', $debtorBoundary)
+                    ->where(function ($q) use ($debtorBoundary) {
+                        $q->where('a.balance', '<', $debtorBoundary)
+                          ->orWhere('m.payment_blocked', 1);
+                    })
                     ->select(
                         'm.id', 'm.name',
                         DB::raw('MAX(CASE WHEN c.type = 20 THEN c.value END) as email'),
@@ -317,10 +323,13 @@ class NotificationActivation extends Command
                     ->groupBy('m.id', 'm.name', 'a.balance')
                     ->get();
 
-            case Message::DEBTOR_MESSAGE_CLEN: // type 25 - člen dlužník
+            case Message::DEBTOR_MESSAGE_CLEN: // type 25 - člen 'Nedostatečná výše konta'
                 return $base
                     ->where('m.type', 90)
-                    ->where('a.balance', '<', $debtorBoundary)
+                    ->where(function ($q) use ($debtorBoundary) {
+                        $q->where('a.balance', '<', $debtorBoundary)
+                          ->orWhere('m.payment_blocked', 1);
+                    })
                     ->select(
                         'm.id', 'm.name',
                         DB::raw('MAX(CASE WHEN c.type = 20 THEN c.value END) as email'),

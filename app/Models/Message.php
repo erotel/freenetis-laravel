@@ -28,7 +28,6 @@ class Message extends Model
     const CONTRACT_SIGNED                = 30;
     const CONTRACT_ADDON_SIGNED          = 31;
     const PENDING_CUSTOMER_MESSAGE       = 32;
-    const PAYMENT_BLOCKED_MESSAGE        = 33;
 
     // Self-cancel options
     const SELF_CANCEL_DISABLED = 0;
@@ -54,7 +53,6 @@ class Message extends Model
             self::CONTRACT_SIGNED                => 'Smlouva — po podpisu',
             self::CONTRACT_ADDON_SIGNED          => 'Dodatek smlouvy — po podpisu',
             self::PENDING_CUSTOMER_MESSAGE       => 'Čekající zákazník — nepodepsaná smlouva',
-            self::PAYMENT_BLOCKED_MESSAGE        => 'Nedostatečný kredit',
             default                              => 'Systémová zpráva (typ ' . $type . ')',
         };
     }
