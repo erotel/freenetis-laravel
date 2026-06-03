@@ -50,5 +50,11 @@ Schedule::command('members:redirect-pending-customers')->hourly();
 // po dorovnání kreditu (PaymentBackchargeService). Toggleable via payment_blocked_redirect_enabled.
 Schedule::command('members:redirect-blocked')->hourly();
 
+// Mark members with unpaid fee from previous month or older as pending_termination=1
+// (per VOP — 1 měsíc neplacení = automatický konec smlouvy). Cron běží denně, ale
+// work se provede jen v Setting('pending_termination_day', 14). Admin pak schvaluje
+// ručně ve /members/pending-termination (rozhodnutí 2B — žádné auto-end smlouvy).
+Schedule::command('members:mark-pending-termination')->dailyAt('06:30');
+
 // SledovaniTV — denně synchronizovat seznam aktivních TV zákazníků (skips unless module enabled)
 Schedule::command('sledovanitv:sync')->dailyAt('03:30');

@@ -228,6 +228,8 @@ Route::middleware('auth')->group(function () {
         ->middleware('acl:view_all,Address_points_Controller,street');
     Route::resource('streets', StreetController::class)->except(['index']);
     Route::get('members/applicants', [MemberController::class, 'applicants'])->name('members.applicants');
+    Route::get('members/pending-termination', [MemberController::class, 'pendingTermination'])->name('members.pending-termination');
+    Route::post('members/{id}/payment-block/reset', [MemberController::class, 'resetPaymentBlock'])->name('members.payment-block.reset');
     Route::get('members/{id}/registration-export/{type}', [MemberController::class, 'registrationExport'])->name('members.registration-export');
     Route::post('members/{id}/registration-export-email/{type}', [MemberController::class, 'registrationExportEmail'])->name('members.registration-export-email');
     Route::get('members/{id}/end-membership', [MemberController::class, 'endMembershipForm'])->name('members.end-membership');

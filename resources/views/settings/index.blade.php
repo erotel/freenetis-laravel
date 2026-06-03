@@ -304,6 +304,35 @@ function addBccRow() {
     </div>
 </div>
 
+<div class="m-card" style="margin-bottom:16px;max-width:760px">
+    <div class="m-card-title">Kreditový (prepaid) model</div>
+    <div class="m-form-hint" style="margin-bottom:12px;color:#666">
+        Pokud kredit člena nepokryje měsíční poplatek, srážka se neprovede a člen
+        bude přesměrován. Po dorovnání kreditu (import platby) se přeskočené poplatky
+        dohnou chronologicky od nejstaršího. Pokud člen nezaplatí ani v dalším měsíci,
+        cron ho označí jako kandidáta na ukončení (per VOP — 1 měsíc neplacení).
+    </div>
+    <div style="display:flex;gap:16px;flex-wrap:wrap;margin-bottom:12px">
+        <label style="display:flex;align-items:center;gap:6px;font-size:16px;cursor:pointer">
+            <input type="checkbox" name="payment_blocked_redirect_enabled" value="1"
+                {{ ($financeSettings['payment_blocked_redirect_enabled'] ?? '1') == '1' ? 'checked' : '' }}>
+            Přesměrovat při nedostatku kreditu
+        </label>
+    </div>
+    <div class="m-form-group">
+        <label class="m-form-label">Den měsíce pro označení k ukončení</label>
+        <input class="m-form-input" type="number" name="pending_termination_day"
+            value="{{ $financeSettings['pending_termination_day'] ?? 14 }}" min="1" max="31" style="max-width:80px">
+        <div class="m-form-hint">Defaultně 14. den — kdo nezaplatil v předchozím měsíci, je označen jako kandidát na ukončení (admin schvaluje ručně).</div>
+    </div>
+    <div class="m-form-group">
+        <label class="m-form-label">E-mail pro notifikace adminovi</label>
+        <input class="m-form-input" type="email" name="admin_notification_email"
+            value="{{ $financeSettings['admin_notification_email'] ?? '' }}" placeholder="finance@…" style="max-width:340px">
+        <div class="m-form-hint">Když cron označí nové kandidáty na ukončení, pošle sem seznam. Pokud prázdné, použije se výchozí email odesílatele.</div>
+    </div>
+</div>
+
 <div class="m-actions">
     <button class="m-btn m-btn-primary" type="submit">Uložit nastavení financí</button>
 </div>

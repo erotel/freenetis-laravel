@@ -34,6 +34,11 @@ class SettingController extends Controller
         'finance_enabled',
         'default_fee_member_type_2',   // zákazník (type 2) - default fee_id
         'default_fee_member_type_90',  // člen (type 90) - default fee_id
+        // Prepaid model — DeductFees flagne místo přečerpání, redirect přes
+        // PaymentBlockedRedirectService, ukončení 14. den (per VOP).
+        'payment_blocked_redirect_enabled',
+        'pending_termination_day',
+        'admin_notification_email',
     ];
 
     public const SYSTEM_KEYS = [
@@ -338,7 +343,9 @@ class SettingController extends Controller
         abort_unless($this->can('edit_all'), 403);
 
         $validated = $request->validate([
-            'deduct_day' => 'required|integer|min:1|max:31',
+            'deduct_day'               => 'required|integer|min:1|max:31',
+            'pending_termination_day'  => 'nullable|integer|min:1|max:31',
+            'admin_notification_email' => 'nullable|email|max:255',
         ]);
 
         Setting::set('deduct_fees_automatically_enabled', $request->boolean('deduct_fees_automatically_enabled') ? 1 : 0);
@@ -346,6 +353,9 @@ class SettingController extends Controller
         Setting::set('finance_enabled', $request->boolean('finance_enabled') ? 1 : 0);
         Setting::set('default_fee_member_type_2',  $request->input('default_fee_member_type_2', ''));
         Setting::set('default_fee_member_type_90', $request->input('default_fee_member_type_90', ''));
+        Setting::set('payment_blocked_redirect_enabled', $request->boolean('payment_blocked_redirect_enabled') ? 1 : 0);
+        Setting::set('pending_termination_day', $validated['pending_termination_day'] ?? 14);
+        Setting::set('admin_notification_email', $validated['admin_notification_email'] ?? '');
 
         return redirect()->route('settings.index', ['tab' => 'finance'])
             ->with('success', 'Nastavení financí bylo uloženo.');

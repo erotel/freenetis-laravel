@@ -645,6 +645,68 @@ class MemberController extends Controller
         return view('members.applicants', compact('pending'));
     }
 
+    /**
+     * Seznam členů označených k ukončení (cron MarkPendingTermination, 14. den
+     * každého měsíce — VOP: 1 měsíc neplacení = automatický konec smlouvy).
+     * Admin každý případ projde a klikne 'Ukončit' (link na endMembershipForm
+     * s předvyplněným leaving_date) nebo 'Reset blokace' pokud chce dát milost.
+     */
+    public function pendingTermination()
+    {
+        abort_unless($this->can('view_all'), 403);
+
+        $rows = DB::table('members as m')
+            ->join('accounts as a', function ($j) {
+                $j->on('a.member_id', '=', 'm.id')->where('a.account_attribute_id', 221100);
+            })
+            ->leftJoin('variable_symbols as vs', 'vs.account_id', '=', 'a.id')
+            ->where('m.pending_termination', 1)
+            ->whereIn('m.type', [2, 90])
+            ->select(
+                'm.id', 'm.name', 'm.type',
+                'm.payment_blocked_since',
+                'a.balance',
+                DB::raw('GROUP_CONCAT(vs.variable_symbol) AS variable_symbols')
+            )
+            ->groupBy('m.id', 'm.name', 'm.type', 'm.payment_blocked_since', 'a.balance')
+            ->orderBy('m.payment_blocked_since')
+            ->get();
+
+        return view('members.pending_termination', [
+            'rows'    => $rows,
+            'today'   => now()->format('Y-m-d'),
+            'canEdit' => $this->can('edit_all'),
+        ]);
+    }
+
+    /**
+     * Admin „udělí milost" — resetuje payment_blocked flag bez stržení dluhu.
+     * Použije se ve scénářích, kdy zákazník zaplatil mimo systém (hotovost,
+     * dohoda) a admin nechce čekat, až se import dostane k backcharge.
+     * NEpřidává žádný transfer — to ať admin udělá ručně přes finance UI,
+     * pokud potřebuje srovnat účet.
+     */
+    public function resetPaymentBlock(int $id)
+    {
+        abort_unless($this->can('edit_all'), 403);
+
+        $member = DB::table('members')->where('id', $id)->first();
+        abort_if(!$member, 404);
+
+        DB::table('members')->where('id', $id)->update([
+            'payment_blocked'       => 0,
+            'payment_blocked_since' => null,
+            'pending_termination'   => 0,
+        ]);
+
+        // Smaž přesměrování (idempotentní, smaže jen pokud byly).
+        app(\App\Services\PaymentBlockedRedirectService::class)->refreshForMember($id);
+
+        return redirect()
+            ->route('members.pending-termination')
+            ->with('success', sprintf('Blokace u člena „%s" byla resetována.', $member->name));
+    }
+
     public function endMembershipForm(int $id)
     {
         abort_unless($this->can('edit_all'), 403);
