@@ -76,6 +76,8 @@ $isDark = ($userSettings['dark_mode'] ?? 0) == 1;
     [data-theme="dark"] div.m-metric{background:#2a2a2a !important;border:1px solid #333 !important}
     [data-theme="dark"] .m-metric-label{color:var(--fn-text-muted)}
     [data-theme="dark"] .m-metric-value{color:#e0e0e0 !important}
+    [data-theme="dark"] .m-metric-value.green{color:#4ade80 !important}
+    [data-theme="dark"] .m-metric-value.red{color:#f87171 !important}
     [data-theme="dark"] .m-field{border-color:var(--fn-border)}
     [data-theme="dark"] .m-field-label{color:var(--fn-text-muted)}
     [data-theme="dark"] .m-field-value{color:var(--fn-text)}
