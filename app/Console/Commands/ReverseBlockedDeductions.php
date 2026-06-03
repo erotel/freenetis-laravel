@@ -7,14 +7,18 @@ use Illuminate\Support\Facades\DB;
 
 /**
  * Migrační čistič bilancí: pro stávající flagnuté členy (payment_blocked=1)
- * reverzuje historické srážky, které proběhly od payment_blocked_since.
+ * SMAZÁVÁ historické srážky, které proběhly od payment_blocked_since.
  *
- * Důvod: před přechodem na prepaid model DeductFees strhával nepodmíněně
- * → vznikla negativní bilance. Po migraci jsme tyto členy retroaktivně
- * flagli, ale ty staré srážky zůstaly. V čistém prepaid modelu by ty
- * srážky nebyly (DeductFees by jen flagnul). Tento command obnoví výchozí
- * stav protitransfery (operating → credit) — bilance jde zpět na to,
- * co bylo před stržením, flagy a pending_termination zůstávají.
+ * Důvod: před přechodem na prepaid model DeductFees strhával nepodmíněně.
+ * V čistém prepaid modelu by ty srážky nebyly (DeductFees by jen flagnul).
+ * Smazání obnoví výchozí stav — bilance jde zpět na to, co bylo před stržením,
+ * a getExpirationDate ("Zaplaceno do") sedí s payment_blocked_since.
+ *
+ * Smazat (ne kompenzovat counter-transferem), protože:
+ *  - Pohoda za tyto srážky nevystavila faktury (ověřeno před spuštěním)
+ *  - Counter-transfery by zmátly getExpirationDate (counter typ=1 with dest=credit
+ *    nepočítá jako 'stržení', ale původní OUT transfer tam pořád zůstává a algoritmus
+ *    ho považuje za 'naposledy strženo' → posune 'Zaplaceno do' o měsíc)
  *
  * Default = --dry-run.
  */
@@ -23,7 +27,7 @@ class ReverseBlockedDeductions extends Command
     protected $signature   = 'members:reverse-blocked-deductions
                                 {--dry-run : Vypsat co by se stalo (default)}
                                 {--apply : Provést změny}';
-    protected $description = 'Reverzovat staré srážky u flagnutých členů — vrátí balance na pre-deduct stav (jednorázová migrační oprava)';
+    protected $description = 'Smazat historické srážky u flagnutých členů — bilance se sníží zpět na pre-deduct stav (jednorázová migrační oprava)';
 
     const TYPE_MEMBER_FEE   = 1;
     const CREDIT_ACCOUNT    = 221100;
@@ -32,7 +36,6 @@ class ReverseBlockedDeductions extends Command
     public function handle(): int
     {
         $dryRun = !$this->option('apply');
-        $today  = date('Y-m-d');
 
         if ($dryRun) {
             $this->warn('DRY RUN — žádné změny se nezapíšou. Pro provedení spusť s --apply.');
@@ -65,7 +68,6 @@ class ReverseBlockedDeductions extends Command
         $this->info("Flagnutí celkem: {$members->count()}");
 
         $totalReversed   = 0.0;
-        $created         = 0;
         $deductionsCount = 0;
 
         if (!$dryRun) DB::beginTransaction();
@@ -85,38 +87,27 @@ class ReverseBlockedDeductions extends Command
 
                 if ($dryRun) {
                     $this->line(sprintf(
-                        '  #%d %s | balance %.2f → %.2f (vrátit %.2f Kč, %d srážek od %s)',
+                        '  #%d %s | balance %.2f → %.2f (smazat %d srážek od %s, celkem %.2f Kč)',
                         $m->id, $m->name, (float) $m->balance, (float) $m->balance + $sum,
-                        $sum, $deductions->count(), $m->payment_blocked_since
+                        $deductions->count(), $m->payment_blocked_since, $sum
                     ));
                     continue;
                 }
 
-                foreach ($deductions as $d) {
-                    DB::table('transfers')->insert([
-                        'origin_id'         => $orgAccount,
-                        'destination_id'    => $m->account_id,
-                        'type'              => self::TYPE_MEMBER_FEE,
-                        'amount'            => $d->amount,
-                        'datetime'          => $today,
-                        'creation_datetime' => date('Y-m-d H:i:s'),
-                        'text'              => 'Storno srážky ' . substr($d->datetime, 0, 10) . ' — migrace na prepaid',
-                        'member_id'         => null,
-                        'user_id'           => null,
-                    ]);
-                    $created++;
-                }
+                DB::table('transfers')
+                    ->whereIn('id', $deductions->pluck('id')->all())
+                    ->delete();
                 DB::table('accounts')->where('id', $m->account_id)->increment('balance', $sum);
             }
 
             if (!$dryRun) {
-                // Operating: incoming - outgoing → ty nové protitransfery dají origin=operating,
-                // tj. snižují operating bilanci o totalReversed.
+                // Operating: po smazání odchozích transferů z kreditních účtů do operating
+                // se snižuje incoming na operating → bilance jde dolů o totalReversed.
                 $this->recalculateBalance($orgAccount);
                 DB::commit();
-                $this->info("Vytvořeno {$created} protitransferů, celkem {$totalReversed} Kč vráceno na kreditní účty.");
+                $this->info("Smazáno {$deductionsCount} srážek, celkem {$totalReversed} Kč vráceno do bilance kreditních účtů.");
             } else {
-                $this->info(sprintf('Celkem by se vrátilo: %.2f Kč v %d protitransferech.', $totalReversed, $deductionsCount));
+                $this->info(sprintf('Celkem by se smazalo: %d srážek za %.2f Kč.', $deductionsCount, $totalReversed));
                 $this->warn('Spusť znovu s --apply pro provedení.');
             }
         } catch (\Throwable $e) {
