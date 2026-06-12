@@ -6,6 +6,19 @@ formát podle [Keep a Changelog](https://keepachangelog.com/cs/1.1.0/).
 Verzi v souboru `config/version.php` bumpni samostatným commitem `chore: bump version to X.Y.Z`,
 ať lze changelog snadno regenerovat přes `git log vX..vY --oneline`.
 
+## [2.5.1] — 2026-06-12
+
+### Added
+- **Tažitelné šířky sloupců v tabulce zařízení uživatele**
+  (`/users/{id}/devices`). Úchyt na pravém okraji každého záhlaví
+  (vizuálně značený `⋮`) — mouseclick + drag mění šířku sloupce,
+  dvojklik na úchyt resetuje na výchozí. Šířky se ukládají do
+  `localStorage` pod klíčem `m-col-widths:user-devices`, takže přežijí
+  refresh i nové přihlášení. Místo dřívějšího hardcoded
+  `max-width:150px` na buňce Název je teď `table-layout:fixed`
+  + `<colgroup>` — ellipsis truncate zůstává, ale je řízený šířkou
+  sloupce, ne fixní hodnotou.
+
 ## [2.5.0] — 2026-06-03
 
 ### Added

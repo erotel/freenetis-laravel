@@ -33,11 +33,18 @@
     table.m-resizable th { position: relative; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     table.m-resizable td.m-truncate { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     table.m-resizable .m-col-resizer {
-        position: absolute; top: 0; right: 0; width: 6px; height: 100%;
+        position: absolute; top: 0; right: 0; width: 10px; height: 100%;
         cursor: col-resize; user-select: none; touch-action: none;
+        display: flex; align-items: center; justify-content: center;
+        color: #bbb; font-weight: bold; font-size: 14px; line-height: 1;
+    }
+    table.m-resizable .m-col-resizer::before {
+        content: "⋮"; font-size: 16px;
     }
     table.m-resizable .m-col-resizer:hover,
-    table.m-resizable .m-col-resizer.m-dragging { background: rgba(0,123,255,0.35); }
+    table.m-resizable .m-col-resizer.m-dragging {
+        background: rgba(0,123,255,0.15); color: #007bff;
+    }
     body.m-col-resizing, body.m-col-resizing * { cursor: col-resize !important; user-select: none !important; }
 </style>
 <div class="m-card" style="padding:0;overflow-x:auto">
