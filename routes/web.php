@@ -52,6 +52,7 @@ use App\Http\Controllers\ConnectionRequestController;
 use App\Http\Controllers\SmsMessageController;
 use App\Http\Controllers\GponController;
 use App\Http\Controllers\ContractController;
+use App\Http\Controllers\FieldController;
 use Illuminate\Support\Facades\Route;
 
 // ── Web Interface API (machine-to-machine, IP-restricted, no session auth) ──
@@ -100,6 +101,32 @@ foreach (['cs', 'en', 'sk'] as $lang) {
 Route::get('/login', [LoginController::class, 'showLoginForm'])->name('login')->middleware('guest');
 Route::post('/login', [LoginController::class, 'login'])->middleware(['guest', 'throttle:10,1']);
 Route::post('/logout', [LoginController::class, 'logout'])->name('logout')->middleware('auth');
+
+// ── Field Mode (mobile-first UI pro techniky v terénu) ──────────────────────
+// Žádný nový auth — používá existující 'web' guard. Veřejné jsou jen login routy;
+// zbytek je za 'auth' (guest redirect míří na field.login, viz bootstrap/app.php).
+Route::prefix('field')->name('field.')->group(function () {
+    Route::get('/', [FieldController::class, 'home'])->name('home');
+
+    // PWA assety (veřejné) — servírované přes Laravel, aby /field/* nekolidovalo
+    // s fyzickou složkou (directory listing). Viz FieldController PWA sekce.
+    Route::get('/manifest.json', [FieldController::class, 'manifest'])->name('manifest');
+    Route::get('/sw.js', [FieldController::class, 'serviceWorker'])->name('sw');
+    Route::get('/offline.html', [FieldController::class, 'offline'])->name('offline');
+    Route::get('/icon-{size}.png', [FieldController::class, 'icon'])->whereNumber('size')->name('icon');
+
+    Route::get('/login', [FieldController::class, 'showLogin'])->name('login');
+    Route::post('/login', [FieldController::class, 'login'])->middleware('throttle:10,1');
+    Route::post('/logout', [FieldController::class, 'logout'])->name('logout');
+
+    Route::middleware('auth')->group(function () {
+        Route::get('/search', [FieldController::class, 'search'])->name('search');
+        Route::get('/search/results', [FieldController::class, 'searchResults'])->name('search.results');
+        Route::get('/member/{id}', [FieldController::class, 'member'])->name('member')->whereNumber('id');
+        Route::post('/member/{id}/note', [FieldController::class, 'addNote'])->name('member.note')->whereNumber('id');
+        Route::get('/device/{id}', [FieldController::class, 'device'])->name('device')->whereNumber('id');
+    });
+});
 
 // Public self-registration (guest only)
 Route::middleware('guest')->group(function () {

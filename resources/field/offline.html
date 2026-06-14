@@ -1,0 +1,28 @@
+<!DOCTYPE html>
+<html lang="cs">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="theme-color" content="#ff6b00">
+    <title>Offline · FreenetIS Field</title>
+    <style>
+        html,body{margin:0;height:100%;background:#0d0d0d;color:#e6e6e6;
+            font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;
+            display:flex;align-items:center;justify-content:center;text-align:center;padding:24px}
+        .logo{font-size:28px;font-weight:800;letter-spacing:-.5px;margin-bottom:16px}
+        .logo em{color:#ff6b00;font-style:normal}
+        h1{font-size:20px;margin:0 0 8px}
+        p{color:#888;font-size:15px;margin:0 0 24px;max-width:340px}
+        a{display:inline-block;background:#ff6b00;color:#fff;text-decoration:none;
+            padding:13px 24px;border-radius:12px;font-weight:600;font-size:16px}
+    </style>
+</head>
+<body>
+    <div>
+        <div class="logo">Free<em>net</em>IS</div>
+        <h1>Jste offline</h1>
+        <p>Pro načtení dat je potřeba připojení k internetu. Zkontroluj signál a zkus to znovu.</p>
+        <a href="search" onclick="location.reload();return false;">Zkusit znovu</a>
+    </div>
+</body>
+</html>

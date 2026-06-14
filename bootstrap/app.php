@@ -15,6 +15,11 @@ return Application::configure(basePath: dirname(__DIR__))
             'acl'          => \App\Http\Middleware\AclMiddleware::class,
             'gpon_enabled' => \App\Http\Middleware\GponEnabled::class,
         ]);
+        // Field Mode: nepřihlášené hosty na /field/* posílej na mobilní login,
+        // ne na desktopový /login.
+        $middleware->redirectGuestsTo(fn($request) => $request->is('field') || $request->is('field/*')
+            ? route('field.login')
+            : route('login'));
         // Setup wizard guard — pokud existuje storage/app/setup.token a žádný admin
         // v DB, přesměruj všechny non-setup requesty na /setup. Po dokončení wizardu
         // se token soubor smaže a middleware je trvale no-op.
