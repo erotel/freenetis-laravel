@@ -53,29 +53,42 @@ window.FNWebAuthn = (function () {
         return reg.data;
     }
 
-    // Bez loginName → usernameless (prohlížeč nabídne uložené passkeys).
-    // Vrací {ok, redirect} při úspěchu, {fallback:true} když není co nabídnout.
-    async function login(loginName, context) {
+    // Přednačtení výzvy (ideálně už při loadu stránky). Bez loginName →
+    // usernameless. Vrací {ok, publicKey, state} nebo {ok:false, fallback, message}.
+    async function prepareLogin(loginName) {
         var res = await post('{{ route("webauthn.login.options") }}', loginName ? { login: loginName } : {});
-        if (!res.ok) return { fallback: true, message: res.data && res.data.error };
-
-        var pk = res.data.publicKey, state = res.data.state;
+        if (!res.ok) return { ok: false, fallback: true, message: res.data && res.data.error };
+        var pk = res.data.publicKey;
         pk.challenge = b64uToBuf(pk.challenge);
         (pk.allowCredentials || []).forEach(function (c) { c.id = b64uToBuf(c.id); });
+        return { ok: true, publicKey: pk, state: res.data.state };
+    }
 
-        var assertion = await navigator.credentials.get({ publicKey: pk });
+    // Dokončení: volá get() IHNED (musí běžet přímo v user-gesture handleru,
+    // bez await před sebou — jinak iOS hodí "unknown error"). Pak ověří.
+    // Vrací {ok, redirect} nebo {expired:true} (výzva propadla → znovu prepare).
+    async function finishLogin(prepared, context) {
+        var assertion;
+        try {
+            assertion = await navigator.credentials.get({ publicKey: prepared.publicKey });
+        } catch (e) {
+            throw e;
+        }
         var out = await post('{{ route("webauthn.login") }}', {
             id: bufToB64(assertion.rawId),
-            state: state,
+            state: prepared.state,
             clientDataJSON: bufToB64(assertion.response.clientDataJSON),
             authenticatorData: bufToB64(assertion.response.authenticatorData),
             signature: bufToB64(assertion.response.signature),
             context: context || 'web'
         });
-        if (!out.ok) throw new Error((out.data && out.data.error) || 'Přihlášení selhalo');
+        if (!out.ok) {
+            if (out.status === 422 && /výzvy/.test((out.data && out.data.error) || '')) return { expired: true };
+            throw new Error((out.data && out.data.error) || 'Přihlášení selhalo');
+        }
         return out.data;
     }
 
-    return { supported: supported, register: register, login: login };
+    return { supported: supported, register: register, prepareLogin: prepareLogin, finishLogin: finishLogin };
 })();
 </script>

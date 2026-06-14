@@ -162,10 +162,31 @@
     </main>
 
     <script>
+    // Service worker ZÁMĚRNĚ neregistrujeme — způsoboval problémy s přihlášením
+    // (zachytával navigaci a ztrácel session). Navíc aktivně odregistrujeme
+    // jakoukoli dřívější verzi (v1/v2) a vyčistíme její cache; jednou kvůli
+    // tomu stránku přenačteme, aby přestala být pod kontrolou starého SW.
     if ('serviceWorker' in navigator) {
-        window.addEventListener('load', function () {
-            navigator.serviceWorker.register('{{ route('field.sw') }}').catch(function(){});
-        });
+        navigator.serviceWorker.getRegistrations().then(function (regs) {
+            if (!regs.length) return;
+            Promise.all(regs.map(function (r) { return r.unregister(); })).then(function () {
+                if (window.caches && caches.keys) {
+                    caches.keys().then(function (keys) {
+                        return Promise.all(keys.map(function (k) { return caches.delete(k); }));
+                    }).finally(reloadOnce);
+                } else {
+                    reloadOnce();
+                }
+            });
+        }).catch(function () {});
+    }
+    function reloadOnce() {
+        try {
+            if (!sessionStorage.getItem('sw_cleaned')) {
+                sessionStorage.setItem('sw_cleaned', '1');
+                location.reload();
+            }
+        } catch (e) {}
     }
     </script>
     @yield('scripts')

@@ -38,6 +38,7 @@
 (function () {
     var bioBtn = document.getElementById('wa-bio');
     var msg = document.getElementById('wa-msg');
+    var prep = null, preparing = null;
 
     function showMsg(t) { msg.textContent = t; msg.style.display = 'block'; }
 
@@ -45,16 +46,24 @@
     bioBtn.style.display = 'block';
     document.getElementById('wa-or').style.display = 'block';
 
+    // Přednačti výzvu hned → po kliknutí se get() zavolá okamžitě (kvůli iOS).
+    function preload() { preparing = FNWebAuthn.prepareLogin('').then(function (p) { prep = p; }).catch(function () {}); }
+    preload();
+
     bioBtn.addEventListener('click', async function () {
         msg.style.display = 'none';
         bioBtn.disabled = true;
         try {
-            var r = await FNWebAuthn.login('', 'field'); // usernameless
-            if (r.fallback) { showMsg('Žádný passkey pro tuto doménu. Přihlas se heslem a zaregistruj zařízení.'); bioBtn.disabled = false; return; }
+            var p = prep;
+            if (!p) { await preparing; p = prep; }
+            if (!p || !p.ok) { showMsg((p && p.message) || 'Žádný passkey pro tuto doménu. Přihlas se heslem a zaregistruj zařízení.'); bioBtn.disabled = false; preload(); return; }
+            prep = null;
+            var r = await FNWebAuthn.finishLogin(p, 'field');
+            if (r.expired) { var p2 = await FNWebAuthn.prepareLogin(''); if (p2.ok) r = await FNWebAuthn.finishLogin(p2, 'field'); }
             if (r.ok && r.redirect) { window.location = r.redirect; return; }
-            showMsg('Přihlášení se nezdařilo.'); bioBtn.disabled = false;
+            showMsg('Přihlášení se nezdařilo.'); bioBtn.disabled = false; preload();
         } catch (e) {
-            showMsg(e.message || 'Přihlášení se nezdařilo.'); bioBtn.disabled = false;
+            showMsg(e.message || 'Přihlášení se nezdařilo.'); bioBtn.disabled = false; preload();
         }
     });
 })();
