@@ -44,6 +44,11 @@ class LoginController extends Controller
         // get/set/getRememberTokenName v App\Models\User.
         if (!Auth::attempt($credentials)) {
             RateLimiter::hit($loginKey, self::LOGIN_DECAY_SECONDS);
+            logger()->warning('auth.login.failed', [
+                'login' => $credentials['login'],
+                'ip'    => $request->ip(),
+                'ua'    => substr((string) $request->userAgent(), 0, 200),
+            ]);
             return back()
                 ->withInput($request->only('login'))
                 ->withErrors(['login' => __('Nesprávné přihlašovací jméno nebo heslo, nebo je účet zablokován.')]);

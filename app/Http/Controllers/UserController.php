@@ -156,9 +156,10 @@ class UserController extends Controller
             abort(403);
         }
 
+        $minLength = (int) \App\Models\Setting::get('security_password_length', 8);
         $rules = [
             'member_id'             => 'required|integer|exists:members,id',
-            'password'              => 'required|string|min:6|confirmed',
+            'password'              => "required|string|min:{$minLength}|confirmed",
             'name'                  => 'nullable|string|max:100',
             'middle_name'           => 'nullable|string|max:100',
             'surname'               => 'required|string|max:100',
@@ -245,7 +246,8 @@ class UserController extends Controller
         }
 
         if ($request->filled('password')) {
-            $rules['password'] = 'string|min:6|confirmed';
+            $minLength = (int) \App\Models\Setting::get('security_password_length', 8);
+            $rules['password'] = "string|min:{$minLength}|confirmed";
         }
 
         $data = $request->validate($rules);

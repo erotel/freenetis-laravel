@@ -244,6 +244,11 @@ class WebAuthnController extends Controller
                 true
             );
         } catch (\Throwable $e) {
+            logger()->warning('auth.webauthn.failed', [
+                'credential_id' => substr($data['id'], 0, 16) . '…',
+                'ip'            => $request->ip(),
+                'reason'        => $e->getMessage(),
+            ]);
             return response()->json(['error' => 'Ověření se nezdařilo: ' . $e->getMessage()], 422);
         }
 
@@ -251,6 +256,12 @@ class WebAuthnController extends Controller
         // (pokud authenticator čítač vůbec používá, tj. > 0).
         $newCount = (int) $webAuthn->getSignatureCounter();
         if ($credential->sign_count > 0 && $newCount > 0 && $newCount <= $credential->sign_count) {
+            logger()->warning('auth.webauthn.clone_suspected', [
+                'user_id'    => $credential->user_id,
+                'ip'         => $request->ip(),
+                'stored'     => $credential->sign_count,
+                'received'   => $newCount,
+            ]);
             return response()->json(['error' => 'Bezpečnostní kontrola selhala (možná klonovaný klíč).'], 422);
         }
 
