@@ -43,12 +43,14 @@
         <label for="login">Uživatelské jméno</label>
         <input type="text" id="login" name="login" value="{{ old('login') }}" required autofocus autocomplete="username">
 
-        <button type="button" id="wa-bio" style="display:none;background:#0a6b3c;margin-bottom:1rem">🔒 Přihlásit biometrií</button>
-
         <label for="password">Heslo</label>
         <input type="password" id="password" name="password" required autocomplete="current-password">
 
         <button type="submit">Přihlásit se heslem</button>
+
+        <div id="wa-or" style="display:none;text-align:center;color:#888;font-size:.85rem;margin:.9rem 0 .6rem">— nebo —</div>
+        <button type="button" id="wa-bio" style="display:none;background:#0a6b3c">🔒 Přihlásit biometrií</button>
+
         <div style="text-align:center; margin-top:0.75em; font-size:0.9em;">
             @if(\App\Models\Setting::get('forgotten_password', 0))
             <a href="{{ route('forgotten-password') }}">Zapomenuté heslo?</a>
@@ -70,6 +72,7 @@
 
     if (!FNWebAuthn.supported()) return;
     bioBtn.style.display = 'block';
+    document.getElementById('wa-or').style.display = 'block';
 
     FNWebAuthn.warmup(); // zahřej FIDO modul (Android) kvůli první výzvě
     function preload() { preparing = FNWebAuthn.prepareLogin('').then(function (p) { prep = p; }).catch(function () {}); }

@@ -9,12 +9,6 @@
 
     <div id="wa-msg" class="f-alert f-alert-error" style="display:none"></div>
 
-    <button type="button" id="wa-bio" class="f-btn" style="display:none;margin-bottom:18px">
-        🔒 Přihlásit biometrií
-    </button>
-
-    <div id="wa-or" style="display:none;text-align:center;color:var(--muted);font-size:13px;margin-bottom:14px">— nebo heslem —</div>
-
     <form method="POST" action="{{ route('field.login') }}" autocomplete="on">
         @csrf
         <label style="display:block;margin-bottom:14px">
@@ -27,8 +21,13 @@
             <span style="font-size:13px;color:var(--muted);display:block;margin-bottom:5px">Heslo</span>
             <input type="password" name="password" class="f-input" required autocomplete="current-password">
         </label>
-        <button type="submit" class="f-btn f-btn-ghost">Přihlásit se heslem</button>
+        <button type="submit" class="f-btn">Přihlásit se heslem</button>
     </form>
+
+    <div id="wa-or" style="display:none;text-align:center;color:var(--muted);font-size:13px;margin:16px 0 12px">— nebo —</div>
+    <button type="button" id="wa-bio" class="f-btn f-btn-ghost" style="display:none">
+        🔒 Přihlásit biometrií
+    </button>
 </div>
 @endsection
 
