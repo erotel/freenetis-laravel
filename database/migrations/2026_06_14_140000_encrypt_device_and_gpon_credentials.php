@@ -11,12 +11,22 @@ use Illuminate\Support\Facades\Schema;
  *  - devices.password (heslo k zařízení)
  *  - gpon_olts.snmp_auth_pass / snmp_priv_pass (SNMPv3 hesla OLT)
  *
+ * Sloupce jsou původně dimenzované na krátký plaintext (např. VARCHAR(30)),
+ * šifrovaný text (Laravel Crypt) má ~200+ znaků → sloupce nejdřív rozšíříme
+ * na TEXT a teprve pak hodnoty zašifrujeme.
+ *
  * Idempotentní: hodnoty, které už šifrované jsou (jdou dešifrovat), přeskočí —
- * lze tedy spustit opakovaně bez dvojího zašifrování.
+ * lze spustit opakovaně bez dvojího zašifrování.
  */
 return new class extends Migration {
     public function up(): void
     {
+        // 1) rozšířit sloupce, ať se vejde šifrovaný blob
+        $this->widenColumn('devices', 'password');
+        $this->widenColumn('gpon_olts', 'snmp_auth_pass');
+        $this->widenColumn('gpon_olts', 'snmp_priv_pass');
+
+        // 2) zašifrovat existující plaintext hodnoty
         $this->encryptColumn('devices', 'password');
         $this->encryptColumn('gpon_olts', 'snmp_auth_pass');
         $this->encryptColumn('gpon_olts', 'snmp_priv_pass');
@@ -25,7 +35,16 @@ return new class extends Migration {
     public function down(): void
     {
         // Nevratná datová transformace — rollback záměrně neděláme
-        // (nešifrovat zpět citlivá hesla automaticky).
+        // (nešifrovat zpět citlivá hesla automaticky a neměnit šířku sloupců).
+    }
+
+    private function widenColumn(string $table, string $column): void
+    {
+        if (!Schema::hasTable($table) || !Schema::hasColumn($table, $column)) {
+            return;
+        }
+        // Raw MODIFY (bez doctrine/dbal); TEXT NULL pojme šifrovaný text libovolné délky.
+        DB::statement("ALTER TABLE `{$table}` MODIFY `{$column}` TEXT NULL");
     }
 
     private function encryptColumn(string $table, string $column): void
