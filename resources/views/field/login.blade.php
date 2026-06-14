@@ -46,6 +46,7 @@
     bioBtn.style.display = 'block';
     document.getElementById('wa-or').style.display = 'block';
 
+    FNWebAuthn.warmup(); // zahřej FIDO modul (Android) kvůli první výzvě
     // Přednačti výzvu hned → po kliknutí se get() zavolá okamžitě (kvůli iOS).
     function preload() { preparing = FNWebAuthn.prepareLogin('').then(function (p) { prep = p; }).catch(function () {}); }
     preload();

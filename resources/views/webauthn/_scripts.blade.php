@@ -34,6 +34,16 @@ window.FNWebAuthn = (function () {
                   navigator.credentials && navigator.credentials.create);
     }
 
+    // "Zahřátí" platform authenticatoru (Android GMS Core / iOS) — sníží
+    // šanci, že první navigator.credentials.get() po loadu selže "unknown error".
+    function warmup() {
+        try {
+            if (window.PublicKeyCredential && PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable) {
+                PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable().catch(function () {});
+            }
+        } catch (e) {}
+    }
+
     async function register(deviceName) {
         var res = await post('{{ route("webauthn.register.options") }}', {});
         if (!res.ok) throw new Error((res.data && res.data.error) || 'Chyba serveru');
@@ -72,7 +82,11 @@ window.FNWebAuthn = (function () {
         try {
             assertion = await navigator.credentials.get({ publicKey: prepared.publicKey });
         } catch (e) {
-            throw e;
+            var n = e && e.name;
+            if (n === 'NotAllowedError') throw new Error('Ověření bylo zrušeno nebo vypršel čas.');
+            // Transientní chyba (na Androidu častá napoprvé) → srozumitelná výzva.
+            // Opakovat musí uživatel klepnutím (Android vyžaduje nové gesto).
+            throw new Error('Nepodařilo se napoprvé — klepni na tlačítko ještě jednou.');
         }
         var out = await post('{{ route("webauthn.login") }}', {
             id: bufToB64(assertion.rawId),
@@ -89,6 +103,6 @@ window.FNWebAuthn = (function () {
         return out.data;
     }
 
-    return { supported: supported, register: register, prepareLogin: prepareLogin, finishLogin: finishLogin };
+    return { supported: supported, warmup: warmup, register: register, prepareLogin: prepareLogin, finishLogin: finishLogin };
 })();
 </script>

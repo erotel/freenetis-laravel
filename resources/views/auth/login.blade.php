@@ -71,6 +71,7 @@
     if (!FNWebAuthn.supported()) return;
     bioBtn.style.display = 'block';
 
+    FNWebAuthn.warmup(); // zahřej FIDO modul (Android) kvůli první výzvě
     function preload() { preparing = FNWebAuthn.prepareLogin('').then(function (p) { prep = p; }).catch(function () {}); }
     preload();
 
