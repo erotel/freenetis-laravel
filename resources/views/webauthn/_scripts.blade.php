@@ -82,11 +82,12 @@ window.FNWebAuthn = (function () {
         try {
             assertion = await navigator.credentials.get({ publicKey: prepared.publicKey });
         } catch (e) {
-            var n = e && e.name;
-            if (n === 'NotAllowedError') throw new Error('Ověření bylo zrušeno nebo vypršel čas.');
+            var n = (e && e.name) || 'Error';
+            var m = (e && e.message) || '';
+            if (n === 'NotAllowedError') throw new Error('Ověření bylo zrušeno nebo vypršel čas. [' + n + ']');
             // Transientní chyba (na Androidu častá napoprvé) → srozumitelná výzva.
-            // Opakovat musí uživatel klepnutím (Android vyžaduje nové gesto).
-            throw new Error('Nepodařilo se napoprvé — klepni na tlačítko ještě jednou.');
+            // Technický detail v [] je dočasně kvůli diagnostice první chyby.
+            throw new Error('Nepodařilo se napoprvé — klepni ještě jednou. [' + n + (m ? ': ' + m : '') + ']');
         }
         var out = await post('{{ route("webauthn.login") }}', {
             id: bufToB64(assertion.rawId),
