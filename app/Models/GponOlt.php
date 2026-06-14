@@ -2,10 +2,14 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\EncryptsSensitiveAttributes;
+use Illuminate\Database\Eloquent\Casts\Attribute;
 use Illuminate\Database\Eloquent\Model;
 
 class GponOlt extends Model
 {
+    use EncryptsSensitiveAttributes;
+
     protected $fillable = [
         'name', 'ip', 'snmp_user', 'snmp_auth_pass', 'snmp_priv_pass',
         'snmp_auth_proto', 'snmp_priv_proto', 'line_prof', 'service_prof',
@@ -17,6 +21,23 @@ class GponOlt extends Model
         'base_vlan'  => 'integer',
         'port_count' => 'integer',
     ];
+
+    /** SNMPv3 hesla OLT šifrujeme „at rest" (fallback na legacy plaintext). */
+    protected function snmpAuthPass(): Attribute
+    {
+        return Attribute::make(
+            get: fn($value) => self::decryptSensitive($value),
+            set: fn($value) => self::encryptSensitive($value),
+        );
+    }
+
+    protected function snmpPrivPass(): Attribute
+    {
+        return Attribute::make(
+            get: fn($value) => self::decryptSensitive($value),
+            set: fn($value) => self::encryptSensitive($value),
+        );
+    }
 
     public function onts()
     {

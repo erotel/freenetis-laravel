@@ -2,10 +2,14 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\EncryptsSensitiveAttributes;
+use Illuminate\Database\Eloquent\Casts\Attribute;
 use Illuminate\Database\Eloquent\Model;
 
 class Device extends Model
 {
+    use EncryptsSensitiveAttributes;
+
     public $timestamps = false;
     protected $table = 'devices';
     protected $fillable = [
@@ -14,6 +18,15 @@ class Device extends Model
         'access_time', 'price', 'payment_rate', 'buy_date', 'comment',
     ];
     protected $casts = ['type' => 'integer'];
+
+    /** Heslo k zařízení šifrujeme „at rest" (s fallbackem na legacy plaintext). */
+    protected function password(): Attribute
+    {
+        return Attribute::make(
+            get: fn($value) => self::decryptSensitive($value),
+            set: fn($value) => self::encryptSensitive($value),
+        );
+    }
 
     public function user()
     {
