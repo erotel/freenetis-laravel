@@ -12,6 +12,10 @@
 <div id="f-status" class="f-empty">Začni psát pro vyhledávání.</div>
 <div id="f-results"></div>
 
+<div style="text-align:center;margin-top:28px">
+    <a href="{{ route('webauthn.index') }}" style="color:var(--muted);font-size:14px">🔑 Biometrické přihlášení</a>
+</div>
+
 @php
     $statusLabels = ['ok' => 'V pořádku', 'overdue' => 'Po splatnosti', 'suspended' => 'Pozastaveno'];
 @endphp

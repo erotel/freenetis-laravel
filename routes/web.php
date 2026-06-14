@@ -53,6 +53,7 @@ use App\Http\Controllers\SmsMessageController;
 use App\Http\Controllers\GponController;
 use App\Http\Controllers\ContractController;
 use App\Http\Controllers\FieldController;
+use App\Http\Controllers\WebAuthnController;
 use Illuminate\Support\Facades\Route;
 
 // ── Web Interface API (machine-to-machine, IP-restricted, no session auth) ──
@@ -126,6 +127,20 @@ Route::prefix('field')->name('field.')->group(function () {
         Route::post('/member/{id}/note', [FieldController::class, 'addNote'])->name('member.note')->whereNumber('id');
         Route::get('/device/{id}', [FieldController::class, 'device'])->name('device')->whereNumber('id');
     });
+});
+
+// ── WebAuthn / biometrické přihlášení ───────────────────────────────────────
+// Veřejné (login flow) — bez auth, ale v 'web' skupině kvůli session + CSRF.
+Route::post('/webauthn/check',         [WebAuthnController::class, 'check'])->name('webauthn.check')->middleware('throttle:30,1');
+Route::post('/webauthn/login/options', [WebAuthnController::class, 'loginOptions'])->name('webauthn.login.options')->middleware('throttle:30,1');
+Route::post('/webauthn/login',         [WebAuthnController::class, 'login'])->name('webauthn.login')->middleware('throttle:30,1');
+
+// Správa vlastních zařízení (přihlášený uživatel, libovolná role).
+Route::middleware('auth')->group(function () {
+    Route::get('/account/passkeys',            [WebAuthnController::class, 'index'])->name('webauthn.index');
+    Route::post('/webauthn/register/options',  [WebAuthnController::class, 'registerOptions'])->name('webauthn.register.options');
+    Route::post('/webauthn/register',          [WebAuthnController::class, 'register'])->name('webauthn.register');
+    Route::delete('/webauthn/credential/{id}', [WebAuthnController::class, 'destroy'])->name('webauthn.credential.destroy')->whereNumber('id');
 });
 
 // Public self-registration (guest only)

@@ -268,6 +268,7 @@ $isDark = ($userSettings['dark_mode'] ?? 0) == 1;
                 <span style="color:rgba(255,255,255,.45)"> / {{ auth()->user()->login }}</span>
             </span>
             <span class="fn-ip" id="user_ip_address">{{ request()->ip() }}</span>
+            <a href="{{ route('webauthn.index') }}" id="dark-toggle" style="text-decoration:none" title="Biometrické přihlášení">🔑</a>
             <button id="dark-toggle" onclick="toggleDark()" title="Přepnout tmavý/světlý režim">
                 {{ $isDark ? '☀️' : '🌙' }}
             </button>

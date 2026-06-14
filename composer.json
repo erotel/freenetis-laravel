@@ -9,6 +9,7 @@
         "php": "^8.3",
         "laravel/framework": "^13.0",
         "laravel/tinker": "^3.0",
+        "lbuchs/webauthn": "^2.2",
         "mpdf/mpdf": "^8.3",
         "setasign/fpdf": "^1.8",
         "setasign/fpdi": "^2.6"

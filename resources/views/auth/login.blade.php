@@ -3,6 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="csrf-token" content="{{ csrf_token() }}">
     <title>FreenetIS – Přihlášení</title>
     <style>
         * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -34,16 +35,20 @@
         <div class="m-alert m-alert-danger">{{ $errors->first() }}</div>
     @endif
 
+    <div id="wa-msg" class="error" style="display:none"></div>
+
     <form method="POST" action="{{ route('login') }}">
         @csrf
 
         <label for="login">Uživatelské jméno</label>
-        <input type="text" id="login" name="login" value="{{ old('login') }}" required autofocus>
+        <input type="text" id="login" name="login" value="{{ old('login') }}" required autofocus autocomplete="username">
+
+        <button type="button" id="wa-bio" style="display:none;background:#0a6b3c;margin-bottom:1rem">🔒 Přihlásit biometrií</button>
 
         <label for="password">Heslo</label>
-        <input type="password" id="password" name="password" required>
+        <input type="password" id="password" name="password" required autocomplete="current-password">
 
-        <button type="submit">Přihlásit se</button>
+        <button type="submit">Přihlásit se heslem</button>
         <div style="text-align:center; margin-top:0.75em; font-size:0.9em;">
             @if(\App\Models\Setting::get('forgotten_password', 0))
             <a href="{{ route('forgotten-password') }}">Zapomenuté heslo?</a>
@@ -53,5 +58,34 @@
         </div>
     </form>
 </div>
+
+@include('webauthn._scripts')
+<script>
+(function () {
+    var bioBtn = document.getElementById('wa-bio');
+    var msg = document.getElementById('wa-msg');
+    var loginInput = document.getElementById('login');
+
+    function showMsg(t) { msg.textContent = t; msg.style.display = 'block'; }
+
+    if (!FNWebAuthn.supported()) return;
+    bioBtn.style.display = 'block';
+
+    bioBtn.addEventListener('click', async function () {
+        msg.style.display = 'none';
+        var login = (loginInput.value || '').trim();
+        if (!login) { loginInput.focus(); showMsg('Nejdřív zadej uživatelské jméno.'); return; }
+        bioBtn.disabled = true;
+        try {
+            var r = await FNWebAuthn.login(login, 'web');
+            if (r.fallback) { showMsg('Pro tento účet není biometrie. Přihlas se heslem.'); bioBtn.disabled = false; return; }
+            if (r.ok && r.redirect) { window.location = r.redirect; return; }
+            showMsg('Přihlášení se nezdařilo.'); bioBtn.disabled = false;
+        } catch (e) {
+            showMsg(e.message || 'Přihlášení se nezdařilo.'); bioBtn.disabled = false;
+        }
+    });
+})();
+</script>
 </body>
 </html>
