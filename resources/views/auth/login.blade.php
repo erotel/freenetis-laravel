@@ -73,12 +73,10 @@
 
     bioBtn.addEventListener('click', async function () {
         msg.style.display = 'none';
-        var login = (loginInput.value || '').trim();
-        if (!login) { loginInput.focus(); showMsg('Nejdřív zadej uživatelské jméno.'); return; }
         bioBtn.disabled = true;
         try {
-            var r = await FNWebAuthn.login(login, 'web');
-            if (r.fallback) { showMsg('Pro tento účet není biometrie. Přihlas se heslem.'); bioBtn.disabled = false; return; }
+            var r = await FNWebAuthn.login('', 'web'); // usernameless
+            if (r.fallback) { showMsg('Žádný passkey pro tuto doménu. Přihlas se heslem a zaregistruj zařízení.'); bioBtn.disabled = false; return; }
             if (r.ok && r.redirect) { window.location = r.redirect; return; }
             showMsg('Přihlášení se nezdařilo.'); bioBtn.disabled = false;
         } catch (e) {

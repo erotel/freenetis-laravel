@@ -9,22 +9,23 @@
 
     <div id="wa-msg" class="f-alert f-alert-error" style="display:none"></div>
 
+    <button type="button" id="wa-bio" class="f-btn" style="display:none;margin-bottom:18px">
+        🔒 Přihlásit biometrií
+    </button>
+
+    <div id="wa-or" style="display:none;text-align:center;color:var(--muted);font-size:13px;margin-bottom:14px">— nebo heslem —</div>
+
     <form method="POST" action="{{ route('field.login') }}" autocomplete="on">
         @csrf
         <label style="display:block;margin-bottom:14px">
             <span style="font-size:13px;color:var(--muted);display:block;margin-bottom:5px">Uživatelské jméno</span>
             <input type="text" id="login" name="login" class="f-input" value="{{ old('login') }}"
-                   autocapitalize="none" autocorrect="off" autofocus required
+                   autocapitalize="none" autocorrect="off" required
                    inputmode="text" autocomplete="username">
         </label>
-
-        <button type="button" id="wa-bio" class="f-btn" style="display:none;margin-bottom:14px">
-            🔒 Přihlásit biometrií
-        </button>
-
         <label style="display:block;margin-bottom:20px">
             <span style="font-size:13px;color:var(--muted);display:block;margin-bottom:5px">Heslo</span>
-            <input type="password" name="password" class="f-input" autocomplete="current-password">
+            <input type="password" name="password" class="f-input" required autocomplete="current-password">
         </label>
         <button type="submit" class="f-btn f-btn-ghost">Přihlásit se heslem</button>
     </form>
@@ -37,21 +38,19 @@
 (function () {
     var bioBtn = document.getElementById('wa-bio');
     var msg = document.getElementById('wa-msg');
-    var loginInput = document.getElementById('login');
 
     function showMsg(t) { msg.textContent = t; msg.style.display = 'block'; }
 
     if (!FNWebAuthn.supported()) return; // HTTP / nepodporováno → jen heslo
     bioBtn.style.display = 'block';
+    document.getElementById('wa-or').style.display = 'block';
 
     bioBtn.addEventListener('click', async function () {
         msg.style.display = 'none';
-        var login = (loginInput.value || '').trim();
-        if (!login) { loginInput.focus(); showMsg('Nejdřív zadej uživatelské jméno.'); return; }
         bioBtn.disabled = true;
         try {
-            var r = await FNWebAuthn.login(login, 'field');
-            if (r.fallback) { showMsg('Pro tento účet není biometrie. Přihlas se heslem.'); bioBtn.disabled = false; return; }
+            var r = await FNWebAuthn.login('', 'field'); // usernameless
+            if (r.fallback) { showMsg('Žádný passkey pro tuto doménu. Přihlas se heslem a zaregistruj zařízení.'); bioBtn.disabled = false; return; }
             if (r.ok && r.redirect) { window.location = r.redirect; return; }
             showMsg('Přihlášení se nezdařilo.'); bioBtn.disabled = false;
         } catch (e) {

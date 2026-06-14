@@ -37,7 +37,7 @@ window.FNWebAuthn = (function () {
     async function register(deviceName) {
         var res = await post('{{ route("webauthn.register.options") }}', {});
         if (!res.ok) throw new Error((res.data && res.data.error) || 'Chyba serveru');
-        var pk = res.data.publicKey;
+        var pk = res.data.publicKey, state = res.data.state;
         pk.challenge = b64uToBuf(pk.challenge);
         pk.user.id = b64uToBuf(pk.user.id);
         (pk.excludeCredentials || []).forEach(function (c) { c.id = b64uToBuf(c.id); });
@@ -45,6 +45,7 @@ window.FNWebAuthn = (function () {
         var cred = await navigator.credentials.create({ publicKey: pk });
         var reg = await post('{{ route("webauthn.register") }}', {
             device_name: deviceName,
+            state: state,
             clientDataJSON: bufToB64(cred.response.clientDataJSON),
             attestationObject: bufToB64(cred.response.attestationObject)
         });
@@ -52,21 +53,20 @@ window.FNWebAuthn = (function () {
         return reg.data;
     }
 
-    // Vrací {ok, redirect} při úspěchu, {fallback:true} když nemá passkey.
+    // Bez loginName → usernameless (prohlížeč nabídne uložené passkeys).
+    // Vrací {ok, redirect} při úspěchu, {fallback:true} když není co nabídnout.
     async function login(loginName, context) {
-        var chk = await post('{{ route("webauthn.check") }}', { login: loginName });
-        if (!chk.ok || !chk.data.hasCredentials) return { fallback: true };
-
-        var res = await post('{{ route("webauthn.login.options") }}', { login: loginName });
+        var res = await post('{{ route("webauthn.login.options") }}', loginName ? { login: loginName } : {});
         if (!res.ok) return { fallback: true, message: res.data && res.data.error };
 
-        var pk = res.data.publicKey;
+        var pk = res.data.publicKey, state = res.data.state;
         pk.challenge = b64uToBuf(pk.challenge);
         (pk.allowCredentials || []).forEach(function (c) { c.id = b64uToBuf(c.id); });
 
         var assertion = await navigator.credentials.get({ publicKey: pk });
         var out = await post('{{ route("webauthn.login") }}', {
             id: bufToB64(assertion.rawId),
+            state: state,
             clientDataJSON: bufToB64(assertion.response.clientDataJSON),
             authenticatorData: bufToB64(assertion.response.authenticatorData),
             signature: bufToB64(assertion.response.signature),

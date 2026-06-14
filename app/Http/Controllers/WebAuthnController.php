@@ -8,7 +8,9 @@ use App\Services\WebAuthnService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Str;
 use lbuchs\WebAuthn\Binary\ByteBuffer;
 
 /**
@@ -16,19 +18,39 @@ use lbuchs\WebAuthn\Binary\ByteBuffer;
  *
  * Credentials jsou sdílené napříč oběma logiy — passkey zaregistrovaný jednou
  * funguje na /login i /field/login (rpId je doména, ne cesta). Vlastní auth
- * (Auth::login) navazuje na existující 'web' guard, takže session je shodná
- * s heslovým přihlášením.
+ * (Auth::login) navazuje na existující 'web' guard.
+ *
+ * Challenge se NEdrží v session, ale v cache pod jednorázovým `state` tokenem
+ * (TTL 5 min). Je to odolné vůči případným problémům s session cookie ve
+ * Field oblasti (PWA) — klient si `state` nese mezi options a verify krokem.
  */
 class WebAuthnController extends Controller
 {
-    private const SESS_REG   = 'webauthn_register_challenge';
-    private const SESS_LOGIN = 'webauthn_login_challenge';
+    private const CHALLENGE_TTL = 300; // s
 
     public function __construct(private WebAuthnService $svc) {}
 
     private function uvRequired(): bool
     {
         return $this->svc->userVerification() === 'required';
+    }
+
+    /** Ulož challenge do cache a vrať jednorázový state token. */
+    private function stashChallenge(string $binaryChallenge): string
+    {
+        $state = (string) Str::uuid();
+        Cache::put('webauthn:' . $state, base64_encode($binaryChallenge), self::CHALLENGE_TTL);
+        return $state;
+    }
+
+    /** Vyzvedni (a zneplatni) challenge podle state tokenu. */
+    private function popChallenge(?string $state): ?string
+    {
+        if (!$state) {
+            return null;
+        }
+        $b64 = Cache::pull('webauthn:' . $state);
+        return $b64 ? base64_decode($b64) : null;
     }
 
     // ── Správa zařízení (přihlášený uživatel) ───────────────────────────────────
@@ -44,7 +66,7 @@ class WebAuthnController extends Controller
 
     // ── Registrace (uživatel je přihlášený) ─────────────────────────────────────
 
-    public function registerOptions(Request $request): JsonResponse
+    public function registerOptions(): JsonResponse
     {
         $user = Auth::user();
         abort_if(!$user, 401);
@@ -55,24 +77,22 @@ class WebAuthnController extends Controller
         $exclude = WebauthnCredential::where('user_id', $user->id)
             ->pluck('credential_id')
             ->map(fn($b64) => base64_decode($b64))
-            ->filter()
-            ->values()
-            ->all();
+            ->filter()->values()->all();
 
         $args = $webAuthn->getCreateArgs(
             (string) $user->id,
             (string) $user->login,
             $user->full_name ?: (string) $user->login,
-            60,                 // timeout s
-            false,              // requireResidentKey (server-side credential stačí)
-            $this->uvRequired(),// requireUserVerification
-            null,               // crossPlatformAttachment (platform i security key)
+            60,                  // timeout s
+            true,                // requireResidentKey → discoverable (usernameless login)
+            $this->uvRequired(), // requireUserVerification
+            null,                // crossPlatformAttachment (platform i security key)
             $exclude
         );
 
-        $request->session()->put(self::SESS_REG, base64_encode($webAuthn->getChallenge()->getBinaryString()));
+        $state = $this->stashChallenge($webAuthn->getChallenge()->getBinaryString());
 
-        return response()->json($args);
+        return response()->json(['publicKey' => $args->publicKey, 'state' => $state]);
     }
 
     public function register(Request $request): JsonResponse
@@ -82,12 +102,13 @@ class WebAuthnController extends Controller
 
         $data = $request->validate([
             'device_name'       => ['nullable', 'string', 'max:100'],
+            'state'             => ['required', 'string'],
             'clientDataJSON'    => ['required', 'string'],
             'attestationObject' => ['required', 'string'],
         ]);
 
-        $challengeB64 = $request->session()->pull(self::SESS_REG);
-        if (!$challengeB64) {
+        $challenge = $this->popChallenge($data['state']);
+        if (!$challenge) {
             return response()->json(['error' => 'Vypršela platnost výzvy. Zkuste to znovu.'], 422);
         }
 
@@ -96,10 +117,10 @@ class WebAuthnController extends Controller
             $result = $webAuthn->processCreate(
                 base64_decode($data['clientDataJSON']),
                 base64_decode($data['attestationObject']),
-                new ByteBuffer(base64_decode($challengeB64)),
-                $this->uvRequired(), // requireUserVerification
-                true,                // requireUserPresent
-                false                // failIfRootMismatch — attestation nevyžadujeme
+                new ByteBuffer($challenge),
+                $this->uvRequired(),
+                true,   // requireUserPresent
+                false   // failIfRootMismatch — attestation nevyžadujeme
             );
         } catch (\Throwable $e) {
             return response()->json(['error' => 'Registraci se nepodařilo ověřit: ' . $e->getMessage()], 422);
@@ -111,7 +132,6 @@ class WebAuthnController extends Controller
                 : $result->credentialId
         );
 
-        // Idempotence: stejný authenticator nepřidávej dvakrát.
         if (WebauthnCredential::where('credential_id', $credentialIdB64)->exists()) {
             return response()->json(['ok' => true, 'message' => 'Toto zařízení už je registrované.']);
         }
@@ -153,47 +173,56 @@ class WebAuthnController extends Controller
         return response()->json(['hasCredentials' => (bool) $has]);
     }
 
+    /**
+     * Login options. Když přijde `login`, omezí allowCredentials na klíče toho
+     * uživatele (cílený login). Bez `login` vrátí prázdný allowCredentials →
+     * usernameless: prohlížeč nabídne uložené passkeys (discoverable).
+     */
     public function loginOptions(Request $request): JsonResponse
     {
         $login = trim((string) $request->input('login', ''));
-        $user  = $login !== '' ? User::where('login', $login)->first() : null;
 
-        $credIds = $user
-            ? WebauthnCredential::where('user_id', $user->id)
-                ->pluck('credential_id')
-                ->map(fn($b64) => base64_decode($b64))
-                ->filter()->values()->all()
-            : [];
+        $credIds = [];
+        if ($login !== '') {
+            $user = User::where('login', $login)->first();
+            $credIds = $user
+                ? WebauthnCredential::where('user_id', $user->id)
+                    ->pluck('credential_id')
+                    ->map(fn($b64) => base64_decode($b64))
+                    ->filter()->values()->all()
+                : [];
 
-        if (empty($credIds)) {
-            return response()->json(['error' => 'Pro tento účet není registrované žádné biometrické zařízení.'], 422);
+            if (empty($credIds)) {
+                return response()->json(['error' => 'Pro tento účet není registrované žádné biometrické zařízení.'], 422);
+            }
         }
 
         $webAuthn = $this->svc->make();
         $args = $webAuthn->getGetArgs(
-            $credIds,
-            60,                  // timeout
-            true, true, true, true, true, // allow USB/NFC/BLE/Hybrid/Internal
+            $credIds,            // [] → usernameless (discoverable)
+            60,
+            true, true, true, true, true,
             $this->uvRequired()
         );
 
-        $request->session()->put(self::SESS_LOGIN, base64_encode($webAuthn->getChallenge()->getBinaryString()));
+        $state = $this->stashChallenge($webAuthn->getChallenge()->getBinaryString());
 
-        return response()->json($args);
+        return response()->json(['publicKey' => $args->publicKey, 'state' => $state]);
     }
 
     public function login(Request $request): JsonResponse
     {
         $data = $request->validate([
             'id'                => ['required', 'string'], // base64 raw credential ID
+            'state'             => ['required', 'string'],
             'clientDataJSON'    => ['required', 'string'],
             'authenticatorData' => ['required', 'string'],
             'signature'         => ['required', 'string'],
             'context'           => ['nullable', 'string'],
         ]);
 
-        $challengeB64 = $request->session()->pull(self::SESS_LOGIN);
-        if (!$challengeB64) {
+        $challenge = $this->popChallenge($data['state']);
+        if (!$challenge) {
             return response()->json(['error' => 'Vypršela platnost výzvy. Zkuste to znovu.'], 422);
         }
 
@@ -209,7 +238,7 @@ class WebAuthnController extends Controller
                 base64_decode($data['authenticatorData']),
                 base64_decode($data['signature']),
                 $credential->public_key,
-                new ByteBuffer(base64_decode($challengeB64)),
+                new ByteBuffer($challenge),
                 $credential->sign_count > 0 ? $credential->sign_count : null,
                 $this->uvRequired(),
                 true
