@@ -82,12 +82,23 @@ window.FNWebAuthn = (function () {
         try {
             assertion = await navigator.credentials.get({ publicKey: prepared.publicKey });
         } catch (e) {
-            var n = (e && e.name) || 'Error';
-            var m = (e && e.message) || '';
-            if (n === 'NotAllowedError') throw new Error('Ověření bylo zrušeno nebo vypršel čas. [' + n + ']');
-            // Transientní chyba (na Androidu častá napoprvé) → srozumitelná výzva.
-            // Technický detail v [] je dočasně kvůli diagnostice první chyby.
-            throw new Error('Nepodařilo se napoprvé — klepni ještě jednou. [' + n + (m ? ': ' + m : '') + ']');
+            var n = e && e.name;
+            // Android Credential Manager / GMS Core občas selže napoprvé
+            // (NotReadableError "talking to the credential manager"). Chyba přijde
+            // rychle, ještě před dialogem → zkus to hned automaticky ještě jednou.
+            if (n === 'NotReadableError' || n === 'UnknownError' || n === 'AbortError') {
+                try {
+                    assertion = await navigator.credentials.get({ publicKey: prepared.publicKey });
+                } catch (e2) {
+                    var n2 = (e2 && e2.name) || 'Error';
+                    if (n2 === 'NotAllowedError') throw new Error('Klepni na tlačítko ještě jednou.');
+                    throw new Error('Biometrie selhala — klepni ještě jednou. [' + n2 + ']');
+                }
+            } else if (n === 'NotAllowedError') {
+                throw new Error('Ověření bylo zrušeno nebo vypršel čas.');
+            } else {
+                throw new Error('Biometrie selhala. [' + (n || 'Error') + ']');
+            }
         }
         var out = await post('{{ route("webauthn.login") }}', {
             id: bufToB64(assertion.rawId),
