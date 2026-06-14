@@ -6,6 +6,38 @@ formát podle [Keep a Changelog](https://keepachangelog.com/cs/1.1.0/).
 Verzi v souboru `config/version.php` bumpni samostatným commitem `chore: bump version to X.Y.Z`,
 ať lze changelog snadno regenerovat přes `git log vX..vY --oneline`.
 
+## [2.6.0] — 2026-06-14
+
+### Added
+- **Field Mode — mobile-first UI pro techniky v terénu (`/field/*`).**
+  Odlehčená podmnožina FreenetIS pro telefon: žádná nová role ani auth,
+  využívá existující session i ACL. Obsahuje:
+  - **Live vyhledávání** (`/field/search`) s debounce — hledá členy podle
+    jména (víceslovně v libovolném pořadí), variabilního symbolu, IČO,
+    adresy (ulice/č.p./obec přes composite), telefonu, e-mailu, IPv4/IPv6
+    (přes řetězec `ip → iface → device → user → member`) i názvu zařízení.
+    Zařízení mají ve výsledcích přímý odkaz na detail.
+  - **Detail člena** — kontakt s `tel:` / `mailto:` / odkazem do Google Maps,
+    finance (saldo, „zaplaceno do", měsíční poplatek), seznam zařízení,
+    přidání poznámky.
+  - **Detail zařízení** — IPv4 i IPv6, rozhraní s MAC (každá hodnota na
+    vlastním řádku kvůli mobilu), vlastník.
+  - **PWA** — manifest a ikony pro přidání na plochu, tmavý režim podle
+    `users.settings`, touch targety ≥ 44 px.
+- **Biometrické přihlášení (WebAuthn / passkeys)** pro klasické i Field UI
+  (`lbuchs/webauthn`, tabulka `webauthn_credentials`). Passkey zaregistrovaný
+  jednou funguje na obou loginech (rpId = doména). Podporuje **usernameless**
+  přihlášení (bez zadávání jména — prohlížeč nabídne uložené passkeys).
+  Správa vlastních zařízení na `/account/passkeys` (přidat/odebrat), odkaz
+  z hlavičky klasického UI i z Field. Konfigurace v `config/webauthn.php`
+  (`WEBAUTHN_RPID`, `WEBAUTHN_RPNAME`, `WEBAUTHN_USER_VERIFICATION`).
+  Výzva je jednorázová (cache, 5 min), čítač podpisů detekuje klonování,
+  na Androidu auto-retry při cold-startu Credential Manageru. Vyžaduje HTTPS.
+
+### Changed
+- **Sjednocené rozložení obou login stránek** — jednotné pořadí
+  uživatelské jméno → heslo → „Přihlásit se heslem" → „Přihlásit biometrií".
+
 ## [2.5.1] — 2026-06-12
 
 ### Added
