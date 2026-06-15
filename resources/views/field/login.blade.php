@@ -36,31 +36,74 @@
 <script>
 (function () {
     var bioBtn = document.getElementById('wa-bio');
+    var loginInput = document.getElementById('login');
     var msg = document.getElementById('wa-msg');
-    var prep = null, preparing = null;
+    var prep = null, preparing = null, prepFor = '';
+    var LS_KEY = 'fn-bio-last-login'; // sdíleno s /login (stejná doména/uživatel)
 
     function showMsg(t) { msg.textContent = t; msg.style.display = 'block'; }
+    function rememberedLogin() {
+        try { return localStorage.getItem(LS_KEY) || ''; } catch (e) { return ''; }
+    }
+    function rememberLogin(v) {
+        try { v ? localStorage.setItem(LS_KEY, v) : localStorage.removeItem(LS_KEY); } catch (e) {}
+    }
+    function chooseLogin() {
+        return (loginInput && loginInput.value || '').trim();
+    }
 
     if (!FNWebAuthn.supported()) return; // HTTP / nepodporováno → jen heslo
     bioBtn.style.display = 'block';
     document.getElementById('wa-or').style.display = 'block';
 
-    FNWebAuthn.warmup(); // zahřej FIDO modul (Android) kvůli první výzvě
-    // Přednačti výzvu hned → po kliknutí se get() zavolá okamžitě (kvůli iOS).
-    function preload() { preparing = FNWebAuthn.prepareLogin('').then(function (p) { prep = p; }).catch(function () {}); }
+    if (!loginInput.value) loginInput.value = rememberedLogin();
+
+    FNWebAuthn.warmup();
+
+    // S loginem (uloženým/vyplněným) → cílená výzva → server vrátí klíče jen
+    // pro toho uživatele → platforma picker typicky přeskočí.
+    // Bez loginu → usernameless (picker).
+    function preload() {
+        var login = chooseLogin();
+        prepFor = login;
+        preparing = FNWebAuthn.prepareLogin(login).then(function (p) {
+            if (!p.ok && login) {
+                prepFor = '';
+                return FNWebAuthn.prepareLogin('').then(function (p2) { prep = p2; });
+            }
+            prep = p;
+        }).catch(function () {});
+    }
     preload();
+
+    var debounce;
+    loginInput.addEventListener('input', function () {
+        clearTimeout(debounce);
+        debounce = setTimeout(function () {
+            if (chooseLogin() !== prepFor) preload();
+        }, 250);
+    });
 
     bioBtn.addEventListener('click', async function () {
         msg.style.display = 'none';
         bioBtn.disabled = true;
         try {
+            if (chooseLogin() !== prepFor) preload();
             var p = prep;
             if (!p) { await preparing; p = prep; }
             if (!p || !p.ok) { showMsg((p && p.message) || 'Žádný passkey pro tuto doménu. Přihlas se heslem a zaregistruj zařízení.'); bioBtn.disabled = false; preload(); return; }
             prep = null;
             var r = await FNWebAuthn.finishLogin(p, 'field');
-            if (r.expired) { var p2 = await FNWebAuthn.prepareLogin(''); if (p2.ok) r = await FNWebAuthn.finishLogin(p2, 'field'); }
-            if (r.ok && r.redirect) { window.location = r.redirect; return; }
+            if (r.expired) {
+                var p2 = await FNWebAuthn.prepareLogin(chooseLogin());
+                if (p2.ok) r = await FNWebAuthn.finishLogin(p2, 'field');
+            }
+            if (r.ok && r.redirect) {
+                var typed = (loginInput && loginInput.value || '').trim();
+                rememberLogin(r.login || typed);
+                window.location = r.redirect;
+                return;
+            }
             showMsg('Přihlášení se nezdařilo.'); bioBtn.disabled = false; preload();
         } catch (e) {
             showMsg(e.message || 'Přihlášení se nezdařilo.'); bioBtn.disabled = false; preload();
