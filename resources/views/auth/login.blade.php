@@ -65,30 +65,81 @@
 <script>
 (function () {
     var bioBtn = document.getElementById('wa-bio');
+    var loginInput = document.getElementById('login');
     var msg = document.getElementById('wa-msg');
-    var prep = null, preparing = null;
+    var prep = null, preparing = null, prepFor = '';
+    var LS_KEY = 'fn-bio-last-login';
 
     function showMsg(t) { msg.textContent = t; msg.style.display = 'block'; }
+    function rememberedLogin() {
+        try { return localStorage.getItem(LS_KEY) || ''; } catch (e) { return ''; }
+    }
+    function rememberLogin(v) {
+        try { v ? localStorage.setItem(LS_KEY, v) : localStorage.removeItem(LS_KEY); } catch (e) {}
+    }
+    // Po prefillu (níže) field nese remembered hodnotu. Když uživatel políčko
+    // vymaže, znamená to "chci přihlásit jiného" → spadni na usernameless
+    // (picker). Proto chooseLogin čte přímo z fieldu, ne z localStorage.
+    function chooseLogin() {
+        return (loginInput && loginInput.value || '').trim();
+    }
 
     if (!FNWebAuthn.supported()) return;
     bioBtn.style.display = 'block';
     document.getElementById('wa-or').style.display = 'block';
 
-    FNWebAuthn.warmup(); // zahřej FIDO modul (Android) kvůli první výzvě
-    function preload() { preparing = FNWebAuthn.prepareLogin('').then(function (p) { prep = p; }).catch(function () {}); }
+    if (!loginInput.value) loginInput.value = rememberedLogin();
+
+    FNWebAuthn.warmup();
+
+    // Pokud máme login (uložený nebo vyplněný), předpřipravíme cílenou výzvu
+    // (server vrátí jen klíče toho uživatele → platforma picker typicky
+    // přeskočí). Jinak usernameless fallback (s pickerem).
+    function preload() {
+        var login = chooseLogin();
+        prepFor = login;
+        preparing = FNWebAuthn.prepareLogin(login).then(function (p) {
+            // Cílená výzva pro neznámý login vrátí 422 → spadni na usernameless,
+            // ať uživatel může pickerem zvolit jiný klíč.
+            if (!p.ok && login) {
+                prepFor = '';
+                return FNWebAuthn.prepareLogin('').then(function (p2) { prep = p2; });
+            }
+            prep = p;
+        }).catch(function () {});
+    }
     preload();
+
+    // Když uživatel přepíše login a neodpovídá tomu, na co je nachystaná výzva,
+    // udělej preload znovu (jinak by stisk biometrie šel s starou cílenou výzvou).
+    var debounce;
+    loginInput.addEventListener('input', function () {
+        clearTimeout(debounce);
+        debounce = setTimeout(function () {
+            if (chooseLogin() !== prepFor) preload();
+        }, 250);
+    });
 
     bioBtn.addEventListener('click', async function () {
         msg.style.display = 'none';
         bioBtn.disabled = true;
         try {
+            if (chooseLogin() !== prepFor) preload();
             var p = prep;
             if (!p) { await preparing; p = prep; }
             if (!p || !p.ok) { showMsg((p && p.message) || 'Žádný passkey pro tuto doménu. Přihlas se heslem a zaregistruj zařízení.'); bioBtn.disabled = false; preload(); return; }
             prep = null;
             var r = await FNWebAuthn.finishLogin(p, 'web');
-            if (r.expired) { var p2 = await FNWebAuthn.prepareLogin(''); if (p2.ok) r = await FNWebAuthn.finishLogin(p2, 'web'); }
-            if (r.ok && r.redirect) { window.location = r.redirect; return; }
+            if (r.expired) {
+                var p2 = await FNWebAuthn.prepareLogin(chooseLogin());
+                if (p2.ok) r = await FNWebAuthn.finishLogin(p2, 'web');
+            }
+            if (r.ok && r.redirect) {
+                var typed = (loginInput && loginInput.value || '').trim();
+                rememberLogin(r.login || typed);
+                window.location = r.redirect;
+                return;
+            }
             showMsg('Přihlášení se nezdařilo.'); bioBtn.disabled = false; preload();
         } catch (e) {
             showMsg(e.message || 'Přihlášení se nezdařilo.'); bioBtn.disabled = false; preload();

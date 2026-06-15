@@ -288,6 +288,10 @@ class WebAuthnController extends Controller
             ? route('field.search')
             : route('dashboard');
 
-        return response()->json(['ok' => true, 'redirect' => $redirect]);
+        return response()->json([
+            'ok'       => true,
+            'redirect' => $redirect,
+            'login'    => $user->login,
+        ]);
     }
 }
