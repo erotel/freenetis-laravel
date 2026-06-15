@@ -4,7 +4,13 @@
 
 @php
     use App\Helpers\MemberType;
-    $statusLabels = ['ok' => 'V pořádku', 'overdue' => 'Po splatnosti', 'suspended' => 'Pozastaveno'];
+    $statusLabels = [
+        'ok'          => 'V pořádku',
+        'overdue'     => 'Po splatnosti',
+        'suspended'   => 'Pozastaveno',
+        'blocked'     => 'Blokace platby',
+        'terminating' => 'Před ukončením',
+    ];
     $expPast = $expirationDate && \Carbon\Carbon::parse($expirationDate)->isPast();
 @endphp
 

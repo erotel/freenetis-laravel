@@ -30,10 +30,16 @@ class FieldController extends Controller
     private const LOGIN_DECAY_SECONDS = 300;
 
     /** Member status tečka. */
-    private function memberStatus(?bool $locked, ?float $balance): string
+    private function memberStatus(?bool $locked, ?float $balance, ?bool $paymentBlocked = false, ?bool $pendingTermination = false): string
     {
         if ($locked) {
             return 'suspended';
+        }
+        if ($pendingTermination) {
+            return 'terminating';
+        }
+        if ($paymentBlocked) {
+            return 'blocked';
         }
         if ($balance !== null && $balance < 0) {
             return 'overdue';
@@ -301,6 +307,7 @@ class FieldController extends Controller
             ->whereIn('m.id', $ids)
             ->select(
                 'm.id', 'm.name', 'm.type', 'm.locked',
+                'm.payment_blocked', 'm.pending_termination',
                 's.street', 'ap.street_number', 't.town',
                 'acc.balance'
             )
@@ -332,7 +339,12 @@ class FieldController extends Controller
                 'vs'         => $vs,
                 'type_label' => MemberType::label((int) $r->type),
                 'address'    => $this->formatAddress($r->street, $r->street_number, $r->town),
-                'status'     => $this->memberStatus((bool) $r->locked, $balance),
+                'status'     => $this->memberStatus(
+                    (bool) $r->locked,
+                    $balance,
+                    (bool) $r->payment_blocked,
+                    (bool) $r->pending_termination
+                ),
                 'balance'    => $balance,
                 '_score'     => $score,
             ];
@@ -474,7 +486,12 @@ class FieldController extends Controller
 
         return view('field.member', [
             'member'          => $member,
-            'status'          => $this->memberStatus((bool) $member->locked, $balance),
+            'status'          => $this->memberStatus(
+                (bool) $member->locked,
+                $balance,
+                (bool) ($member->payment_blocked ?? false),
+                (bool) ($member->pending_termination ?? false)
+            ),
             'variableSymbols' => $variableSymbols,
             'balance'         => $balance,
             'expirationDate'  => $expirationDate,

@@ -17,7 +17,13 @@
 </div>
 
 @php
-    $statusLabels = ['ok' => 'V pořádku', 'overdue' => 'Po splatnosti', 'suspended' => 'Pozastaveno'];
+    $statusLabels = [
+        'ok'          => 'V pořádku',
+        'overdue'     => 'Po splatnosti',
+        'suspended'   => 'Pozastaveno',
+        'blocked'     => 'Blokace platby',
+        'terminating' => 'Před ukončením',
+    ];
 @endphp
 @endsection
 
@@ -31,7 +37,7 @@
     var memberBase = '{{ url('field/member') }}';
     var deviceBase = '{{ url('field/device') }}';
     var timer = null, lastSeq = 0;
-    var STATUS = {ok:'V pořádku', overdue:'Po splatnosti', suspended:'Pozastaveno'};
+    var STATUS = {ok:'V pořádku', overdue:'Po splatnosti', suspended:'Pozastaveno', blocked:'Blokace platby', terminating:'Před ukončením'};
 
     function esc(s){ return String(s == null ? '' : s).replace(/[&<>"]/g, function(c){
         return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]; }); }

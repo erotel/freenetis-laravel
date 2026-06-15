@@ -20,6 +20,7 @@
         --bg:#f0ede8; --card:#fff; --text:#1a1a1a; --muted:#777; --border:#e2ddd5;
         --header:#1a1a1a; --accent:#ff6b00; --accent-dk:#d45a14;
         --ok:#22c55e; --overdue:#ef4444; --suspended:#9ca3af;
+        --blocked:#f59e0b; --terminating:#dc2626;
         --green:#16a34a; --red:#dc2626; --input:#fff;
     }
     [data-theme="dark"]{
@@ -75,6 +76,8 @@
     .f-dot.ok{background:var(--ok)}
     .f-dot.overdue{background:var(--overdue)}
     .f-dot.suspended{background:var(--suspended)}
+    .f-dot.blocked{background:var(--blocked)}
+    .f-dot.terminating{background:var(--terminating);box-shadow:0 0 0 2px rgba(220,38,38,.25)}
 
     /* ROWS (tappable) */
     .f-row{
