@@ -87,6 +87,23 @@ $isDark = ($userSettings['dark_mode'] ?? 0) == 1;
     [data-theme="dark"] .m-form-input,
     [data-theme="dark"] .m-form-select{background:var(--fn-input-bg);border-color:var(--fn-border);color:var(--fn-text)}
     [data-theme="dark"] .m-card-title{color:var(--fn-text-muted)}
+
+    /* ── Resizable tables (auto-aplikováno na .m-table v JS níže) ── */
+    .m-table.m-resizable-active{table-layout:fixed;width:100%}
+    .m-table.m-resizable-active th{position:relative;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+    .m-table.m-resizable-active .m-col-resizer{
+        position:absolute;top:0;right:0;width:10px;height:100%;
+        cursor:col-resize;user-select:none;touch-action:none;
+        display:flex;align-items:center;justify-content:center;
+        color:#bbb;font-weight:bold;font-size:14px;line-height:1;z-index:2
+    }
+    .m-table.m-resizable-active .m-col-resizer::before{content:"⋮";font-size:16px}
+    .m-table.m-resizable-active .m-col-resizer:hover,
+    .m-table.m-resizable-active .m-col-resizer.m-dragging{background:rgba(0,123,255,0.15);color:#007bff}
+    [data-theme="dark"] .m-table.m-resizable-active .m-col-resizer{color:#555}
+    [data-theme="dark"] .m-table.m-resizable-active .m-col-resizer:hover,
+    [data-theme="dark"] .m-table.m-resizable-active .m-col-resizer.m-dragging{color:#4aa3ff;background:rgba(74,163,255,0.18)}
+    body.m-col-resizing,body.m-col-resizing *{cursor:col-resize !important;user-select:none !important}
     [data-theme="dark"] .m-subtitle{color:var(--fn-text-muted)}
     [data-theme="dark"] .m-user-name{color:var(--fn-text)}
     [data-theme="dark"] .m-user-login{color:var(--fn-text-muted)}
@@ -418,6 +435,86 @@ $isDark = ($userSettings['dark_mode'] ?? 0) == 1;
             });
         });
     }
+
+    /* ── Resizable columns (auto na všech .m-table; opt-out přes data-no-resize) ──
+       Strategie: zachytit aktuální offsetWidth th při current auto-layoutu,
+       teprve POTOM přepnout table-layout:fixed + nastavit <col> šířky. Tím
+       tabulka po inicializaci vypadá identicky, ale jde tahat. Šířky se
+       persistují do localStorage podle pathname + hash hlaviček. */
+    function setupResizableTables(){
+        document.querySelectorAll('table.m-table:not([data-no-resize])').forEach(function(table){
+            if(table.dataset.resizableInit) return;
+            var ths = table.querySelectorAll('thead > tr > th');
+            if(!ths.length) return;
+            if(!table.offsetWidth) return; /* hidden tabulky (display:none) — přeskoč */
+            table.dataset.resizableInit = '1';
+
+            var widths = Array.from(ths).map(function(th){ return th.offsetWidth; });
+
+            var colgroup = table.querySelector('colgroup');
+            if(!colgroup){
+                colgroup = document.createElement('colgroup');
+                table.insertBefore(colgroup, table.firstChild);
+            }
+            while(colgroup.children.length < ths.length){
+                colgroup.appendChild(document.createElement('col'));
+            }
+            var cols = colgroup.querySelectorAll('col');
+
+            var sig = Array.from(ths).map(function(t){ return t.textContent.trim().slice(0, 24); }).join('|');
+            var key = 'm-col-widths:' + location.pathname + ':' + sig;
+
+            var saved = null;
+            try { saved = JSON.parse(localStorage.getItem(key) || 'null'); } catch(e) {}
+
+            Array.from(cols).forEach(function(col, i){
+                var w = (saved && Array.isArray(saved) && saved[i]) || widths[i];
+                if(w) col.style.width = w + 'px';
+            });
+
+            table.classList.add('m-resizable-active');
+
+            function persist(){
+                var ws = Array.from(cols).map(function(c){ return c.offsetWidth; });
+                try { localStorage.setItem(key, JSON.stringify(ws)); } catch(e) {}
+            }
+
+            Array.from(ths).forEach(function(th, idx){
+                if(idx === ths.length - 1) return; /* poslední sloupec — žádný úchyt */
+                var grip = document.createElement('span');
+                grip.className = 'm-col-resizer';
+                grip.addEventListener('mousedown', function(ev){
+                    ev.preventDefault();
+                    ev.stopPropagation();
+                    var startX = ev.clientX;
+                    var startW = cols[idx].offsetWidth;
+                    grip.classList.add('m-dragging');
+                    document.body.classList.add('m-col-resizing');
+                    function onMove(e){
+                        var w = Math.max(30, startW + (e.clientX - startX));
+                        cols[idx].style.width = w + 'px';
+                    }
+                    function onUp(){
+                        document.removeEventListener('mousemove', onMove);
+                        document.removeEventListener('mouseup', onUp);
+                        grip.classList.remove('m-dragging');
+                        document.body.classList.remove('m-col-resizing');
+                        persist();
+                    }
+                    document.addEventListener('mousemove', onMove);
+                    document.addEventListener('mouseup', onUp);
+                });
+                grip.addEventListener('click', function(ev){ ev.stopPropagation(); });
+                grip.addEventListener('dblclick', function(ev){
+                    ev.stopPropagation();
+                    cols[idx].style.width = '';
+                    persist();
+                });
+                th.appendChild(grip);
+            });
+        });
+    }
+    setupResizableTables();
 })();
 </script>
 @endauth

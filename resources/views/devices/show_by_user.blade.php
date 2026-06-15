@@ -28,33 +28,10 @@
     $arrow   = fn(string $col) => $sort === $col ? ($dir === 'asc' ? ' ↑' : ' ↓') : '';
     $sortUrl = fn(string $col) => request()->fullUrlWithQuery(['sort' => $col, 'dir' => $nextDir($col)]);
 @endphp
-<style>
-    table.m-resizable { table-layout: fixed; width: 100%; }
-    table.m-resizable th { position: relative; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-    table.m-resizable td.m-truncate { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-    table.m-resizable .m-col-resizer {
-        position: absolute; top: 0; right: 0; width: 10px; height: 100%;
-        cursor: col-resize; user-select: none; touch-action: none;
-        display: flex; align-items: center; justify-content: center;
-        color: #bbb; font-weight: bold; font-size: 14px; line-height: 1;
-    }
-    table.m-resizable .m-col-resizer::before {
-        content: "⋮"; font-size: 16px;
-    }
-    table.m-resizable .m-col-resizer:hover,
-    table.m-resizable .m-col-resizer.m-dragging {
-        background: rgba(0,123,255,0.15); color: #007bff;
-    }
-    body.m-col-resizing, body.m-col-resizing * { cursor: col-resize !important; user-select: none !important; }
-</style>
 <div class="m-card" style="padding:0;overflow-x:auto">
-<table class="m-table m-resizable" data-resize-key="user-devices" style="margin-bottom:0">
-    <colgroup>
-        <col style="width:60px"><col style="width:200px"><col style="width:140px">
-        <col style="width:160px"><col style="width:140px"><col style="width:160px"><col style="width:160px">
-    </colgroup>
+<table class="m-table" style="margin-bottom:0">
     <thead>
-        <tr>
+        <tr style="white-space:nowrap">
             <th><a class="m-link-sm" href="{{ $sortUrl('id') }}">ID{{ $arrow('id') }}</a></th>
             <th><a class="m-link-sm" href="{{ $sortUrl('name') }}">Název{{ $arrow('name') }}</a></th>
             <th>Typ</th>
@@ -73,15 +50,15 @@
             $subnetLabel = $subnet ? ($subnet->name ?? $subnet->network_address) : '—';
         @endphp
         <tr>
-            <td class="m-truncate">{{ $device->id }}</td>
-            <td class="m-truncate">
+            <td>{{ $device->id }}</td>
+            <td>
                 <a class="m-link" href="{{ route('devices.show', $device->id) }}">{{ $device->name }}</a>
             </td>
-            <td class="m-truncate">{{ $device->enumType?->value ?? '—' }}</td>
-            <td class="m-truncate" style="font-family:monospace;font-size:14px">{{ $firstMac ?? '—' }}</td>
-            <td class="m-truncate" style="font-family:monospace;font-size:14px">{{ $firstIp?->ip_address ?? '—' }}</td>
-            <td class="m-truncate">{{ $subnetLabel }}</td>
-            <td class="m-truncate">
+            <td>{{ $device->enumType?->value ?? '—' }}</td>
+            <td style="font-family:monospace;font-size:14px">{{ $firstMac ?? '—' }}</td>
+            <td style="font-family:monospace;font-size:14px">{{ $firstIp?->ip_address ?? '—' }}</td>
+            <td>{{ $subnetLabel }}</td>
+            <td>
                 <div style="display:flex;gap:6px">
                     <a class="m-link-sm" href="{{ route('devices.show', $device->id) }}">Detail</a>
                     @if($canEdit)
@@ -101,59 +78,6 @@
     </tbody>
 </table>
 </div>
-<script>
-(function () {
-    document.querySelectorAll('table.m-resizable').forEach(function (table) {
-        var key = 'm-col-widths:' + (table.dataset.resizeKey || 'default');
-        var cols = table.querySelectorAll('colgroup > col');
-        var ths  = table.querySelectorAll('thead > tr > th');
-        if (!cols.length || cols.length !== ths.length) return;
-
-        try {
-            var saved = JSON.parse(localStorage.getItem(key) || 'null');
-            if (Array.isArray(saved) && saved.length === cols.length) {
-                saved.forEach(function (w, i) { if (w) cols[i].style.width = w + 'px'; });
-            }
-        } catch (e) {}
-
-        function persist() {
-            var widths = Array.from(cols).map(function (c) { return c.offsetWidth; });
-            try { localStorage.setItem(key, JSON.stringify(widths)); } catch (e) {}
-        }
-
-        ths.forEach(function (th, idx) {
-            if (idx === ths.length - 1) return;
-            var grip = document.createElement('span');
-            grip.className = 'm-col-resizer';
-            grip.addEventListener('mousedown', function (ev) {
-                ev.preventDefault();
-                var startX = ev.clientX;
-                var startW = cols[idx].offsetWidth;
-                grip.classList.add('m-dragging');
-                document.body.classList.add('m-col-resizing');
-                function onMove(e) {
-                    var w = Math.max(30, startW + (e.clientX - startX));
-                    cols[idx].style.width = w + 'px';
-                }
-                function onUp() {
-                    document.removeEventListener('mousemove', onMove);
-                    document.removeEventListener('mouseup', onUp);
-                    grip.classList.remove('m-dragging');
-                    document.body.classList.remove('m-col-resizing');
-                    persist();
-                }
-                document.addEventListener('mousemove', onMove);
-                document.addEventListener('mouseup', onUp);
-            });
-            grip.addEventListener('dblclick', function () {
-                cols[idx].style.width = '';
-                persist();
-            });
-            th.appendChild(grip);
-        });
-    });
-})();
-</script>
 @endif
 </div>
 @endsection
