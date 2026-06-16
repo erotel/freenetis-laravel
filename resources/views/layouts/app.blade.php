@@ -518,6 +518,59 @@ $isDark = ($userSettings['dark_mode'] ?? 0) == 1;
 })();
 </script>
 @endauth
+
+{{-- Date inputs: na touch-only zařízeních (mobil/tablet) místo nativního pickeru
+     textové pole s numerickou klávesnicí a DD.MM.RRRR formátem. Desktop ponechán. --}}
+<script>
+(function () {
+    var isTouchOnly =
+        ('matchMedia' in window) &&
+        !window.matchMedia('(hover: hover) and (pointer: fine)').matches &&
+        (navigator.maxTouchPoints > 0 || /Mobi|Android|iPhone|iPad|iPod/i.test(navigator.userAgent));
+    if (!isTouchOnly) return;
+
+    function isoToCz(iso) {
+        var m = /^(\d{4})-(\d{2})-(\d{2})/.exec(iso || '');
+        return m ? (m[3] + '.' + m[2] + '.' + m[1]) : '';
+    }
+    function czToIso(cz) {
+        var m = /^\s*(\d{1,2})\.(\d{1,2})\.(\d{4})\s*$/.exec(cz || '');
+        if (!m) return '';
+        return m[3] + '-' + m[2].padStart(2, '0') + '-' + m[1].padStart(2, '0');
+    }
+    function autoFormat(e) {
+        var v = e.target.value.replace(/\D/g, '').slice(0, 8);
+        if (v.length > 4)      e.target.value = v.slice(0, 2) + '.' + v.slice(2, 4) + '.' + v.slice(4);
+        else if (v.length > 2) e.target.value = v.slice(0, 2) + '.' + v.slice(2);
+        else                   e.target.value = v;
+    }
+
+    document.querySelectorAll('input[type="date"]').forEach(function (inp) {
+        if (inp.dataset.mobileDate) return;
+        var iso = inp.value;
+        inp.type = 'text';
+        inp.setAttribute('inputmode', 'numeric');
+        inp.setAttribute('maxlength', '10');
+        inp.setAttribute('placeholder', 'DD.MM.RRRR');
+        inp.setAttribute('autocomplete', 'off');
+        inp.value = isoToCz(iso);
+        inp.dataset.mobileDate = '1';
+        inp.addEventListener('input', autoFormat);
+
+        var form = inp.form;
+        if (form && !form.dataset.dateBound) {
+            form.dataset.dateBound = '1';
+            form.addEventListener('submit', function () {
+                form.querySelectorAll('input[data-mobile-date]').forEach(function (i) {
+                    if (!i.value) return;
+                    var conv = czToIso(i.value);
+                    if (conv) i.value = conv;
+                });
+            }, true);
+        }
+    });
+})();
+</script>
 </body>
 </html>
 @endif
