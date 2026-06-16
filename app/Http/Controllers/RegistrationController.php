@@ -27,11 +27,18 @@ class RegistrationController extends Controller
 
         $isOrg = (int) $request->input('registration_type') === 3;
 
+        // 18+ kontrola pouze pro fyzické osoby (typ 17/18); organizace
+        // mají jako "datum narození" reálně datum vzniku, omezení neplatí.
+        $birthdayRules = ['required', 'date'];
+        if (!$isOrg) {
+            $birthdayRules[] = 'before_or_equal:' . now()->subYears(18)->toDateString();
+        }
+
         $validated = $request->validate([
             'registration_type'           => 'required|in:3,17,18',
             'name'                        => ['required', 'string', 'max:100', 'regex:/^[^<>{};]+$/u'],
             'surname'                     => ['nullable', 'string', 'max:100', 'regex:/^[^<>{};]+$/u'],
-            'birthday'                    => 'required|date',
+            'birthday'                    => $birthdayRules,
             'login'                       => 'required|string|min:5|max:20|unique:users,login',
             'password'                    => ['required', 'string', 'min:' . (int) Setting::get('security_password_length', 8), 'confirmed'],
             'email'                       => 'required|email|max:255',
@@ -45,6 +52,7 @@ class RegistrationController extends Controller
         ], [
             'organization_identifier.regex'     => 'IČO nesmí obsahovat email ani mezery — zadejte pouze číslo IČO.',
             'vat_organization_identifier.regex' => 'DIČ nesmí obsahovat email ani mezery — zadejte pouze DIČ (např. CZ12345678).',
+            'birthday.before_or_equal'          => 'Registrace je možná až od 18 let.',
         ]);
 
         $memberId = null;

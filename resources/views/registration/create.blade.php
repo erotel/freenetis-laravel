@@ -64,7 +64,9 @@
     <div class="m-form-row">
         <div class="m-form-group">
             <label class="m-form-label" for="reg-birthday">Datum narození <span style="color:#c0392b">*</span></label>
-            <input class="m-form-input" type="date" id="reg-birthday" name="birthday" value="{{ old('birthday') }}">
+            <input class="m-form-input" type="date" id="reg-birthday" name="birthday" value="{{ old('birthday') }}"
+                   max="{{ now()->subYears(18)->format('Y-m-d') }}">
+            <div class="m-form-hint" id="reg-birthday-hint" style="display:none;color:#c0392b">Registrace je možná až od 18 let.</div>
             @error('birthday') <div class="m-form-hint" style="color:#c0392b">{{ $message }}</div> @enderror
         </div>
         <div></div>
@@ -217,6 +219,24 @@ function loadStreetsReg(townId, selectedId) {
 document.addEventListener('DOMContentLoaded', function() {
     const townId = document.getElementById('reg-town').value;
     if (townId) loadStreetsReg(townId, '{{ old('street_id') }}');
+
+    // 18+ kontrola: u FO vždy, u organizace přeskočeno (datum vzniku má jiný význam).
+    const bday = document.getElementById('reg-birthday');
+    const hint = document.getElementById('reg-birthday-hint');
+    const cutoff = '{{ now()->subYears(18)->format('Y-m-d') }}';
+    function checkAge() {
+        const orgChecked = document.querySelector('input[name="registration_type"]:checked');
+        const isOrg = orgChecked && orgChecked.value === '3';
+        const val = (bday.value || '').slice(0, 10);
+        const tooYoung = !isOrg && val && val > cutoff;
+        hint.style.display = tooYoung ? '' : 'none';
+        bday.setCustomValidity(tooYoung ? 'Registrace je možná až od 18 let.' : '');
+    }
+    bday.addEventListener('change', checkAge);
+    bday.addEventListener('input', checkAge);
+    document.querySelectorAll('input[name="registration_type"]').forEach(function (r) {
+        r.addEventListener('change', checkAge);
+    });
 });
 async function loadFromAresReg() {
     const ico    = document.getElementById('reg-ico').value.trim();
