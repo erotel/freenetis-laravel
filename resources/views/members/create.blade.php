@@ -59,7 +59,8 @@
             <label class="m-form-label" for="ico">IČO</label>
             <div style="display:flex;gap:8px;align-items:center">
                 <input class="m-form-input" type="text" id="ico" name="organization_identifier"
-                       value="{{ old('organization_identifier') }}" maxlength="8" placeholder="12345678">
+                       value="{{ old('organization_identifier') }}" maxlength="8" placeholder="12345678"
+                       autocomplete="off" inputmode="numeric" pattern="[0-9]*">
                 <button class="m-btn" type="button" onclick="loadFromAres()" style="white-space:nowrap">🔍 ARES</button>
             </div>
             <span id="ares-status" class="m-form-hint"></span>
@@ -67,7 +68,8 @@
         <div class="m-form-group">
             <label class="m-form-label" for="vat_organization_identifier">DIČ</label>
             <input class="m-form-input" type="text" id="vat_organization_identifier" name="vat_organization_identifier"
-                   value="{{ old('vat_organization_identifier') }}" maxlength="30">
+                   value="{{ old('vat_organization_identifier') }}" maxlength="30"
+                   autocomplete="off" placeholder="CZ12345678">
         </div>
     </div>
     <div class="m-form-group">
@@ -113,7 +115,8 @@
         </div>
         <div class="m-form-group">
             <label class="m-form-label" for="email">E-mail <span style="color:#c0392b">*</span></label>
-            <input class="m-form-input" type="text" id="email" name="email" value="{{ old('email') }}" maxlength="255">
+            <input class="m-form-input" type="email" id="email" name="email" value="{{ old('email') }}" maxlength="255"
+                   autocomplete="email" inputmode="email">
             @error('email') <div class="m-form-hint" style="color:#c0392b">{{ $message }}</div> @enderror
         </div>
     </div>

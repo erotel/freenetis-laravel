@@ -39,9 +39,12 @@ class RegistrationController extends Controller
             'town_id'                     => 'required|integer|exists:towns,id',
             'street_id'                   => 'required|integer|exists:streets,id',
             'street_number'               => ['required', 'string', 'max:15', 'regex:/^(ev\.?\s*č\.?\s*)?\d[\dA-Za-z\/\- ]*$/iu'],
-            'organization_identifier'     => 'nullable|string|max:20',
-            'vat_organization_identifier' => 'nullable|string|max:20',
+            'organization_identifier'     => ['nullable', 'string', 'max:20', 'regex:/^[^@\s]*$/u'],
+            'vat_organization_identifier' => ['nullable', 'string', 'max:20', 'regex:/^[^@\s]*$/u'],
             'comment'                     => 'nullable|string|max:250',
+        ], [
+            'organization_identifier.regex'     => 'IČO nesmí obsahovat email ani mezery — zadejte pouze číslo IČO.',
+            'vat_organization_identifier.regex' => 'DIČ nesmí obsahovat email ani mezery — zadejte pouze DIČ (např. CZ12345678).',
         ]);
 
         $memberId = null;

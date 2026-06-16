@@ -63,7 +63,8 @@
             <label class="m-form-label" for="ico-edit">IČO</label>
             <div style="display:flex;gap:8px;align-items:center">
                 <input class="m-form-input" type="text" id="ico-edit" name="organization_identifier"
-                       value="{{ old('organization_identifier', $member->organization_identifier) }}" maxlength="8">
+                       value="{{ old('organization_identifier', $member->organization_identifier) }}" maxlength="8"
+                       autocomplete="off" inputmode="numeric" pattern="[0-9]*">
                 <button class="m-btn" type="button" onclick="loadFromAresEdit()" style="white-space:nowrap">🔍 ARES</button>
             </div>
             <span id="ares-status-edit" class="m-form-hint"></span>
@@ -72,7 +73,8 @@
         <div class="m-form-group">
             <label class="m-form-label" for="dic-edit">DIČ</label>
             <input class="m-form-input" type="text" id="dic-edit" name="vat_organization_identifier"
-                   value="{{ old('vat_organization_identifier', $member->vat_organization_identifier) }}" maxlength="30">
+                   value="{{ old('vat_organization_identifier', $member->vat_organization_identifier) }}" maxlength="30"
+                   autocomplete="off" placeholder="CZ12345678">
             @error('vat_organization_identifier') <div class="m-form-hint" style="color:#c0392b">{{ $message }}</div> @enderror
         </div>
     </div>

@@ -74,7 +74,8 @@
             <label class="m-form-label" for="reg-ico">IČO</label>
             <div style="display:flex;gap:8px;align-items:center">
                 <input class="m-form-input" type="text" name="organization_identifier" id="reg-ico"
-                       value="{{ old('organization_identifier') }}" maxlength="8" placeholder="12345678">
+                       value="{{ old('organization_identifier') }}" maxlength="8" placeholder="12345678"
+                       autocomplete="off" inputmode="numeric" pattern="[0-9]*">
                 <button class="m-btn" type="button" onclick="loadFromAresReg()" style="white-space:nowrap">🔍 ARES</button>
             </div>
             <span id="reg-ares-status" class="m-form-hint"></span>
@@ -82,7 +83,8 @@
         <div class="m-form-group">
             <label class="m-form-label" for="reg-dic">DIČ</label>
             <input class="m-form-input" type="text" name="vat_organization_identifier" id="reg-dic"
-                   value="{{ old('vat_organization_identifier') }}" maxlength="20">
+                   value="{{ old('vat_organization_identifier') }}" maxlength="20"
+                   autocomplete="off" placeholder="CZ12345678">
         </div>
     </div>
 </div>
@@ -134,7 +136,8 @@
         </div>
         <div class="m-form-group">
             <label class="m-form-label" for="reg-email">E-mail <span style="color:#c0392b">*</span></label>
-            <input class="m-form-input" type="text" id="reg-email" name="email" value="{{ old('email') }}" maxlength="255">
+            <input class="m-form-input" type="email" id="reg-email" name="email" value="{{ old('email') }}" maxlength="255"
+                   autocomplete="email" inputmode="email">
             @error('email') <div class="m-form-hint" style="color:#c0392b">{{ $message }}</div> @enderror
         </div>
     </div>

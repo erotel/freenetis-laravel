@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Contract;
 use App\Models\Member;
+use App\Models\User;
 use App\Services\ContractService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\View\View;
@@ -57,6 +58,23 @@ class ContractController extends Controller
             return redirect()
                 ->route('members.edit', $memberId)
                 ->with('error', 'Před vytvořením smlouvy nastavte třídu rychlosti (QoS) v editaci člena.');
+        }
+
+        // Fyzická osoba bez IČO musí mít vyplněné datum narození hlavního uživatele —
+        // jinak je v PDF buňka "Datum narození (IČO, DIČ)" prázdná a smlouva je nepoužitelná.
+        $mainUser    = $member->users->firstWhere('type', User::MAIN_USER);
+        $hasIco      = trim((string) $member->organization_identifier) !== '';
+        $birthdayRaw = $mainUser?->birthday;
+        $hasBirthday = $birthdayRaw && (string) $birthdayRaw !== '0000-00-00';
+
+        if (!$hasIco && !$hasBirthday) {
+            $target = $mainUser
+                ? redirect()->route('users.edit', $mainUser->id)
+                : redirect()->route('members.edit', $memberId);
+            return $target->with(
+                'error',
+                'Před vytvořením smlouvy vyplňte datum narození hlavního uživatele (nebo IČO u organizace).'
+            );
         }
 
         $contract = $this->contracts->createContract($member);
