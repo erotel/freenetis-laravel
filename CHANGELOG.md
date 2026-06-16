@@ -6,6 +6,40 @@ formát podle [Keep a Changelog](https://keepachangelog.com/cs/1.1.0/).
 Verzi v souboru `config/version.php` bumpni samostatným commitem `chore: bump version to X.Y.Z`,
 ať lze changelog snadno regenerovat přes `git log vX..vY --oneline`.
 
+## [2.7.0] — 2026-06-16
+
+### Added
+- **Věková kontrola 18+ při veřejné registraci** (`/registration`).
+  Datum narození u fyzických osob (typ 17/18) musí být alespoň 18 let
+  zpět — serverová `before_or_equal` validace s CZ chybovou hláškou,
+  klientské `max` na date inputu + okamžitý hint přes `setCustomValidity`.
+  Organizace (typ 3) jsou z kontroly vyloučené (jejich datum představuje
+  datum vzniku).
+- **Mobilní klávesnice pro datum místo nativního pickeru.** Na touch-only
+  zařízeních (telefon, tablet — detekce `(hover: none) and (pointer: coarse)`
+  + `maxTouchPoints`) se každý `<input type="date">` převede na text input
+  s `inputmode="numeric"`, formátem `DD.MM.RRRR` a auto-doplňováním teček
+  při psaní. Před odesláním formuláře se hodnota převede zpět na
+  `YYYY-MM-DD`, takže backend nepotřebuje žádnou změnu validace. Desktop
+  s myší nativní picker ponechává.
+- **Birthday guard při vytvoření smlouvy** (`ContractController::create`).
+  Pro fyzickou osobu bez IČO nelze vytvořit smlouvu, dokud hlavní uživatel
+  nemá vyplněné datum narození — jinak by v PDF byla buňka „Datum narození
+  (IČO, DIČ)" prázdná a smlouva nepoužitelná. Redirect na editaci uživatele
+  s vysvětlující chybou.
+
+### Fixed
+- **Email už nemůže skončit v IČO/DIČ člena.** Validační regex
+  `^[^@\s]*$` na `organization_identifier` a `vat_organization_identifier`
+  ve všech třech vstupních cestách (admin create/update, public
+  registration) odmítne hodnotu s `@` nebo whitespacem. CZ chybové
+  hlášky vysvětlují požadovaný formát.
+  Na formulářích doplněn `autocomplete="off"` na IČO/DIČ pole
+  (typicky způsob, jakým browser/password-manager autofill předtím
+  email do DIČ vyplnil), `inputmode="numeric"` na IČO, `type="email"`
+  + `autocomplete="email"` na email — správná sémantika polí, takže
+  prohlížeč je už nezamění.
+
 ## [2.6.0] — 2026-06-14
 
 ### Added
