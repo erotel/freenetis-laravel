@@ -72,13 +72,15 @@
     @if($canEditRedirect)
     <a class="m-btn" href="{{ route('redirects.activate-member', $member->id) }}" style="color:#c60;">Přesměrovat</a>
     @endif
-    @if($canExportRegistration && in_array($member->type, [2, 90]))
+    @if($canExportRegistration && in_array($member->type, [2, 17, 90]))
     <form method="GET" style="display:inline;">
         <select onchange="var t=this.value;if(t)window.open('{{ url('members/'.$member->id.'/registration-export') }}/'+t,'_blank');this.value='';" class="m-btn" style="padding:5px 8px;">
             <option value="">— Export PDF —</option>
             @if($member->type == 90)
                 <option value="registration">Přihláška</option>
                 <option value="end">Ukončení členství</option>
+            @elseif($member->type == 17)
+                <option value="registration">Přihláška</option>
             @elseif($member->type == 2)
                 <option value="contract_end">Výpověď smlouvy</option>
             @endif
@@ -94,6 +96,8 @@
             @if($member->type == 90)
                 <option value="registration">Přihláška</option>
                 <option value="end">Ukončení členství</option>
+            @elseif($member->type == 17)
+                <option value="registration">Přihláška</option>
             @elseif($member->type == 2)
                 <option value="contract_end">Výpověď smlouvy</option>
             @endif

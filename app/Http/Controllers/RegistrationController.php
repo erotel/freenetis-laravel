@@ -146,7 +146,7 @@ class RegistrationController extends Controller
             ]);
         });
 
-        $this->sendRegistrationSummary($userId);
+        $this->sendRegistrationSummary($userId, (int) $validated['registration_type']);
 
         return redirect()->route('registration.success');
     }
@@ -154,10 +154,17 @@ class RegistrationController extends Controller
     /**
      * Queue a registration-summary email with a PDF attachment to the new member.
      * Silently no-op if disabled, no email on file, or attachment missing.
+     *
+     * Shrnutí je smluvní dokument pro zákazníka — neposílá se čekajícím členům
+     * (typ 17), ti dostávají přihlášku k podpisu jiným tokem.
      */
-    private function sendRegistrationSummary(?int $userId): void
+    private function sendRegistrationSummary(?int $userId, int $registrationType): void
     {
         if (!$userId || !Setting::get('registration_summary_enabled', 0)) {
+            return;
+        }
+
+        if ($registrationType === 17) {
             return;
         }
 
