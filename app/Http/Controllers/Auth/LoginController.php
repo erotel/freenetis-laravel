@@ -28,9 +28,29 @@ class LoginController extends Controller
             'password' => ['required', 'string'],
         ]);
 
+        // Variabilní symbol jako alias pro login: pokud uživatel zadal jen číslice,
+        // zkusíme to nejdřív přeložit přes variable_symbols → accounts.member_id →
+        // MAIN_USER. Když najdeme match, credentials['login'] přepíšeme na skutečný
+        // login. Když ne, ponecháme původní (umožní login se všemi-číselným loginem).
+        $rawInput = trim((string) $credentials['login']);
+        if ($rawInput !== '' && ctype_digit($rawInput)) {
+            $resolved = DB::table('variable_symbols as vs')
+                ->join('accounts as a', 'a.id', '=', 'vs.account_id')
+                ->join('users as u', function ($j) {
+                    $j->on('u.member_id', '=', 'a.member_id')
+                      ->where('u.type', '=', \App\Models\User::MAIN_USER);
+                })
+                ->where('vs.variable_symbol', $rawInput)
+                ->value('u.login');
+            if ($resolved) {
+                $credentials['login'] = $resolved;
+            }
+        }
+
         // Per-username throttle — chrání před distributed brute-force napříč IP.
+        // Klíč drží originální vstup (VS nebo login), ať throttle platí pro obě cesty.
         // sha1 jen pro normalizaci a délku klíče; není to bezpečnostní hash.
-        $loginKey = 'login_user:' . sha1(strtolower(trim((string) $credentials['login'])));
+        $loginKey = 'login_user:' . sha1(strtolower($rawInput));
         if (RateLimiter::tooManyAttempts($loginKey, self::LOGIN_MAX_ATTEMPTS)) {
             $seconds = RateLimiter::availableIn($loginKey);
             return back()
@@ -45,9 +65,11 @@ class LoginController extends Controller
         if (!Auth::attempt($credentials)) {
             RateLimiter::hit($loginKey, self::LOGIN_DECAY_SECONDS);
             logger()->warning('auth.login.failed', [
-                'login' => $credentials['login'],
-                'ip'    => $request->ip(),
-                'ua'    => substr((string) $request->userAgent(), 0, 200),
+                'login'    => $credentials['login'],
+                'raw'      => $rawInput,
+                'resolved' => $rawInput !== $credentials['login'],
+                'ip'       => $request->ip(),
+                'ua'       => substr((string) $request->userAgent(), 0, 200),
             ]);
             return back()
                 ->withInput($request->only('login'))

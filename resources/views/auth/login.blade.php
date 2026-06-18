@@ -40,7 +40,7 @@
     <form method="POST" action="{{ route('login') }}">
         @csrf
 
-        <label for="login">Uživatelské jméno</label>
+        <label for="login">Uživatelské jméno nebo variabilní symbol</label>
         <input type="text" id="login" name="login" value="{{ old('login') }}" required autofocus autocomplete="username">
 
         <label for="password">Heslo</label>
