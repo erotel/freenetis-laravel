@@ -39,8 +39,16 @@ class BankTransferController extends Controller
 
         // Default: posledních 30 dní (po importu produkce je v DB i 4500+ historických
         // neidentifikovaných převodů z pre-migrace, které dělají stránku nepoužitelnou).
-        $from = $request->query('from') ?? now()->subDays(30)->toDateString();
-        $to   = $request->query('to') ?: null;
+        // ?all=1 vypne defaultní rozsah úplně; ?from=… ho přebije konkrétním datem.
+        $showAll = $request->boolean('all');
+        if ($showAll) {
+            $from = null;
+        } else {
+            $from = $request->filled('from')
+                ? $request->query('from')
+                : now()->subDays(30)->toDateString();
+        }
+        $to = $request->filled('to') ? $request->query('to') : null;
 
         // Kohana logic (Bank_transfer_Model::get_unidentified_transfers):
         //   neidentifikovaný = transfer.member_id IS NULL/0

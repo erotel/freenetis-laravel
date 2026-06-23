@@ -23,7 +23,7 @@
         </div>
         <div style="display:flex;gap:6px;padding-bottom:1px">
             <button class="m-btn m-btn-primary" type="submit">Filtrovat</button>
-            <a class="m-btn" href="{{ route('bank_transfers.unidentified', ['from' => '']) }}">Zobrazit vše</a>
+            <a class="m-btn" href="{{ route('bank_transfers.unidentified', ['all' => 1]) }}">Zobrazit vše</a>
         </div>
     </form>
 </div>
