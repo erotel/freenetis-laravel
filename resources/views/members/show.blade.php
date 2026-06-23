@@ -131,6 +131,44 @@
                 onclick="return confirm('Schválit čekatele?')">✓ Schválit čekatele</button>
     </form>
     @endif
+    @if($canEdit && ($hasActiveInterrupt ?? false))
+    <button type="button" class="m-btn m-btn-success" onclick="document.getElementById('restore-interrupt-dialog-{{ $member->id }}').showModal()">↻ Obnovit přerušení</button>
+    <dialog id="restore-interrupt-dialog-{{ $member->id }}" style="border:1px solid #ccc;border-radius:8px;padding:20px;max-width:480px">
+        <form method="POST" action="{{ route('members.restore-interrupt', $member->id) }}">
+            @csrf
+            <h3 style="margin-top:0">Obnovit přerušené členství</h3>
+            <p style="color:#555;font-size:.9em">
+                Nastaví <code>leaving_date</code> na <code>9999-12-31</code>, ukončí přerušení dnem před zvoleným datem,
+                smaže přesměrování a strhne měsíční poplatek s datem zvolené obnovy.
+            </p>
+            <div style="margin:14px 0">
+                <label style="display:block;margin-bottom:8px">
+                    <input type="radio" name="when" value="now" checked
+                           onclick="document.getElementById('eff-date-{{ $member->id }}').disabled=true">
+                    <strong>Okamžitě</strong> (dnes, {{ now()->format('d.m.Y') }})
+                </label>
+                <label style="display:block">
+                    <input type="radio" name="when" value="date"
+                           onclick="var i=document.getElementById('eff-date-{{ $member->id }}'); i.disabled=false; i.focus();">
+                    <strong>K datu:</strong>
+                    <input type="date" id="eff-date-{{ $member->id }}" name="effective_date"
+                           min="{{ now()->toDateString() }}"
+                           max="{{ now()->addDays(60)->toDateString() }}"
+                           value="{{ now()->addDay()->toDateString() }}"
+                           disabled style="margin-left:6px">
+                </label>
+                <div style="font-size:.85em;color:#777;margin-top:8px">
+                    Pozor: pokud zvolíš datum, kdy běží automatické strhávání (deduct_day = 1. v měsíci),
+                    cron uvidí tento transfer a stržení proběhne jen jednou. Max 60 dní dopředu.
+                </div>
+            </div>
+            <div style="display:flex;gap:8px;justify-content:flex-end">
+                <button type="button" class="m-btn" onclick="this.closest('dialog').close()">Zrušit</button>
+                <button type="submit" class="m-btn m-btn-success">↻ Obnovit</button>
+            </div>
+        </form>
+    </dialog>
+    @endif
     @if($canDelete)
         @if(in_array($member->type, [17, 18]))
         <form method="POST" action="{{ route('members.destroy', $member->id) }}" style="display:inline;">

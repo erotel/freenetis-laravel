@@ -11,6 +11,7 @@ use App\Models\EmailQueueAttachment;
 use App\Models\IpAddress;
 use App\Models\Member;
 use App\Models\MemberFee;
+use App\Models\Setting;
 use App\Models\Street;
 use App\Models\Town;
 use App\Services\ContractService;
@@ -246,11 +247,21 @@ class MemberController extends Controller
             }
         }
 
+        // Detekce pozastaveného členství — má aktivní members_fees s fee.special_type_id=1
+        $hasActiveInterrupt = DB::table('members_fees as mf')
+            ->join('fees as f', 'f.id', '=', 'mf.fee_id')
+            ->where('mf.member_id', $id)
+            ->where('f.special_type_id', 1)
+            ->where('mf.activation_date', '<=', now()->toDateString())
+            ->where('mf.deactivation_date', '>=', now()->toDateString())
+            ->exists();
+
         return view('members.show', [
             'member'              => $member,
             'variableSymbols'     => $variableSymbols,
             'creditAccount'       => $creditAccount,
             'activeMemberFee'     => $activeMemberFee,
+            'hasActiveInterrupt'  => $hasActiveInterrupt,
             'tvEnabled'           => (bool) \App\Models\Setting::get('sledovanitv_enabled', 0),
             'canEdit'             => $this->can('edit_all'),
             'canDelete'           => $this->can('delete_all'),
@@ -1112,6 +1123,173 @@ class MemberController extends Controller
         $label = ($originalType == MemberType::REGULAR) ? 'zákazník' : 'člen';
         return redirect()->route('members.show', $id)
             ->with('success', "Člen byl obnoven jako {$label}.");
+    }
+
+    /**
+     * Obnovit pozastavené členství (interrupt fee aktivní, fee_id->special_type_id=1).
+     *  - members.leaving_date → 9999-12-31, locked/payment_blocked/pending_termination → 0
+     *  - members_fees: deactivation_date → effective_date − 1 (přerušení končí dnem -1)
+     *  - membership_interrupts: end_after_interrupt_end → 0 (zruší plánovanou terminaci)
+     *  - smaže messages_ip_addresses pro IP členů
+     *  - strhne plný měsíční poplatek s datetime = effective_date
+     *
+     * effective_date: dnes (immediate) nebo budoucí datum. Pokud effective_date
+     * spadne na deduct_day, cron DeductFees uvidí náš transfer (idempotency na
+     * origin+type+datetime) a strhne pouze jednou.
+     */
+    public function restoreInterrupt(Request $request, int $id)
+    {
+        abort_unless($this->can('edit_all'), 403);
+
+        $member = DB::table('members')->where('id', $id)->first();
+        abort_if(!$member, 404);
+
+        $today = now()->toDateString();
+        $maxDate = now()->addDays(60)->toDateString();
+
+        $validated = $request->validate([
+            'effective_date' => ['nullable', 'date', 'after_or_equal:' . $today, 'before_or_equal:' . $maxDate],
+        ], [
+            'effective_date.after_or_equal'  => 'Datum obnovy nesmí být v minulosti.',
+            'effective_date.before_or_equal' => 'Datum obnovy max 60 dní dopředu (jinak hrozí kolize s automatickým strhnutím).',
+        ]);
+
+        $effective = $validated['effective_date'] ?? $today;
+        $prevDay   = \Carbon\Carbon::parse($effective)->subDay()->toDateString();
+
+        $activeInterrupt = DB::table('members_fees as mf')
+            ->join('fees as f', 'f.id', '=', 'mf.fee_id')
+            ->where('mf.member_id', $id)
+            ->where('f.special_type_id', 1)
+            ->where('mf.activation_date', '<=', $today)
+            ->where('mf.deactivation_date', '>=', $today)
+            ->select('mf.id as mf_id', 'mf.deactivation_date')
+            ->first();
+
+        if (!$activeInterrupt) {
+            return back()->with('error', 'Tento člen nemá aktivní přerušení členství.');
+        }
+
+        $chargeResult = 'noop';
+        DB::transaction(function () use ($id, $member, $activeInterrupt, $effective, $prevDay, &$chargeResult) {
+            DB::table('members')->where('id', $id)->update([
+                'leaving_date'          => '9999-12-31',
+                'locked'                => 0,
+                'payment_blocked'       => 0,
+                'payment_blocked_since' => null,
+                'pending_termination'   => 0,
+            ]);
+
+            DB::table('members_fees')
+                ->where('id', $activeInterrupt->mf_id)
+                ->update(['deactivation_date' => $prevDay]);
+
+            DB::table('membership_interrupts')
+                ->where('members_fee_id', $activeInterrupt->mf_id)
+                ->update(['end_after_interrupt_end' => 0]);
+
+            $ipIds = DB::table('ip_addresses as ip')
+                ->join('ifaces as i', 'i.id', '=', 'ip.iface_id')
+                ->join('devices as d', 'd.id', '=', 'i.device_id')
+                ->join('users as u', 'u.id', '=', 'd.user_id')
+                ->where('u.member_id', $id)
+                ->pluck('ip.id');
+            if ($ipIds->isNotEmpty()) {
+                DB::table('messages_ip_addresses')->whereIn('ip_address_id', $ipIds)->delete();
+            }
+
+            $chargeResult = $this->chargeMonthlyFeeNow($id, (int) $member->type, $effective);
+        });
+
+        $when = $effective === now()->toDateString() ? 'dnes' : 'k ' . $effective;
+        if ($chargeResult === 'skipped_blocked') {
+            return redirect()->route('members.show', $id)
+                ->with('success', "Členství obnoveno {$when}. Poplatek NEstrhnut — nedostatek kreditu, nastaven payment_blocked. Doplatek proběhne po další příchozí platbě.");
+        }
+        if ($chargeResult === 'noop') {
+            return redirect()->route('members.show', $id)
+                ->with('success', "Členství obnoveno {$when}. Poplatek nestrhnut (nulový tarif nebo už existuje), přesměrování smazáno.");
+        }
+        return redirect()->route('members.show', $id)
+            ->with('success', "Členství obnoveno {$when}. Poplatek strhnut k {$effective}, přesměrování smazáno.");
+    }
+
+    /**
+     * Strhne 1× měsíční poplatek aktuálního dne — používá restoreInterrupt po
+     * obnově přerušeného členství. Prepaid pravidlo (jako DeductFees): při
+     * nedostatku kreditu transfer nevytvořit, payment_blocked=1 + datum;
+     * doplatek doběhne PaymentBackchargeService po další příchozí platbě.
+     * Idempotence: kontrola existujícího transfer.type=1 + datetime.
+     *
+     * Vrací: 'charged' | 'skipped_blocked' | 'noop'
+     */
+    private function chargeMonthlyFeeNow(int $memberId, int $memberType, string $date): string
+    {
+        $individualFee = DB::table('members_fees as mf')
+            ->join('fees as f', 'f.id', '=', 'mf.fee_id')
+            ->join('enum_types as et', 'et.id', '=', 'f.type_id')
+            ->whereRaw('LOWER(et.value) = ?', ['regular member fee'])
+            ->where('mf.member_id', $memberId)
+            ->where('mf.activation_date', '<=', $date)
+            ->where('mf.deactivation_date', '>=', $date)
+            ->orderBy('mf.priority')
+            ->value('f.fee');
+
+        if ($individualFee !== null) {
+            $feeAmount = (float) $individualFee;
+        } else {
+            $defaultFeeId = match($memberType) {
+                MemberType::CUSTOMER => (int) Setting::get('default_fee_member_type_2', 0),
+                MemberType::REGULAR  => (int) Setting::get('default_fee_member_type_90', 0),
+                default              => 0,
+            };
+            $feeAmount = $defaultFeeId
+                ? (float) DB::table('fees')->where('id', $defaultFeeId)->value('fee')
+                : 0.0;
+        }
+
+        if ($feeAmount <= 0) return 'noop';
+
+        $creditAccount = DB::table('accounts')
+            ->where('member_id', $memberId)
+            ->where('account_attribute_id', 221100)
+            ->first(['id', 'balance']);
+        if (!$creditAccount) return 'noop';
+
+        $orgAccount = DB::table('accounts')
+            ->where('account_attribute_id', 684000)
+            ->value('id');
+        if (!$orgAccount) return 'noop';
+
+        $alreadyCharged = DB::table('transfers')
+            ->where('origin_id', $creditAccount->id)
+            ->where('type', 1)
+            ->where('datetime', $date)
+            ->exists();
+        if ($alreadyCharged) return 'noop';
+
+        // Prepaid: nedost. kredit → nestrhávat, jen flag (PaymentBackchargeService doběhne)
+        if ((float) $creditAccount->balance < $feeAmount) {
+            DB::table('members')->where('id', $memberId)->update([
+                'payment_blocked'       => 1,
+                'payment_blocked_since' => DB::raw('COALESCE(payment_blocked_since, ' . DB::getPdo()->quote($date) . ')'),
+            ]);
+            return 'skipped_blocked';
+        }
+
+        DB::table('transfers')->insert([
+            'origin_id'         => $creditAccount->id,
+            'destination_id'    => $orgAccount,
+            'type'              => 1,
+            'amount'            => $feeAmount,
+            'datetime'          => $date,
+            'creation_datetime' => now()->format('Y-m-d H:i:s'),
+            'text'              => 'Doplatek za měsíc po obnovení přerušení',
+            'member_id'         => null,
+            'user_id'           => auth()->id(),
+        ]);
+        DB::table('accounts')->where('id', $creditAccount->id)->decrement('balance', $feeAmount);
+        return 'charged';
     }
 
     public function approve(int $id)
