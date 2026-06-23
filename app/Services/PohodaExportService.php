@@ -208,6 +208,7 @@ class PohodaExportService
             ->leftJoin('address_points as ap', 'ap.id', '=', 'm.address_point_id')
             ->leftJoin('streets as s', 's.id', '=', 'ap.street_id')
             ->leftJoin('towns as t', 't.id', '=', 'ap.town_id')
+            ->leftJoin('countries as c', 'c.id', '=', 'ap.country_id')
             ->where('q.status', 'new')
             ->where('q.created_at', '<=', $monthEnd)
             ->orderBy('q.id')
@@ -215,12 +216,14 @@ class PohodaExportService
             ->select(
                 'q.*',
                 'm.name as member_name',
-                'm.organization_identifier',
-                'm.vat_organization_identifier',
-                's.street',
-                'ap.street_number',
-                't.town',
-                't.zip_code'
+                'm.organization_identifier as member_ico',
+                'm.vat_organization_identifier as member_dic',
+                's.street as addr_street',
+                'ap.street_number as addr_street_number',
+                't.town as addr_town',
+                't.quarter as addr_quarter',
+                't.zip_code as addr_zip',
+                'c.country_name as addr_country'
             )
             ->get();
 
@@ -228,99 +231,177 @@ class PohodaExportService
             return null;
         }
 
-        $ico         = Setting::get('ico', '');
-        $application = Setting::get('pohoda_application', 'Freenetis');
-        $now         = date('Y-m-d_H-i-s');
-
-        $xml = new \XMLWriter();
-        $xml->openMemory();
-        $xml->setIndent(true);
-        $xml->startDocument('1.0', 'UTF-8');
-
-        $xml->startElementNs('dat', 'dataPack', 'http://www.stormware.cz/schema/version_2/data.xsd');
-        $xml->writeAttribute('id', 'ref_' . $now);
-        $xml->writeAttribute('ico', $ico);
-        $xml->writeAttribute('application', $application);
-        $xml->writeAttribute('version', '2.0');
-        $xml->writeAttribute('note', 'Imported from Freenetis');
-        $xml->writeAttributeNs('xmlns', 'inv', null, 'http://www.stormware.cz/schema/version_2/invoice.xsd');
-        $xml->writeAttributeNs('xmlns', 'typ', null, 'http://www.stormware.cz/schema/version_2/type.xsd');
-
-        $ids = [];
-        foreach ($items as $item) {
-            $ids[] = $item->id;
-
-            $xml->startElementNs('dat', 'dataPackItem', null);
-            $xml->writeAttribute('id', 'DP' . $item->doc_number);
-            $xml->writeAttribute('version', '2.0');
-
-            $xml->startElementNs('inv', 'invoice', null);
-            $xml->writeAttribute('version', '2.0');
-
-            $xml->startElementNs('inv', 'invoiceHeader', null);
-            $xml->writeElementNs('inv', 'invoiceType', null, 'issuedCreditNotice');
-
-            $xml->startElementNs('inv', 'number', null);
-            $xml->writeElementNs('typ', 'numberRequested', null, (string)$item->doc_number);
-            $xml->endElement();
-
-            $xml->writeElementNs('inv', 'date', null, date('Y-m-d'));
-            $xml->writeElementNs('inv', 'note', null, (string)($item->note ?? $item->reason ?? ''));
-
-            $xml->startElementNs('inv', 'partnerIdentity', null);
-            $xml->startElementNs('typ', 'address', null);
-            $icoPartner = trim((string)($item->organization_identifier ?? ''));
-            if ($icoPartner !== '') {
-                $xml->writeElementNs('typ', 'company', null, (string)($item->member_name ?? ''));
-                $xml->writeElementNs('typ', 'name',    null, '');
-                $xml->writeElementNs('typ', 'ico',     null, $icoPartner);
-            } else {
-                $xml->writeElementNs('typ', 'company', null, '');
-                $xml->writeElementNs('typ', 'name',    null, mb_substr((string)($item->member_name ?? ''), 0, 32, 'UTF-8'));
-            }
-            $street = trim(($item->street ?? '') . ' ' . ($item->street_number ?? ''));
-            $xml->writeElementNs('typ', 'street', null, $street);
-            $xml->writeElementNs('typ', 'city',   null, (string)($item->town     ?? ''));
-            $xml->writeElementNs('typ', 'zip',    null, (string)($item->zip_code ?? ''));
-            $xml->startElementNs('typ', 'country', null);
-            $xml->writeElementNs('typ', 'ids', null, 'Czech Republic');
-            $xml->endElement(); // typ:country
-            $xml->endElement(); // typ:address
-            $xml->endElement(); // inv:partnerIdentity
-
-            $xml->endElement(); // inv:invoiceHeader
-
-            $amount = (float)($item->amount ?? 0);
-            $xml->startElementNs('inv', 'invoiceDetail', null);
-            $xml->startElementNs('inv', 'invoiceItem', null);
-            $xml->writeElementNs('inv', 'text',     null, (string)($item->reason ?? 'Vrácení'));
-            $xml->writeElementNs('inv', 'quantity', null, '1');
-            $xml->writeElementNs('inv', 'rateVAT',  null, 'none');
-            $xml->startElementNs('inv', 'homeCurrency', null);
-            $xml->writeElementNs('typ', 'unitPrice', null, $this->fmt($amount));
-            $xml->writeElementNs('typ', 'price',     null, $this->fmt($amount));
-            $xml->writeElementNs('typ', 'priceVAT',  null, '0');
-            $xml->writeElementNs('typ', 'priceSum',  null, (string)round($amount));
-            $xml->endElement(); // homeCurrency
-            $xml->endElement(); // invoiceItem
-            $xml->endElement(); // invoiceDetail
-
-            $xml->endElement(); // inv:invoice
-            $xml->endElement(); // dat:dataPackItem
-        }
-
-        $xml->endElement(); // dat:dataPack
-        $xml->endDocument();
+        $xmlString = $this->buildRefundXml($items);
+        $ids       = $items->pluck('id')->all();
 
         $filename = $this->exportDir . sprintf('pohoda_refunds_%04d_%02d_%s.xml', $year, $month, date('His'));
         is_dir($this->exportDir) || mkdir($this->exportDir, 0755, true);
-        file_put_contents($filename, $xml->outputMemory());
+        file_put_contents($filename, $xmlString);
 
         DB::table('pohoda_refund_queue')
             ->whereIn('id', $ids)
             ->update(['status' => 'exported', 'exported_at' => now()]);
 
         return $filename;
+    }
+
+    /**
+     * Vygeneruje POHODA XML pro vratky (vydaný opravný daňový doklad).
+     * Port Kohana modelu Pohoda_Refund_Export_Model::build_xml — DPH 21 %,
+     * částka v DB kladná, do XML záporně. Jediný správný formát, který Pohoda přijme.
+     */
+    public function buildRefundXml($items): string
+    {
+        $ico = trim((string) Setting::get('ico', ''));
+        if ($ico === '') {
+            throw new \RuntimeException('POHODA export: chybí povinné IČO sdružení v config.ico.');
+        }
+
+        $ns_dat = 'http://www.stormware.cz/schema/version_2/data.xsd';
+        $ns_inv = 'http://www.stormware.cz/schema/version_2/invoice.xsd';
+        $ns_typ = 'http://www.stormware.cz/schema/version_2/type.xsd';
+
+        $xml = new \SimpleXMLElement(
+            '<?xml version="1.0" encoding="utf-8"?>'
+            . '<dat:dataPack'
+            . ' xmlns:dat="' . $ns_dat . '"'
+            . ' xmlns:inv="' . $ns_inv . '"'
+            . ' xmlns:typ="' . $ns_typ . '"'
+            . '/>'
+        );
+        $xml->addAttribute('version', '2.0');
+        $xml->addAttribute('id', 'FreenetISRefunds');
+        $xml->addAttribute('application', 'FreenetIS');
+        $xml->addAttribute('note', 'Refund export (Dobropisy)');
+        $xml->addAttribute('ico', $ico);
+
+        $today = date('Y-m-d');
+
+        foreach ($items as $r) {
+            $amountWithVat = (float) ($r->amount ?? 0);
+            if ($amountWithVat <= 0) continue;
+
+            $vatRate = 21.0;
+            $basePos = round($amountWithVat / (1.0 + $vatRate / 100.0), 2);
+            $vatPos  = round($amountWithVat - $basePos, 2);
+            $sumPos  = round($amountWithVat, 2);
+
+            $base = -$basePos;
+            $vat  = -$vatPos;
+            $sum  = -$sumPos;
+
+            $dpi = $xml->addChild('dat:dataPackItem', null, $ns_dat);
+            $dpi->addAttribute('version', '2.0');
+            $dpi->addAttribute('id', 'RFQ_' . (int) $r->id);
+
+            $inv = $dpi->addChild('inv:invoice', null, $ns_inv);
+            $inv->addAttribute('version', '2.0');
+
+            $hdr = $inv->addChild('inv:invoiceHeader', null, $ns_inv);
+            $hdr->addChild('inv:invoiceType', 'issuedCorrectiveTax', $ns_inv);
+
+            $docNumber = trim((string) ($r->doc_number ?? ''));
+            if ($docNumber === '') $docNumber = 'RFQ-' . (int) $r->id;
+
+            $num = $hdr->addChild('inv:number', null, $ns_inv);
+            $num->addChild('typ:numberRequested', $this->xmlText($docNumber), $ns_typ);
+
+            $created = $this->dateYmd((string) ($r->created_at ?? '')) ?: $today;
+            $hdr->addChild('inv:date',           $created, $ns_inv);
+            $hdr->addChild('inv:dateTax',        $created, $ns_inv);
+            $hdr->addChild('inv:dateAccounting', $created, $ns_inv);
+
+            $symVar = preg_replace('~\D+~', '', $docNumber) ?: (string) (int) $r->id;
+            $hdr->addChild('inv:symVar', $this->xmlText($symVar), $ns_inv);
+
+            $member = trim((string) ($r->member_name ?? '')) ?: 'Neznámý odběratel';
+            $icoMember = preg_replace('~\D+~', '', trim((string) ($r->member_ico ?? '')));
+            $dicMember = strtoupper(str_replace(' ', '', trim((string) ($r->member_dic ?? ''))));
+
+            $pid  = $hdr->addChild('inv:partnerIdentity', null, $ns_inv);
+            $addr = $pid->addChild('typ:address', null, $ns_typ);
+            if ($icoMember !== '' || $dicMember !== '') {
+                $addr->addChild('typ:company', $this->xmlText($member), $ns_typ);
+                if ($icoMember !== '') $addr->addChild('typ:ico', $this->xmlText($icoMember), $ns_typ);
+                if ($dicMember !== '') $addr->addChild('typ:dic', $this->xmlText($dicMember), $ns_typ);
+            } else {
+                $addr->addChild('typ:name', $this->xmlText($member), $ns_typ);
+            }
+
+            $city   = $this->buildPartnerCity($r);
+            $street = $this->buildPartnerStreet($r);
+            $zip    = trim((string) ($r->addr_zip ?? ''));
+            $country = trim((string) ($r->addr_country ?? '')) ?: 'Czech Republic';
+
+            if ($city !== '')   $addr->addChild('typ:city',   $this->xmlText($city),   $ns_typ);
+            if ($street !== '') $addr->addChild('typ:street', $this->xmlText($street), $ns_typ);
+            if ($zip !== '')    $addr->addChild('typ:zip',    $this->xmlText($zip),    $ns_typ);
+            $cnode = $addr->addChild('typ:country', null, $ns_typ);
+            $cnode->addChild('typ:ids', $this->xmlText($country), $ns_typ);
+
+            $hdr->addChild('inv:text', $this->xmlText('Dobropis (vratka)'), $ns_inv);
+
+            $det = $inv->addChild('inv:invoiceDetail', null, $ns_inv);
+            $it  = $det->addChild('inv:invoiceItem', null, $ns_inv);
+            $it->addChild('inv:text', $this->xmlText('Vratka přeplatku'), $ns_inv);
+            $it->addChild('inv:quantity', '1', $ns_inv);
+            $it->addChild('inv:rateVAT',  'high', $ns_inv);
+            $hc = $it->addChild('inv:homeCurrency', null, $ns_inv);
+            $hc->addChild('typ:unitPrice', number_format($base, 2, '.', ''), $ns_typ);
+
+            $sumNode = $inv->addChild('inv:invoiceSummary', null, $ns_inv);
+            $sumNode->addChild('inv:roundingDocument', 'none', $ns_inv);
+            $sumNode->addChild('inv:roundingVAT',      'none', $ns_inv);
+            $hcs = $sumNode->addChild('inv:homeCurrency', null, $ns_inv);
+            $hcs->addChild('typ:priceHigh',    number_format($base, 2, '.', ''), $ns_typ);
+            $hcs->addChild('typ:priceHighVAT', number_format($vat,  2, '.', ''), $ns_typ);
+            $hcs->addChild('typ:priceHighSum', number_format($sum,  2, '.', ''), $ns_typ);
+        }
+
+        return $this->prettyXml((string) $xml->asXML());
+    }
+
+    private function xmlText(string $s): string
+    {
+        return trim((string) preg_replace('/[\x00-\x08\x0B\x0C\x0E-\x1F]/u', '', $s));
+    }
+
+    private function dateYmd(string $dt): ?string
+    {
+        $dt = trim($dt);
+        if ($dt !== '' && preg_match('~^\d{4}-\d{2}-\d{2}~', $dt)) {
+            return substr($dt, 0, 10);
+        }
+        return null;
+    }
+
+    private function buildPartnerCity(object $r): string
+    {
+        $town = trim((string) ($r->addr_town ?? ''));
+        $q    = trim((string) ($r->addr_quarter ?? ''));
+        if ($town === '' && $q === '') return '';
+        if ($q !== '' && $town !== '' && mb_stripos($town, $q, 0, 'UTF-8') === false) {
+            return $town . ' - ' . $q;
+        }
+        return $town !== '' ? $town : $q;
+    }
+
+    private function buildPartnerStreet(object $r): string
+    {
+        $street = trim((string) ($r->addr_street ?? ''));
+        $no     = trim((string) ($r->addr_street_number ?? ''));
+        if ($street === '') return $no;
+        if ($no === '') return $street;
+        return trim($street . ' ' . $no);
+    }
+
+    private function prettyXml(string $xml): string
+    {
+        $dom = new \DOMDocument('1.0', 'utf-8');
+        $dom->preserveWhiteSpace = false;
+        $dom->formatOutput = true;
+        $dom->loadXML($xml);
+        return $dom->saveXML();
     }
 
     /** Format number: trim trailing zeros, dot as decimal separator. */

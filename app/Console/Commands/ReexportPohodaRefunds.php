@@ -76,17 +76,20 @@ class ReexportPohodaRefunds extends Command
             ->leftJoin('address_points as ap', 'ap.id', '=', 'm.address_point_id')
             ->leftJoin('streets as s', 's.id', '=', 'ap.street_id')
             ->leftJoin('towns as t', 't.id', '=', 'ap.town_id')
+            ->leftJoin('countries as c', 'c.id', '=', 'ap.country_id')
             ->orderBy('q.id')
             ->select(
                 'q.*',
                 'm.name as member_name',
                 'm.leaving_date',
-                'm.organization_identifier',
-                'm.vat_organization_identifier',
-                's.street',
-                'ap.street_number',
-                't.town',
-                't.zip_code'
+                'm.organization_identifier as member_ico',
+                'm.vat_organization_identifier as member_dic',
+                's.street as addr_street',
+                'ap.street_number as addr_street_number',
+                't.town as addr_town',
+                't.quarter as addr_quarter',
+                't.zip_code as addr_zip',
+                'c.country_name as addr_country'
             );
 
         if ($dateFrom !== null) $q->where('q.created_at', '>=', $dateFrom);
@@ -130,87 +133,9 @@ class ReexportPohodaRefunds extends Command
             return 0;
         }
 
-        // 2. XML — kopie logiky z PohodaExportService::exportRefunds, ale
-        // bez zápisu do status/exported_at a s vlastním názvem souboru.
-        $ico         = (string) Setting::get('ico', '');
-        $application = (string) Setting::get('pohoda_application', 'Freenetis');
-        $now         = date('Y-m-d_H-i-s');
-
-        $xml = new \XMLWriter();
-        $xml->openMemory();
-        $xml->setIndent(true);
-        $xml->startDocument('1.0', 'UTF-8');
-
-        $xml->startElementNs('dat', 'dataPack', 'http://www.stormware.cz/schema/version_2/data.xsd');
-        $xml->writeAttribute('id', 'ref_' . $now);
-        $xml->writeAttribute('ico', $ico);
-        $xml->writeAttribute('application', $application);
-        $xml->writeAttribute('version', '2.0');
-        $xml->writeAttribute('note', 'Reexport from Freenetis');
-        $xml->writeAttributeNs('xmlns', 'inv', null, 'http://www.stormware.cz/schema/version_2/invoice.xsd');
-        $xml->writeAttributeNs('xmlns', 'typ', null, 'http://www.stormware.cz/schema/version_2/type.xsd');
-
-        foreach ($items as $item) {
-            $xml->startElementNs('dat', 'dataPackItem', null);
-            $xml->writeAttribute('id', 'DP' . $item->doc_number);
-            $xml->writeAttribute('version', '2.0');
-
-            $xml->startElementNs('inv', 'invoice', null);
-            $xml->writeAttribute('version', '2.0');
-
-            $xml->startElementNs('inv', 'invoiceHeader', null);
-            $xml->writeElementNs('inv', 'invoiceType', null, 'issuedCreditNotice');
-
-            $xml->startElementNs('inv', 'number', null);
-            $xml->writeElementNs('typ', 'numberRequested', null, (string) $item->doc_number);
-            $xml->endElement();
-
-            $xml->writeElementNs('inv', 'date', null, date('Y-m-d', strtotime((string) $item->created_at)));
-            $xml->writeElementNs('inv', 'note', null, (string) ($item->note ?? $item->reason ?? ''));
-
-            $xml->startElementNs('inv', 'partnerIdentity', null);
-            $xml->startElementNs('typ', 'address', null);
-            $icoPartner = trim((string) ($item->organization_identifier ?? ''));
-            if ($icoPartner !== '') {
-                $xml->writeElementNs('typ', 'company', null, (string) ($item->member_name ?? ''));
-                $xml->writeElementNs('typ', 'name',    null, '');
-                $xml->writeElementNs('typ', 'ico',     null, $icoPartner);
-            } else {
-                $xml->writeElementNs('typ', 'company', null, '');
-                $xml->writeElementNs('typ', 'name',    null, mb_substr((string) ($item->member_name ?? ''), 0, 32, 'UTF-8'));
-            }
-            $street = trim(((string) ($item->street ?? '')) . ' ' . ((string) ($item->street_number ?? '')));
-            $xml->writeElementNs('typ', 'street', null, $street);
-            $xml->writeElementNs('typ', 'city',   null, (string) ($item->town     ?? ''));
-            $xml->writeElementNs('typ', 'zip',    null, (string) ($item->zip_code ?? ''));
-            $xml->startElementNs('typ', 'country', null);
-            $xml->writeElementNs('typ', 'ids', null, 'Czech Republic');
-            $xml->endElement(); // typ:country
-            $xml->endElement(); // typ:address
-            $xml->endElement(); // inv:partnerIdentity
-            $xml->endElement(); // inv:invoiceHeader
-
-            $amount = (float) ($item->amount ?? 0);
-            $xml->startElementNs('inv', 'invoiceDetail', null);
-            $xml->startElementNs('inv', 'invoiceItem', null);
-            $xml->writeElementNs('inv', 'text',     null, (string) ($item->reason ?? 'Vrácení'));
-            $xml->writeElementNs('inv', 'quantity', null, '1');
-            $xml->writeElementNs('inv', 'rateVAT',  null, 'none');
-            $xml->startElementNs('inv', 'homeCurrency', null);
-            $xml->writeElementNs('typ', 'unitPrice', null, $this->fmt($amount));
-            $xml->writeElementNs('typ', 'price',     null, $this->fmt($amount));
-            $xml->writeElementNs('typ', 'priceVAT',  null, '0');
-            $xml->writeElementNs('typ', 'priceSum',  null, (string) round($amount));
-            $xml->endElement(); // homeCurrency
-            $xml->endElement(); // invoiceItem
-            $xml->endElement(); // invoiceDetail
-
-            $xml->endElement(); // inv:invoice
-            $xml->endElement(); // dat:dataPackItem
-        }
-
-        $xml->endElement(); // dat:dataPack
-        $xml->endDocument();
+        // 2. XML — používáme stejnou metodu jako monthly export (Pohoda formát:
+        // issuedCorrectiveTax, DPH 21 %, záporné částky). Status řádků se nemění.
+        $xmlString = app(\App\Services\PohodaExportService::class)->buildRefundXml($items);
 
         $typeTag = $memberType === MemberType::CUSTOMER ? '_customer'
                  : ($memberType === MemberType::REGULAR ? '_regular'
@@ -223,7 +148,7 @@ class ReexportPohodaRefunds extends Command
         is_dir($exportDir) || mkdir($exportDir, 0755, true);
         $filename = $exportDir . sprintf('pohoda_refunds_reexport%s%s_%s.xml',
             $rangeTag, $typeTag, date('His'));
-        file_put_contents($filename, $xml->outputMemory());
+        file_put_contents($filename, $xmlString);
 
         $this->info('XML: ' . $filename);
         $this->info('Hotovo. Status řádků v queue se NEZMĚNIL.');
