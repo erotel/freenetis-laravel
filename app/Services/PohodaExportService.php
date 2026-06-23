@@ -35,7 +35,7 @@ class PohodaExportService
 
         $exportedIds = $invoices->pluck('id')->all();
 
-        $ico         = Setting::get('organization_identifier', '');
+        $ico         = Setting::get('ico', '');
         $application = Setting::get('pohoda_application', 'Freenetis');
         $now         = date('Y-m-d_H-i-s');
 
@@ -228,7 +228,7 @@ class PohodaExportService
             return null;
         }
 
-        $ico         = Setting::get('organization_identifier', '');
+        $ico         = Setting::get('ico', '');
         $application = Setting::get('pohoda_application', 'Freenetis');
         $now         = date('Y-m-d_H-i-s');
 
