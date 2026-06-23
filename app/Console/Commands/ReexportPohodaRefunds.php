@@ -132,7 +132,7 @@ class ReexportPohodaRefunds extends Command
 
         // 2. XML — kopie logiky z PohodaExportService::exportRefunds, ale
         // bez zápisu do status/exported_at a s vlastním názvem souboru.
-        $ico         = (string) Setting::get('organization_identifier', '');
+        $ico         = (string) Setting::get('ico', '');
         $application = (string) Setting::get('pohoda_application', 'Freenetis');
         $now         = date('Y-m-d_H-i-s');
 
@@ -159,7 +159,7 @@ class ReexportPohodaRefunds extends Command
             $xml->writeAttribute('version', '2.0');
 
             $xml->startElementNs('inv', 'invoiceHeader', null);
-            $xml->writeElementNs('inv', 'invoiceType', null, 'creditNote');
+            $xml->writeElementNs('inv', 'invoiceType', null, 'issuedCreditNotice');
 
             $xml->startElementNs('inv', 'number', null);
             $xml->writeElementNs('typ', 'numberRequested', null, (string) $item->doc_number);
@@ -219,7 +219,7 @@ class ReexportPohodaRefunds extends Command
         if ($dateFrom !== null) $rangeTag .= '_from' . substr($dateFrom, 0, 10);
         if ($dateTo   !== null) $rangeTag .= '_to'   . substr($dateTo,   0, 10);
 
-        $exportDir = '/var/www/html/freenetis/data/export/';
+        $exportDir = storage_path('app/private/pohoda-exports/');
         is_dir($exportDir) || mkdir($exportDir, 0755, true);
         $filename = $exportDir . sprintf('pohoda_refunds_reexport%s%s_%s.xml',
             $rangeTag, $typeTag, date('His'));

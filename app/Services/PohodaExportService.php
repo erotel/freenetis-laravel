@@ -258,7 +258,7 @@ class PohodaExportService
             $xml->writeAttribute('version', '2.0');
 
             $xml->startElementNs('inv', 'invoiceHeader', null);
-            $xml->writeElementNs('inv', 'invoiceType', null, 'creditNote');
+            $xml->writeElementNs('inv', 'invoiceType', null, 'issuedCreditNotice');
 
             $xml->startElementNs('inv', 'number', null);
             $xml->writeElementNs('typ', 'numberRequested', null, (string)$item->doc_number);
