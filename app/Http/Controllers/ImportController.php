@@ -322,9 +322,12 @@ class ImportController extends Controller
                     // 'Vklad pokladnou' uses the cash account as origin; all others use member_fees
                     $incomingOriginId = (($row['typ'] ?? '') === 'Vklad pokladnou') ? $cashId : $memberFeesId;
 
-                    // Try to match member by variable symbol
+                    // Try to match member by variable symbol — string match je tu zásadní:
+                    // sloupec variable_symbol je varchar (drží '12345' i '12345+U' u ukončených).
+                    // Při int parametru by MariaDB castovala varchar→int a '12345+U' by matchla,
+                    // takže platba ukončeného by se připsala na jeho účet místo do neidentifikovaných.
                     if ($bt->variable_symbol !== null) {
-                        $vsModel = VariableSymbol::where('variable_symbol', $bt->variable_symbol)->first();
+                        $vsModel = VariableSymbol::where('variable_symbol', (string) $bt->variable_symbol)->first();
                         if ($vsModel) {
                             // variable_symbols.account_id points directly to the 221100 credit account
                             $creditAcct = DB::table('accounts')
