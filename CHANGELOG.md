@@ -6,6 +6,42 @@ formát podle [Keep a Changelog](https://keepachangelog.com/cs/1.1.0/).
 Verzi v souboru `config/version.php` bumpni samostatným commitem `chore: bump version to X.Y.Z`,
 ať lze changelog snadno regenerovat přes `git log vX..vY --oneline`.
 
+## [2.8.0] — 2026-06-23
+
+### Added
+- **Přihlášení variabilním symbolem.** Pole „Uživatelské jméno" v login
+  formu nově přijímá i VS — pokud je vstup čistě číselný, server ho přeloží
+  přes `variable_symbols → accounts.member_id → MAIN_USER` a přihlásí
+  skutečného uživatele. Per-username throttle drží originální vstup, takže
+  rate-limit platí pro obě cesty. WebAuthn/biometrie beze změny.
+- **Export přihlášky pro čekajícího člena (typ 17)** v member detailu.
+  Čekající zákazník (typ 18) přihlášku nevidí — podepisuje elektronickou
+  smlouvu jiným tokem.
+
+### Fixed
+- **Příchozí platba s VS ukončeného člena se už nespáruje** na credit účet
+  bývalého člena. Sloupec `variable_symbols.variable_symbol` je varchar
+  a u ukončených má suffix `+U` (např. `12345+U`). MariaDB při porovnání
+  varchar=int implicitně castuje, takže `WHERE variable_symbol = 12345`
+  matchovalo i `"12345+U"`. Fix: porovnávat jako string. Platba ukončeného
+  teď padá do neidentifikovaných převodů, kde ji admin vrátí přes „↩ Vrátit".
+- **Neidentifikované převody — tlačítko „Zobrazit vše" skutečně vypne
+  defaultní 30denní filtr.** Předtím Laravel `route()` zahazoval prázdné
+  `?from=` parametry a default znovu naskočil. Použit `?all=1` sentinel.
+- **Shrnutí smlouvy se neposílá čekajícímu členovi** (typ 17) při veřejné
+  registraci. Shrnutí je smluvní dokument pro zákazníka; člen dostává
+  přihlášku k podpisu jiným tokem.
+- **Pohoda XML export — IČO sdružení v dataPack hlavičce.** Setting klíč
+  `organization_identifier` v config tabulce neexistuje (správně je `ico`),
+  XML proto generoval prázdný `ico=""` a Pohoda XML odmítala s hláškou
+  „Tento balíček není určen pro tuto jednotku".
+- **Pohoda XML — vratky jako opravný daňový doklad.** Vratka má v Pohodě
+  být `invoiceType=issuedCorrectiveTax` (ne `creditNote` / `issuedCreditNotice`),
+  s DPH 21 %, zápornými částkami, povinnými `dateTax`/`dateAccounting`/
+  `symVar` a `invoiceSummary` s `priceHigh`/`priceHighVAT`/`priceHighSum`.
+  Port Kohana modelu `Pohoda_Refund_Export_Model::build_xml`.
+  Reexport command `pohoda:reexport-refunds` sdílí stejnou metodu.
+
 ## [2.7.0] — 2026-06-16
 
 ### Added
