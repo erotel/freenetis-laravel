@@ -9,6 +9,10 @@
 @endsection
 
 @section('content')
+<style>
+    .fn-row-notifoff > td { background: #fff8e1; }
+    .fn-row-notifoff:hover > td { background: #fff3c0; }
+</style>
 <div class="m-page">
 <div class="m-title-row">
     <h2>Hromadné notifikace</h2>
@@ -85,6 +89,14 @@
             </select>
         </div>
         <div>
+            <div class="m-form-label">Souhlas s oznámením</div>
+            <select class="m-form-select" id="filter-notif-off" style="width:170px">
+                <option value="">Vše</option>
+                <option value="0">Bez omezení</option>
+                <option value="1">Aspoň 1 kanál vypnut</option>
+            </select>
+        </div>
+        <div>
             <button type="button" class="m-btn" id="filter-clear">Zrušit filtr</button>
         </div>
         <div style="margin-left:auto;color:#666">
@@ -140,6 +152,7 @@
             <th>Stav (kredit)</th>
             <th>Přerušení</th>
             <th style="white-space:nowrap">Whitelist</th>
+            <th style="white-space:nowrap">Oznámení</th>
             @if($message->text)       <th style="white-space:nowrap">Přesměrování</th> @endif
             @if($message->email_text) <th style="white-space:nowrap">E-mail</th> @endif
             @if($message->sms_text)   <th style="white-space:nowrap">SMS</th> @endif
@@ -160,13 +173,21 @@
         };
         $defaultRedir = $m->has_redirection ? $ACTIVATE : $KEEP;
         $balanceNeg   = ($m->credit_balance !== null && $m->credit_balance < 0) ? '1' : '0';
+        $notifRedirOff = !$m->notification_by_redirection;
+        $notifEmailOff = !$m->notification_by_email;
+        $notifSmsOff   = !$m->notification_by_sms;
+        $anyOff        = $notifRedirOff || $notifEmailOff || $notifSmsOff;
     @endphp
-    <tr class="fn-row"
+    <tr class="fn-row {{ $anyOff ? 'fn-row-notifoff' : '' }}"
         data-member-id="{{ $m->id }}"
         data-type="{{ $m->type }}"
         data-balance-neg="{{ $balanceNeg }}"
         data-whitelisted="{{ $m->whitelisted ? 1 : 0 }}"
         data-interrupted="{{ $m->interrupted ? 1 : 0 }}"
+        data-notif-off="{{ $anyOff ? 1 : 0 }}"
+        data-notif-redir-off="{{ $notifRedirOff ? 1 : 0 }}"
+        data-notif-email-off="{{ $notifEmailOff ? 1 : 0 }}"
+        data-notif-sms-off="{{ $notifSmsOff ? 1 : 0 }}"
         data-email-contacts="{{ (int) $m->email_contacts_count }}"
         data-phone-contacts="{{ (int) $m->phone_contacts_count }}">
         <td style="text-align:left">
@@ -194,6 +215,17 @@
                 <span class="m-tag m-tag-green">Ano</span>
             @else
                 <span style="color:#aaa">—</span>
+            @endif
+        </td>
+        <td style="text-align:center;white-space:nowrap">
+            @if(!$anyOff)
+                <span style="color:#aaa">—</span>
+            @else
+                <span title="Tyto kanály člen odmítl">
+                    @if($notifRedirOff) <span class="m-tag m-tag-amber" style="font-size:11px">⊘ redir</span> @endif
+                    @if($notifEmailOff) <span class="m-tag m-tag-amber" style="font-size:11px">⊘ e-mail</span> @endif
+                    @if($notifSmsOff)   <span class="m-tag m-tag-amber" style="font-size:11px">⊘ SMS</span> @endif
+                </span>
             @endif
         </td>
         @if($message->text)
@@ -244,6 +276,7 @@
     var fBalance     = document.getElementById('filter-balance');
     var fWhitelist   = document.getElementById('filter-whitelist');
     var fInterrupted = document.getElementById('filter-interrupted');
+    var fNotifOff    = document.getElementById('filter-notif-off');
     var fCount       = document.getElementById('filter-count');
     var fClear       = document.getElementById('filter-clear');
 
@@ -252,11 +285,13 @@
         var b = fBalance?.value || '';
         var w = fWhitelist?.value || '';
         var i = fInterrupted?.value || '';
+        var n = fNotifOff?.value || '';
         if (t !== '' && tr.dataset.type !== t) return false;
         if (b === 'neg' && tr.dataset.balanceNeg !== '1') return false;
         if (b === 'pos' && tr.dataset.balanceNeg !== '0') return false;
         if (w !== '' && tr.dataset.whitelisted !== w) return false;
         if (i !== '' && tr.dataset.interrupted !== i) return false;
+        if (n !== '' && tr.dataset.notifOff !== n) return false;
         return true;
     }
 
@@ -270,11 +305,11 @@
         if (fCount) fCount.textContent = visible;
     }
 
-    [fType, fBalance, fWhitelist, fInterrupted].forEach(function (el) {
+    [fType, fBalance, fWhitelist, fInterrupted, fNotifOff].forEach(function (el) {
         el?.addEventListener('change', applyFilterVisibility);
     });
     fClear?.addEventListener('click', function () {
-        [fType, fBalance, fWhitelist, fInterrupted].forEach(function (el) { if (el) el.value = ''; });
+        [fType, fBalance, fWhitelist, fInterrupted, fNotifOff].forEach(function (el) { if (el) el.value = ''; });
         applyFilterVisibility();
     });
 
@@ -321,6 +356,7 @@
             redirDMembers: 0,
             emailMembers:  0, emailMessages: 0,
             smsMembers:    0, smsMessages:   0,
+            optOutRedir:   0, optOutEmail:   0, optOutSms: 0,
         };
         document.querySelectorAll('.fn-row').forEach(function (tr) {
             var redir = parseInt(tr.querySelector('.fn-redir')?.value || '0', 10);
@@ -329,15 +365,20 @@
             var emailContacts = parseInt(tr.dataset.emailContacts || '0', 10);
             var phoneContacts = parseInt(tr.dataset.phoneContacts || '0', 10);
 
-            if (redir === ACTIVATE)   counts.redirMembers++;
+            if (redir === ACTIVATE) {
+                counts.redirMembers++;
+                if (tr.dataset.notifRedirOff === '1') counts.optOutRedir++;
+            }
             if (redir === DEACTIVATE) counts.redirDMembers++;
             if (email === ACTIVATE) {
                 counts.emailMembers++;
                 counts.emailMessages += emailContacts;
+                if (tr.dataset.notifEmailOff === '1') counts.optOutEmail++;
             }
             if (sms === ACTIVATE) {
                 counts.smsMembers++;
                 counts.smsMessages += phoneContacts;
+                if (tr.dataset.notifSmsOff === '1') counts.optOutSms++;
             }
         });
 
@@ -356,6 +397,14 @@
         }
         if (counts.smsMembers) {
             lines.push('• Odeslat SMS:     ' + counts.smsMessages + ' zpráv (' + counts.smsMembers + ' členů)');
+        }
+        var optOutTotal = counts.optOutRedir + counts.optOutEmail + counts.optOutSms;
+        if (optOutTotal > 0) {
+            lines.push('');
+            lines.push('⚠ POZOR: u některých členů kanál odhlášen:');
+            if (counts.optOutRedir) lines.push('   • Přesměrování: ' + counts.optOutRedir + ' členů odhlásilo');
+            if (counts.optOutEmail) lines.push('   • E-mail:        ' + counts.optOutEmail + ' členů odhlásilo');
+            if (counts.optOutSms)   lines.push('   • SMS:           ' + counts.optOutSms + ' členů odhlásilo');
         }
         lines.push('');
         lines.push('E-maily a SMS půjdou do fronty a budou odesílány po dávkách (default 100/min).');

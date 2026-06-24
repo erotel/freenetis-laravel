@@ -26,14 +26,20 @@ class Member extends Model
         'locked',
         'speed_class_id',
         'allowed_subnets_count',
+        'notification_by_redirection',
+        'notification_by_email',
+        'notification_by_sms',
     ];
 
     const ASSOCIATION = 1;
 
     protected $casts = [
-        'type'         => 'integer',
-        'registration' => 'boolean',
-        'locked'       => 'boolean',
+        'type'                        => 'integer',
+        'registration'                => 'boolean',
+        'locked'                      => 'boolean',
+        'notification_by_redirection' => 'boolean',
+        'notification_by_email'       => 'boolean',
+        'notification_by_sms'         => 'boolean',
     ];
 
     public static function typeLabels(): array

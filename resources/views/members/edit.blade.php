@@ -151,6 +151,30 @@
             @error('registration') <div class="m-form-hint" style="color:#c0392b">{{ $message }}</div> @enderror
         </div>
     </div>
+    <div class="m-form-group">
+        <label class="m-form-label">Příjem oznámení</label>
+        <div class="m-form-hint" style="margin-bottom:6px">Pokud člen nechce dostávat upozornění daným kanálem, odškrtni.</div>
+        <div style="display:flex;gap:18px;flex-wrap:wrap">
+            <label style="display:inline-flex;gap:6px;align-items:center;cursor:pointer">
+                <input type="hidden" name="notification_by_redirection" value="0">
+                <input type="checkbox" name="notification_by_redirection" value="1"
+                       @checked(old('notification_by_redirection', $member->notification_by_redirection))>
+                Přesměrování (redirect)
+            </label>
+            <label style="display:inline-flex;gap:6px;align-items:center;cursor:pointer">
+                <input type="hidden" name="notification_by_email" value="0">
+                <input type="checkbox" name="notification_by_email" value="1"
+                       @checked(old('notification_by_email', $member->notification_by_email))>
+                E-mail
+            </label>
+            <label style="display:inline-flex;gap:6px;align-items:center;cursor:pointer">
+                <input type="hidden" name="notification_by_sms" value="0">
+                <input type="checkbox" name="notification_by_sms" value="1"
+                       @checked(old('notification_by_sms', $member->notification_by_sms))>
+                SMS
+            </label>
+        </div>
+    </div>
     @if($canEditQos && $speedClasses->count() > 0)
     <div class="m-form-group">
         <label class="m-form-label" for="speed_class_id">Třída rychlosti (QoS)</label>

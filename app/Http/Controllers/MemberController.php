@@ -513,6 +513,9 @@ class MemberController extends Controller
             'locked'                      => $request->boolean('locked'),
             'registration'                => $request->boolean('registration'),
             'speed_class_id'              => $data['speed_class_id'] ?? null,
+            'notification_by_redirection' => $request->boolean('notification_by_redirection'),
+            'notification_by_email'       => $request->boolean('notification_by_email'),
+            'notification_by_sms'         => $request->boolean('notification_by_sms'),
         ]);
 
         // Update or create address point
@@ -1572,5 +1575,34 @@ class MemberController extends Controller
         $filename = $filePrefix . '-' . $id . '.pdf';
 
         return [$pdfString, $filename];
+    }
+
+    /**
+     * Samoobslužná stránka — uživatel si sám spravuje, kterými kanály chce
+     * dostávat oznámení. Vyžaduje jen auth, žádné ACL.
+     */
+    public function myNotificationsForm()
+    {
+        $memberId = (int) (auth()->user()->member_id ?? 0);
+        $member   = $memberId ? Member::find($memberId) : null;
+        abort_if(!$member, 404, 'Účet není navázán na člena.');
+
+        return view('account.notifications', ['member' => $member]);
+    }
+
+    public function myNotificationsUpdate(Request $request)
+    {
+        $memberId = (int) (auth()->user()->member_id ?? 0);
+        $member   = $memberId ? Member::find($memberId) : null;
+        abort_if(!$member, 404, 'Účet není navázán na člena.');
+
+        $member->update([
+            'notification_by_redirection' => $request->boolean('notification_by_redirection'),
+            'notification_by_email'       => $request->boolean('notification_by_email'),
+            'notification_by_sms'         => $request->boolean('notification_by_sms'),
+        ]);
+
+        return redirect()->route('me.notifications')
+            ->with('success', 'Nastavení oznámení bylo uloženo.');
     }
 }

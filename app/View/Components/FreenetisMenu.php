@@ -23,7 +23,8 @@ class FreenetisMenu extends Component
         if (!$isAdmin) {
             $this->groups = [
                 ['name' => 'home', 'label' => 'Domů', 'items' => [
-                    ['url' => route('members.show', $user?->member_id ?? 1), 'label' => 'Můj profil', 'current' => true, 'count' => null],
+                    ['url' => route('members.show', $user?->member_id ?? 1), 'label' => 'Můj profil', 'current' => $currentPath === 'members/' . ($user?->member_id ?? 1), 'count' => null],
+                    ['url' => route('me.notifications'), 'label' => 'Moje oznámení', 'current' => $currentPath === 'me/notifications', 'count' => null],
                 ]],
             ];
             return;
@@ -68,6 +69,7 @@ class FreenetisMenu extends Component
         $menuGroups = [
             ['name' => 'home', 'label' => 'Domů', 'items' => [
                 ['url' => route('members.show', $user?->member_id ?? 1), 'path' => '', 'label' => 'Můj profil', 'acl' => null],
+                ['url' => route('me.notifications'), 'path' => 'me/notifications', 'label' => 'Moje oznámení', 'acl' => null],
             ]],
             ['name' => 'members', 'label' => 'Uživatelé', 'items' => [
                 // Bývalí (typy 15, 16) jsou v záměrně vyloučeni — admin je najde přes filtr typů.

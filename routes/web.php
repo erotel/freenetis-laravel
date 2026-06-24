@@ -277,6 +277,8 @@ Route::middleware('auth')->group(function () {
     Route::post('members/{id}/end-membership', [MemberController::class, 'endMembership'])->name('members.end-membership.store');
     Route::post('members/{id}/restore', [MemberController::class, 'restore'])->name('members.restore');
     Route::post('members/{id}/restore-interrupt', [MemberController::class, 'restoreInterrupt'])->name('members.restore-interrupt');
+    Route::get ('me/notifications',  [MemberController::class, 'myNotificationsForm'])->name('me.notifications');
+    Route::post('me/notifications',  [MemberController::class, 'myNotificationsUpdate'])->name('me.notifications.update');
     Route::post('members/{id}/approve', [MemberController::class, 'approve'])->name('members.approve');
     Route::get('members', [MemberController::class, 'index'])->name('members.index')
         ->middleware('acl:view_all,Members_Controller,members');

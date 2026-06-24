@@ -104,6 +104,17 @@ class NotificationActivation extends Command
             $smsSent      = 0;
             $ipsRedirect  = 0;
             $ipsDeleted   = 0;
+            $skippedOptOut = ['email' => 0, 'sms' => 0, 'redirect' => 0];
+
+            // Načti opt-out flagy pro všechny aktuální adresáty najednou.
+            // Členové si tohle nastavují přes /me/notifications nebo admin přes edit;
+            // automatický cron musí jejich volbu tvrdě respektovat (na rozdíl od
+            // hromadného UI, kde admin volbu vidí jen jako varování).
+            $memberIds = $members->pluck('id')->all();
+            $optOut    = DB::table('members')
+                ->whereIn('id', $memberIds)
+                ->get(['id', 'notification_by_redirection', 'notification_by_email', 'notification_by_sms'])
+                ->keyBy('id');
 
             // Clean slate před přepsáním redirectu: smažeme všechny existující řádky
             // messages_ip_addresses pro tuto zprávu a o pár řádků níž je naplníme
@@ -119,7 +130,16 @@ class NotificationActivation extends Command
             }
 
             foreach ($members as $member) {
-                if ($doEmail && !empty($member->email)) {
+                $optOutRow   = $optOut[$member->id] ?? null;
+                $memberEmail = !$optOutRow || (int) $optOutRow->notification_by_email;
+                $memberSms   = !$optOutRow || (int) $optOutRow->notification_by_sms;
+                $memberRedir = !$optOutRow || (int) $optOutRow->notification_by_redirection;
+
+                if ($doEmail && !empty($member->email) && !$memberEmail) { $skippedOptOut['email']++; }
+                if ($doSms   && !empty($member->phone) && !$memberSms)   { $skippedOptOut['sms']++; }
+                if ($doRedirect && !$memberRedir)                        { $skippedOptOut['redirect']++; }
+
+                if ($doEmail && !empty($member->email) && $memberEmail) {
                     $subject = ($subjectPrefix ? $subjectPrefix . ' :: ' : '') . $message->name;
                     $body    = Message::substitute(
                         $message->email_text ?? $message->text ?? '',
@@ -135,7 +155,7 @@ class NotificationActivation extends Command
                     $emailsSent++;
                 }
 
-                if ($doSms && !empty($member->phone)) {
+                if ($doSms && !empty($member->phone) && $memberSms) {
                     $text = Message::substitute(
                         $message->sms_text ?? $message->text ?? '',
                         Message::buildPlaceholders((int) $member->id)
@@ -155,7 +175,7 @@ class NotificationActivation extends Command
                     $smsSent++;
                 }
 
-                if ($doRedirect) {
+                if ($doRedirect && $memberRedir) {
                     $ipIds = DB::table('ip_addresses as ip')
                         ->join('ifaces as i', 'i.id', '=', 'ip.iface_id')
                         ->join('devices as d', 'd.id', '=', 'i.device_id')
@@ -188,6 +208,13 @@ class NotificationActivation extends Command
                 }
                 if ($doEmail) $stats[] = "E-mail byl odeslán pro {$emailsSent} e-mailových adres.";
                 if ($doSms)   $stats[] = "SMS zpráva byla odeslána pro {$smsSent} telefonních čísel.";
+                $optOutTotal = $skippedOptOut['email'] + $skippedOptOut['sms'] + $skippedOptOut['redirect'];
+                if ($optOutTotal > 0) {
+                    $stats[] = "Vynecháno kvůli vlastnímu odhlášení člena: "
+                        . "{$skippedOptOut['email']} e-mailů, "
+                        . "{$skippedOptOut['sms']} SMS, "
+                        . "{$skippedOptOut['redirect']} přesměrování.";
+                }
 
                 DB::table('log_queues')->insert([
                     'type'                => 3, // TYPE_INFO

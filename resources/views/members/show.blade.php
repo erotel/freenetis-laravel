@@ -258,6 +258,22 @@
             <span class="m-field-value">{{ $member->registration ? 'ano' : 'ne' }}</span>
         </div>
         <div class="m-field"><span class="m-field-label">Přístup do systému</span><span class="m-field-value">{{ $member->locked ? 'Zamčen' : 'Odemčen' }}</span></div>
+        @php
+            $notifOff = [];
+            if (!$member->notification_by_redirection) $notifOff[] = 'přesměrování';
+            if (!$member->notification_by_email)       $notifOff[] = 'e-mail';
+            if (!$member->notification_by_sms)         $notifOff[] = 'SMS';
+        @endphp
+        <div class="m-field">
+            <span class="m-field-label">Oznámení</span>
+            <span class="m-field-value">
+                @if(empty($notifOff))
+                    <span style="color:#27ae60">✓ všechny kanály aktivní</span>
+                @else
+                    <span style="color:#c0392b" title="Tyto kanály člen odmítl">🔕 vypnuto: {{ implode(', ', $notifOff) }}</span>
+                @endif
+            </span>
+        </div>
         @if($member->payment_blocked)
         <div class="m-field">
             <span class="m-field-label">Blokace platby</span>

@@ -17,6 +17,23 @@ ať lze changelog snadno regenerovat přes `git log vX..vY --oneline`.
 - **Export přihlášky pro čekajícího člena (typ 17)** v member detailu.
   Čekající zákazník (typ 18) přihlášku nevidí — podepisuje elektronickou
   smlouvu jiným tokem.
+- **Obnovení přerušeného členství tlačítkem.** Na detailu člena s aktivním
+  `membership_interrupts` se zobrazí „↻ Obnovit přerušení" — dialog s volbou
+  okamžitě / k zadanému datu. Backend v transakci: `leaving_date=9999-12-31`,
+  `locked=0`, `payment_blocked=0`, ukončí `members_fees` přerušení (`deactivation_date`
+  = effective_date − 1), zruší `end_after_interrupt_end`, smaže `messages_ip_addresses`
+  pro IP daného člena a strhne tarifní poplatek za aktuální měsíc s ohledem na
+  prepaid pravidlo — pokud chybí kredit, nastaví `payment_blocked=1` místo
+  vytvoření záporné položky.
+- **Samoobslužná stránka oznámení `/me/notifications`.** Každý přihlášený
+  uživatel si sám může vypnout kanály (přesměrování / e-mail / SMS). V menu
+  pod „Domů → Moje oznámení". Hodinová cron `notifications:activate` opt-out
+  tvrdě respektuje a vynechané kanály započítá do log_queues.
+- **Správa oznámení v editaci člena + indikátor na detailu.** Admin vidí
+  3 checkboxy v editaci, na detailu badge se seznamem vypnutých kanálů.
+  V hromadných notifikacích nový sloupec „Oznámení" + filtr „Souhlas
+  s oznámením"; odhlášené řádky jsou žlutě podbarvené, submit confirm
+  dialog počítá kolik členů kanál odhlásilo (admin v UI rozhoduje sám).
 
 ### Fixed
 - **Příchozí platba s VS ukončeného člena se už nespáruje** na credit účet
