@@ -16,6 +16,25 @@ class SearchController extends Controller
     // odkaz na plnohodnotný listing (/members, /users, ...) s vlastní paginací.
     const SECTION_LIMIT = 50;
 
+    /**
+     * Sjednotí MAC do `XX:XX:XX:XX:XX:XX` (formát v DB).
+     *
+     * Přijímá běžné varianty výrobců — `50:91:e3:11:29:ad` (DB),
+     * `50-91-e3-11-29-ad` (DCN/Linux), `789a-18e2-05db` (Huawei),
+     * `5091.e3ad.1129` (Cisco), `5091e3ad1129` (raw).
+     *
+     * Vrací null, pokud vstup nevypadá jako celá MAC adresa (12 hex znaků
+     * po odstranění `:.-` a mezer). Částečné dotazy padají na LIKE.
+     */
+    public static function normalizeMac(string $input): ?string
+    {
+        $hex = preg_replace('/[\s:.\-]/', '', $input);
+        if ($hex === null || !preg_match('/^[0-9a-fA-F]{12}$/', $hex)) {
+            return null;
+        }
+        return strtoupper(implode(':', str_split($hex, 2)));
+    }
+
     public function index(Request $request)
     {
         $query   = trim($request->get('q', ''));
@@ -26,11 +45,14 @@ class SearchController extends Controller
             return view('search.index', compact('query', 'results', 'totals'));
         }
 
-        $like   = '%' . $query . '%';
+        $like    = '%' . $query . '%';
         // Tokenizace pro multi-slovo dotazy ("zatloukal martin" → najdi i "Martin Zatloukal").
         // Každý token musí matchnout (AND) v daném name fieldu — pořadí slov je jedno.
-        $tokens = preg_split('/\s+/', $query, -1, PREG_SPLIT_NO_EMPTY);
-        $multi  = count($tokens) > 1;
+        $tokens  = preg_split('/\s+/', $query, -1, PREG_SPLIT_NO_EMPTY);
+        $multi   = count($tokens) > 1;
+        // Pokud vstup vypadá jako celá MAC v jiném formátu (DCN `-`, Huawei `....`),
+        // přidáme exact-match na sjednocený tvar `XX:XX:XX:XX:XX:XX`, jak je uložen v DB.
+        $macNorm = self::normalizeMac($query);
 
         // MEMBERS - requires view_all on members
         if ($this->can('view_all', 'Members_Controller', 'members')) {
@@ -121,7 +143,7 @@ class SearchController extends Controller
                 ->leftJoin('address_points as ap', 'ap.id', '=', 'd.address_point_id')
                 ->leftJoin('streets as s', 's.id', '=', 'ap.street_id')
                 ->leftJoin('towns as t', 't.id', '=', 'ap.town_id')
-                ->where(function($q) use ($like, $tokens, $multi) {
+                ->where(function($q) use ($like, $tokens, $multi, $macNorm) {
                     $q->where('d.name', 'LIKE', $like)
                       ->orWhere('i.mac', 'LIKE', $like)
                       ->orWhere('ip.ip_address', 'LIKE', $like)
@@ -129,6 +151,7 @@ class SearchController extends Controller
                       ->orWhere('t.town', 'LIKE', $like)
                       ->orWhere('s.street', 'LIKE', $like)
                       ->orWhere('ap.street_number', 'LIKE', $like);
+                    if ($macNorm !== null) $q->orWhere('i.mac', '=', $macNorm);
                     // Multi-token: hledá kombinaci ulice + č.p. + obec (např.
                     // „Stanislava Manharda 19 Prostějov") přes composite.
                     if ($multi) {
@@ -186,6 +209,7 @@ class SearchController extends Controller
         $like    = '%' . $query . '%';
         $tokens  = preg_split('/\s+/', $query, -1, PREG_SPLIT_NO_EMPTY);
         $multi   = count($tokens) > 1;
+        $macNorm = self::normalizeMac($query);
         $results = [];
 
         // Members
@@ -262,7 +286,7 @@ class SearchController extends Controller
                 ->leftJoin('address_points as ap', 'ap.id', '=', 'd.address_point_id')
                 ->leftJoin('streets as s', 's.id', '=', 'ap.street_id')
                 ->leftJoin('towns as t', 't.id', '=', 'ap.town_id')
-                ->where(function($q) use ($like) {
+                ->where(function($q) use ($like, $macNorm) {
                     $q->where('d.name', 'LIKE', $like)
                       ->orWhere('i.mac', 'LIKE', $like)
                       ->orWhere('ip.ip_address', 'LIKE', $like)
@@ -270,6 +294,7 @@ class SearchController extends Controller
                       ->orWhere('t.town', 'LIKE', $like)
                       ->orWhere('s.street', 'LIKE', $like)
                       ->orWhere('ap.street_number', 'LIKE', $like);
+                    if ($macNorm !== null) $q->orWhere('i.mac', '=', $macNorm);
                 })
                 ->select('d.id', 'd.name as device_name', 'i.mac', 'ip.ip_address', 'ip6.ip_address as ipv6_address', 'm.id as member_id', 'm.name as member_name')
                 ->distinct()->limit(5)->get();

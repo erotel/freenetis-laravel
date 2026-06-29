@@ -34,6 +34,22 @@ ať lze changelog snadno regenerovat přes `git log vX..vY --oneline`.
   V hromadných notifikacích nový sloupec „Oznámení" + filtr „Souhlas
   s oznámením"; odhlášené řádky jsou žlutě podbarvené, submit confirm
   dialog počítá kolik členů kanál odhlásilo (admin v UI rozhoduje sám).
+- **Vyhledávání akceptuje MAC adresu v běžných formátech výrobců.**
+  `SearchController::normalizeMac()` strhne `:`, `-`, `.` a mezery; pokud
+  zbyde přesně 12 hex znaků, převede na kanonický `XX:XX:XX:XX:XX:XX`
+  uppercase (formát v DB). Pokrývá DCN/Linux `50-91-e3-11-29-ad`,
+  Huawei `789a-18e2-05db`, Cisco `5091.e3ad.1129`, raw `5091e3ad1129`
+  i kombinace. Pro neúplný vstup vrátí null a padne na původní LIKE.
+  Použito v `/search` stránce i v ajax autocomplete.
+- **Ukončení s vratkou — auto-odpočet budoucích srážek tarifu.** Když admin
+  zadá `leaving_date` v budoucnu, cron `fees:deduct` ještě stihne strhnout
+  tarif za každý deduct_day, který padne před datum vystoupení (`WHERE
+  leaving_date > deduct_date`). Dialog teď spočítá kolik takových srážek
+  nastane, automaticky o ně sníží předvyplněnou částku vratky a zobrazí
+  žluté upozornění s rozpisem (`balance − N × monthlyFee`). Bere v úvahu
+  individuální `members_fees` override (s prioritou), default `default_fee_member_type_<X>`,
+  clamp deduct_day na poslední den v měsíci i jestli už dnešní cron proběhl.
+  Pokud admin částku ručně upraví, JS přestane přepisovat.
 
 ### Fixed
 - **Příchozí platba s VS ukončeného člena se už nespáruje** na credit účet

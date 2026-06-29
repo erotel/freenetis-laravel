@@ -52,6 +52,8 @@
             <input class="m-form-input" type="text" id="refund_amount" name="refund_amount"
                    value="{{ old('refund_amount', number_format((float)$balance, 2, '.', '')) }}" style="max-width:140px">
             <div class="m-form-hint">Aktuální zůstatek: {{ number_format((float)$balance, 2, ',', ' ') }} Kč</div>
+            <div class="m-form-hint" id="refund-deduct-hint"
+                 style="display:none;color:#b87333;background:#fff8e1;border-left:3px solid #e8651a;padding:6px 10px;margin-top:6px"></div>
             @error('refund_amount') <div class="m-form-hint" style="color:#c0392b">{{ $message }}</div> @enderror
         </div>
     </div>
@@ -67,11 +69,95 @@
 </form>
 
 <script>
+const RF_BALANCE       = {{ (float) $balance }};
+const RF_MONTHLY_FEE   = {{ (float) ($monthlyFee ?? 0) }};
+const RF_DEDUCT_DAY    = {{ (int) ($deductDay ?? 1) }};
+const RF_TODAY         = '{{ $today }}';
+const RF_TODAY_DEDUCTED= {{ ($todayDeducted ?? false) ? 'true' : 'false' }};
+
+function rfParseDate(s) {
+    if (!s) return null;
+    const [y,m,d] = s.split('-').map(Number);
+    if (!y || !m || !d) return null;
+    return new Date(y, m-1, d);
+}
+function rfFmtCzk(v) {
+    return new Intl.NumberFormat('cs-CZ', {minimumFractionDigits: 0, maximumFractionDigits: 2}).format(v);
+}
+
+// Spočítej kolik srážek tarifu cron stihne před vystoupením.
+// Cron strhne v deduct_day pokud (m.leaving_date > deduct_date), takže počítáme
+// všechny deduct_days D kde today ≤ D < leaving_date a vyřazujeme dnešní pokud
+// už proběhl.
+function rfFutureDeductCount(leavingStr) {
+    const leaving = rfParseDate(leavingStr);
+    const today   = rfParseDate(RF_TODAY);
+    if (!leaving || !today || leaving <= today) return 0;
+    let count = 0;
+    // Iteruj měsíc po měsíci od dnešního měsíce do měsíce vystoupení
+    let cursor = new Date(today.getFullYear(), today.getMonth(), 1);
+    const end  = new Date(leaving.getFullYear(), leaving.getMonth(), 1);
+    while (cursor <= end) {
+        const lastDay = new Date(cursor.getFullYear(), cursor.getMonth()+1, 0).getDate();
+        const effDay  = Math.min(RF_DEDUCT_DAY, lastDay);
+        const deductDate = new Date(cursor.getFullYear(), cursor.getMonth(), effDay);
+        if (deductDate >= today && deductDate < leaving) {
+            // dnes? skip pokud už proběhl
+            const isToday = deductDate.getTime() === today.getTime();
+            if (!(isToday && RF_TODAY_DEDUCTED)) count++;
+        }
+        cursor = new Date(cursor.getFullYear(), cursor.getMonth()+1, 1);
+    }
+    return count;
+}
+
+function rfRecompute() {
+    const leavingStr = document.getElementById('leaving_date').value;
+    const hint       = document.getElementById('refund-deduct-hint');
+    const input      = document.getElementById('refund_amount');
+    if (!input) return;
+
+    const count = rfFutureDeductCount(leavingStr);
+    if (count <= 0 || RF_MONTHLY_FEE <= 0) {
+        hint.style.display = 'none';
+        // Bez budoucí srážky zpět na plný zůstatek (jen pokud uživatel ručně neupravil)
+        if (input.dataset.autofilled !== '0') {
+            input.value = RF_BALANCE.toFixed(2);
+            input.dataset.autofilled = '1';
+        }
+        return;
+    }
+
+    const reduction = count * RF_MONTHLY_FEE;
+    const refund    = Math.max(0, RF_BALANCE - reduction);
+
+    if (input.dataset.autofilled !== '0') {
+        input.value = refund.toFixed(2);
+        input.dataset.autofilled = '1';
+    }
+    hint.innerHTML =
+        '⚠️ Datum vystoupení překračuje ' + count + '× automatickou srážku tarifu. ' +
+        'Z vratky odečteno <strong>' + rfFmtCzk(reduction) + ' Kč</strong> ' +
+        '(' + count + ' × ' + rfFmtCzk(RF_MONTHLY_FEE) + ' Kč) — ' +
+        'cron stihne strhnout tarif před datem vystoupení a vy byste jinak vrátili ' +
+        'více než kolik na účtu reálně zbude. ' +
+        'Vratka: ' + rfFmtCzk(RF_BALANCE) + ' − ' + rfFmtCzk(reduction) + ' = <strong>' +
+        rfFmtCzk(refund) + ' Kč</strong>.';
+    hint.style.display = '';
+}
+
 function toggleRefund(mode) {
     const show = mode === '3';
     document.getElementById('refund-row').style.display = show ? '' : 'none';
+    if (show) rfRecompute();
 }
-document.addEventListener('DOMContentLoaded', () => toggleRefund(document.getElementById('end_mode').value));
+
+document.addEventListener('DOMContentLoaded', () => {
+    toggleRefund(document.getElementById('end_mode').value);
+    document.getElementById('leaving_date').addEventListener('change', rfRecompute);
+    const ref = document.getElementById('refund_amount');
+    if (ref) ref.addEventListener('input', () => { ref.dataset.autofilled = '0'; });
+});
 </script>
 </div>
 @endsection

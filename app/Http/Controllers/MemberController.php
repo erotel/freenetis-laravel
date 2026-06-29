@@ -752,11 +752,46 @@ class MemberController extends Controller
             ? trim($bankAccount->account_nr) . '/' . trim($bankAccount->bank_nr)
             : '';
 
+        // Pro budoucí leaving_date cron `fees:deduct` stihne strhnout tarif za každý
+        // deduct_day, který padne před datum vystoupení (where leaving_date > deduct_date).
+        // Předpočítáme měsíční tarif a v JS pak rebalanc refund_amount podle vybraného data,
+        // ať admin nevrátí peníze, které DB stejně příští srážka zruší.
+        $monthlyFee = (float) DB::table('members_fees AS mf')
+            ->join('fees AS f', 'f.id', '=', 'mf.fee_id')
+            ->join('enum_types AS et', 'et.id', '=', 'f.type_id')
+            ->whereRaw('LOWER(et.value) = ?', ['regular member fee'])
+            ->where('mf.member_id', $id)
+            ->whereDate('mf.activation_date', '<=', now())
+            ->whereDate('mf.deactivation_date', '>=', now())
+            ->orderBy('mf.priority')
+            ->value('f.fee');
+        if ($monthlyFee <= 0) {
+            $defaultFeeId = (int) \App\Models\Setting::get('default_fee_member_type_' . $member->type, 0);
+            $monthlyFee   = $defaultFeeId
+                ? (float) DB::table('fees')->where('id', $defaultFeeId)->value('fee')
+                : 0.0;
+        }
+
+        $deductDay = (int) \App\Models\Setting::get('deduct_day', 26);
+
+        // Detekce zda už dnešní cron běžel (transfer s type=1 a datetime=dnes na účtu
+        // tohoto člena). Pokud běžel a dnes je deduct_day, nepočítáme ho do budoucích srážek.
+        $todayDeducted = $account
+            ? DB::table('transfers')
+                ->where('origin_id', $account->id)
+                ->where('type', 1)
+                ->whereDate('datetime', now()->toDateString())
+                ->exists()
+            : false;
+
         return view('members.end_membership', [
             'member'        => $member,
             'balance'       => $account?->balance ?? 0,
             'refundAccount' => $refundAccount,
             'today'         => now()->format('Y-m-d'),
+            'monthlyFee'    => $monthlyFee,
+            'deductDay'     => $deductDay,
+            'todayDeducted' => $todayDeducted,
         ]);
     }
 
