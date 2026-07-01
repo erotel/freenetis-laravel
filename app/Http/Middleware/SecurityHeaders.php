@@ -15,13 +15,31 @@ use Symfony\Component\HttpFoundation\Response;
  */
 class SecurityHeaders
 {
+    /**
+     * Routy které smí být embed v admin iframe (typicky přes subdoménu).
+     * Ochrana těchto stránek stojí na jednorázovém HMAC podpisovém tokenu
+     * (kontrolovaném v PublicSignController::resolveContract), ne na X-Frame-Options.
+     */
+    private const FRAMEABLE_ROUTES = [
+        'sign.show',
+        'sign.preview',
+        'sign.addon.show',
+        'sign.addon.preview',
+    ];
+
     public function handle(Request $request, Closure $next): Response
     {
         $response = $next($request);
 
         $response->headers->set('X-Content-Type-Options', 'nosniff');
-        $response->headers->set('X-Frame-Options', 'SAMEORIGIN');
         $response->headers->set('Referrer-Policy', 'strict-origin-when-cross-origin');
+
+        // X-Frame-Options: SAMEORIGIN je default; sign.* routy jsou výjimka —
+        // musí jít vnořit do admin detailu smlouvy (typicky cross-subdomain).
+        $routeName = $request->route()?->getName();
+        if (!in_array($routeName, self::FRAMEABLE_ROUTES, true)) {
+            $response->headers->set('X-Frame-Options', 'SAMEORIGIN');
+        }
 
         if ($request->secure()) {
             $response->headers->set(

@@ -104,7 +104,8 @@ class NotificationActivation extends Command
             $smsSent      = 0;
             $ipsRedirect  = 0;
             $ipsDeleted   = 0;
-            $skippedOptOut = ['email' => 0, 'sms' => 0, 'redirect' => 0];
+            $skippedOptOut    = ['email' => 0, 'sms' => 0, 'redirect' => 0];
+            $skippedWhitelist = 0;
 
             // Načti opt-out flagy pro všechny aktuální adresáty najednou.
             // Členové si tohle nastavují přes /me/notifications nebo admin přes edit;
@@ -115,6 +116,20 @@ class NotificationActivation extends Command
                 ->whereIn('id', $memberIds)
                 ->get(['id', 'notification_by_redirection', 'notification_by_email', 'notification_by_sms'])
                 ->keyBy('id');
+
+            // Bílá listina — admin může individuálně vyjmout člena z auto-přesměrování
+            // (typicky když ručně řeší platbu / poskytl odklad). Pokud má message
+            // ignore_whitelist=1 (kritické zprávy), listinu ignorujeme. Konzistentní
+            // s NotificationController::membersNotify.
+            $whitelisted = (int) ($message->ignore_whitelist ?? 0) === 1
+                ? []
+                : DB::table('members_whitelists')
+                    ->whereIn('member_id', $memberIds)
+                    ->where('since', '<=', $today)
+                    ->where('until', '>=', $today)
+                    ->pluck('member_id')
+                    ->flip()
+                    ->toArray();
 
             // Clean slate před přepsáním redirectu: smažeme všechny existující řádky
             // messages_ip_addresses pro tuto zprávu a o pár řádků níž je naplníme
@@ -176,6 +191,15 @@ class NotificationActivation extends Command
                 }
 
                 if ($doRedirect && $memberRedir) {
+                    // Bílá listina má přednost před dluhem: whitelistovanému členovi
+                    // se přesměrování nezapíše, i když má nedoplatek. Zprávy s
+                    // ignore_whitelist=1 tenhle check obchází (v $whitelisted už
+                    // v takovém případě není žádný záznam — viz načítání výš).
+                    if (isset($whitelisted[$member->id])) {
+                        $skippedWhitelist++;
+                        continue;
+                    }
+
                     $ipIds = DB::table('ip_addresses as ip')
                         ->join('ifaces as i', 'i.id', '=', 'ip.iface_id')
                         ->join('devices as d', 'd.id', '=', 'i.device_id')
@@ -214,6 +238,9 @@ class NotificationActivation extends Command
                         . "{$skippedOptOut['email']} e-mailů, "
                         . "{$skippedOptOut['sms']} SMS, "
                         . "{$skippedOptOut['redirect']} přesměrování.";
+                }
+                if ($skippedWhitelist > 0) {
+                    $stats[] = "Přesměrování vynecháno kvůli bílé listině: {$skippedWhitelist} členů.";
                 }
 
                 DB::table('log_queues')->insert([

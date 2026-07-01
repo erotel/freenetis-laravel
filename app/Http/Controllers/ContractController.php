@@ -84,6 +84,59 @@ class ContractController extends Controller
             ->with('success', 'Smlouva ' . $contract->contract_no . ' byla vytvořena.');
     }
 
+    public function refresh(int $memberId): RedirectResponse
+    {
+        abort_unless($this->can('edit_all'), 403);
+
+        $contract = $this->contracts->getByMemberId($memberId);
+        if (!$contract) {
+            return redirect()->route('members.show', $memberId)
+                ->with('error', 'Smlouva nenalezena.');
+        }
+        if ($contract->status !== 'draft') {
+            return redirect()->route('contracts.show', $memberId)
+                ->with('error', 'Aktualizace údajů je možná jen u smlouvy ve stavu Návrh. '
+                    . 'V ostatních stavech smlouvu nejdřív zrušte a vytvořte novou.');
+        }
+
+        $ok = $this->contracts->refreshPartyFromMember($contract);
+
+        return redirect()->route('contracts.show', $memberId)->with(
+            $ok ? 'success' : 'error',
+            $ok
+                ? 'Údaje ve smlouvě byly aktualizovány podle aktuálních údajů člena.'
+                : 'Údaje se nepodařilo aktualizovat.'
+        );
+    }
+
+    public function cancel(int $memberId, \Illuminate\Http\Request $request): RedirectResponse
+    {
+        abort_unless($this->can('edit_all'), 403);
+
+        $contract = $this->contracts->getByMemberId($memberId);
+        if (!$contract) {
+            return redirect()->route('members.show', $memberId)
+                ->with('error', 'Smlouva nenalezena.');
+        }
+
+        if (!in_array($contract->status, ['draft', 'otp_sent', 'otp_verified'], true)) {
+            return redirect()->route('contracts.show', $memberId)
+                ->with('error', 'Zrušit lze pouze nepodepsanou smlouvu.');
+        }
+
+        $ok = $this->contracts->cancelContract(
+            $contract,
+            (string) $request->input('reason', '') ?: null
+        );
+
+        return redirect()->route('contracts.show', $memberId)->with(
+            $ok ? 'success' : 'error',
+            $ok
+                ? 'Smlouva byla zrušena. Můžete vytvořit novou.'
+                : 'Smlouvu se nepodařilo zrušit.'
+        );
+    }
+
     public function sendLink(int $memberId): RedirectResponse
     {
         abort_unless($this->can('edit_all'), 403);

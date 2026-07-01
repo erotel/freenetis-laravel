@@ -48,6 +48,25 @@
         <button type="submit" class="m-btn">Odeslat odkaz pro podpis</button>
     </form>
     @endif
+    @if($canEdit && $contract->status === 'draft')
+    <form method="POST" action="{{ route('contracts.refresh', $member->id) }}" style="display:inline">
+        @csrf
+        <button type="submit" class="m-btn"
+                onclick="return confirm('Přepsat údaje ve smlouvě aktuálními údaji člena (adresa, kontakty, VS, tarif)?')"
+                title="Přepsat snapshot v smlouvě aktuálními údaji ze člena (např. po opravě čísla popisného)">
+            ↻ Aktualizovat údaje ze člena
+        </button>
+    </form>
+    @endif
+    @if($canEdit && in_array($contract->status, ['draft','otp_sent','otp_verified']))
+    <form method="POST" action="{{ route('contracts.cancel', $member->id) }}" style="display:inline">
+        @csrf
+        <button type="submit" class="m-btn m-btn-danger"
+                onclick="return confirm('Zrušit nepodepsanou smlouvu {{ addslashes($contract->contract_no) }}? Poté můžete vytvořit novou.')">
+            ✕ Zrušit smlouvu
+        </button>
+    </form>
+    @endif
     @if($contract->status === 'signed' && $contract->pdf_path)
     <a class="m-btn" href="{{ route('contracts.download', $contract->id) }}">Stáhnout PDF</a>
     @endif
@@ -141,10 +160,14 @@
 @if(in_array($contract->status, ['draft','otp_sent','otp_verified']) && session('sign_link'))
 <div class="m-section">Podpisový formulář</div>
 <div class="m-card" style="margin-bottom:16px;padding:0">
+    {{-- Sandbox záměrně bez: obsah iframu je náš vlastní sign SPA (contracts.sign),
+         embed same-origin. Sandbox s `allow-same-origin` + `allow-scripts` triggeroval
+         v Chromu blokaci vnitřního PDF <iframe> (preview) chybou "load from frame with
+         URL chrome-error://chromewebdata/". Ochrana adminské stránky proti clickjackingu
+         zůstává přes X-Frame-Options SAMEORIGIN default v SecurityHeaders. --}}
     <iframe src="{{ session('sign_link') }}"
             style="width:100%;height:600px;border:none;border-radius:6px"
-            title="Podpis smlouvy"
-            sandbox="allow-forms allow-scripts allow-same-origin allow-top-navigation">
+            title="Podpis smlouvy">
     </iframe>
 </div>
 @endif

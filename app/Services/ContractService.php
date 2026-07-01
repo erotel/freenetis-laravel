@@ -55,7 +55,116 @@ class ContractService
     public function createContract(Member $member): Contract
     {
         $contractNo = $this->generateContractNo();
+        $partyData  = $this->buildPartyData($member);
 
+        $contract = Contract::create([
+            'member_id'   => $member->id,
+            'contract_no' => $contractNo,
+            'status'      => 'draft',
+            'phone'       => $partyData['phone'],
+        ]);
+
+        ContractParty::create($partyData + ['contract_id' => $contract->id]);
+
+        ContractEvent::create([
+            'contract_id' => $contract->id,
+            'event'       => 'created',
+            'meta_json'   => json_encode([
+                'member_id' => $member->id,
+                'by'        => 'admin',
+                'login'     => auth()->user()?->login,
+            ]),
+        ]);
+
+        return $contract;
+    }
+
+    /**
+     * Přepiš snapshot v `contract_parties` živými daty ze `members`. Použití: admin
+     * najde chybu v údajích (např. číslo popisné), opraví v editaci člena a chce,
+     * ať se to promítne i do nepodepsané smlouvy — bez ztráty `contract_no`.
+     * Bezpečné jen pro `draft` (v otp_sent/otp_verified už zákazník viděl staré PDF
+     * / dostal kód, admin má smlouvu zrušit a vytvořit novou).
+     */
+    public function refreshPartyFromMember(Contract $contract): bool
+    {
+        if ($contract->status !== 'draft') {
+            return false;
+        }
+
+        $member = Member::with([
+            'users.contacts.enumType',
+            'accounts.variableSymbols',
+            'addressPoint.street',
+            'addressPoint.town',
+            'speedClass',
+        ])->find($contract->member_id);
+
+        if (!$member) return false;
+
+        $party = ContractParty::where('contract_id', $contract->id)->orderByDesc('id')->first();
+        if (!$party) return false;
+
+        $newData = $this->buildPartyData($member);
+        $oldData = $party->only(array_keys($newData));
+
+        $diff = [];
+        foreach ($newData as $k => $v) {
+            if ((string) ($oldData[$k] ?? '') !== (string) $v) {
+                $diff[$k] = ['from' => $oldData[$k] ?? null, 'to' => $v];
+            }
+        }
+
+        $party->update($newData);
+
+        // phone je duplikovaný i na contracts (používá se pro OTP flow) — synchronizovat
+        if (($contract->phone ?? '') !== $newData['phone']) {
+            $contract->update(['phone' => $newData['phone']]);
+        }
+
+        ContractEvent::create([
+            'contract_id' => $contract->id,
+            'event'       => 'party_refreshed',
+            'meta_json'   => json_encode([
+                'by'    => auth()->user()?->login,
+                'diff'  => $diff,
+            ], JSON_UNESCAPED_UNICODE),
+        ]);
+
+        return true;
+    }
+
+    /**
+     * Zrušení nepodepsané smlouvy (draft/otp_sent/otp_verified). Po zrušení
+     * může admin vytvořit novou smlouvu — createContract() explicitně povoluje
+     * navazování na `canceled` (viz ContractController::create).
+     */
+    public function cancelContract(Contract $contract, ?string $reason = null): bool
+    {
+        if (!in_array($contract->status, ['draft', 'otp_sent', 'otp_verified'], true)) {
+            return false;
+        }
+
+        $contract->update(['status' => 'canceled']);
+
+        ContractEvent::create([
+            'contract_id' => $contract->id,
+            'event'       => 'canceled',
+            'meta_json'   => json_encode([
+                'by'     => auth()->user()?->login,
+                'reason' => $reason,
+            ], JSON_UNESCAPED_UNICODE),
+        ]);
+
+        return true;
+    }
+
+    /**
+     * Snapshot z živých dat člena → pole pro contract_parties (bez `contract_id`).
+     * Používá createContract() i refreshPartyFromMember().
+     */
+    private function buildPartyData(Member $member): array
+    {
         $mainUser = $member->users()->where('type', User::MAIN_USER)->first();
         [$phone, $email] = $this->extractContacts($mainUser);
 
@@ -74,13 +183,6 @@ class ContractService
 
         $speedName = $member->speedClass?->name ?? '';
 
-        $contract = Contract::create([
-            'member_id'   => $member->id,
-            'contract_no' => $contractNo,
-            'status'      => 'draft',
-            'phone'       => $phone,
-        ]);
-
         // Birthday brát z users.birthday hlavního uživatele — PDF má fallback
         // 'ico → birthday', takže bez něj zůstává buňka u fyzických osob prázdná.
         $birthday = $mainUser?->birthday;
@@ -90,8 +192,7 @@ class ContractService
         $birthday = (is_string($birthday) && $birthday !== '' && $birthday !== '0000-00-00')
             ? $birthday : null;
 
-        ContractParty::create([
-            'contract_id'          => $contract->id,
+        return [
             'full_name'            => $member->name,
             'street'               => $streetFull,
             'town'                 => $town,
@@ -108,19 +209,7 @@ class ContractService
             'price'                => 320.00,
             'phone'                => $phone,
             'email'                => $email,
-        ]);
-
-        ContractEvent::create([
-            'contract_id' => $contract->id,
-            'event'       => 'created',
-            'meta_json'   => json_encode([
-                'member_id' => $member->id,
-                'by'        => 'admin',
-                'login'     => auth()->user()?->login,
-            ]),
-        ]);
-
-        return $contract;
+        ];
     }
 
     public function issueAccessLink(int $contractId): array

@@ -686,6 +686,8 @@ Route::middleware('auth')->group(function () {
     Route::get('contracts',                              [ContractController::class, 'index'])->name('contracts.index');
     Route::get('members/{id}/contract',                  [ContractController::class, 'show'])->name('contracts.show');
     Route::post('members/{id}/contract',                 [ContractController::class, 'create'])->name('contracts.create');
+    Route::post('members/{id}/contract/refresh',         [ContractController::class, 'refresh'])->name('contracts.refresh');
+    Route::post('members/{id}/contract/cancel',          [ContractController::class, 'cancel'])->name('contracts.cancel');
     Route::post('members/{id}/contract/send-link',       [ContractController::class, 'sendLink'])->name('contracts.send-link');
     Route::get('contracts/{id}/download',                [ContractController::class, 'download'])->name('contracts.download');
     Route::post('members/{id}/contract/addon',           [ContractController::class, 'createAddon'])->name('contracts.addon.create');
