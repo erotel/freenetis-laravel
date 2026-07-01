@@ -6,7 +6,9 @@ use App\Models\Contract;
 use App\Models\Member;
 use App\Models\User;
 use App\Services\ContractService;
+use App\Services\Contracts\PdfService;
 use Illuminate\Http\RedirectResponse;
+use Illuminate\Http\Response;
 use Illuminate\View\View;
 use Symfony\Component\HttpFoundation\BinaryFileResponse;
 
@@ -254,6 +256,39 @@ class ContractController extends Controller
 
         return response()->download($path, $filename, [
             'Content-Type' => 'application/pdf',
+        ]);
+    }
+
+    /**
+     * Admin PDF náhled — pro nepodepsanou smlouvu vygeneruje preview PDF podle
+     * aktuálních dat v contract_parties (bez HMAC tokenu, chráněno auth+ACL).
+     * Admin si tak může předem zkontrolovat, jestli je vše OK, ještě než pošle
+     * odkaz zákazníkovi. Pro podepsané smlouvy vrací finální uložené PDF.
+     */
+    public function preview(int $contractId, PdfService $pdf): Response|BinaryFileResponse|RedirectResponse
+    {
+        $contract = Contract::findOrFail($contractId);
+
+        $isOwn = (auth()->user()?->member_id == $contract->member_id);
+        abort_unless($this->can('view_all') || $isOwn, 403);
+
+        if ($contract->status === 'signed') {
+            $path = $this->contracts->pdfPath($contract);
+            if (!$path || !file_exists($path)) {
+                return redirect()->back()->with('error', 'Podepsané PDF není dostupné.');
+            }
+            return response()->file($path, [
+                'Content-Type'        => 'application/pdf',
+                'Content-Disposition' => 'inline; filename="smlouva-' . $contract->contract_no . '.pdf"',
+                'Cache-Control'       => 'no-store',
+            ]);
+        }
+
+        $bytes = $pdf->renderContractPdf($contract, true, request());
+        return response($bytes, 200, [
+            'Content-Type'        => 'application/pdf',
+            'Content-Disposition' => 'inline; filename="smlouva-' . $contract->contract_no . '-nahled.pdf"',
+            'Cache-Control'       => 'no-store',
         ]);
     }
 

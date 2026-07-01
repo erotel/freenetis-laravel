@@ -50,8 +50,36 @@ ať lze changelog snadno regenerovat přes `git log vX..vY --oneline`.
   individuální `members_fees` override (s prioritou), default `default_fee_member_type_<X>`,
   clamp deduct_day na poslední den v měsíci i jestli už dnešní cron proběhl.
   Pokud admin částku ručně upraví, JS přestane přepisovat.
+- **Nepodepsaná smlouva — refresh údajů ze člena a zrušení.** Tlačítko
+  „↻ Aktualizovat údaje ze člena" (pro `draft`) přepíše `contract_parties`
+  snapshotem z aktuálních dat člena (adresa, VS, tarif, kontakty) — použije
+  se po opravě údajů v editaci (typicky číslo popisné). Zachovává `contract_no`,
+  audituje diff do `contract_events` jako `party_refreshed`. Tlačítko
+  „✕ Zrušit smlouvu" (pro `draft`/`otp_sent`/`otp_verified`) nastaví
+  `status='canceled'` a odemkne cestu k vytvoření nové smlouvy — u zrušené
+  se objeví „+ Vytvořit novou smlouvu", které dostane další sekvenční
+  `contract_no` a čerstvý snapshot.
+- **Náhled PDF smlouvy na admin detailu.** Iframe s náhledem PDF se zobrazí
+  automaticky u každé nepodepsané smlouvy (nezávisle na tom, jestli byl
+  odeslán odkaz zákazníkovi). Admin si tak zkontroluje jméno, adresu, tarif
+  a cenu **před** odesláním. Nový endpoint `GET /contracts/{id}/preview`
+  chráněný auth+ACL, generuje PDF z aktuálního `contract_parties`.
+- **Bílá listina teď zablokuje i automatické přesměrování.** Hodinový cron
+  `notifications:activate` respektuje `members_whitelists` — když admin
+  ručně smaže přesměrování dlužníka a přidá ho na bílou listinu, cron mu
+  ho už příští běh nezapíše zpět. Zprávy s `messages.ignore_whitelist=1`
+  (přerušení/zánik/kritické) whitelist ignorují — konzistentní s hromadným
+  UI. Statistika do `log_queues` rozšířena o počet vynechaných členů.
 
 ### Fixed
+- **Podpisový iframe na admin detailu smlouvy — už není blokován Chromem.**
+  `SecurityHeaders` middleware posílal `X-Frame-Options: SAMEORIGIN` na sign.*
+  routách, což při cross-subdoménovém deploymentu (admin × www) vedlo k blokaci.
+  Sign.show/preview a addon varianty teď z toho jsou vyňaty (ochrana stojí na
+  jednorázovém HMAC podpisovém tokenu). Zároveň vyhozen `sandbox` atribut
+  z iframu — kombinace `allow-same-origin` + `allow-scripts` v některých
+  verzích Chromu triggerovala chybu „load from frame with URL
+  chrome-error://chromewebdata/" u vnitřního PDF `<iframe>`.
 - **Příchozí platba s VS ukončeného člena se už nespáruje** na credit účet
   bývalého člena. Sloupec `variable_symbols.variable_symbol` je varchar
   a u ukončených má suffix `+U` (např. `12345+U`). MariaDB při porovnání

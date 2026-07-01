@@ -70,6 +70,15 @@
     @if($contract->status === 'signed' && $contract->pdf_path)
     <a class="m-btn" href="{{ route('contracts.download', $contract->id) }}">Stáhnout PDF</a>
     @endif
+    @if($canEdit && $contract->status === 'canceled')
+    <form method="POST" action="{{ route('contracts.create', $member->id) }}" style="display:inline">
+        @csrf
+        <button type="submit" class="m-btn m-btn-success"
+                onclick="return confirm('Vytvořit novou smlouvu pro {{ addslashes($member->name) }}? (Předchozí zůstane jako zrušená v historii.)')">
+            + Vytvořit novou smlouvu
+        </button>
+    </form>
+    @endif
 </div>
 
 @if(session('sign_link'))
@@ -156,7 +165,25 @@
 </div>
 @endif
 
-{{-- Podpisový formulář (iframe) pro nepodepsané smlouvy --}}
+{{-- Náhled PDF smlouvy — vždy pro nepodepsané, ať admin před odesláním odkazu
+     zákazníkovi vidí, jak PDF vypadá. Pro nepodepsané generuje preview na základě
+     aktuálního contract_parties snapshotu; pro podepsané ukazuje finální uložené PDF. --}}
+@if(in_array($contract->status, ['draft','otp_sent','otp_verified']))
+<div class="m-section">Náhled PDF smlouvy</div>
+<div class="m-card" style="margin-bottom:16px;padding:8px">
+    <div style="font-size:14px;color:#6b7280;margin-bottom:8px">
+        Zkontrolujte údaje v PDF <strong>před odesláním odkazu zákazníkovi</strong>.
+        Pokud něco nesedí, opravte v editaci člena a klikněte
+        „↻ Aktualizovat údaje ze člena" v horní liště.
+    </div>
+    <iframe src="{{ route('contracts.preview', $contract->id) }}"
+            style="width:100%;height:600px;border:1px solid #e5e7eb;border-radius:4px;background:#fff"
+            title="Náhled smlouvy">
+    </iframe>
+</div>
+@endif
+
+{{-- Podpisový formulář (iframe) pro nepodepsané smlouvy — jen po odeslání odkazu --}}
 @if(in_array($contract->status, ['draft','otp_sent','otp_verified']) && session('sign_link'))
 <div class="m-section">Podpisový formulář</div>
 <div class="m-card" style="margin-bottom:16px;padding:0">
