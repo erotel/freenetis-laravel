@@ -410,8 +410,6 @@ class DeviceController extends Controller
 
     public function storeWithTemplate(Request $request)
     {
-        \Log::info('storeWithTemplate called', ['device_name' => $request->input('name'), 'user_id' => auth()->id()]);
-
         try {
 
         abort_unless($this->can('new_all'), 403);
@@ -583,6 +581,10 @@ class DeviceController extends Controller
         session()->flash('success', 'Zařízení bylo úspěšně přidáno.');
         return redirect()->route('devices.show', $deviceId);
 
+        } catch (\Illuminate\Validation\ValidationException $e) {
+            // Běžná chyba formuláře (např. prázdný název) — není to aplikační chyba,
+            // Laravel ji sám zpracuje (redirect zpět s chybami). Nelogovat jako ERROR.
+            throw $e;
         } catch (\Exception $e) {
             \Log::error('storeWithTemplate error', [
                 'message' => $e->getMessage(),

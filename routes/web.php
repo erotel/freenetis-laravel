@@ -100,7 +100,7 @@ foreach (['cs', 'en', 'sk'] as $lang) {
 
 // Login / logout
 Route::get('/login', [LoginController::class, 'showLoginForm'])->name('login')->middleware('guest');
-Route::post('/login', [LoginController::class, 'login'])->middleware(['guest', 'throttle:10,1']);
+Route::post('/login', [LoginController::class, 'login'])->middleware(['guest', 'throttle:login']);
 Route::post('/logout', [LoginController::class, 'logout'])->name('logout')->middleware('auth');
 
 // ── Field Mode (mobile-first UI pro techniky v terénu) ──────────────────────
@@ -117,7 +117,7 @@ Route::prefix('field')->name('field.')->group(function () {
     Route::get('/icon-{size}.png', [FieldController::class, 'icon'])->whereNumber('size')->name('icon');
 
     Route::get('/login', [FieldController::class, 'showLogin'])->name('login');
-    Route::post('/login', [FieldController::class, 'login'])->middleware('throttle:10,1');
+    Route::post('/login', [FieldController::class, 'login'])->middleware('throttle:login');
     Route::post('/logout', [FieldController::class, 'logout'])->name('logout');
 
     Route::middleware('auth')->group(function () {
