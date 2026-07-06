@@ -177,7 +177,9 @@
                     onclick="return confirm('Smazat čekajícího člena {{ addslashes($member->name) }}?')">✕ Smazat</button>
         </form>
         @elseif(!in_array($member->type, [15, 16]))
+        @if($canEdit)
         <a class="m-btn m-btn-danger" href="{{ route('members.end-membership', $member->id) }}">✕ Ukončit</a>
+        @endif
         @else
         <form method="POST" action="{{ route('members.destroy', $member->id) }}" style="display:inline;">
             @csrf @method('DELETE')
@@ -186,7 +188,7 @@
         </form>
         @endif
     @endif
-    @if(in_array($member->type, [15, 16]))
+    @if($canEdit && in_array($member->type, [15, 16]))
     <form method="POST" action="{{ route('members.restore', $member->id) }}" style="display:inline">
         @csrf
         <button class="m-btn m-btn-success" type="submit"
@@ -504,18 +506,20 @@
             <div class="m-user-login">{{ $u->login }} — {{ $u->type == 1 ? 'Hlavní uživatel' : 'Uživatel' }}</div>
         </div>
         <div class="m-user-actions">
-            <a class="m-link" href="{{ route('users.show', $u->id) }}">Detail</a>
+            @if($canViewUser) <a class="m-link" href="{{ route('users.show', $u->id) }}">Detail</a> @endif
         </div>
     </div>
     @endforeach
+    @if($canNewUser)
     <div style="margin-top:8px;">
         <a class="m-link" href="{{ route('users.create', ['member_id' => $member->id]) }}">+ Přidat uživatele</a>
     </div>
+    @endif
 </div>
 @endif
 
 {{-- IP adresy --}}
-@if(isset($gponOnts) && $gponOnts->count() > 0)
+@if($canViewGpon && isset($gponOnts) && $gponOnts->count() > 0)
 <div class="m-section">GPON ONT</div>
 <div class="m-card" style="margin-bottom:16px">
     @foreach($gponOnts as $ont)
