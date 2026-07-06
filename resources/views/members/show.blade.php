@@ -42,7 +42,7 @@
     @if($canEdit)
     <a class="m-btn" href="{{ route('members.edit', $member->id) }}">Upravit</a>
     @endif
-    @if($creditAccount)
+    @if($creditAccount && $canViewAccount)
     <a class="m-btn" href="{{ route('accounts.show', $creditAccount->id) }}">Detail účtu</a>
     @endif
     @if($creditAccount && $canViewTransfers)
@@ -234,7 +234,7 @@
             <span class="m-field-label">Variabilní symboly</span>
             <span class="m-field-value">
                 {{ $variableSymbols->implode(', ') }}
-                @if($creditAccount) <a href="{{ route('variable_symbols.by_account', $creditAccount->id) }}">editace</a> @endif
+                @if($creditAccount && $canEditVarSymbols) <a href="{{ route('variable_symbols.by_account', $creditAccount->id) }}">editace</a> @endif
             </span>
         </div>
         @if($variableSymbols->isNotEmpty())

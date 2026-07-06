@@ -270,6 +270,8 @@ class MemberController extends Controller
             'canViewUser'         => $this->aclCheck('view_all', 'Users_Controller', 'users'),
             'canEditUser'         => $this->aclCheck('edit_all', 'Users_Controller', 'users'),
             'canViewContacts'     => $this->aclCheck('view_all', 'Users_Controller', 'additional_contacts'),
+            'canViewAccount'      => $this->aclCheck('view_all', 'Accounts_Controller', 'accounts'),
+            'canEditVarSymbols'   => $this->aclCheck('view_all', 'Variable_Symbols_Controller', 'variable_symbols'),
             'canViewTransfers'    => $this->aclCheck('view_all', 'Accounts_Controller', 'transfers'),
             'canViewIpAddresses'  => $this->aclCheck('view_all', 'Ip_addresses_Controller', 'ip_address'),
             'canViewDevices'      => $this->aclCheck('view_all', 'Devices_Controller', 'devices'),
