@@ -72,9 +72,13 @@ class SendEmailQueue extends Command
                         Log::warning('SendEmailQueue: skipping unsafe/missing attachment', ['path' => $attachment->path]);
                         continue;
                     }
-                    $email->addPart(
-                        new DataPart(new File($real), $attachment->name, $attachment->mime ?? 'application/octet-stream')
-                    );
+                    $part = new DataPart(new File($real), $attachment->name, $attachment->mime ?? 'application/octet-stream');
+                    // Inline (cid) přílohy — např. QR platba — se vloží do těla e-mailu;
+                    // Symfony přepíše `cid:<name>` v HTML na vygenerované Content-ID.
+                    if (!empty($attachment->inline)) {
+                        $part->asInline();
+                    }
+                    $email->addPart($part);
                 }
 
                 $mailer->send($email);

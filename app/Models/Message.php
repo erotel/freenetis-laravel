@@ -114,6 +114,11 @@ class Message extends Model
                 ->implode(',');
         }
 
+        // Platební údaje (číslo cílového účtu / IBAN / částka dle tarifu) — stejný
+        // zdroj jako QR platba, aby text a QR v upozornění seděly. {payment_qr}
+        // (obrázek) se neřeší tady, ale v NotificationActivation (cid příloha).
+        $payment = app(\App\Services\PaymentQrService::class)->paymentInfoForMember($memberId);
+
         return array_merge([
             'member_name'     => $member->name ?? '',
             'member_id'       => $member->id,
@@ -121,6 +126,9 @@ class Message extends Model
             'entrance_date'   => $member->entrance_date ?? '',
             'balance'         => number_format((float) ($account->balance ?? 0), 2, ',', ' '),
             'variable_symbol' => $variableSymbol,
+            'account_number'  => $payment['account_number'] ?? '',
+            'iban'            => $payment['iban'] ?? '',
+            'payment_amount'  => $payment ? number_format($payment['amount'], 2, ',', ' ') : '',
         ], $extra);
     }
 }

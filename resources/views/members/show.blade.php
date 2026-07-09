@@ -336,6 +336,22 @@
             @endif
         </div>
 
+        @if($paymentQrSvg)
+        <div class="m-card" style="margin-bottom:16px">
+            <div class="m-card-title">QR platba</div>
+            <div style="display:flex;gap:16px;align-items:center;flex-wrap:wrap">
+                <div style="width:180px;height:180px;flex:0 0 auto;background:#fff;padding:8px;border-radius:8px">
+                    {!! $paymentQrSvg !!}
+                </div>
+                <div style="min-width:140px">
+                    <div class="m-field"><span class="m-field-label">Účet</span><span class="m-field-value">{{ $paymentInfo['account_number'] }}</span></div>
+                    <div class="m-field"><span class="m-field-label">VS</span><span class="m-field-value">{{ $paymentInfo['vs'] }}</span></div>
+                    <div class="m-field"><span class="m-field-label">Částka</span><span class="m-field-value">{{ number_format($paymentInfo['amount'], 2, ',', ' ') }} Kč</span></div>
+                </div>
+            </div>
+        </div>
+        @endif
+
         @if($canViewQos && $member->speedClass)
         <div class="m-card">
             <div class="m-card-title">QoS</div>

@@ -322,6 +322,8 @@ class MemberController extends Controller
             'memberRedirections'   => \App\Http\Controllers\RedirectController::getMemberRedirections($id),
             'expirationDate'       => $creditAccount?->getExpirationDate(),
             'memberContract'       => app(ContractService::class)->getByMemberId($id),
+            'paymentInfo'          => app(\App\Services\PaymentQrService::class)->paymentInfoForMember($id),
+            'paymentQrSvg'         => app(\App\Services\PaymentQrService::class)->svgForMember($id),
         ]);
     }
 

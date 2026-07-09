@@ -3,6 +3,7 @@ namespace App\Console\Commands;
 
 use App\Models\Message;
 use App\Models\Setting;
+use App\Services\PaymentQrService;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -160,7 +161,24 @@ class NotificationActivation extends Command
                         $message->email_text ?? $message->text ?? '',
                         Message::buildPlaceholders((int) $member->id)
                     );
-                    DB::table('email_queues')->insert([
+
+                    // QR platba: pokud šablona obsahuje {payment_qr}, vygenerujeme QR podle
+                    // tarifu člena a vložíme ho jako inline (cid) obrázek — spolehlivě se
+                    // zobrazí i v Gmailu. Když QR nejde sestavit (chybí účet/VS/tarif),
+                    // placeholder jen zmizí.
+                    $qrPng = null;
+                    if (str_contains($body, '{payment_qr}')) {
+                        $qrPng = app(PaymentQrService::class)->pngBytesForMember((int) $member->id);
+                        $body  = str_replace(
+                            '{payment_qr}',
+                            $qrPng
+                                ? '<img src="cid:payment_qr.png" alt="QR platba" width="200" height="200" style="width:200px;height:200px">'
+                                : '',
+                            $body
+                        );
+                    }
+
+                    $emailQueueId = DB::table('email_queues')->insertGetId([
                         'from'    => $fromEmail,
                         'to'      => $member->email,
                         'subject' => $subject,
@@ -168,6 +186,10 @@ class NotificationActivation extends Command
                         'state'   => 0,
                     ]);
                     $emailsSent++;
+
+                    if ($qrPng !== null) {
+                        $this->attachInlineQr($emailQueueId, $qrPng);
+                    }
                 }
 
                 if ($doSms && !empty($member->phone) && $memberSms) {
@@ -268,6 +290,26 @@ class NotificationActivation extends Command
         }
 
         return 0;
+    }
+
+    /** Uloží QR PNG do storage a zaeviduje ho jako inline (cid) přílohu e-mailu. */
+    private function attachInlineQr(int $emailQueueId, string $pngBytes): void
+    {
+        $dir = storage_path('app/private/qr');
+        if (!is_dir($dir)) {
+            @mkdir($dir, 0770, true);
+        }
+        $path = $dir . '/qr_' . $emailQueueId . '.png';
+        file_put_contents($path, $pngBytes);
+
+        DB::table('email_queue_attachments')->insert([
+            'email_queue_id' => $emailQueueId,
+            'path'           => $path,
+            'name'           => 'payment_qr.png',
+            'mime'           => 'image/png',
+            'inline'         => 1,
+            'created_at'     => now(),
+        ]);
     }
 
     private function isRuleActive(object $rule, int $today, int $hour, int $weekday, int $deductDay): bool
