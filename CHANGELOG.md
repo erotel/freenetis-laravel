@@ -6,6 +6,35 @@ formát podle [Keep a Changelog](https://keepachangelog.com/cs/1.1.0/).
 Verzi v souboru `config/version.php` bumpni samostatným commitem `chore: bump version to X.Y.Z`,
 ať lze changelog snadno regenerovat přes `git log vX..vY --oneline`.
 
+## [2.9.0] — 2026-07-09
+
+### Added
+- **QR platba (QR Platba / SPAYD) v upozornění na placení i na detailu člena.**
+  Nová služba `PaymentQrService` sestaví český platební QR kód: cílový účet
+  podle typu člena (config `bank_account_member_type_<type>`, IBAN z DB nebo
+  dopočet z čísla účtu + kódu banky), částku podle aktivního pravidelného
+  tarifu a variabilní symbol z kreditního účtu. V e-mailových šablonách
+  upozornění (typ 6 zákazník / 26 člen) placeholder `{payment_qr}` vloží QR
+  jako inline (cid) obrázek — spolehlivě i v Gmailu (`SendEmailQueue` nově umí
+  inline přílohy, sloupec `email_queue_attachments.inline`). Na `/members/{id}`
+  pod blokem Adresa nová karta „QR platba" (responzivní SVG). Zpráva pro
+  příjemce nese marker „QR Platba …", aby šlo z bankovního výpisu poznat, kolik
+  plateb přišlo přes QR. Nové placeholdery `{account_number}`, `{iban}`,
+  `{payment_amount}`. Přidána závislost `endroid/qr-code`.
+- **Smlouvy: PDF náhled na admin detailu** + tlačítko vytvořit novou smlouvu
+  po zrušení; refresh/cancel nepodepsané smlouvy a whitelist respektovaný v cronu.
+
+### Fixed
+- **DHCP: `subnet.dhcp` se automaticky nevypíná při editaci IP.** Metoda
+  `syncSubnetDhcp` chybně odvozovala `subnet.dhcp` z `ip.dhcp` gateway IP (ta
+  je u routerů ~vždy 0) a tiše vyřazovala subnet z DHCP exportu při jakékoli
+  změně/smazání IP. Metoda odstraněna, `dhcp` zůstává ruční admin flag.
+- **IP: `member_id` u IP navázaných na rozhraní se nuluje.** Vlastník se
+  odvozuje ze zařízení; vlastní `member_id` přežíval změnu vlastníka a
+  způsoboval duplicitu v `qos_json` a špatné směrování redirectů.
+- **ACL: skrytí akcí a odkazů** na detailu člena i účtu bez příslušného oprávnění.
+- **Auth: throttle loginu podle IP+login** místo jen IP, tišší validace zařízení.
+
 ## [2.8.0] — 2026-06-23
 
 ### Added
