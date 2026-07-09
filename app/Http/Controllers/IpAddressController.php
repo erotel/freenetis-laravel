@@ -102,6 +102,7 @@ class IpAddressController extends Controller
         }
 
         $data = $this->validateIpForm($request);
+        $data = $this->normalizeOwner($data);
 
         if ($request->boolean('gateway') && $this->gatewayExistsInSubnet((int) $data['subnet_id'])) {
             return back()->withInput()
@@ -153,6 +154,7 @@ class IpAddressController extends Controller
         }
 
         $data = $this->validateIpForm($request, $id);
+        $data = $this->normalizeOwner($data);
 
         if ($request->boolean('gateway') && !$ip->gateway &&
             $this->gatewayExistsInSubnet((int) $data['subnet_id'], $id)) {
@@ -202,6 +204,22 @@ class IpAddressController extends Controller
     }
 
     // -------------------------------------------------------------------------
+
+    /**
+     * IP navázaná na rozhraní (iface) odvozuje vlastníka ze zařízení
+     * (device → user → member). Vlastní member_id na takovém řádku by vytvořil
+     * dvojí vlastnictví: přežije i po změně vlastníka zařízení a zdvojuje IP
+     * v qos_json (OR-join na member_id) i špatně směruje redirecty
+     * (COALESCE(ip.member_id, u.member_id)). Proto ho u iface-vázaných IP nulujeme.
+     */
+    private function normalizeOwner(array $data): array
+    {
+        if (!empty($data['iface_id'])) {
+            $data['member_id'] = null;
+        }
+
+        return $data;
+    }
 
     private function memberIdOfIp(IpAddress $ip): ?int
     {
