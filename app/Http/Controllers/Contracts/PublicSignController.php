@@ -250,6 +250,7 @@ class PublicSignController extends Controller
         try {
             [$subject, $body] = $this->renderContractEmail(
                 Message::CONTRACT_SIGNED,
+                (int) $contract->member_id,
                 (string) $contract->contract_no,
                 fn(string $contractNoHtml) => 'Podepsaná smlouva ' . $contract->contract_no . ' - PVfree.net',
                 fn(string $contractNoHtml) => '<p>Dobrý den,</p>'
@@ -295,11 +296,13 @@ class PublicSignController extends Controller
      * Resolve the email subject + body for a contract-related message type.
      * Loads the admin-editable template from messages table; if missing/empty,
      * falls back to the hardcoded $subjectFallback / $bodyFallback closures
-     * (both receive HTML-escaped contract_no). Supports {contract_no} placeholder.
+     * (both receive HTML-escaped contract_no). Podporuje {contract_no} i
+     * standardní member-placeholdery ({variable_symbol}, {member_name}, …)
+     * přes Message::buildPlaceholders — jinak by v šabloně zůstaly nevyplněné.
      *
      * @return array{0:string,1:string} [subject, body]
      */
-    private function renderContractEmail(int $type, string $contractNo, \Closure $subjectFallback, \Closure $bodyFallback): array
+    private function renderContractEmail(int $type, int $memberId, string $contractNo, \Closure $subjectFallback, \Closure $bodyFallback): array
     {
         $contractNoHtml = htmlspecialchars($contractNo, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
         $tpl = Message::where('type', $type)->first();
@@ -307,7 +310,10 @@ class PublicSignController extends Controller
         if ($tpl && trim((string) $tpl->email_text) !== '') {
             $prefix  = (string) Setting::get('email_subject_prefix', '');
             $subject = ($prefix !== '' ? $prefix . ' :: ' : '') . $tpl->name;
-            $body    = Message::substitute($tpl->email_text, ['contract_no' => $contractNo]);
+            $body    = Message::substitute(
+                $tpl->email_text,
+                Message::buildPlaceholders($memberId, ['contract_no' => $contractNo])
+            );
             return [$subject, $body];
         }
 
@@ -334,6 +340,7 @@ class PublicSignController extends Controller
         try {
             [$subject, $body] = $this->renderContractEmail(
                 Message::CONTRACT_ADDON_SIGNED,
+                (int) $contract->member_id,
                 (string) $contract->contract_no,
                 fn(string $contractNoHtml) => 'Podepsaný dodatek ke smlouvě ' . $contract->contract_no . ' - PVfree.net',
                 fn(string $contractNoHtml) => '<p>Dobrý den,</p>'

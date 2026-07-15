@@ -6,6 +6,21 @@ formát podle [Keep a Changelog](https://keepachangelog.com/cs/1.1.0/).
 Verzi v souboru `config/version.php` bumpni samostatným commitem `chore: bump version to X.Y.Z`,
 ať lze changelog snadno regenerovat přes `git log vX..vY --oneline`.
 
+## [2.9.1] — 2026-07-15
+
+### Fixed
+- **Smlouva — po podpisu: nevyplněný variabilní symbol.** E-mail s podepsanou
+  smlouvou (typ 30) i dodatkem (typ 31) substituoval jen `{contract_no}`, takže
+  `{variable_symbol}` a další member-placeholdery zůstávaly v šabloně
+  nevyplněné. `renderContractEmail` teď plní přes `Message::buildPlaceholders`
+  podle `member_id` smlouvy (vyplní i `{member_name}`, `{iban}`, `{balance}`, …).
+
+### Added
+- **QR platba i v upozornění na nedostatečnou výši konta.** Placeholder
+  `{payment_qr}` doplněn do e-mailových šablon „Nedostatečná výše konta"
+  (typ 5 zákazník / 25 člen) — dosud QR obsahovala jen upozornění na placení
+  (typ 6/26). Idempotentní migrace, QR se vloží za řádek s variabilním symbolem.
+
 ## [2.9.0] — 2026-07-09
 
 ### Added
