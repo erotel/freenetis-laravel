@@ -73,7 +73,14 @@ class SubnetController extends Controller
             abort(403);
         }
 
-        $subnet = Subnet::with(['ipAddresses.member', 'ipAddresses.iface.device'])->find($id);
+        // Řadíme IP číselně (INET_ATON), ne podle id/textu — jinak výpis vypadá
+        // náhodně (…139.20, …139.125, …139.16). Sloupec je varchar IPv4 (max
+        // "255.255.255.255"), takže INET_ATON je bezpečné.
+        $subnet = Subnet::with([
+            'ipAddresses' => fn($q) => $q->orderByRaw('INET_ATON(ip_address)'),
+            'ipAddresses.member',
+            'ipAddresses.iface.device',
+        ])->find($id);
         if (!$subnet) {
             abort(404);
         }
