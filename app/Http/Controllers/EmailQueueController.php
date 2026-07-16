@@ -71,9 +71,29 @@ class EmailQueueController extends Controller
 
         return view('email_queues.show', [
             'email'     => $email,
+            'bodyHtml'  => $this->resolveInlineCids($email),
             'canSend'   => $this->canSend(),
             'canDelete' => $this->canDelete(),
         ]);
+    }
+
+    /**
+     * V náhledu (prohlížeč) se `cid:<name>` odkazy inline příloh (např. QR platba)
+     * nevykreslí — cid rozumí jen e-mailový klient. Přepíšeme je proto na URL
+     * endpointu, který přílohu naservíruje, ať admin v náhledu vidí to samé,
+     * co dostane příjemce v e-mailu.
+     */
+    private function resolveInlineCids(EmailQueue $email): string
+    {
+        $body = (string) $email->body;
+        foreach ($email->attachments as $att) {
+            if (empty($att->inline) || (string) $att->name === '') {
+                continue;
+            }
+            $url  = route('email_queues.attachment', [$email->id, $att->id]);
+            $body = str_replace('cid:' . $att->name, $url, $body);
+        }
+        return $body;
     }
 
     // ── Stažení přílohy ───────────────────────────────────────────────────────

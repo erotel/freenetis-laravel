@@ -66,7 +66,7 @@
     {{-- Sandbox bez allow-same-origin: obsah běží v unique-origin, takže žádné JS,
          žádný přístup k cookies / DOM rodiče. Auto-resize tím pádem nejde, fixovaná
          výška s vnitřním scrollem je dost čitelná. --}}
-    <iframe sandbox srcdoc="{{ $email->body }}"
+    <iframe sandbox srcdoc="{{ $bodyHtml ?? $email->body }}"
             style="width:100%;height:75vh;border:1px solid #d4cfc6;border-radius:4px;background:#fff"></iframe>
 </div>
 

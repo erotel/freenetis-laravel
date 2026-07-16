@@ -43,9 +43,15 @@ class EmailSenderService
                         Log::warning('EmailSenderService: skipping unsafe/missing attachment', ['path' => $attachment->path]);
                         continue;
                     }
-                    $email->addPart(
-                        new DataPart(new File($real), $attachment->name, $attachment->mime ?? 'application/octet-stream')
-                    );
+                    $part = new DataPart(new File($real), $attachment->name, $attachment->mime ?? 'application/octet-stream');
+                    // Inline (cid) přílohy — např. QR platba — musí být inline, aby je
+                    // Symfony vložilo do multipart/related a přepsalo `cid:<name>` v HTML
+                    // na Content-ID. Bez toho jde PNG jako běžná příloha a v těle e-mailu
+                    // zůstane rozbitý obrázek.
+                    if (!empty($attachment->inline)) {
+                        $part->asInline();
+                    }
+                    $email->addPart($part);
                 }
             }
 

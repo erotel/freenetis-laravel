@@ -6,6 +6,18 @@ formát podle [Keep a Changelog](https://keepachangelog.com/cs/1.1.0/).
 Verzi v souboru `config/version.php` bumpni samostatným commitem `chore: bump version to X.Y.Z`,
 ať lze changelog snadno regenerovat přes `git log vX..vY --oneline`.
 
+## [2.9.2] — 2026-07-16
+
+### Fixed
+- **QR platba se v odeslaném e-mailu nezobrazila (rozbitý obrázek + PNG v příloze).**
+  `EmailSenderService::sendOne()` (tlačítko „Znovu odeslat" i jednotlivé odeslání)
+  přidával inline QR přílohu bez `->asInline()`, takže šla jako běžná příloha
+  mimo `multipart/related` a `cid:payment_qr.png` v těle se nenavázalo. Doplněn
+  `asInline()` — stejně jako už měl cron `email:send-queue` (`SendEmailQueue`).
+- **Náhled e-mailu (`/email-queues/{id}/show`): rozbitý QR.** Prohlížeč `cid:`
+  odkazy nevykreslí. Náhled teď `cid:<name>` inline příloh přepíše na URL
+  attachment endpointu, takže admin vidí QR stejně jako příjemce.
+
 ## [2.9.1] — 2026-07-15
 
 ### Fixed
