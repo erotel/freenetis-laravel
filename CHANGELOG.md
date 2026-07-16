@@ -6,6 +6,17 @@ formát podle [Keep a Changelog](https://keepachangelog.com/cs/1.1.0/).
 Verzi v souboru `config/version.php` bumpni samostatným commitem `chore: bump version to X.Y.Z`,
 ať lze changelog snadno regenerovat přes `git log vX..vY --oneline`.
 
+## [2.9.3] — 2026-07-16
+
+### Fixed
+- **FIO import padal na timeoutu (`Operation timed out after 30002 ms`).** FIO API
+  občas (rate-limit / zátěž) drží spojení ~30 s, ale klient měl `CURLOPT_TIMEOUT`
+  taky 30 s → odpověď se utnula těsně před cílem. Zvednuto na 90 s + přidán
+  `CURLOPT_CONNECTTIMEOUT` 15 s (rychlé selhání při reálném výpadku sítě) a jeden
+  retry při timeoutu s odstupem 35 s (kvůli limitu FIO 1 požadavek/30 s/token).
+  `importPayments()` má stejné timeouty, ale bez retry (aby se platba neodeslala
+  dvakrát).
+
 ## [2.9.2] — 2026-07-16
 
 ### Fixed
