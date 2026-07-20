@@ -25,6 +25,14 @@
             <input type="hidden" name="member_id" value="{{ $preselectedMemberId }}">
             <div class="m-form-input" style="background:var(--fn-quote-bg);color:var(--fn-text);cursor:default">{{ $members->firstWhere('id', $preselectedMemberId)?->display_name ?? $preselectedMemberId }}</div>
         @else
+            <div class="m-form-row" style="align-items:flex-end;gap:8px;margin-bottom:8px">
+                <div class="m-form-group" style="flex:0 0 200px;margin-bottom:0">
+                    <label class="m-form-label" for="member_id_lookup" style="font-weight:400;color:var(--fn-muted)">Najít podle ID člena</label>
+                    <input class="m-form-input" type="number" id="member_id_lookup" min="1" placeholder="ID člena" autocomplete="off">
+                </div>
+                <button type="button" class="m-btn" id="member_id_lookup_btn">Najít</button>
+                <div id="member_id_lookup_msg" class="m-form-hint" style="margin-bottom:6px"></div>
+            </div>
             <select class="m-form-select" id="member_id" name="member_id">
                 <option value="">— vyberte člena —</option>
                 @foreach($members as $m)
@@ -101,4 +109,36 @@
 </div>
 </form>
 </div>
+
+@if(!$preselectedMemberId)
+<script>
+(function () {
+    var input  = document.getElementById('member_id_lookup');
+    var btn    = document.getElementById('member_id_lookup_btn');
+    var select = document.getElementById('member_id');
+    var msg    = document.getElementById('member_id_lookup_msg');
+    if (!input || !btn || !select) return;
+
+    function lookup() {
+        var id = (input.value || '').trim();
+        if (id === '') { msg.textContent = ''; return; }
+        var opt = select.querySelector('option[value="' + id + '"]');
+        if (opt) {
+            select.value = id;
+            select.focus();
+            msg.style.color = 'var(--fn-ok, #15803d)';
+            msg.textContent = 'Vybráno: ' + opt.textContent.trim();
+        } else {
+            msg.style.color = '#c0392b';
+            msg.textContent = 'Člen s ID ' + id + ' není v seznamu (nemá hlavního uživatele).';
+        }
+    }
+
+    btn.addEventListener('click', lookup);
+    input.addEventListener('keydown', function (e) {
+        if (e.key === 'Enter') { e.preventDefault(); lookup(); }
+    });
+})();
+</script>
+@endif
 @endsection
