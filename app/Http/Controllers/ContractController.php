@@ -49,6 +49,13 @@ class ContractController extends Controller
             'speedClass',
         ])->findOrFail($memberId);
 
+        // Řádný člen (typ 90) smlouvu nemá — dostávají ji jen zákazníci.
+        if ((int) $member->type === \App\Helpers\MemberType::REGULAR) {
+            return redirect()
+                ->route('members.show', $memberId)
+                ->with('error', 'Řádný člen (typ 90) nemá smlouvu — vytvoření není povoleno.');
+        }
+
         $existing = $this->contracts->getByMemberId($memberId);
         if ($existing && !in_array($existing->status, ['canceled'])) {
             return redirect()
@@ -136,6 +143,35 @@ class ContractController extends Controller
             $ok
                 ? 'Smlouva byla zrušena. Můžete vytvořit novou.'
                 : 'Smlouvu se nepodařilo zrušit.'
+        );
+    }
+
+    public function terminate(int $memberId, \Illuminate\Http\Request $request): RedirectResponse
+    {
+        abort_unless($this->can('edit_all'), 403);
+
+        $contract = $this->contracts->getByMemberId($memberId);
+        if (!$contract) {
+            return redirect()->route('members.show', $memberId)
+                ->with('error', 'Smlouva nenalezena.');
+        }
+
+        if ($contract->status !== 'signed') {
+            return redirect()->route('contracts.show', $memberId)
+                ->with('error', 'Ukončit lze pouze podepsanou smlouvu.');
+        }
+
+        $ok = $this->contracts->terminateContract(
+            $contract,
+            (string) $request->input('reason', '') ?: null,
+            (string) $request->input('termination_date', '') ?: null
+        );
+
+        return redirect()->route('contracts.show', $memberId)->with(
+            $ok ? 'success' : 'error',
+            $ok
+                ? 'Smlouva byla označena jako ukončená.'
+                : 'Smlouvu se nepodařilo ukončit.'
         );
     }
 
@@ -335,7 +371,8 @@ class ContractController extends Controller
         if (!empty($formerMemberIds)) {
             $query->where(function ($w) use ($formerMemberIds) {
                 $w->whereNull('member_id')
-                  ->orWhereNotIn('member_id', $formerMemberIds);
+                  ->orWhereNotIn('member_id', $formerMemberIds)
+                  ->orWhere('status', 'terminated'); // ukončené (výpověď) zůstávají viditelné
             });
         }
 
@@ -354,7 +391,7 @@ class ContractController extends Controller
             });
         }
 
-        if ($status !== '' && in_array($status, ['draft', 'otp_sent', 'otp_verified', 'signed', 'canceled'], true)) {
+        if ($status !== '' && in_array($status, ['draft', 'otp_sent', 'otp_verified', 'signed', 'canceled', 'terminated'], true)) {
             $query->where('status', $status);
         }
 
@@ -367,7 +404,8 @@ class ContractController extends Controller
         if (!empty($formerMemberIds)) {
             $countsQuery->where(function ($w) use ($formerMemberIds) {
                 $w->whereNull('member_id')
-                  ->orWhereNotIn('member_id', $formerMemberIds);
+                  ->orWhereNotIn('member_id', $formerMemberIds)
+                  ->orWhere('status', 'terminated');
             });
         }
         $totalCounts = $countsQuery->pluck('cnt', 'status')->all();

@@ -42,6 +42,7 @@ class ContractEvent extends Model
             'signed'       => 'Podepsáno',
             'link_issued'  => 'Odkaz odeslán',
             'canceled'     => 'Zrušeno',
+            'terminated'   => 'Ukončeno (výpověď)',
             default        => $this->event,
         };
     }

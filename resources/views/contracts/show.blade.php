@@ -22,10 +22,14 @@
     <h2>Smlouva — {{ $member->name }}</h2>
 </div>
 
+@php
+    // Řádný člen (typ 90) smlouvu nemá — dostávají ji jen zákazníci.
+    $canHaveContract = (int) $member->type !== \App\Helpers\MemberType::REGULAR;
+@endphp
 @if(!$contract)
 <div class="m-card" style="margin-bottom:16px">
     <div style="color:#888;font-size:16px;padding:4px 0">Žádná smlouva pro tohoto člena.</div>
-    @if($canEdit)
+    @if($canEdit && $canHaveContract)
     <div style="margin-top:12px">
         <form method="POST" action="{{ route('contracts.create', $member->id) }}">
             @csrf
@@ -35,6 +39,8 @@
             </button>
         </form>
     </div>
+    @elseif(!$canHaveContract)
+    <div style="margin-top:8px;font-size:14px;color:#888">Řádný člen (typ 90) smlouvu nemá.</div>
     @endif
 </div>
 @else
@@ -67,10 +73,10 @@
         </button>
     </form>
     @endif
-    @if($contract->status === 'signed' && $contract->pdf_path)
+    @if(in_array($contract->status, ['signed','terminated']) && $contract->pdf_path)
     <a class="m-btn" href="{{ route('contracts.download', $contract->id) }}">Stáhnout PDF</a>
     @endif
-    @if($canEdit && $contract->status === 'canceled')
+    @if($canEdit && $contract->status === 'canceled' && $canHaveContract)
     <form method="POST" action="{{ route('contracts.create', $member->id) }}" style="display:inline">
         @csrf
         <button type="submit" class="m-btn m-btn-success"
@@ -98,6 +104,7 @@
         'otp_verified' => ['bg' => '#dbeafe', 'border' => '#93c5fd', 'text' => '#1e3a8a'],
         'signed'       => ['bg' => '#dcfce7', 'border' => '#86efac', 'text' => '#14532d'],
         'canceled'     => ['bg' => '#fee2e2', 'border' => '#fca5a5', 'text' => '#7f1d1d'],
+        'terminated'   => ['bg' => '#f3f4f6', 'border' => '#d1d5db', 'text' => '#374151'],
     ];
     $sc = $statusColors[$contract->status] ?? ['bg' => '#f3f4f6', 'border' => '#d1d5db', 'text' => '#374151'];
 @endphp
@@ -276,6 +283,34 @@
         </div>
         @endif
     @endif
+</div>
+@endif
+
+{{-- Ukončení smlouvy (výpověď) — jen pro podepsané smlouvy --}}
+@if($canEdit && $contract->status === 'signed')
+<div class="m-section">Ukončení smlouvy</div>
+<div class="m-card" style="margin-bottom:16px">
+    <div style="font-size:14px;color:#6b7280;margin-bottom:12px">
+        Označí smlouvu jako <strong>ukončenou</strong> (např. po výpovědi zákazníka).
+        Smlouva zůstane v systému jako právní dokument (PDF), jen změní stav na „Ukončená".
+    </div>
+    <form method="POST" action="{{ route('contracts.terminate', $member->id) }}"
+          onsubmit="return confirm('Označit smlouvu {{ addslashes($contract->contract_no) }} jako ukončenou?')">
+        @csrf
+        <div style="display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end">
+            <div>
+                <label class="m-form-label" for="termination_date" style="font-size:14px;color:#6b7280">Datum ukončení</label>
+                <input class="m-form-input" type="date" id="termination_date" name="termination_date"
+                       value="{{ date('Y-m-d') }}" style="max-width:180px">
+            </div>
+            <div style="flex:1;min-width:200px">
+                <label class="m-form-label" for="reason" style="font-size:14px;color:#6b7280">Důvod / poznámka (nepovinné)</label>
+                <input class="m-form-input" type="text" id="reason" name="reason"
+                       maxlength="254" placeholder="např. výpověď zákazníka">
+            </div>
+            <button type="submit" class="m-btn m-btn-danger">Označit jako ukončenou</button>
+        </div>
+    </form>
 </div>
 @endif
 

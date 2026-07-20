@@ -46,6 +46,7 @@ class Contract extends Model
             'otp_verified' => 'Ověřeno',
             'signed'       => 'Podepsáno',
             'canceled'     => 'Zrušeno',
+            'terminated'   => 'Ukončená',
             default        => $this->status,
         };
     }
@@ -58,6 +59,7 @@ class Contract extends Model
             'otp_verified' => 'blue',
             'signed'       => 'green',
             'canceled'     => 'red',
+            'terminated'   => 'gray',
             default        => 'gray',
         };
     }

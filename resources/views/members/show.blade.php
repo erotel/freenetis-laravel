@@ -554,15 +554,19 @@
 {{-- Smlouva --}}
 @php
     $contract = $memberContract ?? null;
+    // Řádný člen (typ 90) smlouvu nemá — dostávají ji jen zákazníci.
+    $canHaveContract = (int) $member->type !== \App\Helpers\MemberType::REGULAR;
     $statusColors = [
         'draft'        => '#d97706',
         'otp_sent'     => '#d97706',
         'otp_verified' => '#2563eb',
         'signed'       => '#16a34a',
         'canceled'     => '#dc2626',
+        'terminated'   => '#6b7280',
     ];
     $contractColor = $contract ? ($statusColors[$contract->status] ?? '#888') : '#888';
 @endphp
+@if($contract || $canHaveContract)
 <div class="m-section">Smlouva</div>
 <div class="m-card" style="margin-bottom:16px">
 @if($contract)
@@ -620,6 +624,7 @@
     @endif
 @endif
 </div>
+@endif
 
 {{-- Dodatek --}}
 @if($contract && $contract->status === 'signed')

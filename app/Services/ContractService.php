@@ -160,6 +160,32 @@ class ContractService
     }
 
     /**
+     * Ukončení podepsané smlouvy (výpověď zákazníka) — smlouva zůstává v systému
+     * jako právní dokument (PDF), jen dostane stav `terminated` = "Ukončená".
+     * Povoleno jen ze stavu `signed`; návrhy se ruší přes cancelContract().
+     */
+    public function terminateContract(Contract $contract, ?string $reason = null, ?string $terminationDate = null): bool
+    {
+        if ($contract->status !== 'signed') {
+            return false;
+        }
+
+        $contract->update(['status' => 'terminated']);
+
+        ContractEvent::create([
+            'contract_id' => $contract->id,
+            'event'       => 'terminated',
+            'meta_json'   => json_encode([
+                'by'     => auth()->user()?->login,
+                'reason' => $reason,
+                'date'   => $terminationDate,
+            ], JSON_UNESCAPED_UNICODE),
+        ]);
+
+        return true;
+    }
+
+    /**
      * Snapshot z živých dat člena → pole pro contract_parties (bez `contract_id`).
      * Používá createContract() i refreshPartyFromMember().
      */
@@ -436,7 +462,25 @@ class ContractService
 
     public function countUnsigned(): int
     {
-        return Contract::whereIn('status', ['draft', 'otp_sent', 'otp_verified'])->count();
+        // Odznak musí odpovídat seznamu /contracts, který skrývá smlouvy bývalých
+        // členů (typ 15/16). Bez tohoto vyloučení odznak nafukovaly nedokončené
+        // návrhy po členech, co už odešli a nikdy je nepodepíšou.
+        $formerIds = DB::connection('mysql')
+            ->table('members')
+            ->whereIn('type', [\App\Helpers\MemberType::FORMER, \App\Helpers\MemberType::FORMER_CUSTOMER])
+            ->pluck('id')
+            ->all();
+
+        $query = Contract::whereIn('status', ['draft', 'otp_sent', 'otp_verified']);
+
+        if (!empty($formerIds)) {
+            $query->where(function ($w) use ($formerIds) {
+                $w->whereNull('member_id')
+                  ->orWhereNotIn('member_id', $formerIds);
+            });
+        }
+
+        return $query->count();
     }
 
     // ── Private helpers ─────────────────────────────────────────────────────

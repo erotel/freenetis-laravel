@@ -30,6 +30,7 @@
         <option value="otp_sent"     {{ ($status ?? '') === 'otp_sent'     ? 'selected' : '' }}>OTP odesláno</option>
         <option value="otp_verified" {{ ($status ?? '') === 'otp_verified' ? 'selected' : '' }}>OTP ověřeno</option>
         <option value="canceled"     {{ ($status ?? '') === 'canceled'     ? 'selected' : '' }}>Zrušené</option>
+        <option value="terminated"   {{ ($status ?? '') === 'terminated'   ? 'selected' : '' }}>Ukončené</option>
     </select>
     <button class="m-btn" type="submit">Hledat</button>
     @if(($q ?? '') !== '' || ($status ?? '') !== '')
@@ -59,6 +60,7 @@ $statusColors = [
     'otp_verified' => '#2563eb',
     'signed'       => '#16a34a',
     'canceled'     => '#dc2626',
+    'terminated'   => '#6b7280',
 ];
 @endphp
 
@@ -100,7 +102,7 @@ $statusColors = [
             @if($c->member_id)
             <a class="m-link-sm" href="{{ route('contracts.show', $c->member_id) }}">Detail</a>
             @endif
-            @if($c->status === 'signed' && $c->pdf_path)
+            @if(in_array($c->status, ['signed','terminated']) && $c->pdf_path)
             <a class="m-link-sm" href="{{ route('contracts.download', $c->id) }}" style="margin-left:6px">PDF</a>
             @endif
         </td>

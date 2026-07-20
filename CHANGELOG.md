@@ -6,6 +6,34 @@ formát podle [Keep a Changelog](https://keepachangelog.com/cs/1.1.0/).
 Verzi v souboru `config/version.php` bumpni samostatným commitem `chore: bump version to X.Y.Z`,
 ať lze changelog snadno regenerovat přes `git log vX..vY --oneline`.
 
+## [2.10.0] — 2026-07-20
+
+### Added
+- **Ukončování smluv (výpověď).** Nový stav smlouvy `terminated` = „Ukončená"
+  (rozšíření enumu `contracts.status`). Podepsanou smlouvu lze označit jako
+  ukončenou:
+  - **automaticky** při ukončení člena/výpovědi (`endMembership()` i „označit
+    jako bývalého") — podepsané smlouvy člena přejdou na „Ukončená",
+  - **ručně** tlačítkem „Označit jako ukončenou" na detailu smlouvy (datum + důvod).
+  Ukončené smlouvy zůstávají jako právní doklad (PDF), jsou vidět v seznamu
+  `/contracts` (i pro bývalé členy), mají vlastní filtr „Ukončené" a zapisují
+  událost do historie.
+
+### Changed
+- **Řádný člen (typ 90) nemá smlouvu.** Na detailu člena i na stránce smlouvy se
+  u typu 90 skryje „Vytvořit smlouvu"; vytvoření je blokované i na serveru
+  (`ContractController::create`).
+- **Odznak nepodepsaných smluv v menu** (`countUnsigned`) už nepočítá smlouvy
+  bývalých členů (typ 15/16) — teď odpovídá seznamu `/contracts`.
+
+### Fixed
+- **Osiřelé návrhy smluv po smazání/ukončení člena.** Při ukončení člena i při
+  trvalém smazání se jeho nepodepsané návrhy smažou (dřív „visely" a nafukovaly
+  odznak). Podepsané/ukončené zůstávají. Child záznamy (parties/events/otps) se
+  domažou přes `ON DELETE CASCADE`.
+- **Jednorázový úklid** existujících osiřelých návrhů (migrace) — nepodepsané
+  smlouvy bývalých členů a řádných členů (typ 90).
+
 ## [2.9.3] — 2026-07-16
 
 ### Fixed

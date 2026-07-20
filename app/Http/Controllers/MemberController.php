@@ -590,6 +590,7 @@ class MemberController extends Controller
                 DB::table('allowed_subnets')->where('member_id', $id)->delete();
                 DB::table('members')->where('id', $id)->delete();
             });
+            $this->purgeUnsignedContracts($id);
             return redirect()->route('members.index')
                 ->with('success', 'Čekající člen byl smazán.');
         }
@@ -598,14 +599,22 @@ class MemberController extends Controller
         if (!in_array($member->type, $formerTypes)) {
             // typ 90 (řádný člen) → 16 (bývalý zákazník), ostatní → 15 (bývalý člen)
             $newType = ($member->type == MemberType::REGULAR) ? MemberType::FORMER_CUSTOMER : MemberType::FORMER;
+            $leaving = now()->format('Y-m-d');
             DB::table('members')->where('id', $id)->update([
                 'type'         => $newType,
                 'locked'       => 1,
-                'leaving_date' => now()->format('Y-m-d'),
+                'leaving_date' => $leaving,
             ]);
+            // Výpověď zákazníka → podepsané smlouvy označit jako ukončené.
+            $terminated = $this->terminateSignedContracts($id, $leaving);
+            // Rozpracované návrhy bývalého člena už nikdo nedokončí → smazat.
+            $this->purgeUnsignedContracts($id);
             $label = ($newType === MemberType::FORMER_CUSTOMER) ? 'zákazník' : 'člen';
-            return redirect()->route('members.show', $id)
-                ->with('info', "Člen byl označen jako bývalý {$label}. Pro úplné smazání klikněte znovu na Trvale smazat.");
+            $note  = "Člen byl označen jako bývalý {$label}. Pro úplné smazání klikněte znovu na Trvale smazat.";
+            if ($terminated > 0) {
+                $note .= ' Smlouva byla označena jako ukončená.';
+            }
+            return redirect()->route('members.show', $id)->with('info', $note);
         }
 
         // Krok 2: člen je již bývalý — smazat vše
@@ -653,8 +662,69 @@ class MemberController extends Controller
             DB::table('members')->where('id', $id)->delete();
         });
 
+        $this->purgeUnsignedContracts($id);
+
         return redirect()->route('members.index')
             ->with('success', 'Člen a všechna jeho data byla trvale smazána.');
+    }
+
+    /**
+     * Při trvalém smazání člena smaž jeho nepodepsané smlouvy z contractsdb
+     * (návrh / čeká na podpis / ověřeno / zrušená), aby nezůstávaly "viset"
+     * bez existujícího člena. Podepsané (`signed`) i ukončené (`terminated`)
+     * smlouvy zůstávají jako právní dokument.
+     *
+     * Smlouvy jsou v samostatné DB (connection 'contracts'), takže to nejde
+     * dovnitř transakce nad `mysql`. Chyba contractsdb nesmí shodit už
+     * dokončené mazání člena — proto try/catch. Child tabulky
+     * (contract_parties/events/otps) se domažou přes ON DELETE CASCADE.
+     */
+    private function purgeUnsignedContracts(int $memberId): void
+    {
+        try {
+            \App\Models\Contract::where('member_id', $memberId)
+                ->whereNotIn('status', ['signed', 'terminated'])
+                ->delete();
+        } catch (\Throwable $e) {
+            \Illuminate\Support\Facades\Log::warning(
+                'Nepodařilo se smazat nepodepsané smlouvy člena #' . $memberId . ': ' . $e->getMessage()
+            );
+        }
+    }
+
+    /**
+     * Výpověď zákazníka: podepsané smlouvy člena označit jako `terminated`
+     * ("Ukončená"). Smlouva zůstává v systému jako právní dokument (PDF).
+     * Robustní vůči výpadku contractsdb (try/catch) — nesmí shodit ukončení
+     * člena. Vrací počet ukončených smluv.
+     */
+    private function terminateSignedContracts(int $memberId, ?string $leavingDate): int
+    {
+        try {
+            $contracts = \App\Models\Contract::where('member_id', $memberId)
+                ->where('status', 'signed')
+                ->get();
+
+            foreach ($contracts as $contract) {
+                $contract->update(['status' => 'terminated']);
+                \App\Models\ContractEvent::create([
+                    'contract_id' => $contract->id,
+                    'event'       => 'terminated',
+                    'meta_json'   => json_encode([
+                        'by'     => auth()->user()?->login,
+                        'reason' => 'Ukončení zákazníka',
+                        'date'   => $leavingDate,
+                    ], JSON_UNESCAPED_UNICODE),
+                ]);
+            }
+
+            return $contracts->count();
+        } catch (\Throwable $e) {
+            \Illuminate\Support\Facades\Log::warning(
+                'Nepodařilo se ukončit smlouvy člena #' . $memberId . ': ' . $e->getMessage()
+            );
+            return 0;
+        }
     }
 
     public function applicants()
@@ -1100,9 +1170,18 @@ class MemberController extends Controller
             }
         });
 
+        // Ukončení členství/výpověď → podepsané smlouvy člena označit jako ukončené
+        // (mimo transakci — contracts jsou v samostatné DB, robustní vůči výpadku).
+        $terminated = $this->terminateSignedContracts($id, (string) $validated['leaving_date']);
+        // Rozpracované návrhy bývalého člena už nikdo nedokončí → smazat, ať neviší.
+        $this->purgeUnsignedContracts($id);
+
         $label = ($newType == MemberType::FORMER_CUSTOMER) ? 'zákazník' : 'člen';
-        return redirect()->route('members.show', $id)
-            ->with('success', "Členství bylo ukončeno. {$member->name} označen jako bývalý {$label}.");
+        $note  = "Členství bylo ukončeno. {$member->name} označen jako bývalý {$label}.";
+        if ($terminated > 0) {
+            $note .= ' Smlouva byla označena jako ukončená.';
+        }
+        return redirect()->route('members.show', $id)->with('success', $note);
     }
 
     /**
