@@ -6,6 +6,16 @@ formát podle [Keep a Changelog](https://keepachangelog.com/cs/1.1.0/).
 Verzi v souboru `config/version.php` bumpni samostatným commitem `chore: bump version to X.Y.Z`,
 ať lze changelog snadno regenerovat přes `git log vX..vY --oneline`.
 
+## [2.10.1] — 2026-07-20
+
+### Fixed
+- **Bývalí zákazníci s podepsanou smlouvou nebyli v `/contracts` vidět.** Členové
+  ukončení ještě před zavedením stavu „Ukončená" měli smlouvu pořád `signed`,
+  takže je seznam (skrývající bývalé) nezobrazil. Migrace zpětně překlopí
+  podepsané smlouvy bývalých členů (typ 15/16) na `terminated` — objeví se
+  v přehledu a stav odpovídá realitě. Smlouva zůstává jako doklad (PDF), zapíše
+  se událost do historie.
+
 ## [2.10.0] — 2026-07-20
 
 ### Added
