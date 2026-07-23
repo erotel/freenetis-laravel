@@ -167,6 +167,17 @@
 </form>
 
 <script>
+// Přidá option do <select> města, pokud tam ještě není (nově založené z ARES).
+function ensureTownOption(selectId, id, label) {
+    const sel = document.getElementById(selectId);
+    if (!sel || !id) return;
+    if (!sel.querySelector('option[value="' + id + '"]')) {
+        const opt = document.createElement('option');
+        opt.value = id;
+        opt.textContent = label || ('#' + id);
+        sel.appendChild(opt);
+    }
+}
 function loadStreets(townId, selectedId) {
     const sel = document.getElementById('street_id');
     sel.innerHTML = '<option value="">— vyberte ulici —</option>';
@@ -224,6 +235,7 @@ async function loadFromAres() {
             document.querySelector('input[name="vat_organization_identifier"]').value = data.dic;
         }
         if (data.town_id) {
+            ensureTownOption('town_id', data.town_id, data.town_name);
             document.getElementById('town_id').value = data.town_id;
             loadStreets(data.town_id, data.street_id);
         }
@@ -234,10 +246,12 @@ async function loadFromAres() {
         const adresaInfo = document.getElementById('ares-adresa-info');
         if (adresaInfo && (data.mesto || data.ulice)) {
             let adresaText = '📍 ARES adresa: ' + data.ulice + ', ' + data.mesto + ' ' + data.psc;
-            if (data.town_id)          adresaText += ' ✓ město nalezeno';
-            else                       adresaText += ' ⚠ město nenalezeno v DB';
-            if (data.street_id)        adresaText += ', ulice nalezena';
-            else if (data.ulice_nazev) adresaText += ', ⚠ ulice nenalezena v DB';
+            if (data.town_created)     adresaText += ' ✓ město automaticky přidáno';
+            else if (data.town_id)     adresaText += ' ✓ město nalezeno';
+            else                       adresaText += ' ⚠ město nenalezeno';
+            if (data.street_created)   adresaText += ', ulice automaticky přidána';
+            else if (data.street_id)   adresaText += ', ulice nalezena';
+            else if (data.ulice_nazev) adresaText += ', ⚠ ulice nenalezena';
             adresaInfo.textContent   = adresaText;
             adresaInfo.style.display = 'block';
         }

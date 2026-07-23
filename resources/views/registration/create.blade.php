@@ -200,6 +200,17 @@
 </div>
 
 <script>
+// Přidá option do <select> města, pokud tam ještě není (nově založené z ARES).
+function ensureTownOption(selectId, id, label) {
+    const sel = document.getElementById(selectId);
+    if (!sel || !id) return;
+    if (!sel.querySelector('option[value="' + id + '"]')) {
+        const opt = document.createElement('option');
+        opt.value = id;
+        opt.textContent = label || ('#' + id);
+        sel.appendChild(opt);
+    }
+}
 function loadStreetsReg(townId, selectedId) {
     if (!townId) return;
     fetch('{{ url('streets/by-town-public') }}/' + townId)
@@ -249,13 +260,13 @@ async function loadFromAresReg() {
         if (data.error) { status.textContent = '✗ ' + data.error; status.style.color = 'red'; return; }
         if (data.nazev) { document.getElementById('reg-name').value = data.nazev; document.getElementById('reg-surname').value = ''; document.getElementById('reg-surname').placeholder = '(firma)'; }
         if (data.dic)    document.getElementById('reg-dic').value = data.dic;
-        if (data.town_id) { document.getElementById('reg-town').value = data.town_id; loadStreetsReg(data.town_id, data.street_id); }
+        if (data.town_id) { ensureTownOption('reg-town', data.town_id, data.town_name); document.getElementById('reg-town').value = data.town_id; loadStreetsReg(data.town_id, data.street_id); }
         if (data.cislo) document.getElementById('reg-street-number').value = data.cislo;
         const adresa = document.getElementById('reg-ares-adresa');
         if (adresa && (data.mesto || data.ulice)) {
             let txt = '📍 ARES: ' + data.ulice + ', ' + data.mesto + ' ' + data.psc;
-            if (data.town_id) txt += ' ✓ město nalezeno'; else txt += ' ⚠ město nenalezeno v DB';
-            if (data.street_id) txt += ', ulice nalezena'; else if (data.ulice_nazev) txt += ', ⚠ ulice nenalezena v DB';
+            if (data.town_created) txt += ' ✓ město automaticky přidáno'; else if (data.town_id) txt += ' ✓ město nalezeno'; else txt += ' ⚠ město nenalezeno';
+            if (data.street_created) txt += ', ulice automaticky přidána'; else if (data.street_id) txt += ', ulice nalezena'; else if (data.ulice_nazev) txt += ', ⚠ ulice nenalezena';
             adresa.textContent = txt; adresa.style.display = 'block';
         }
         status.textContent = '✓ Data načtena z ARES'; status.style.color = 'green';
