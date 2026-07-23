@@ -34,6 +34,15 @@
         </select>
         @error('member_id') <div class="m-form-hint" style="color:#c0392b">{{ $message }}</div> @enderror
     </div>
+    <div class="m-form-group">
+        <label class="m-form-label" for="address_display">Adresa umístění</label>
+        <input type="hidden" id="address_point_id" name="address_point_id" value="{{ old('address_point_id', $device->address_point_id) }}">
+        <div class="m-form-row" style="align-items:center;gap:8px">
+            <input class="m-form-input" type="text" id="address_display" readonly style="background:var(--fn-quote-bg);cursor:default;flex:1" placeholder="— nevyplněno —" value="{{ $currentAddressLabel }}">
+            <button type="button" class="m-btn" id="address_from_member_btn" title="Nastavit adresu podle vybraného člena">Převzít z člena</button>
+        </div>
+        @error('address_point_id') <div class="m-form-hint" style="color:#c0392b">{{ $message }}</div> @enderror
+    </div>
     <div class="m-form-row">
         <div class="m-form-group">
             <label class="m-form-label" for="name">Název <span style="color:#c0392b">*</span></label>
@@ -101,4 +110,30 @@
 </div>
 </form>
 </div>
+
+<script>
+(function () {
+    // Mapa člen → adresa umístění (address_point).
+    var memberAddr = @json($members->mapWithKeys(fn($m) => [$m->id => ['ap' => $m->address_point_id, 'label' => $m->address_label]]));
+    var apHidden  = document.getElementById('address_point_id');
+    var apDisplay = document.getElementById('address_display');
+    var select    = document.getElementById('member_id');
+    var btn       = document.getElementById('address_from_member_btn');
+    if (!apHidden || !apDisplay || !select || !btn) return;
+
+    // U editace adresu NEpřepisujeme automaticky (zařízení může mít vlastní adresu
+    // odlišnou od člena). Admin ji převezme z člena tlačítkem.
+    btn.addEventListener('click', function () {
+        var a = memberAddr[select.value];
+        if (a && a.ap) {
+            apHidden.value = a.ap;
+            apDisplay.value = a.label || '';
+        } else {
+            apHidden.value = '';
+            apDisplay.value = '';
+            apDisplay.placeholder = a ? '— člen nemá adresu —' : '— vyberte člena —';
+        }
+    });
+})();
+</script>
 @endsection

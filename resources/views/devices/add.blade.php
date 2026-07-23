@@ -44,6 +44,15 @@
         </select>
         @error('member_id') <div class="m-form-hint" style="color:#c0392b">{{ $message }}</div> @enderror
     </div>
+    <div class="m-form-group">
+        <label class="m-form-label" for="address_display">Adresa umístění</label>
+        <input type="hidden" id="address_point_id" name="address_point_id" value="{{ old('address_point_id') }}">
+        <input class="m-form-input" type="text" id="address_display" readonly
+               style="background:var(--fn-quote-bg);cursor:default" placeholder="— podle člena —"
+               value="{{ old('address_point_id') ? ($members->firstWhere('id', old('member_id', $preselectedMemberId ?? null))?->address_label ?? '') : '' }}">
+        <div class="m-form-hint">Předvyplní se automaticky podle vybraného člena.</div>
+        @error('address_point_id') <div class="m-form-hint" style="color:#c0392b">{{ $message }}</div> @enderror
+    </div>
     <div class="m-form-row">
         <div class="m-form-group">
             <label class="m-form-label" for="name">Název <span style="color:#c0392b">*</span></label>
@@ -154,31 +163,56 @@
 
 <script>
 (function () {
-    var input  = document.getElementById('member_id_lookup');
-    var btn    = document.getElementById('member_id_lookup_btn');
     var select = document.getElementById('member_id');
-    var msg    = document.getElementById('member_id_lookup_msg');
-    if (!input || !btn || !select) return;
+    // Mapa člen → adresa umístění (address_point). Auto-vyplnění pole podle člena.
+    var memberAddr = @json($members->mapWithKeys(fn($m) => [$m->id => ['ap' => $m->address_point_id, 'label' => $m->address_label]]));
+    var apHidden = document.getElementById('address_point_id');
+    var apDisplay = document.getElementById('address_display');
+    var userEdited = (apHidden && apHidden.value !== '');
 
-    function lookup() {
-        var id = (input.value || '').trim();
-        if (id === '') { msg.textContent = ''; return; }
-        var opt = select.querySelector('option[value="' + id + '"]');
-        if (opt) {
-            select.value = id;
-            select.focus();
-            msg.style.color = 'var(--fn-ok, #15803d)';
-            msg.textContent = 'Vybráno: ' + opt.textContent.trim();
+    function applyAddress(memberId) {
+        if (!apHidden || !apDisplay) return;
+        var a = memberAddr[memberId];
+        if (a && a.ap) {
+            apHidden.value = a.ap;
+            apDisplay.value = a.label || '';
         } else {
-            msg.style.color = '#c0392b';
-            msg.textContent = 'Člen s ID ' + id + ' není v seznamu (nemá hlavního uživatele).';
+            apHidden.value = '';
+            apDisplay.value = '';
+            apDisplay.placeholder = a ? '— člen nemá adresu —' : '— podle člena —';
         }
     }
 
-    btn.addEventListener('click', lookup);
-    input.addEventListener('keydown', function (e) {
-        if (e.key === 'Enter') { e.preventDefault(); lookup(); }
-    });
+    if (select) {
+        if (!userEdited && select.value) applyAddress(select.value);
+        select.addEventListener('change', function () { applyAddress(this.value); });
+    }
+
+    // Vyhledání člena podle ID
+    var input = document.getElementById('member_id_lookup');
+    var btn   = document.getElementById('member_id_lookup_btn');
+    var msg   = document.getElementById('member_id_lookup_msg');
+    if (input && btn && select) {
+        function lookup() {
+            var id = (input.value || '').trim();
+            if (id === '') { msg.textContent = ''; return; }
+            var opt = select.querySelector('option[value="' + id + '"]');
+            if (opt) {
+                select.value = id;
+                applyAddress(id);
+                select.focus();
+                msg.style.color = 'var(--fn-ok, #15803d)';
+                msg.textContent = 'Vybráno: ' + opt.textContent.trim();
+            } else {
+                msg.style.color = '#c0392b';
+                msg.textContent = 'Člen s ID ' + id + ' není v seznamu (nemá hlavního uživatele).';
+            }
+        }
+        btn.addEventListener('click', lookup);
+        input.addEventListener('keydown', function (e) {
+            if (e.key === 'Enter') { e.preventDefault(); lookup(); }
+        });
+    }
 })();
 
 const allTemplates = @json($templates);

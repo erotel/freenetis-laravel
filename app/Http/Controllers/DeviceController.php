@@ -45,7 +45,16 @@ class DeviceController extends Controller
                 $j->on('u.member_id', '=', 'm.id')
                   ->where('u.type', '=', User::MAIN_USER);
             })
-            ->select('m.id', 'm.name', 'u.id as user_id', 'u.login', 'u.surname', 'u.name as user_name')
+            // Adresa umístění člena — zdroj předvyplnění u zařízení (address_point sdílený).
+            ->leftJoin('address_points as ap', 'ap.id', '=', 'm.address_point_id')
+            ->leftJoin('streets as st', 'st.id', '=', 'ap.street_id')
+            ->leftJoin('towns as tn', 'tn.id', '=', 'ap.town_id')
+            ->select(
+                'm.id', 'm.name', 'u.id as user_id', 'u.login', 'u.surname', 'u.name as user_name',
+                'm.address_point_id',
+                'st.street as ap_street', 'ap.street_number as ap_street_number',
+                'tn.town as ap_town', 'tn.zip_code as ap_zip'
+            )
             ->orderBy('u.surname')
             ->orderBy('u.name')
             ->orderBy('u.id')
@@ -60,6 +69,12 @@ class DeviceController extends Controller
                 $row->display_name = ($surname !== '' && $name !== '')
                     ? $surname . ' ' . $name
                     : $row->name;
+
+                // Čitelný popis adresy umístění (stejný formát jako devices/show).
+                $street = trim(($row->ap_street ?? '') . ' ' . ($row->ap_street_number ?? ''));
+                $town   = trim(($row->ap_town ?? '') . ' ' . ($row->ap_zip ?? ''));
+                $row->address_label = trim(trim($street) . (($street && $town) ? ', ' : '') . $town);
+
                 return $row;
             });
     }
@@ -285,7 +300,7 @@ class DeviceController extends Controller
             ->with('success', 'Technik byl odebrán.');
     }
 
-    public function createWithTemplate(Request $request, int $userId = null)
+    public function createWithTemplate(Request $request, ?int $userId = null)
     {
         abort_unless($this->can('new_all'), 403);
 
@@ -433,6 +448,7 @@ class DeviceController extends Controller
             'device_template_id' => 'nullable|integer|exists:device_templates,id',
             'buy_date'           => 'nullable|date',
             'comment'            => 'nullable|string|max:254',
+            'address_point_id'   => 'nullable|integer|exists:address_points,id',
         ];
 
         // Build iface validation rules from template
@@ -500,11 +516,12 @@ class DeviceController extends Controller
             $memberId = User::find($validated['user_id'])?->member_id;
 
             $device = Device::create([
-                'user_id'  => $validated['user_id'],
-                'name'     => $validated['name'],
-                'type'     => $validated['type'],
-                'buy_date' => $validated['buy_date'] ?? now()->toDateString(),
-                'comment'  => $validated['comment'] ?? null,
+                'user_id'          => $validated['user_id'],
+                'name'             => $validated['name'],
+                'type'             => $validated['type'],
+                'buy_date'         => $validated['buy_date'] ?? now()->toDateString(),
+                'comment'          => $validated['comment'] ?? null,
+                'address_point_id' => $validated['address_point_id'] ?? null,
             ]);
 
             $deviceId = $device->id;
@@ -636,6 +653,7 @@ class DeviceController extends Controller
             'payment_rate'    => 'nullable|numeric|min:0',
             'buy_date'        => 'nullable|date',
             'comment'         => 'nullable|string|max:254',
+            'address_point_id'=> 'nullable|integer|exists:address_points,id',
         ]);
 
         $userId = $this->resolveMainUserId((int) $data['member_id']);
@@ -663,7 +681,7 @@ class DeviceController extends Controller
             abort(403);
         }
 
-        $device = Device::find($id);
+        $device = Device::with(['addressPoint.street', 'addressPoint.town'])->find($id);
         if (!$device) {
             abort(404);
         }
@@ -674,13 +692,22 @@ class DeviceController extends Controller
         // koukají na main usera, takže member_id je vždy dostupný).
         $currentMemberId = DB::table('users')->where('id', $device->user_id)->value('member_id');
 
+        // Čitelný popis aktuální adresy zařízení (stejný formát jako devices/show).
+        $currentAddressLabel = '';
+        if ($ap = $device->addressPoint) {
+            $street = trim(($ap->street?->street ?? '') . ' ' . ($ap->street_number ?? ''));
+            $town   = trim(($ap->town?->town ?? '') . ' ' . ($ap->town?->zip_code ?? ''));
+            $currentAddressLabel = trim(trim($street) . (($street && $town) ? ', ' : '') . $town);
+        }
+
         return view('devices.edit', [
-            'device'             => $device,
-            'deviceTypes'        => $deviceTypes,
-            'members'            => $members,
-            'currentMemberId'    => $currentMemberId,
-            'canEditLogin'       => $this->can('view_all', 'login'),
-            'canEditPassword'    => $this->can('view_all', 'password'),
+            'device'              => $device,
+            'deviceTypes'         => $deviceTypes,
+            'members'             => $members,
+            'currentMemberId'     => $currentMemberId,
+            'currentAddressLabel' => $currentAddressLabel,
+            'canEditLogin'        => $this->can('view_all', 'login'),
+            'canEditPassword'     => $this->can('view_all', 'password'),
         ]);
     }
 
@@ -706,6 +733,7 @@ class DeviceController extends Controller
             'payment_rate'    => 'nullable|numeric|min:0',
             'buy_date'        => 'nullable|date',
             'comment'         => 'nullable|string|max:254',
+            'address_point_id'=> 'nullable|integer|exists:address_points,id',
         ];
 
         if ($this->can('view_all', 'login')) {
