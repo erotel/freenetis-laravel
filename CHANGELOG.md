@@ -6,6 +6,21 @@ formát podle [Keep a Changelog](https://keepachangelog.com/cs/1.1.0/).
 Verzi v souboru `config/version.php` bumpni samostatným commitem `chore: bump version to X.Y.Z`,
 ať lze changelog snadno regenerovat přes `git log vX..vY --oneline`.
 
+## [2.12.0] — 2026-07-23
+
+### Changed
+- **Smlouva: „Místo připojení" se bere z adresy prvního zařízení člena.**
+  Dřív se `service_full_address` (v PDF „Adresa místa připojení") plnil z adresy
+  člena. Nově se přednostně vezme adresa **prvního zařízení** člena (nejnižší
+  `devices.id` s vyplněnou adresou umístění); když člen žádné takové zařízení
+  nemá, fallback na adresu člena. Adresa strany (bydliště/sídlo) zůstává z člena.
+
+### Added
+- **Ruční editace místa připojení u návrhu smlouvy.** Na detailu smlouvy
+  (`/members/{id}/contract`) lze u stavu Návrh v sekci „Smluvní strana" ručně
+  přepsat „Místo připojení" (`service_full_address`). Zapisuje se událost do
+  historie. Přidán i řádek „Místo připojení" do zobrazení strany.
+
 ## [2.11.1] — 2026-07-23
 
 ### Changed
