@@ -6,6 +6,28 @@ formát podle [Keep a Changelog](https://keepachangelog.com/cs/1.1.0/).
 Verzi v souboru `config/version.php` bumpni samostatným commitem `chore: bump version to X.Y.Z`,
 ať lze changelog snadno regenerovat přes `git log vX..vY --oneline`.
 
+## [2.11.0] — 2026-07-23
+
+### Added
+- **Adresa umístění zařízení ve formulářích.** Přidání i úprava zařízení
+  (`devices/create`, `devices/add`, `devices/edit`) má nové pole „Adresa umístění"
+  (`address_point_id`). U nového zařízení se **automaticky předvyplní podle
+  vybraného člena** (i po vyhledání člena přes ID); u úpravy se ukáže aktuální
+  adresa zařízení + tlačítko „Převzít z člena". Dřív se `address_point_id` přes
+  tyto formuláře vůbec neukládal. Adresní bod se sdílí (odkaz na stejný
+  `address_points` řádek jako člen), netvoří se duplikát.
+- **ARES: automatické přidání chybějícího města/ulice.** Když načtení dat z ARES
+  vrátí město nebo ulici, které v DB nejsou, nově se **automaticky založí**
+  (`AddressResolverService`) — ARES je důvěryhodný zdroj. Platí pro obě lookup
+  cesty (admin i veřejná registrace) i všechny tři formuláře (člen create/edit,
+  registrace). Dřív chybějící město/ulice blokovalo uložení (`required|exists`)
+  a admin je musel zakládat ručně. Ošetřen ořez názvu ulice na `varchar(30)`
+  před hledáním i zápisem (jinak by dlouhé názvy tvořily duplikáty).
+
+### Fixed
+- **PHP 8.4 deprecation** v `DeviceController::createWithTemplate()` — implicitně
+  nullable parametr `$userId` převeden na explicitní `?int`.
+
 ## [2.10.1] — 2026-07-20
 
 ### Fixed
