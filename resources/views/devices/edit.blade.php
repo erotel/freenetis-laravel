@@ -35,13 +35,34 @@
         @error('member_id') <div class="m-form-hint" style="color:#c0392b">{{ $message }}</div> @enderror
     </div>
     <div class="m-form-group">
-        <label class="m-form-label" for="address_display">Adresa umístění</label>
-        <input type="hidden" id="address_point_id" name="address_point_id" value="{{ old('address_point_id', $device->address_point_id) }}">
-        <div class="m-form-row" style="align-items:center;gap:8px">
-            <input class="m-form-input" type="text" id="address_display" readonly style="background:var(--fn-quote-bg);cursor:default;flex:1" placeholder="— nevyplněno —" value="{{ $currentAddressLabel }}">
-            <button type="button" class="m-btn" id="address_from_member_btn" title="Nastavit adresu podle vybraného člena">Převzít z člena</button>
+        <div class="m-form-row" style="justify-content:space-between;align-items:baseline">
+            <label class="m-form-label">Adresa umístění</label>
+            <button type="button" class="btnlink" id="address_from_member_btn" style="background:none;border:0;color:#2563eb;cursor:pointer;font-size:14px;padding:0" title="Přepsat adresu adresou vybraného člena">↻ Převzít z člena</button>
         </div>
-        @error('address_point_id') <div class="m-form-hint" style="color:#c0392b">{{ $message }}</div> @enderror
+        <div class="m-form-row">
+            <div class="m-form-group">
+                <label class="m-form-label" for="town_id" style="font-weight:400;color:var(--fn-muted)">Město</label>
+                <select class="m-form-select" id="town_id" name="town_id">
+                    <option value="">— vyberte město —</option>
+                    @foreach($towns as $t)
+                        <option value="{{ $t->id }}" @selected(old('town_id', $currentTownId) == $t->id)>{{ $t->town }} {{ $t->zip_code }}</option>
+                    @endforeach
+                </select>
+                @error('town_id') <div class="m-form-hint" style="color:#c0392b">{{ $message }}</div> @enderror
+            </div>
+            <div class="m-form-group">
+                <label class="m-form-label" for="street_id" style="font-weight:400;color:var(--fn-muted)">Ulice</label>
+                <select class="m-form-select" id="street_id" name="street_id" data-selected="{{ old('street_id', $currentStreetId) }}">
+                    <option value="">— vyberte ulici —</option>
+                </select>
+                @error('street_id') <div class="m-form-hint" style="color:#c0392b">{{ $message }}</div> @enderror
+            </div>
+            <div class="m-form-group" style="flex:0 0 130px">
+                <label class="m-form-label" for="street_number" style="font-weight:400;color:var(--fn-muted)">Číslo popisné</label>
+                <input class="m-form-input" type="text" id="street_number" name="street_number" value="{{ old('street_number', $currentStreetNumber) }}" maxlength="50">
+                @error('street_number') <div class="m-form-hint" style="color:#c0392b">{{ $message }}</div> @enderror
+            </div>
+        </div>
     </div>
     <div class="m-form-row">
         <div class="m-form-group">
@@ -113,27 +134,45 @@
 
 <script>
 (function () {
-    // Mapa člen → adresa umístění (address_point).
-    var memberAddr = @json($members->mapWithKeys(fn($m) => [$m->id => ['ap' => $m->address_point_id, 'label' => $m->address_label]]));
-    var apHidden  = document.getElementById('address_point_id');
-    var apDisplay = document.getElementById('address_display');
+    // Mapa člen → adresa umístění (rozložená na město/ulici/číslo).
+    @php $memberAddrMap = $members->mapWithKeys(fn($m) => [$m->id => ['town' => $m->ap_town_id, 'street' => $m->ap_street_id, 'number' => $m->ap_street_number]]); @endphp
+    var memberAddr = @json($memberAddrMap);
+    var townSel   = document.getElementById('town_id');
+    var streetSel = document.getElementById('street_id');
+    var numberInp = document.getElementById('street_number');
     var select    = document.getElementById('member_id');
     var btn       = document.getElementById('address_from_member_btn');
-    if (!apHidden || !apDisplay || !select || !btn) return;
 
-    // U editace adresu NEpřepisujeme automaticky (zařízení může mít vlastní adresu
-    // odlišnou od člena). Admin ji převezme z člena tlačítkem.
-    btn.addEventListener('click', function () {
-        var a = memberAddr[select.value];
-        if (a && a.ap) {
-            apHidden.value = a.ap;
-            apDisplay.value = a.label || '';
-        } else {
-            apHidden.value = '';
-            apDisplay.value = '';
-            apDisplay.placeholder = a ? '— člen nemá adresu —' : '— vyberte člena —';
-        }
-    });
+    function loadStreets(townId, selectedId) {
+        streetSel.innerHTML = '<option value="">— vyberte ulici —</option>';
+        if (!townId) return;
+        fetch('{{ url('streets/by-town') }}/' + townId)
+            .then(function (r) { return r.json(); })
+            .then(function (streets) {
+                streets.forEach(function (s) {
+                    var opt = document.createElement('option');
+                    opt.value = s.id; opt.textContent = s.street;
+                    if (selectedId && s.id == selectedId) opt.selected = true;
+                    streetSel.appendChild(opt);
+                });
+            });
+    }
+    townSel.addEventListener('change', function () { loadStreets(this.value, null); });
+
+    // Na startu předvyplň ulice podle aktuálního města zařízení.
+    loadStreets(townSel.value, streetSel.getAttribute('data-selected') || null);
+
+    // Adresu automaticky NEpřepisujeme (zařízení může být jinde než člen) —
+    // admin ji převezme z člena tlačítkem, jinak si vybere ručně město/ulici/číslo.
+    if (btn && select) {
+        btn.addEventListener('click', function () {
+            var a = memberAddr[select.value];
+            if (!a) return;
+            townSel.value   = a.town || '';
+            numberInp.value = a.number || '';
+            loadStreets(a.town, a.street);
+        });
+    }
 })();
 </script>
 @endsection

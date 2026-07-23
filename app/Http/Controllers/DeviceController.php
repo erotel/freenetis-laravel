@@ -52,7 +52,8 @@ class DeviceController extends Controller
             ->select(
                 'm.id', 'm.name', 'u.id as user_id', 'u.login', 'u.surname', 'u.name as user_name',
                 'm.address_point_id',
-                'st.street as ap_street', 'ap.street_number as ap_street_number',
+                'ap.town_id as ap_town_id', 'ap.street_id as ap_street_id', 'ap.street_number as ap_street_number',
+                'st.street as ap_street',
                 'tn.town as ap_town', 'tn.zip_code as ap_zip'
             )
             ->orderBy('u.surname')
@@ -357,10 +358,12 @@ class DeviceController extends Controller
             ];
         })->values()->toArray();
 
+        $towns = DB::table('towns')->orderBy('town')->get(['id', 'town', 'zip_code']);
+
         return view('devices.add', compact(
             'user', 'members', 'preselectedMemberId', 'deviceTypes', 'templates',
             'subnets', 'selectedTemplate', 'ifaceDefinitions', 'selectedTypeId',
-            'subnetData'
+            'subnetData', 'towns'
         ));
     }
 
@@ -411,10 +414,12 @@ class DeviceController extends Controller
             ];
         })->values()->toArray();
 
+        $towns = DB::table('towns')->orderBy('town')->get(['id', 'town', 'zip_code']);
+
         return view('devices.add', array_merge(compact(
             'user', 'members', 'preselectedMemberId', 'deviceTypes', 'templates',
             'subnets', 'selectedTemplate', 'ifaceDefinitions', 'selectedTypeId',
-            'subnetData'
+            'subnetData', 'towns'
         ), [
             'preselectedMac'      => $cr->mac_address,
             'preselectedIp'       => $cr->ip_address,
@@ -448,7 +453,9 @@ class DeviceController extends Controller
             'device_template_id' => 'nullable|integer|exists:device_templates,id',
             'buy_date'           => 'nullable|date',
             'comment'            => 'nullable|string|max:254',
-            'address_point_id'   => 'nullable|integer|exists:address_points,id',
+            'town_id'            => 'nullable|integer|exists:towns,id',
+            'street_id'          => 'nullable|integer|exists:streets,id',
+            'street_number'      => 'nullable|string|max:50',
         ];
 
         // Build iface validation rules from template
@@ -512,7 +519,14 @@ class DeviceController extends Controller
 
         $touchedSubnetIds = [];
 
-        DB::transaction(function () use ($validated, $ifaceDefs, $request, &$deviceId, &$touchedSubnetIds) {
+        $addressPointId = app(\App\Services\AddressResolverService::class)
+            ->resolveAddressPoint(
+                $validated['town_id'] ?? null,
+                $validated['street_id'] ?? null,
+                $validated['street_number'] ?? null
+            );
+
+        DB::transaction(function () use ($validated, $ifaceDefs, $request, $addressPointId, &$deviceId, &$touchedSubnetIds) {
             $memberId = User::find($validated['user_id'])?->member_id;
 
             $device = Device::create([
@@ -521,7 +535,7 @@ class DeviceController extends Controller
                 'type'             => $validated['type'],
                 'buy_date'         => $validated['buy_date'] ?? now()->toDateString(),
                 'comment'          => $validated['comment'] ?? null,
-                'address_point_id' => $validated['address_point_id'] ?? null,
+                'address_point_id' => $addressPointId,
             ]);
 
             $deviceId = $device->id;
@@ -626,10 +640,12 @@ class DeviceController extends Controller
         }
         $deviceTypes = EnumType::where('type_id', EnumType::DEVICE_GROUP_ID)->orderBy('id')->pluck('value', 'id');
         $members     = $this->loadMembersForPicker();
+        $towns       = DB::table('towns')->orderBy('town')->get(['id', 'town', 'zip_code']);
 
         return view('devices.create', [
             'deviceTypes'         => $deviceTypes,
             'members'             => $members,
+            'towns'               => $towns,
             'preselectedMemberId' => $preselectedMemberId,
         ]);
     }
@@ -653,7 +669,9 @@ class DeviceController extends Controller
             'payment_rate'    => 'nullable|numeric|min:0',
             'buy_date'        => 'nullable|date',
             'comment'         => 'nullable|string|max:254',
-            'address_point_id'=> 'nullable|integer|exists:address_points,id',
+            'town_id'         => 'nullable|integer|exists:towns,id',
+            'street_id'       => 'nullable|integer|exists:streets,id',
+            'street_number'   => 'nullable|string|max:50',
         ]);
 
         $userId = $this->resolveMainUserId((int) $data['member_id']);
@@ -663,6 +681,15 @@ class DeviceController extends Controller
         }
         $data['user_id'] = $userId;
         unset($data['member_id']);
+
+        // Adresa umístění: z město/ulice/číslo najdi nebo vytvoř address_point.
+        $data['address_point_id'] = app(\App\Services\AddressResolverService::class)
+            ->resolveAddressPoint(
+                $data['town_id'] ?? null,
+                $data['street_id'] ?? null,
+                $data['street_number'] ?? null
+            );
+        unset($data['town_id'], $data['street_id'], $data['street_number']);
 
         // Jako v Kohaně: pokud datum koupě není zadáno, ulož datum vytvoření.
         if (empty($data['buy_date'])) {
@@ -688,24 +715,26 @@ class DeviceController extends Controller
 
         $deviceTypes = EnumType::where('type_id', EnumType::DEVICE_GROUP_ID)->orderBy('id')->pluck('value', 'id');
         $members     = $this->loadMembersForPicker();
+        $towns       = DB::table('towns')->orderBy('town')->get(['id', 'town', 'zip_code']);
         // Preselect aktuálního člena přes user → member_id (všechny existující devices
         // koukají na main usera, takže member_id je vždy dostupný).
         $currentMemberId = DB::table('users')->where('id', $device->user_id)->value('member_id');
 
-        // Čitelný popis aktuální adresy zařízení (stejný formát jako devices/show).
-        $currentAddressLabel = '';
-        if ($ap = $device->addressPoint) {
-            $street = trim(($ap->street?->street ?? '') . ' ' . ($ap->street_number ?? ''));
-            $town   = trim(($ap->town?->town ?? '') . ' ' . ($ap->town?->zip_code ?? ''));
-            $currentAddressLabel = trim(trim($street) . (($street && $town) ? ', ' : '') . $town);
-        }
+        // Aktuální adresa zařízení rozložená do polí (pro předvyplnění selectů).
+        $ap = $device->addressPoint;
+        $currentTownId      = $ap?->town_id;
+        $currentStreetId    = $ap?->street_id;
+        $currentStreetNumber = $ap?->street_number;
 
         return view('devices.edit', [
             'device'              => $device,
             'deviceTypes'         => $deviceTypes,
             'members'             => $members,
+            'towns'               => $towns,
             'currentMemberId'     => $currentMemberId,
-            'currentAddressLabel' => $currentAddressLabel,
+            'currentTownId'       => $currentTownId,
+            'currentStreetId'     => $currentStreetId,
+            'currentStreetNumber' => $currentStreetNumber,
             'canEditLogin'        => $this->can('view_all', 'login'),
             'canEditPassword'     => $this->can('view_all', 'password'),
         ]);
@@ -733,7 +762,9 @@ class DeviceController extends Controller
             'payment_rate'    => 'nullable|numeric|min:0',
             'buy_date'        => 'nullable|date',
             'comment'         => 'nullable|string|max:254',
-            'address_point_id'=> 'nullable|integer|exists:address_points,id',
+            'town_id'         => 'nullable|integer|exists:towns,id',
+            'street_id'       => 'nullable|integer|exists:streets,id',
+            'street_number'   => 'nullable|string|max:50',
         ];
 
         if ($this->can('view_all', 'login')) {
@@ -753,6 +784,15 @@ class DeviceController extends Controller
         }
         $data['user_id'] = $userId;
         unset($data['member_id']);
+
+        // Adresa umístění: z město/ulice/číslo najdi nebo vytvoř address_point.
+        $data['address_point_id'] = app(\App\Services\AddressResolverService::class)
+            ->resolveAddressPoint(
+                $data['town_id'] ?? null,
+                $data['street_id'] ?? null,
+                $data['street_number'] ?? null
+            );
+        unset($data['town_id'], $data['street_id'], $data['street_number']);
 
         $device->update($data);
 

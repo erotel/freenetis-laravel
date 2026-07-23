@@ -84,6 +84,43 @@ class AddressResolverService
     }
 
     /**
+     * Najdi nebo vytvoř address_point pro danou trojici (město / ulice / číslo).
+     * Adresní body se sdílí (víc členů/zařízení míří na stejné umístění), takže
+     * shodnou adresu znovu nevytváříme — vrátíme existující id. Vrací null, když
+     * není zadané město.
+     *
+     * country_id = 1 kvůli konzistenci se zbytkem systému (legacy konvence, viz
+     * MemberController / RegistrationController), i když CZ má v countries jiné id.
+     */
+    public function resolveAddressPoint(?int $townId, ?int $streetId, ?string $streetNumber): ?int
+    {
+        if (!$townId) {
+            return null;
+        }
+
+        $streetNumber = ($streetNumber !== null && trim($streetNumber) !== '')
+            ? mb_substr(trim($streetNumber), 0, 50)
+            : null;
+
+        $existing = DB::table('address_points')
+            ->where('town_id', $townId)
+            ->where(fn($q) => $streetId ? $q->where('street_id', $streetId) : $q->whereNull('street_id'))
+            ->where(fn($q) => $streetNumber !== null ? $q->where('street_number', $streetNumber) : $q->whereNull('street_number'))
+            ->value('id');
+
+        if ($existing) {
+            return (int) $existing;
+        }
+
+        return (int) DB::table('address_points')->insertGetId([
+            'town_id'       => $townId,
+            'street_id'     => $streetId,
+            'street_number' => $streetNumber,
+            'country_id'    => 1,
+        ]);
+    }
+
+    /**
      * Najdi existující město: přesná shoda názvu + PSČ, pak přesný název (jiné PSČ),
      * ať se nezaloží duplikát existujícího města jen kvůli odlišnému zápisu PSČ.
      */
