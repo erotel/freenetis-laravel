@@ -6,6 +6,23 @@ formát podle [Keep a Changelog](https://keepachangelog.com/cs/1.1.0/).
 Verzi v souboru `config/version.php` bumpni samostatným commitem `chore: bump version to X.Y.Z`,
 ať lze changelog snadno regenerovat přes `git log vX..vY --oneline`.
 
+## [2.11.1] — 2026-07-23
+
+### Changed
+- **Adresa umístění zařízení: plný výběr Město / Ulice / Číslo popisné.** Místo
+  jednoho read-only pole (jen „převzít z člena") mají formuláře zařízení
+  (create/add/edit) samostatné selecty Město + Ulice (AJAX dle města) + Číslo
+  popisné — jako u člena. Předvyplní se z vybraného člena, ale **jdou přepsat na
+  libovolné umístění** (typicky páteřní/AP zařízení jinde než sídlo člena).
+  U editace tlačítko „↻ Převzít z člena". Při uložení se z trojice najde nebo
+  vytvoří `address_point` (`AddressResolverService::resolveAddressPoint`, sdílené
+  body se nezdvojují).
+
+### Fixed
+- **Blade `@json()` neuzavřel víceřádkové pole** (`Unclosed '['`) v device
+  formulářích — direktiva nebalancuje `[]`. Výpočet mapy člen→adresa přesunut do
+  `@php` bloku, `@json` dostává prostou proměnnou.
+
 ## [2.11.0] — 2026-07-23
 
 ### Added
