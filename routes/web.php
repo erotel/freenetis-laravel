@@ -657,6 +657,7 @@ Route::middleware('auth')->group(function () {
     Route::get('members/{id}/contract',                  [ContractController::class, 'show'])->name('contracts.show');
     Route::post('members/{id}/contract',                 [ContractController::class, 'create'])->name('contracts.create');
     Route::post('members/{id}/contract/refresh',         [ContractController::class, 'refresh'])->name('contracts.refresh');
+    Route::post('members/{id}/contract/service-address', [ContractController::class, 'updateServiceAddress'])->name('contracts.service-address');
     Route::post('members/{id}/contract/cancel',          [ContractController::class, 'cancel'])->name('contracts.cancel');
     Route::post('members/{id}/contract/terminate',       [ContractController::class, 'terminate'])->name('contracts.terminate');
     Route::post('members/{id}/contract/send-link',       [ContractController::class, 'sendLink'])->name('contracts.send-link');

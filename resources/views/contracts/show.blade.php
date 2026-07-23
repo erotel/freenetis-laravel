@@ -150,8 +150,9 @@
     @foreach($contract->parties as $party)
     <div class="m-field"><span class="m-field-label">Jméno</span><span class="m-field-value">{{ $party->full_name }}</span></div>
     @if($party->street)
-    <div class="m-field"><span class="m-field-label">Adresa</span><span class="m-field-value">{{ $party->street }}, {{ $party->service_zip }} {{ $party->town }}</span></div>
+    <div class="m-field"><span class="m-field-label">Adresa</span><span class="m-field-value">{{ $party->street }}, {{ $party->town }}</span></div>
     @endif
+    <div class="m-field"><span class="m-field-label">Místo připojení</span><span class="m-field-value">{{ $party->service_full_address ?: '—' }}</span></div>
     @if($party->variable_symbol)
     <div class="m-field"><span class="m-field-label">VS</span><span class="m-field-value" style="font-family:monospace">{{ $party->variable_symbol }}</span></div>
     @endif
@@ -169,6 +170,24 @@
     <div class="m-field"><span class="m-field-label">IČO</span><span class="m-field-value">{{ $party->ico }}</span></div>
     @endif
     @endforeach
+
+    @if($canEdit && $contract->status === 'draft')
+    @php $editParty = $contract->parties->sortByDesc('id')->first(); @endphp
+    <div class="m-field" style="align-items:flex-start">
+        <span class="m-field-label">Upravit místo připojení</span>
+        <span class="m-field-value" style="flex:1">
+            <form method="POST" action="{{ route('contracts.service-address', $member->id) }}" style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+                @csrf
+                <input type="text" name="service_full_address" maxlength="255"
+                       value="{{ $editParty->service_full_address }}"
+                       class="m-form-input" style="flex:1;min-width:240px"
+                       placeholder="např. Háj 322, 79804 Kralice na Hané">
+                <button type="submit" class="m-btn">Uložit místo připojení</button>
+            </form>
+            <div class="m-form-hint" style="margin-top:4px">Předvyplněno z adresy prvního zařízení člena (jinak z adresy člena). Lze ručně přepsat.</div>
+        </span>
+    </div>
+    @endif
 </div>
 @endif
 

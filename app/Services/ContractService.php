@@ -194,13 +194,16 @@ class ContractService
         $mainUser = $member->users()->where('type', User::MAIN_USER)->first();
         [$phone, $email] = $this->extractContacts($mainUser);
 
+        // Adresa strany (bydliště/sídlo) = adresa člena.
         $ap = $member->addressPoint;
         $street    = $ap?->street?->street ?? '';
         $streetNo  = $ap?->street_number ?? '';
         $town      = $ap?->town?->town ?? '';
         $zip       = $ap?->town?->zip_code ?? '';
         $streetFull = $street ? trim("{$street} {$streetNo}") : '';
-        $fullAddr   = $streetFull ? "{$streetFull}, {$zip} {$town}" : '';
+
+        // Místo připojení = adresa prvního zařízení člena; fallback adresa člena.
+        $service = $this->resolveServiceAddress($member, $ap);
 
         $vs = $member->accounts
             ->flatMap(fn($a) => $a->variableSymbols)
@@ -222,10 +225,10 @@ class ContractService
             'full_name'            => $member->name,
             'street'               => $streetFull,
             'town'                 => $town,
-            'service_street'       => $streetFull,
-            'service_town'         => $town,
-            'service_zip'          => $zip,
-            'service_full_address' => $fullAddr,
+            'service_street'       => $service['street'],
+            'service_town'         => $service['town'],
+            'service_zip'          => $service['zip'],
+            'service_full_address' => $service['full'],
             'country'              => 'CZ',
             'ico'                  => $member->organization_identifier,
             'dic'                  => $member->vat_organization_identifier,
@@ -236,6 +239,71 @@ class ContractService
             'phone'                => $phone,
             'email'                => $email,
         ];
+    }
+
+    /**
+     * Místo připojení = adresa prvního zařízení člena (nejnižší id, s vyplněnou
+     * adresou umístění). Když člen žádné takové zařízení nemá, fallback na jeho
+     * vlastní adresu (předaný $memberAp). Vrací ['street','town','zip','full'].
+     */
+    private function resolveServiceAddress(Member $member, $memberAp): array
+    {
+        $device = \App\Models\Device::query()
+            ->whereIn('user_id', $member->users()->pluck('id'))
+            ->whereNotNull('address_point_id')
+            ->with(['addressPoint.street', 'addressPoint.town'])
+            ->orderBy('id')
+            ->first();
+
+        $ap = $device?->addressPoint ?? $memberAp;
+
+        $street    = $ap?->street?->street ?? '';
+        $streetNo  = $ap?->street_number ?? '';
+        $town      = $ap?->town?->town ?? '';
+        $zip       = $ap?->town?->zip_code ?? '';
+        $streetFull = $street ? trim("{$street} {$streetNo}") : '';
+        $full       = $streetFull ? "{$streetFull}, {$zip} {$town}" : '';
+
+        return ['street' => $streetFull, 'town' => $town, 'zip' => $zip, 'full' => $full];
+    }
+
+    /**
+     * Ruční úprava místa připojení u návrhu smlouvy. PDF renderuje jen
+     * `service_full_address`, takže editujeme primárně to; ostatní service_*
+     * pole vyprázdníme, ať se nemíchá starý strukturovaný snapshot s ručním textem.
+     */
+    public function updateServiceAddress(Contract $contract, string $address): bool
+    {
+        if ($contract->status !== 'draft') {
+            return false;
+        }
+
+        $party = ContractParty::where('contract_id', $contract->id)->orderByDesc('id')->first();
+        if (!$party) {
+            return false;
+        }
+
+        $old = (string) $party->service_full_address;
+        $new = trim(mb_substr($address, 0, 255));
+
+        $party->update([
+            'service_full_address' => $new,
+            'service_street'       => null,
+            'service_town'         => null,
+            'service_zip'          => null,
+        ]);
+
+        ContractEvent::create([
+            'contract_id' => $contract->id,
+            'event'       => 'service_address_edited',
+            'meta_json'   => json_encode([
+                'by'   => auth()->user()?->login,
+                'from' => $old,
+                'to'   => $new,
+            ], JSON_UNESCAPED_UNICODE),
+        ]);
+
+        return true;
     }
 
     public function issueAccessLink(int $contractId): array

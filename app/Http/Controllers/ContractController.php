@@ -118,6 +118,35 @@ class ContractController extends Controller
         );
     }
 
+    public function updateServiceAddress(int $memberId, \Illuminate\Http\Request $request): RedirectResponse
+    {
+        abort_unless($this->can('edit_all'), 403);
+
+        $contract = $this->contracts->getByMemberId($memberId);
+        if (!$contract) {
+            return redirect()->route('members.show', $memberId)
+                ->with('error', 'Smlouva nenalezena.');
+        }
+        if ($contract->status !== 'draft') {
+            return redirect()->route('contracts.show', $memberId)
+                ->with('error', 'Místo připojení lze upravit jen u smlouvy ve stavu Návrh.');
+        }
+
+        $validated = $request->validate([
+            'service_full_address' => 'nullable|string|max:255',
+        ]);
+
+        $ok = $this->contracts->updateServiceAddress(
+            $contract,
+            (string) ($validated['service_full_address'] ?? '')
+        );
+
+        return redirect()->route('contracts.show', $memberId)->with(
+            $ok ? 'success' : 'error',
+            $ok ? 'Místo připojení bylo upraveno.' : 'Místo připojení se nepodařilo upravit.'
+        );
+    }
+
     public function cancel(int $memberId, \Illuminate\Http\Request $request): RedirectResponse
     {
         abort_unless($this->can('edit_all'), 403);

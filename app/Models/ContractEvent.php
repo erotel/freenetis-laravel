@@ -43,6 +43,8 @@ class ContractEvent extends Model
             'link_issued'  => 'Odkaz odeslán',
             'canceled'     => 'Zrušeno',
             'terminated'   => 'Ukončeno (výpověď)',
+            'party_refreshed'        => 'Údaje aktualizovány ze člena',
+            'service_address_edited' => 'Upraveno místo připojení',
             default        => $this->event,
         };
     }
