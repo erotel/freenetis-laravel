@@ -43,8 +43,8 @@
             @else — @endif
         </span>
     </div>
-    <div class="m-field"><span class="m-field-label">IP adresa</span><span class="m-field-value" style="font-family:monospace">{{ $cr->ip_address }}</span></div>
-    <div class="m-field"><span class="m-field-label">MAC adresa</span><span class="m-field-value" style="font-family:monospace">{{ $cr->mac_address }}</span></div>
+    <div class="m-field"><span class="m-field-label">IP adresa</span><span class="m-field-value" style="font-family:monospace">{{ $cr->ip_address ?: '— doplní technik' }}</span></div>
+    <div class="m-field"><span class="m-field-label">MAC adresa</span><span class="m-field-value" style="font-family:monospace">{{ $cr->mac_address ?: '— doplní technik' }}</span></div>
     <div class="m-field">
         <span class="m-field-label">Subnet</span>
         <span class="m-field-value">

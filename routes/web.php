@@ -600,6 +600,8 @@ Route::middleware('auth')->group(function () {
 
     // ── Žádosti o připojení ──────────────────────────────────────────────────
     Route::get('connection-requests',                                    [ConnectionRequestController::class, 'index'])->name('connection_requests.index');
+    Route::get('connection-requests/new',                                [ConnectionRequestController::class, 'requestNew'])->name('connection_requests.request');
+    Route::post('connection-requests/new',                               [ConnectionRequestController::class, 'storeRequest'])->name('connection_requests.request_store');
     Route::get('connection-requests/{id}',                               [ConnectionRequestController::class, 'show'])->name('connection_requests.show');
     Route::get('members/{memberId}/connection-requests',                 [ConnectionRequestController::class, 'showByMember'])->name('connection_requests.by_member');
     Route::get('connection-requests/create/{subnetId}/{ipAddress}',      [ConnectionRequestController::class, 'create'])->name('connection_requests.create');

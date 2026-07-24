@@ -6,6 +6,37 @@ formát podle [Keep a Changelog](https://keepachangelog.com/cs/1.1.0/).
 Verzi v souboru `config/version.php` bumpni samostatným commitem `chore: bump version to X.Y.Z`,
 ať lze changelog snadno regenerovat přes `git log vX..vY --oneline`.
 
+## [2.13.0] — 2026-07-24
+
+### Added
+- **Zákazník vidí svá zařízení (self-access).** Běžný člen bez ACL `view_all`
+  na `Devices_Controller` teď na svém profilu vidí tlačítko „Zařízení" a může
+  otevřít seznam (`devices.by_user`) i detail (`devices.show`) **vlastních**
+  zařízení. Přístup je omezen na zařízení pod stejným členem (`isOwnUser`).
+  Detail zůstává read-only — úpravy, mazání, rozhraní, technici, login/heslo
+  jsou dál gated přes ACL; odkazy do admin sekcí se zákazníkovi renderují jako
+  prostý text (žádné 403 dead-endy).
+- **Zákazník může proaktivně požádat o nové připojení.** Vedle stávající
+  IP/SNMP cesty (banner „Zaregistrovat toto připojení") přibyl self-service
+  formulář `connection-requests/new` (`requestNew`/`storeRequest`): typ/šablona
+  zařízení (nepovinné) + poznámka. **MAC adresa je povinná** (bez ní technik
+  zařízení v DHCP nedohledá) — když ji jde detekovat přes SNMP z aktuální IP,
+  předvyplní se zamčená, jinak ji zadá zákazník. IP/subnet přiřadí technik až
+  při schválení. Žádost končí jako Čekající na `/connection-requests`, admin ji
+  schválí přes formulář zařízení (`create-from-cr`, prázdné hodnoty doplní).
+  Tlačítka na stránce zařízení zákazníka, na „Žádosti o připojení" i na profilu
+  člena.
+
+### Changed
+- **Layout zobrazuje `warning` flash.** Dřív se `session('warning')` tiše
+  zahazoval (renderovaly se jen success/error/info) — proto self-service akce
+  „nic nedělala". Přidán `m-alert-warning` blok.
+
+### Database
+- Migrace `make_connection_request_ip_nullable`:
+  `connection_requests.ip_address` / `subnet_id` / `mac_address` → **nullable**
+  (proaktivní žádost bez předem známé IP; MAC vynucuje aplikace, ne schéma).
+
 ## [2.12.0] — 2026-07-23
 
 ### Changed

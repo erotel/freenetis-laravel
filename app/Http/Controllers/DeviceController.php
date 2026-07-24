@@ -81,6 +81,20 @@ class DeviceController extends Controller
     }
 
     /**
+     * True, pokud daný uživatel patří pod stejného člena jako přihlášený uživatel
+     * (self-access — zákazník smí vidět vlastní zařízení i bez ACL view_all).
+     */
+    private function isOwnUser(?int $userId): bool
+    {
+        $ownMemberId = auth()->user()?->member_id;
+        if (!$ownMemberId || !$userId) {
+            return false;
+        }
+
+        return DB::table('users')->where('id', $userId)->value('member_id') == $ownMemberId;
+    }
+
+    /**
      * Najde main user_id pro daného člena. Vrací null pokud člen nebo main user neexistuje.
      */
     private function resolveMainUserId(int $memberId): ?int
@@ -194,7 +208,7 @@ class DeviceController extends Controller
 
     public function showByUser(int $userId)
     {
-        if (!$this->can('view_all')) {
+        if (!$this->can('view_all') && !$this->isOwnUser($userId)) {
             abort(403);
         }
 
@@ -219,15 +233,17 @@ class DeviceController extends Controller
             'canNew'    => $this->can('new_all'),
             'canEdit'   => $this->can('edit_all'),
             'canDelete' => $this->can('delete_all'),
+            'canViewUser' => $this->aclCheck('view_all', 'Users_Controller', 'users'),
+            // Self-service: vlastník smí požádat o nové připojení (stejně jako SNMP-unknown flow)
+            'canRequestConnection' => $this->isOwnUser($userId)
+                && (bool) Setting::get('connection_request_enable')
+                && $this->aclCheck('new_own', 'Connection_Requests_Controller', 'request'),
+            'memberId' => $user->member_id,
         ]);
     }
 
     public function show(int $id)
     {
-        if (!$this->can('view_all')) {
-            abort(403);
-        }
-
         $device = Device::with([
             'user.member',
             'enumType',
@@ -240,6 +256,10 @@ class DeviceController extends Controller
 
         if (!$device) {
             abort(404);
+        }
+
+        if (!$this->can('view_all') && !$this->isOwnUser($device->user_id)) {
+            abort(403);
         }
 
         $canManageEngineers = $this->can('new_all', 'engineer');
@@ -262,6 +282,8 @@ class DeviceController extends Controller
             'canManageEngineers' => $canManageEngineers,
             'canDeleteEngineer'  => $canDeleteEngineer,
             'engineerUsers'      => $engineerUsers,
+            'canViewAll'         => $this->can('view_all'),
+            'canViewUser'        => $this->aclCheck('view_all', 'Users_Controller', 'users'),
         ]);
     }
 

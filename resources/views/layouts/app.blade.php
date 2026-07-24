@@ -327,6 +327,9 @@ $isDark = ($userSettings['dark_mode'] ?? 0) == 1;
             @if(session('info'))
             <div class="m-alert m-alert-info">{{ session('info') }}</div>
             @endif
+            @if(session('warning'))
+            <div class="m-alert m-alert-warning">{{ session('warning') }}</div>
+            @endif
             @if(!empty($connectionRequestBanner) && !request()->is('connection-requests/create/*'))
             <div class="m-alert m-alert-info">
                 Vaše IP adresa <strong>{{ $connectionRequestBanner['ip'] }}</strong> není registrována.

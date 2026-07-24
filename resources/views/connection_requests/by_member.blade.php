@@ -10,6 +10,12 @@
 <div class="m-page">
 <div class="m-title-row"><h2>Žádosti o připojení — {{ $member->name }}</h2></div>
 
+@if($canAdd)
+<div class="m-actions">
+    <a class="m-btn m-btn-success" href="{{ route('connection_requests.request') }}">+ Požádat o nové připojení</a>
+</div>
+@endif
+
 <div class="m-card" style="padding:0;overflow-x:auto">
 <table class="m-table" style="margin-bottom:0">
     <thead>
@@ -34,8 +40,8 @@
         @endphp
         <tr>
             <td><a class="m-link" href="{{ route('connection_requests.show', $cr->id) }}">{{ $cr->id }}</a></td>
-            <td style="font-family:monospace;font-size:14px">{{ $cr->ip_address }}</td>
-            <td style="font-family:monospace;font-size:14px">{{ $cr->mac_address }}</td>
+            <td style="font-family:monospace;font-size:14px">{{ $cr->ip_address ?: '—' }}</td>
+            <td style="font-family:monospace;font-size:14px">{{ $cr->mac_address ?: '—' }}</td>
             <td>{{ $cr->subnet?->name ?? '—' }}</td>
             <td><span class="m-tag {{ $stateClass }}">{{ $cr->stateName() }}</span></td>
             <td style="font-size:14px">{{ \Carbon\Carbon::parse($cr->created_at)->format('d.m.Y H:i') }}</td>

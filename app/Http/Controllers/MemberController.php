@@ -276,7 +276,10 @@ class MemberController extends Controller
             'canEditVarSymbols'   => $this->aclCheck('view_all', 'Variable_Symbols_Controller', 'variable_symbols'),
             'canViewTransfers'    => $this->aclCheck('view_all', 'Accounts_Controller', 'transfers'),
             'canViewIpAddresses'  => $this->aclCheck('view_all', 'Ip_addresses_Controller', 'ip_address'),
-            'canViewDevices'      => $this->aclCheck('view_all', 'Devices_Controller', 'devices'),
+            'canViewDevices'      => $isOwnProfile || $this->aclCheck('view_all', 'Devices_Controller', 'devices'),
+            'canViewConnectionRequests' => (bool) Setting::get('connection_request_enable')
+                && ($this->aclCheck('view_all', 'Connection_Requests_Controller', 'request')
+                    || ($isOwnProfile && $this->aclCheck('view_own', 'Connection_Requests_Controller', 'request'))),
             'canViewFees'         => $this->aclCheck('view_all', 'Members_Controller', 'fees'),
             'canViewQos'           => $this->aclCheck('view_all', 'Members_Controller', 'qos_ceil'),
             'canViewAllowedSubnets'=> $isOwnProfile || $this->aclCheck('view_all', 'Allowed_subnets_Controller', 'allowed_subnet'),

@@ -188,6 +188,143 @@ class ConnectionRequestController extends Controller
             });
     }
 
+    /**
+     * Self-service formulář pro zákazníka („Požádat o nové připojení").
+     *
+     * Proaktivní žádost — funguje odkudkoli, IP/MAC/subnet nejsou povinné.
+     * Pokud zákazník portál náhodou otevřel z nově připojeného zařízení, jehož
+     * IP je zatím neregistrovaná (stejná situace jako neznámé zařízení přes SNMP),
+     * předvyplníme IP a MAC (detekováno přes SNMP) — technik pak nemusí nic dohledávat.
+     * Jinak IP/MAC doplní technik až při schválení.
+     */
+    public function requestNew(Request $request)
+    {
+        $canNewAll = $this->aclCheck('new_all', self::ACL_SECTION, self::ACL_KEY);
+        $canNewOwn = $this->aclCheck('new_own', self::ACL_SECTION, self::ACL_KEY);
+        abort_unless($canNewAll || $canNewOwn, 403);
+        $this->checkEnabled();
+
+        $detected = $this->detectCurrentConnection($request);
+
+        return view('connection_requests.request', [
+            'deviceTypes' => $this->deviceTypes(),
+            'templates'   => DeviceTemplate::orderBy('name')->get(['id', 'name', 'enum_type_id']),
+            'defaultType' => (int) Setting::get('connection_request_device_default_type', 0),
+            'detected'    => $detected, // ['subnet_id','ip','mac'] nebo null
+        ]);
+    }
+
+    /**
+     * Uloží proaktivní self-service žádost (member_id = přihlášený člen).
+     */
+    public function storeRequest(Request $request)
+    {
+        $canNewAll = $this->aclCheck('new_all', self::ACL_SECTION, self::ACL_KEY);
+        $canNewOwn = $this->aclCheck('new_own', self::ACL_SECTION, self::ACL_KEY);
+        abort_unless($canNewAll || $canNewOwn, 403);
+        $this->checkEnabled();
+
+        $memberId = auth()->user()?->member_id;
+        if (!$memberId) {
+            return redirect()->back()->with('error', 'Váš účet nemá přiřazeného člena, žádost nelze podat.');
+        }
+
+        // IP/MAC z hidden polí NEDŮVĚŘUJEME — znovu detekujeme z aktuální IP na serveru.
+        $detected = $this->detectCurrentConnection($request);
+
+        // Brání duplicitní čekající žádosti pro stejnou (detekovanou) IP.
+        if ($detected && ConnectionRequest::where('ip_address', $detected['ip'])
+                ->where('state', ConnectionRequest::STATE_UNDECIDED)->exists()) {
+            $detected = null;
+        }
+
+        // MAC je povinný — bez něj technik zařízení v DHCP nedohledá. Když se
+        // podařilo detekovat přes SNMP, použijeme ho; jinak ho zadá zákazník.
+        $hasDetectedMac = $detected && !empty($detected['mac']);
+
+        $rules = [
+            'device_type_id'     => 'nullable|integer|exists:enum_types,id',
+            'device_template_id' => 'nullable|integer|exists:device_templates,id',
+            'comment'            => 'nullable|string|max:1000',
+        ];
+        if (!$hasDetectedMac) {
+            $rules['mac_address'] = ['required', 'regex:/^([0-9A-Fa-f]{2}[:-]){5}([0-9A-Fa-f]{2})$/'];
+        }
+        $data = $request->validate($rules, [], ['mac_address' => 'MAC adresa']);
+
+        $mac = $hasDetectedMac
+            ? $detected['mac']
+            : strtoupper(str_replace('-', ':', $data['mac_address']));
+
+        $cr = ConnectionRequest::create([
+            'member_id'          => $memberId,
+            'added_user_id'      => auth()->id(),
+            'decided_user_id'    => null,
+            'state'              => ConnectionRequest::STATE_UNDECIDED,
+            'created_at'         => now(),
+            'decided_at'         => null,
+            'ip_address'         => $detected['ip'] ?? null,
+            'subnet_id'          => $detected['subnet_id'] ?? null,
+            'mac_address'        => $mac,
+            'device_id'          => null,
+            'device_type_id'     => $data['device_type_id'] ?? null,
+            'device_template_id' => $data['device_template_id'] ?? null,
+            'comment'            => $data['comment'] ?? null,
+            'comments_thread_id' => null,
+        ]);
+
+        // Notifikace administrátora
+        $notifyEmail = Setting::get('connection_request_notify_email');
+        if ($notifyEmail) {
+            $member = Member::find($memberId);
+            EmailQueue::create([
+                'from'    => Setting::get('email_default_email', 'freenetis@localhost'),
+                'to'      => $notifyEmail,
+                'subject' => 'Nová žádost o připojení — ' . ($member?->name ?? "#{$memberId}"),
+                'body'    => 'Byla podána nová žádost o připojení (self-service).'
+                    . "\n\nČlen: " . ($member?->name ?? "#{$memberId}")
+                    . "\nIP adresa: " . ($detected['ip'] ?? '— doplní technik')
+                    . "\nMAC adresa: " . $mac
+                    . "\nPoznámka: " . ($data['comment'] ?? '—')
+                    . "\n\nDetail: " . route('connection_requests.show', $cr->id),
+                'state'   => EmailQueue::STATE_NEW,
+            ]);
+        }
+
+        // Message 12 — potvrzení žadateli
+        $this->sendMessageToMember(12, $memberId, [
+            'member_name' => Member::find($memberId)?->name ?? '',
+            'comment'     => $data['comment'] ?? '',
+        ]);
+
+        return redirect()->route('connection_requests.by_member', $memberId)
+            ->with('success', 'Žádost o připojení byla odeslána. Ozveme se vám.');
+    }
+
+    /**
+     * Zjistí, zda aktuální IP klienta je volná neregistrovaná adresa v nějakém
+     * subnetu (situace „neznámé zařízení") — pak vrátí subnet + MAC (SNMP).
+     *
+     * @return array{subnet_id:int, ip:string, mac:?string}|null
+     */
+    private function detectCurrentConnection(Request $request): ?array
+    {
+        $ip = (string) $request->ip();
+        if (!filter_var($ip, FILTER_VALIDATE_IP)) {
+            return null;
+        }
+        $subnetId = $this->getSubnetForConnectionRequest($ip);
+        if ($subnetId === null) {
+            return null;
+        }
+
+        return [
+            'subnet_id' => $subnetId,
+            'ip'        => $ip,
+            'mac'       => app(SnmpMacDetector::class)->detectForSubnet($subnetId, $ip),
+        ];
+    }
+
     public function create(Request $request, int $subnetId, string $ipAddress = '')
     {
         $canNewAll = $this->aclCheck('new_all', self::ACL_SECTION, self::ACL_KEY);

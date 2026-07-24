@@ -3,7 +3,12 @@
 @section('menu') <x-freenetis-menu /> @endsection
 @section('breadcrumbs')
 <div id="breadcrumbs">
-    <a href="{{ route('devices.index') }}">Zařízení</a> &raquo; {{ $device->name }}
+    @if($canViewAll)
+    <a href="{{ route('devices.index') }}">Zařízení</a> &raquo;
+    @elseif($device->user_id)
+    <a href="{{ route('devices.by_user', $device->user_id) }}">Zařízení</a> &raquo;
+    @endif
+    {{ $device->name }}
 </div>
 @endsection
 @section('content')
@@ -36,7 +41,8 @@
         <div class="m-field">
             <span class="m-field-label">Uživatel</span>
             <span class="m-field-value">
-                @if($device->user) <a href="{{ route('users.show', $device->user_id) }}">{{ $device->user->full_name }}</a>
+                @if($device->user && $canViewUser) <a href="{{ route('users.show', $device->user_id) }}">{{ $device->user->full_name }}</a>
+                @elseif($device->user) {{ $device->user->full_name }}
                 @else —
                 @endif
             </span>
@@ -146,11 +152,12 @@
         @forelse($device->ifaces as $iface)
         <tr>
             <td>{{ $iface->type ?? '—' }}</td>
-            <td><a class="m-link" href="{{ route('ifaces.show', $iface->id) }}">{{ $iface->name ?? '—' }}</a></td>
+            <td>@if($canViewAll)<a class="m-link" href="{{ route('ifaces.show', $iface->id) }}">{{ $iface->name ?? '—' }}</a>@else{{ $iface->name ?? '—' }}@endif</td>
             <td style="font-family:monospace;font-size:14px">{{ $iface->mac ?? '—' }}</td>
             <td>
                 @forelse($iface->ipAddresses as $ip)
-                    <a class="m-link" href="{{ route('ip_addresses.show', $ip->id) }}">{{ $ip->ip_address }}</a>@if(!$loop->last), @endif
+                    @if($canViewAll)<a class="m-link" href="{{ route('ip_addresses.show', $ip->id) }}">{{ $ip->ip_address }}</a>@else{{ $ip->ip_address }}@endif
+                    @if(!$loop->last), @endif
                 @empty —
                 @endforelse
             </td>
@@ -187,7 +194,7 @@
         @foreach($ip6Rows as $row)
         <tr>
             <td style="font-family:monospace">{{ $row['addr']->ip_address }}</td>
-            <td><a class="m-link" href="{{ route('ifaces.show', $row['iface']->id) }}">{{ $row['iface']->name }}</a></td>
+            <td>@if($canViewAll)<a class="m-link" href="{{ route('ifaces.show', $row['iface']->id) }}">{{ $row['iface']->name }}</a>@else{{ $row['iface']->name }}@endif</td>
         </tr>
         @endforeach
     </tbody>

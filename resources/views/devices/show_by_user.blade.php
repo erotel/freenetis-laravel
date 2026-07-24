@@ -3,8 +3,12 @@
 @section('menu') <x-freenetis-menu /> @endsection
 @section('breadcrumbs')
 <div id="breadcrumbs">
+    @if($canViewUser)
     <a href="{{ route('users.index') }}">Uživatelé</a> &raquo;
     <a href="{{ route('users.show', $user->id) }}">{{ $user->full_name }}</a> &raquo;
+    @elseif($user->member_id)
+    <a href="{{ route('members.show', $user->member_id) }}">Můj profil</a> &raquo;
+    @endif
     Zařízení
 </div>
 @endsection
@@ -12,9 +16,17 @@
 <div class="m-page">
 <div class="m-title-row"><h2>Zařízení uživatele {{ $user->full_name }}</h2></div>
 
-@if($canNew)
+@if($canNew || (!empty($canRequestConnection)))
 <div class="m-actions">
+    @if($canNew)
     <a class="m-btn m-btn-success" href="{{ route('devices.add', $user->id) }}">+ Přidat zařízení</a>
+    @endif
+    @if(!empty($canRequestConnection))
+    <a class="m-btn m-btn-success" href="{{ route('connection_requests.request') }}">+ Požádat o nové připojení</a>
+    @if(!empty($memberId))
+    <a class="m-btn" href="{{ route('connection_requests.by_member', $memberId) }}">Moje žádosti o připojení</a>
+    @endif
+    @endif
 </div>
 @endif
 
