@@ -991,8 +991,13 @@ class DeviceController extends Controller
         // Build DHCP server data
         $dhcpServers = $this->buildDhcpServers($device);
 
+        // Relay režim se zapne, když je zařízení v dhcp_relay_map. role=static →
+        // druhý (static-only) server v páru; jinak primary.
+        $relayInterface = $this->relayInterfaceForDevice($id);
+        $role           = $request->input('role') === 'static' ? 'static' : 'primary';
+
         $text = $format === 'mikrotik-ip-dhcp-server'
-            ? $this->renderMikrotikFull($dhcpServers)
+            ? $this->renderMikrotikFull($dhcpServers, $relayInterface, $role)
             : $this->renderMikrotikLeaseOnly($dhcpServers);
 
         // Zapiš, že tento konzument je aktuální. Per-client posune jen jeho
@@ -1097,7 +1102,15 @@ class DeviceController extends Controller
         return $servers;
     }
 
-    private function renderMikrotikFull(array $servers): string
+    /**
+     * @param ?string $relayInterface  Když je zadané (zařízení je v dhcp_relay_map),
+     *                                  export běží v relay režimu: interface=<toto>
+     *                                  + relay=<gateway subnetu> místo lokálního iface.
+     * @param string  $role            'primary' = plný server (authoritative=yes,
+     *                                  vlastní pool); 'static' = druhý server v páru
+     *                                  (authoritative=after-10sec-delay, static-only).
+     */
+    private function renderMikrotikFull(array $servers, ?string $relayInterface = null, string $role = 'primary'): string
     {
         // Setting::get vrací uloženou hodnotu — když admin v UI uloží prázdné
         // pole, vrátí '' a default '10800' v get() se neuplatní. Cast na int
@@ -1106,6 +1119,8 @@ class DeviceController extends Controller
         if ($leaseSeconds <= 0) $leaseSeconds = 10800;
         $leaseTime    = sprintf('%02d:%02d:%02d', intdiv($leaseSeconds, 3600), intdiv($leaseSeconds % 3600, 60), $leaseSeconds % 60);
 
+        $isStatic = $relayInterface !== null && $role === 'static';
+
         $out = '';
         $out .= "/ip pool\r\nremove [find]\r\n";
         foreach ($servers as $s) {
@@ -1113,7 +1128,18 @@ class DeviceController extends Controller
         }
         $out .= "/ip dhcp-server\r\nremove [find]\r\n";
         foreach ($servers as $s) {
-            $out .= "add name=\"{$s['name']}\" address-pool=\"{$s['name']}\" authoritative=after-2sec-delay bootp-support=static disabled=no interface=\"{$s['interface']}\" lease-time={$leaseTime}\r\n";
+            if ($relayInterface !== null) {
+                // Relay režim: matchujeme podle relay=<gateway> (giaddr), interface
+                // je společné relay rozhraní (např. vlan1010), ne lokální iface.
+                $iface = $this->ascii($relayInterface);
+                if ($isStatic) {
+                    $out .= "add name=\"{$s['name']}\" authoritative=after-10sec-delay bootp-support=static disabled=no interface=\"{$iface}\" relay={$s['gateway']} lease-time={$leaseTime} address-pool=static-only\r\n";
+                } else {
+                    $out .= "add name=\"{$s['name']}\" address-pool=\"{$s['name']}\" authoritative=yes bootp-support=static disabled=no interface=\"{$iface}\" relay={$s['gateway']} lease-time={$leaseTime}\r\n";
+                }
+            } else {
+                $out .= "add name=\"{$s['name']}\" address-pool=\"{$s['name']}\" authoritative=after-2sec-delay bootp-support=static disabled=no interface=\"{$s['interface']}\" lease-time={$leaseTime}\r\n";
+            }
         }
         $out .= "/ip dhcp-server network\r\nremove [find]\r\n";
         foreach ($servers as $s) {
@@ -1144,6 +1170,29 @@ class DeviceController extends Controller
     private function ascii(string $s): string
     {
         return iconv('UTF-8', 'ASCII//TRANSLIT//IGNORE', $s) ?: $s;
+    }
+
+    /**
+     * Relay rozhraní pro dané DHCP zařízení z nastavení dhcp_relay_map (řádky
+     * `ID=rozhraní`). Null = zařízení v mapě není → klasický interface-based export.
+     */
+    private function relayInterfaceForDevice(int $deviceId): ?string
+    {
+        $raw = (string) Setting::get('dhcp_relay_map', '');
+        if ($raw === '') {
+            return null;
+        }
+        foreach (preg_split('/\r\n|\r|\n/', $raw) as $line) {
+            $line = trim($line);
+            if ($line === '' || !str_contains($line, '=')) {
+                continue;
+            }
+            [$id, $iface] = array_map('trim', explode('=', $line, 2));
+            if ($id === (string) $deviceId && $iface !== '') {
+                return $iface;
+            }
+        }
+        return null;
     }
 
     /**

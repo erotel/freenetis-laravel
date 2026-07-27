@@ -60,7 +60,7 @@ class SettingController extends Controller
     public const NETWORK_KEYS = [
         'redirection_enabled', 'networks_enabled', 'address_ranges', 'dns_servers',
         'ipv6_prefix', 'ipv6_mask', 'connection_request_notify_email',
-        'dhcp_lease_time', 'allowed_subnets_default_count',
+        'dhcp_lease_time', 'allowed_subnets_default_count', 'dhcp_relay_map',
     ];
 
     public const GPON_KEYS = [
@@ -426,6 +426,11 @@ class SettingController extends Controller
         Setting::set('connection_request_notify_email', $request->input('connection_request_notify_email', ''));
         Setting::set('dhcp_lease_time', $request->input('dhcp_lease_time', '10800'));
         Setting::set('allowed_subnets_default_count', (int) $request->input('allowed_subnets_default_count', 1));
+        // Mapa "ID DHCP zařízení = relay rozhraní", jeden pár na řádek. Normalizujeme
+        // na řádky `id=iface` bez prázdných a bez CR.
+        $relayLines = preg_split('/\r\n|\r|\n/', (string) $request->input('dhcp_relay_map', ''));
+        $relayMap   = implode("\n", array_values(array_filter(array_map('trim', $relayLines), fn($l) => $l !== '' && str_contains($l, '='))));
+        Setting::set('dhcp_relay_map', $relayMap);
         return redirect()->route('settings.index', ['tab' => 'network'])
             ->with('success', 'Nastavení sítě bylo uloženo.');
     }

@@ -546,6 +546,17 @@ function addBccRow() {
             value="{{ $networkSettings['allowed_subnets_default_count'] ?? '1' }}" min="0" style="max-width:120px">
         <div class="m-form-hint">Globální default pro nové i existující členy bez per-member nastavení. Per-member přepis: <em>Profil člena → Povolené podsítě</em>. <strong>0 = neomezeno.</strong></div>
     </div>
+    <div class="m-form-group">
+        <label class="m-form-label">DHCP relay rozhraní (ID zařízení = rozhraní)</label>
+        <textarea class="m-form-input" name="dhcp_relay_map" rows="4"
+            placeholder="207=vlan1010&#10;312=vlan1020" style="font-family:monospace">{{ $networkSettings['dhcp_relay_map'] ?? '' }}</textarea>
+        <div class="m-form-hint">
+            Jeden pár na řádek. Pro uvedená DHCP zařízení se export přepne do <strong>relay režimu</strong>:
+            místo <code>interface=</code> lokálního rozhraní se použije zadané rozhraní +
+            <code>relay=&lt;gateway subnetu&gt;</code>. Přidání další dvojice MikroTiků = přidání řádku.
+            Statický (druhý) server v páru tahá stejnou URL s <code>&amp;role=static</code>.
+        </div>
+    </div>
 </div>
 
 <div class="m-actions">
