@@ -73,6 +73,15 @@
         /devices/{id}/export/mikrotik-ip-dhcp-server?token={{ $token }}<br>
         /devices/{id}/export/mikrotik-ip-dhcp-server?token={{ $token }}&forced=1
     </div>
+    <div class="m-form-hint" style="margin-top:10px">
+        Když stejné subnety čte <strong>více DHCP serverů</strong> (např. redundantní
+        MikroTik), přidej každému unikátní <code>&amp;client=NÁZEV</code> — každý pak
+        dostane každou změnu nezávisle (bez něj by druhý server změnu neviděl).
+    </div>
+    <div class="m-form-hint" style="font-family:monospace;font-size:14px;word-break:break-all">
+        …/export/mikrotik-ip-dhcp-server?token={{ $token }}&client=mk-primary<br>
+        …/export/mikrotik-ip-dhcp-server-lease?token={{ $token }}&client=mk-static
+    </div>
 </div>
 @endif
 

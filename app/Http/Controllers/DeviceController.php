@@ -910,6 +910,12 @@ class DeviceController extends Controller
             abort(404);
         }
 
+        // Čas zachytíme PŘED načtením stavu subnetů. Jako high-water-mark klienta
+        // pak uložíme právě tenhle okamžik — kdyby změna přišla během exportu
+        // (po tomto čtení), bude mít dhcp_changed_at > exportStartedAt a příští
+        // fetch ji spolehlivě chytí (žádná ztracená změna).
+        $exportStartedAt = now();
+
         $device = Device::with(['ifaces.ipAddresses.subnet'])->find($id);
         if (!$device) {
             abort(request()->ip() ? 404 : 404);
@@ -938,10 +944,35 @@ class DeviceController extends Controller
             $device->update(['access_time' => now()]);
         }
 
-        // DHCP expired check — skip if forced
-        if ($format === 'mikrotik-ip-dhcp-server' || $format === 'mikrotik-ip-dhcp-server-lease') {
-            $forced = $request->boolean('forced');
-            if (!$forced) {
+        // DHCP change detection — skip if forced. Dva režimy:
+        //  - ?client=... : per-konzument (timestamp vs high-water-mark) → víc DHCP
+        //    serverů čte stejné subnety a každý vidí každou změnu právě jednou.
+        //  - bez client   : legacy sdílený boolean dhcp_expired (jeden konzument).
+        $forced = $request->boolean('forced');
+        $client = $this->normalizeDhcpClient($request->input('client'));
+
+        if (!$forced && ($fromDevice || $tokenValid)) {
+            if ($client !== null) {
+                $latestChange = null;
+                foreach ($device->ifaces as $iface) {
+                    foreach ($iface->ipAddresses as $ip) {
+                        if ($ip->subnet && $ip->subnet->dhcp && $ip->subnet->dhcp_changed_at) {
+                            $ts = $ip->subnet->dhcp_changed_at;
+                            if ($latestChange === null || $ts->gt($latestChange)) {
+                                $latestChange = $ts;
+                            }
+                        }
+                    }
+                }
+                $seenRaw = DB::table('dhcp_export_state')->where('client', $client)->value('exported_at');
+                $seen    = $seenRaw ? \Carbon\Carbon::parse($seenRaw) : null;
+                // 204 jen když klient už stáhl a od té doby se nic nezměnilo.
+                // Striktní `<` (ne `<=`): při shodě raději re-export — import je
+                // idempotentní, kdežto vynechání by znamenalo ztracenou změnu.
+                if ($seen !== null && ($latestChange === null || $latestChange->lt($seen))) {
+                    return response('', 204);
+                }
+            } else {
                 $hasExpired = false;
                 foreach ($device->ifaces as $iface) {
                     foreach ($iface->ipAddresses as $ip) {
@@ -951,7 +982,7 @@ class DeviceController extends Controller
                         }
                     }
                 }
-                if (!$hasExpired && ($fromDevice || $tokenValid)) {
+                if (!$hasExpired) {
                     return response('', 204);
                 }
             }
@@ -964,12 +995,23 @@ class DeviceController extends Controller
             ? $this->renderMikrotikFull($dhcpServers)
             : $this->renderMikrotikLeaseOnly($dhcpServers);
 
-        // Reset expired flag after successful export
+        // Zapiš, že tento konzument je aktuální. Per-client posune jen jeho
+        // high-water-mark (ostatní DHCP servery změnu pořád uvidí); legacy shodí
+        // sdílený flag jako dosud.
         if ($fromDevice || $tokenValid) {
-            foreach ($device->ifaces as $iface) {
-                foreach ($iface->ipAddresses as $ip) {
-                    if ($ip->subnet && $ip->subnet->dhcp) {
-                        $ip->subnet->setNotExpired();
+            if ($client !== null) {
+                DB::table('dhcp_export_state')->updateOrInsert(
+                    ['client' => $client],
+                    // formát s .u — query builder jinak Carbon uloží jen s vteřinovou
+                    // přesností a mikrosekundová detekce by ztratila smysl.
+                    ['exported_at' => $exportStartedAt->format('Y-m-d H:i:s.u')]
+                );
+            } else {
+                foreach ($device->ifaces as $iface) {
+                    foreach ($iface->ipAddresses as $ip) {
+                        if ($ip->subnet && $ip->subnet->dhcp) {
+                            $ip->subnet->setNotExpired();
+                        }
                     }
                 }
             }
@@ -1102,5 +1144,18 @@ class DeviceController extends Controller
     private function ascii(string $s): string
     {
         return iconv('UTF-8', 'ASCII//TRANSLIT//IGNORE', $s) ?: $s;
+    }
+
+    /**
+     * Sanitizace identifikátoru konzumenta z ?client=... — omezíme na bezpečné
+     * znaky a délku, ať se hodnota bezpečně použije jako klíč v dhcp_export_state.
+     */
+    private function normalizeDhcpClient($raw): ?string
+    {
+        if (!is_string($raw)) {
+            return null;
+        }
+        $raw = preg_replace('/[^A-Za-z0-9_.\-]/', '', trim($raw));
+        return ($raw === null || $raw === '') ? null : substr($raw, 0, 64);
     }
 }

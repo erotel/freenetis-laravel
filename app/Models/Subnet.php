@@ -8,21 +8,28 @@ class Subnet extends Model
 {
     public $timestamps = false;
     protected $table = 'subnets';
+    // Zachovej mikrosekundy při zápisu dhcp_changed_at (výchozí 'Y-m-d H:i:s' by
+    // je ořízl na vteřiny → kolize se stažením klienta ve stejné vteřině). Subnet
+    // nemá jiný datetime sloupec, takže tenhle formát nic dalšího neovlivní.
+    protected $dateFormat = 'Y-m-d H:i:s.u';
     protected $fillable = [
         'name', 'network_address', 'netmask',
-        'redirect', 'dhcp', 'dhcp_expired', 'dns', 'qos', 'OSPF_area_id',
+        'redirect', 'dhcp', 'dhcp_expired', 'dhcp_changed_at', 'dns', 'qos', 'OSPF_area_id',
     ];
     protected $casts = [
-        'redirect'     => 'boolean',
-        'dhcp'         => 'boolean',
-        'dhcp_expired' => 'boolean',
-        'dns'          => 'boolean',
-        'qos'          => 'boolean',
+        'redirect'        => 'boolean',
+        'dhcp'            => 'boolean',
+        'dhcp_expired'    => 'boolean',
+        'dhcp_changed_at' => 'datetime',
+        'dns'             => 'boolean',
+        'qos'             => 'boolean',
     ];
 
     public function setExpired(): void
     {
-        $this->update(['dhcp_expired' => 1]);
+        // dhcp_expired = sdílený flag pro legacy jednoho-konzumenta;
+        // dhcp_changed_at = timestamp pro per-client detekci (více DHCP serverů).
+        $this->update(['dhcp_expired' => 1, 'dhcp_changed_at' => now()]);
     }
 
     public function setNotExpired(): void
