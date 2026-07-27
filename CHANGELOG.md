@@ -6,6 +6,36 @@ formát podle [Keep a Changelog](https://keepachangelog.com/cs/1.1.0/).
 Verzi v souboru `config/version.php` bumpni samostatným commitem `chore: bump version to X.Y.Z`,
 ať lze changelog snadno regenerovat přes `git log vX..vY --oneline`.
 
+## [2.14.0] — 2026-07-27
+
+### Added
+- **DHCP relay režim exportu.** DHCP export umí generovat relay-based
+  konfiguraci přímo, takže MikroTiky si ji stáhnou a naimportují samy — odpadá
+  pomocný server, který dosud plný export ručně přepisoval (`interface`→`vlan`
+  + `relay`, static-only role) a pushoval přes ssh/scp. Nové nastavení
+  **`dhcp_relay_map`** (Nastavení → Síť), řádky `ID zařízení = rozhraní`:
+  zařízení v mapě se v exportu přepne do relay režimu — `interface=<z mapy>`
+  a `relay=<gateway subnetu>` (bere reálnou gateway z FreenetISu, robustnější
+  než parsování názvu subnetu). Přidání další dvojice MK = přidání řádku.
+  Dva servery v páru se liší URL parametrem `role`: default = primary
+  (`authoritative=yes`, vlastní pool), `role=static` = druhý server
+  (`authoritative=after-10sec-delay`, `address-pool=static-only`).
+- **Per-konzument detekce změn DHCP exportu.** Umožňuje, aby stejné subnety
+  četlo více DHCP serverů (redundantní primár + static-only MikroTik) přímo
+  z FreenetISu. Dřív sdílený boolean `subnets.dhcp_expired` shodil první
+  konzument a druhý už změnu neviděl (dostal 204). Nově export s **`?client=`**
+  drží high-water-mark každého klienta zvlášť (`dhcp_changed_at` vs
+  `dhcp_export_state`), takže každý MK vidí každou změnu právě jednou. Čas se
+  zachytí před čtením stavu (žádná TOCTOU ztráta změny během exportu),
+  mikrosekundová přesnost brání kolizi ve stejné vteřině. Zpětně kompatibilní:
+  konzument bez `?client=` jede přes původní `dhcp_expired` beze změny.
+
+### Database
+- Migrace `add_per_client_dhcp_change_detection`:
+  `subnets.dhcp_changed_at` (**DATETIME(6)**, timestamp poslední změny) + nová
+  tabulka **`dhcp_export_state`** (`client`, `exported_at`) pro high-water-mark
+  konzumentů.
+
 ## [2.13.0] — 2026-07-24
 
 ### Added
