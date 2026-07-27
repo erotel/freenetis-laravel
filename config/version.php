@@ -13,5 +13,5 @@
  * ať changelog snadno generuje `git log v2.0.0..v2.1.0`.
  */
 return [
-    'string' => '2.13.0',
+    'string' => '2.14.0',
 ];
