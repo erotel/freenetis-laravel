@@ -6,6 +6,42 @@ formát podle [Keep a Changelog](https://keepachangelog.com/cs/1.1.0/).
 Verzi v souboru `config/version.php` bumpni samostatným commitem `chore: bump version to X.Y.Z`,
 ať lze changelog snadno regenerovat přes `git log vX..vY --oneline`.
 
+## [2.15.0] — 2026-07-30
+
+### Added
+- **Ceník tarifů (rychlost/cena).** Třída rychlosti (`speed_classes`) nově nese
+  i cenu — editovatelná tabulka v **Nastavení → Finance → Ceník tarifů** i přímo
+  v CRUD tarifů. Prázdná cena = použije se výchozí poplatek, `0` = zdarma.
+- **Třístupňový resolver měsíčního poplatku** (`RegularFeeResolver`):
+  **individuální → cena tarifu → základní**. Jedna pravda o pořadí, kterou
+  sdílí strhávání (`DeductFees`), QR platba, dohánění po platbě
+  (`PaymentBackchargeService`), práh upomínek (`NotificationActivation`) i
+  zobrazení na kartě člena a v terénní appce (s popiskem, z jaké úrovně cena je).
+  Slevy se řeší úrovní 1 (individuální poplatek), takže cena tarifu zůstává
+  sdílená ceníková.
+- **Cena ve smlouvě podle tarifu.** Nová smlouva bere základní cenu z tarifu
+  (dřív natvrdo 320 Kč) a pod ní ukazuje **zvýhodněnou cenu** + do kdy platí,
+  když má člen individuální poplatek. Vše snapshotnuté do smlouvy (neměnné).
+- **Dodatek „změna tarifu".** Samostatné, opakovatelné dodatky
+  (`contract_addons`) k podepsané smlouvě: snímají **původní → nový** tarif a
+  cenu, účinnost = 1. den dalšího měsíce, číslování **„DODATEK č. X"** (navazuje
+  i na legacy nulový-tarif addon). Admin je vytvoří v kartě smlouvy (náhled PDF,
+  poslat odkaz k podpisu, stáhnout, smazat); zákazník podepíše elektronicky přes
+  **SMS OTP** (vlastní podpisová stránka, token nese `cid`+`aid`, finalizace
+  uloží podepsané PDF na řádek dodatku a pošle e-mailem). Legacy „nulový tarif"
+  addon zůstává beze změny.
+
+### Fixed
+- Fallback poplatku mapuje čekající typy členů na cílové (žadatel/čekající
+  zákazník 1, 18 → zákazník 2; čekající člen 17 → člen 90), takže smlouva/QR
+  žadatele už neukazují 0 Kč, když tarif nemá ceníkovou cenu.
+
+### Database
+- freenetis: `speed_classes.price` (DECIMAL(10,2), nullable).
+- contracts: `contract_parties.price_after_discount` + `discount_until`; nová
+  tabulka **`contract_addons`** (snapshot dodatku vč. `addon_no`);
+  `download_tokens` rozšířeny o `tariff_addon` + `addon_id`.
+
 ## [2.14.0] — 2026-07-27
 
 ### Added
