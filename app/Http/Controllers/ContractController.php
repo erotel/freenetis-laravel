@@ -33,8 +33,9 @@ class ContractController extends Controller
 
         $member   = Member::findOrFail($memberId);
         $contract = $this->contracts->getByMemberId($memberId);
+        $tariffAddons = $contract ? $this->contracts->tariffAddons($contract->id) : collect();
 
-        return view('contracts.show', compact('member', 'contract', 'canEdit'));
+        return view('contracts.show', compact('member', 'contract', 'canEdit', 'tariffAddons'));
     }
 
     public function create(int $memberId): RedirectResponse
@@ -320,6 +321,102 @@ class ContractController extends Controller
         $filename = 'dodatek-' . $contract->contract_no . '.pdf';
 
         return response()->download($path, $filename, [
+            'Content-Type' => 'application/pdf',
+        ]);
+    }
+
+    // ── Dodatek: změna tarifu (contract_addons) ─────────────────────────────
+
+    public function createTariffAddon(int $memberId): RedirectResponse
+    {
+        abort_unless($this->can('edit_all'), 403);
+
+        $contract = $this->contracts->getByMemberId($memberId);
+        if (!$contract || $contract->status !== 'signed') {
+            return redirect()->route('contracts.show', $memberId)
+                ->with('error', 'Dodatek – změnu tarifu lze vytvořit jen k podepsané smlouvě.');
+        }
+
+        $addon = $this->contracts->createTariffChangeAddon($contract->id);
+        if (!$addon) {
+            return redirect()->route('contracts.show', $memberId)
+                ->with('error', 'Dodatek se nepodařilo vytvořit.');
+        }
+
+        return redirect()->route('contracts.show', $memberId)
+            ->with('success', 'Dodatek – změna tarifu byl vytvořen (návrh). Zkontrolujte náhled PDF.');
+    }
+
+    public function previewTariffAddon(int $addonId, PdfService $pdf): Response|RedirectResponse
+    {
+        $addon = \App\Models\ContractAddon::find($addonId);
+        if (!$addon) abort(404);
+
+        $isOwn = (auth()->user()?->member_id == $addon->contract?->member_id);
+        abort_unless($this->can('view_all') || $isOwn, 403);
+
+        $bytes = $pdf->renderTariffAddonPdf($addon, true);
+
+        return response($bytes, 200, [
+            'Content-Type'        => 'application/pdf',
+            'Content-Disposition' => 'inline; filename="dodatek-tarif-preview.pdf"',
+        ]);
+    }
+
+    public function deleteTariffAddon(int $addonId): RedirectResponse
+    {
+        abort_unless($this->can('edit_all'), 403);
+
+        $addon = \App\Models\ContractAddon::find($addonId);
+        if (!$addon) abort(404);
+
+        $memberId = $addon->contract?->member_id;
+        if (!$this->contracts->deleteTariffAddon($addon)) {
+            return redirect()->route('contracts.show', $memberId)
+                ->with('error', 'Podepsaný dodatek nelze smazat.');
+        }
+
+        return redirect()->route('contracts.show', $memberId)
+            ->with('success', 'Dodatek byl smazán.');
+    }
+
+    public function sendTariffAddonLink(int $addonId): RedirectResponse
+    {
+        abort_unless($this->can('edit_all'), 403);
+
+        $addon = \App\Models\ContractAddon::find($addonId);
+        if (!$addon) abort(404);
+
+        $memberId = $addon->contract?->member_id;
+        if ($addon->status === 'signed') {
+            return redirect()->route('contracts.show', $memberId)
+                ->with('error', 'Dodatek je již podepsán.');
+        }
+
+        $result = $this->contracts->issueTariffAddonLink($addon->id);
+        $message = $result['email_sent']
+            ? 'Odkaz pro podpis dodatku byl vygenerován a odeslán na email zákazníka.'
+            : 'Odkaz pro podpis dodatku byl vygenerován. Zákazník nemá email — zkopírujte odkaz ručně.';
+
+        return redirect()->route('contracts.show', $memberId)
+            ->with('tariff_addon_link', $result['url'])
+            ->with('success', $message);
+    }
+
+    public function downloadTariffAddon(int $addonId): BinaryFileResponse|RedirectResponse
+    {
+        $addon = \App\Models\ContractAddon::find($addonId);
+        if (!$addon) abort(404);
+
+        $isOwn = (auth()->user()?->member_id == $addon->contract?->member_id);
+        abort_unless($this->can('view_all') || $isOwn, 403);
+
+        $path = $this->contracts->tariffAddonPdfPath($addon);
+        if (!$path || !is_file($path)) {
+            return redirect()->back()->with('error', 'PDF dodatku není dostupné.');
+        }
+
+        return response()->download($path, 'dodatek-tarif-' . $addon->id . '.pdf', [
             'Content-Type' => 'application/pdf',
         ]);
     }

@@ -25,16 +25,20 @@ class ContractParty extends Model
         'speed_name',
         'variable_symbol',
         'price',
+        'price_after_discount',
+        'discount_until',
         'phone',
         'email',
         'birthday',
     ];
 
     protected $casts = [
-        'created_at' => 'datetime',
-        'birthday'   => 'date',
-        'price'      => 'decimal:2',
-        'active'     => 'boolean',
+        'created_at'           => 'datetime',
+        'birthday'             => 'date',
+        'price'                => 'decimal:2',
+        'price_after_discount' => 'decimal:2',
+        'discount_until'       => 'date',
+        'active'               => 'boolean',
     ];
 
     public $timestamps = false;

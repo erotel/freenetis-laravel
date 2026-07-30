@@ -39,6 +39,14 @@ class PdfService
 
         $phone = (string) ($contract->phone ?: ($p['phone'] ?? '')) ?: $this->memberPhone((int) $contract->member_id);
 
+        // Zvýhodněná cena — samostatný řádek tabulky, jen když je snapshotnuta.
+        $discountRow = '';
+        if (isset($p['price_after_discount']) && $p['price_after_discount'] !== null && $p['price_after_discount'] !== '') {
+            $discountRow = '<tr><td>Zvýhodněná cena:</td><td>'
+                . $this->h($this->formatPrice($p['price_after_discount'])) . ' Kč / měsíc ('
+                . $this->h($this->discountUntilLabel($p['discount_until'] ?? null)) . ')</td></tr>';
+        }
+
         $repl = [
             '{{contract_no}}'          => $this->h($contract->contract_no),
             '{{full_name}}'            => $this->h($p['full_name'] ?? ''),
@@ -51,7 +59,8 @@ class PdfService
             '{{speed_name}}'           => $this->h($p['speed_name'] ?? ''),
             '{{variable_symbol}}'      => $this->h($p['variable_symbol'] ?? ''),
             '{{phone_mask}}'           => $this->h($phone),
-            '{{price}}'                => $this->h((string) ($p['price'] ?? '')),
+            '{{price}}'                => $this->h($this->formatPrice($p['price'] ?? '')),
+            '{{price_discount_row}}'   => $discountRow,
             '{{dat}}'                  => $this->h($signedAtStr),
             '{{service_full_address}}' => $this->h($serviceFullRaw),
         ];
@@ -154,6 +163,84 @@ class PdfService
     }
 
     /**
+     * Render dodatku „změna tarifu" (fáze A: náhled/koncept, vrací PDF bajty).
+     * Osobní údaje bere z posledního snapshotu smlouvy (contract_parties),
+     * tarify/ceny z řádku dodatku (contract_addons).
+     */
+    public function renderTariffAddonPdf(\App\Models\ContractAddon $addon, bool $preview = true, ?Request $request = null): string
+    {
+        $contract = $addon->contract;
+        $party    = ContractParty::where('contract_id', $addon->contract_id)->orderByDesc('id')->first();
+        $p        = $party?->toArray() ?? [];
+
+        $birthday          = trim((string) ($p['birthday'] ?? ''));
+        $birthdayFormatted = '';
+        if ($birthday !== '') {
+            $dt = \DateTime::createFromFormat('Y-m-d', substr($birthday, 0, 10));
+            if ($dt !== false) $birthdayFormatted = $dt->format('d.m.Y');
+        }
+        $ico = trim((string) ($p['ico'] ?? ''));
+        $dic = trim((string) ($p['dic'] ?? ''));
+        if ($ico === '' && $dic === '') $ico = $birthdayFormatted;
+
+        $phone     = (string) ($contract->phone ?? '');
+        $phoneMask = $phone !== '' ? $this->maskPhone($phone) : '';
+
+        $effective = $addon->effective_date
+            ? date('d.m.Y', strtotime((string) $addon->effective_date))
+            : '';
+
+        $discountRow = '';
+        if ($addon->new_price_after_discount !== null && $addon->new_price_after_discount !== '') {
+            $discountRow = '<tr><td>Zvýhodněná cena:</td><td>'
+                . $this->h($this->formatPrice($addon->new_price_after_discount)) . ' Kč / měsíc ('
+                . $this->h($this->discountUntilLabel($addon->discount_until)) . ')</td></tr>';
+        }
+
+        $repl = [
+            '{{contract_no}}'     => $this->h($contract->contract_no ?? ''),
+            '{{addon_no}}'        => $this->h((string) ($addon->addon_no ?? 1)),
+            '{{full_name}}'       => $this->h($p['full_name'] ?? ''),
+            '{{street}}'          => $this->h($p['street'] ?? ''),
+            '{{town}}'            => $this->h($p['town'] ?? ''),
+            '{{country}}'         => $this->h($p['country'] ?? ''),
+            '{{ico}}'             => $this->h($ico),
+            '{{dic}}'             => $this->h($dic),
+            '{{variable_symbol}}' => $this->h($p['variable_symbol'] ?? ''),
+            '{{phone_mask}}'      => $this->h($phoneMask),
+            '{{old_speed_name}}'  => $this->h($addon->old_speed_name ?? ''),
+            '{{old_price}}'       => $this->h($this->formatPrice($addon->old_price)),
+            '{{new_speed_name}}'  => $this->h($addon->new_speed_name ?? ''),
+            '{{new_price}}'       => $this->h($this->formatPrice($addon->new_price)),
+            '{{new_discount_row}}' => $discountRow,
+            '{{effective_date}}'  => $this->h($effective),
+            '{{dat}}'             => $this->h(date('d.m.Y')),
+        ];
+
+        $html = $this->resolveTemplateAssets(strtr($this->loadTemplate('addon_tariff_change.html'), $repl));
+        $mpdf = new Mpdf(['tempDir' => $this->tmpDir()]);
+        if ($preview) {
+            $mpdf->SetWatermarkText('NÁHLED');
+            $mpdf->showWatermarkText = true;
+        }
+        $mpdf->WriteHTML($html);
+
+        if ($preview) {
+            return $mpdf->Output('', Destination::STRING_RETURN);
+        }
+
+        // Podepsaná verze: evidenční stránka (IP/UA/čas) jako u ostatních addonů,
+        // uložení do storage. Vrací absolutní cestu k souboru.
+        $mpdf->AddPage();
+        $mpdf->WriteHTML($this->buildAddonEvidenceHtml($phoneMask, $request));
+
+        $fullpath = $this->storageDir() . "/tariff-addon-{$addon->id}.pdf";
+        $mpdf->Output($fullpath, Destination::FILE);
+
+        return $fullpath;
+    }
+
+    /**
      * Generate the membership-termination PDF.
      */
     public function renderTerminationPdf(Contract $contract, ?Request $request = null): string
@@ -249,6 +336,23 @@ class PdfService
     private function h($v): string
     {
         return htmlspecialchars((string) $v, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+    }
+
+    /** Cena bez zbytečných desetin: "400" / "350,5", tisíce mezerou. Prázdné → "". */
+    private function formatPrice($value): string
+    {
+        if ($value === null || $value === '') return '';
+        return rtrim(rtrim(number_format((float) $value, 2, ',', ' '), '0'), ',');
+    }
+
+    /** Popisek platnosti slevy: "platí do DD.MM.YYYY" nebo "bez časového omezení". */
+    private function discountUntilLabel($date): string
+    {
+        $s = trim((string) $date);
+        if ($s === '' || str_starts_with($s, '0000-00-00')) return 'bez časového omezení';
+        $ts = strtotime($s);
+        if ($ts === false || (int) date('Y', $ts) >= 9999) return 'bez časového omezení';
+        return 'platí do ' . date('d.m.Y', $ts);
     }
 
     private function maskPhone(string $phone): string

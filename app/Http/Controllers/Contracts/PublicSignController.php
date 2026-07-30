@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Contracts;
 
 use App\Http\Controllers\Controller;
 use App\Models\Contract;
+use App\Models\ContractAddon;
 use App\Models\ContractEvent;
 use App\Models\ContractParty;
 use App\Models\EmailQueue;
@@ -398,10 +399,11 @@ class PublicSignController extends Controller
         if (!$contract) return response('Contract not found', 404);
 
         $path = match ($row->file_type) {
-            'contract'    => $contract->pdf_path,
-            'addon'       => $contract->addon_pdf_path,
-            'termination' => $this->terminationPath($contract->id),
-            default       => null,
+            'contract'     => $contract->pdf_path,
+            'addon'        => $contract->addon_pdf_path,
+            'termination'  => $this->terminationPath($contract->id),
+            'tariff_addon' => ($row->addon_id ?? null) ? ContractAddon::find($row->addon_id)?->pdf_path : null,
+            default        => null,
         };
         if (!$path || !is_file($path)) return response('PDF nedostupné.', 404);
 
@@ -513,6 +515,139 @@ class PublicSignController extends Controller
         ]);
     }
 
+    // ── Dodatek: změna tarifu (contract_addons) ─────────────────────────────
+
+    public function showTariffAddon(Request $request)
+    {
+        $token = (string) $request->query('t', '');
+        return view('contracts.tariff-addon-sign', ['token' => $token]);
+    }
+
+    public function tariffAddonInfo(Request $request): JsonResponse
+    {
+        $addon = $this->resolveTariffAddon($request);
+        if (!$addon) return $this->unauthorizedJson();
+
+        $contract = $addon->contract;
+        $party    = ContractParty::where('contract_id', $addon->contract_id)->orderByDesc('id')->first();
+
+        return response()->json([
+            'contract_no'     => $contract?->contract_no,
+            'full_name'       => $party?->full_name,
+            'variable_symbol' => $party?->variable_symbol,
+            'phone_mask'      => $contract?->phone ? $this->maskPhone((string) $contract->phone) : null,
+            'signed'          => $addon->status === 'signed' ? 1 : 0,
+        ], 200, [], JSON_UNESCAPED_UNICODE);
+    }
+
+    public function previewTariffAddon(Request $request): Response
+    {
+        $addon = $this->resolveTariffAddon($request);
+        if (!$addon) return response('', 401);
+
+        if ($addon->status === 'signed' && $addon->pdf_path && is_file($addon->pdf_path)) {
+            return response()->file($addon->pdf_path, [
+                'Content-Type'        => 'application/pdf',
+                'Content-Disposition' => 'inline; filename="dodatek.pdf"',
+                'Cache-Control'       => 'no-store',
+            ]);
+        }
+
+        $pdf = $this->pdf->renderTariffAddonPdf($addon, true, $request);
+        return response($pdf, 200, [
+            'Content-Type'        => 'application/pdf',
+            'Content-Disposition' => 'inline; filename="dodatek-preview.pdf"',
+            'Cache-Control'       => 'no-store',
+        ]);
+    }
+
+    public function verifyTariffAddonOtp(Request $request): JsonResponse
+    {
+        $contract = $this->resolveContract($request);      // cid z tokenu
+        $addon    = $this->resolveTariffAddon($request);   // aid z tokenu
+        if (!$contract || !$addon || (int) $addon->contract_id !== (int) $contract->id) {
+            return $this->unauthorizedJson();
+        }
+        if ($addon->status === 'signed') {
+            return response()->json(['error' => 'Dodatek je již podepsán.'], 409);
+        }
+
+        $otp = trim((string) $request->input('otp', ''));
+        $res = $this->otp->verifyAddonOtp($contract, $otp, $request);
+        if (!($res['ok'] ?? false)) {
+            return $this->fromServiceResult($res);
+        }
+
+        try {
+            $addon = $this->contracts->signTariffAddon($addon, $this->pdf, $request);
+        } catch (\Throwable $e) {
+            return response()->json(['error' => 'Server error', 'detail' => $e->getMessage()], 500);
+        }
+
+        $this->sendTariffAddonPostSignEmail($contract, $addon);
+
+        $dlToken = $this->createDownloadToken($contract->id, 'tariff_addon', 86400, null, 1, $addon->id);
+        return response()->json([
+            'ok'           => true,
+            'download_url' => route('sign.download', ['t' => $dlToken]),
+        ]);
+    }
+
+    private function resolveTariffAddon(Request $request): ?ContractAddon
+    {
+        $token = (string) ($request->input('t') ?: $request->query('t', ''));
+        if ($token === '') return null;
+        $aid = $this->contracts->verifyTariffAddonToken($token);
+        if (!$aid) return null;
+        return $this->contracts->getTariffAddon($aid);
+    }
+
+    private function sendTariffAddonPostSignEmail(Contract $contract, ContractAddon $addon): void
+    {
+        $party = ContractParty::where('contract_id', $contract->id)->orderByDesc('id')->first();
+        $email = trim((string) ($party?->email ?? ''));
+        if ($email === '') return;
+
+        $pdfPath = (string) $addon->pdf_path;
+        if ($pdfPath === '' || !is_file($pdfPath)) return;
+
+        try {
+            [$subject, $body] = $this->renderContractEmail(
+                Message::CONTRACT_ADDON_SIGNED,
+                (int) $contract->member_id,
+                (string) $contract->contract_no,
+                fn(string $h) => 'Podepsaný dodatek (změna tarifu) ke smlouvě ' . $contract->contract_no . ' - PVfree.net',
+                fn(string $h) => '<p>Dobrý den,</p>'
+                    . '<p>v příloze Vám zasíláme podepsaný dodatek (změna tarifu) ke smlouvě <strong>' . $h . '</strong>.</p>'
+                    . '<p>Dokument si prosím uschovejte pro svoji evidenci.</p>'
+                    . '<p>S pozdravem,<br>PVfree.net, z.s.</p>'
+            );
+
+            $q = EmailQueue::create([
+                'from'        => Setting::get('email_default_email', 'noreply@pvfree.net'),
+                'to'          => $email,
+                'subject'     => $subject,
+                'body'        => $body,
+                'state'       => EmailQueue::STATE_NEW,
+                'access_time' => now(),
+            ]);
+            EmailQueueAttachment::create([
+                'email_queue_id' => $q->id,
+                'path'           => $pdfPath,
+                'name'           => 'dodatek-tarif-' . $contract->contract_no . '.pdf',
+                'mime'           => 'application/pdf',
+                'created_at'     => now(),
+            ]);
+            ContractEvent::create([
+                'contract_id' => $contract->id,
+                'event'       => 'tariff_addon_post_sign_email_sent',
+                'meta_json'   => json_encode(['to' => $email, 'addon_id' => $addon->id], JSON_UNESCAPED_UNICODE),
+            ]);
+        } catch (\Throwable $e) {
+            \Log::warning('Tariff addon post-sign email failed for contract #' . $contract->id . ': ' . $e->getMessage());
+        }
+    }
+
     // ── helpers ────────────────────────────────────────────────────────────
 
     private function resolveContract(Request $request): ?Contract
@@ -550,12 +685,13 @@ class PublicSignController extends Controller
         return is_file($path) ? $path : null;
     }
 
-    private function createDownloadToken(int $contractId, string $fileType, int $ttl, ?string $bindIp, int $maxUses): string
+    private function createDownloadToken(int $contractId, string $fileType, int $ttl, ?string $bindIp, int $maxUses, ?int $addonId = null): string
     {
         $token = bin2hex(random_bytes(32));
         DB::connection('contracts')->table('download_tokens')->insert([
             'token'       => $token,
             'contract_id' => $contractId,
+            'addon_id'    => $addonId,
             'file_type'   => $fileType,
             'expires_at'  => now()->addSeconds($ttl),
             'bind_ip'     => $bindIp,

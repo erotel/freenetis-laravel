@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Models\Contract;
+use App\Models\ContractAddon;
 use App\Models\ContractEvent;
 use App\Models\ContractParty;
 use App\Models\EmailQueue;
@@ -10,6 +11,8 @@ use App\Models\Member;
 use App\Models\Message;
 use App\Models\Setting;
 use App\Models\User;
+use App\Services\Contracts\PdfService;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 
 class ContractService
@@ -189,6 +192,240 @@ class ContractService
      * Snapshot z živých dat člena → pole pro contract_parties (bez `contract_id`).
      * Používá createContract() i refreshPartyFromMember().
      */
+    /**
+     * Aktuální tarif člena jako snapshot: ['speed_name','price','price_after_discount','discount_until'].
+     * price = ceníková cena tarifu (speed_classes.price), fallback základní poplatek dle typu;
+     * zvýhodněná cena = aktivní individuální 'regular member fee' + jeho platnost.
+     */
+    public function tariffSnapshot(Member $member): array
+    {
+        $speedName  = $member->speedClass?->name ?? '';
+        $tarifPrice = $member->speedClass?->price;
+        $basePrice  = $tarifPrice !== null
+            ? (float) $tarifPrice
+            : (RegularFeeResolver::defaultFeeByType((int) $member->type) ?? 0.0);
+
+        $today      = now()->toDateString();
+        $individual = DB::table('members_fees as mf')
+            ->join('fees as f', 'f.id', '=', 'mf.fee_id')
+            ->join('enum_types as et', 'et.id', '=', 'f.type_id')
+            ->whereRaw("LOWER(et.value) = 'regular member fee'")
+            ->where('mf.member_id', $member->id)
+            ->where('mf.activation_date', '<=', $today)
+            ->where('mf.deactivation_date', '>=', $today)
+            ->orderBy('mf.priority')
+            ->first(['f.fee', 'mf.deactivation_date']);
+
+        return [
+            'speed_name'           => $speedName,
+            'price'                => $basePrice,
+            'price_after_discount' => $individual !== null ? (float) $individual->fee : null,
+            'discount_until'       => $individual !== null ? $individual->deactivation_date : null,
+        ];
+    }
+
+    /**
+     * Vytvoř dodatek „změna tarifu" k podepsané smlouvě. Snímá PŮVODNÍ stav
+     * (poslední podepsaný tariff_change dodatek, jinak snapshot smlouvy) a NOVÝ
+     * (živý tarif člena). Účinnost = 1. den dalšího měsíce. Repeatable.
+     */
+    public function createTariffChangeAddon(int $contractId): ?ContractAddon
+    {
+        $contract = Contract::find($contractId);
+        if (!$contract || $contract->status !== 'signed') {
+            return null;
+        }
+        $member = Member::with(['speedClass'])->find($contract->member_id);
+        if (!$member) {
+            return null;
+        }
+
+        $lastSigned = ContractAddon::where('contract_id', $contractId)
+            ->where('type', 'tariff_change')->where('status', 'signed')
+            ->orderByDesc('effective_date')->orderByDesc('id')->first();
+
+        if ($lastSigned) {
+            $old = [
+                'speed_name'           => $lastSigned->new_speed_name,
+                'price'                => $lastSigned->new_price,
+                'price_after_discount' => $lastSigned->new_price_after_discount,
+            ];
+        } else {
+            $party = ContractParty::where('contract_id', $contractId)->orderByDesc('id')->first();
+            $old = [
+                'speed_name'           => $party?->speed_name,
+                'price'                => $party?->price,
+                'price_after_discount' => $party?->price_after_discount,
+            ];
+        }
+
+        $new = $this->tariffSnapshot($member);
+
+        // Pořadové číslo dodatku — navazuje i na legacy nulový-tarif addon (č. 1).
+        $maxNo    = (int) (ContractAddon::where('contract_id', $contractId)->max('addon_no') ?? 0);
+        $addonNo  = max($maxNo, $contract->addon ? 1 : 0) + 1;
+
+        $addon = ContractAddon::create([
+            'contract_id'              => $contractId,
+            'type'                     => 'tariff_change',
+            'addon_no'                 => $addonNo,
+            'old_speed_name'           => $old['speed_name'],
+            'old_price'                => $old['price'],
+            'old_price_after_discount' => $old['price_after_discount'],
+            'new_speed_name'           => $new['speed_name'],
+            'new_price'                => $new['price'],
+            'new_price_after_discount' => $new['price_after_discount'],
+            'discount_until'           => $new['discount_until'],
+            'effective_date'           => now()->startOfMonth()->addMonth()->toDateString(),
+            'status'                   => 'draft',
+            'created_by'               => auth()->user()?->login,
+            'created_at'               => now()->format('Y-m-d H:i:s'),
+        ]);
+
+        ContractEvent::create([
+            'contract_id' => $contractId,
+            'event'       => 'tariff_addon_created',
+            'meta_json'   => json_encode(['addon_id' => $addon->id, 'by' => auth()->user()?->login]),
+        ]);
+
+        return $addon;
+    }
+
+    public function deleteTariffAddon(ContractAddon $addon): bool
+    {
+        if ($addon->status === 'signed') {
+            return false;
+        }
+        $path = $this->tariffAddonPdfPath($addon);
+        if ($path && file_exists($path)) {
+            @unlink($path);
+        }
+        $cid = $addon->contract_id;
+        $aid = $addon->id;
+        $addon->delete();
+
+        ContractEvent::create([
+            'contract_id' => $cid,
+            'event'       => 'tariff_addon_deleted',
+            'meta_json'   => json_encode(['addon_id' => $aid, 'by' => auth()->user()?->login]),
+        ]);
+
+        return true;
+    }
+
+    public function tariffAddonPdfPath(ContractAddon $addon): ?string
+    {
+        if (!$addon->pdf_path) {
+            return null;
+        }
+        if (str_starts_with($addon->pdf_path, '/')) {
+            return $addon->pdf_path;
+        }
+        return $this->storageBase . '/' . $addon->pdf_path;
+    }
+
+    /** Všechny dodatky „změna tarifu" dané smlouvy (nejnovější první). */
+    public function tariffAddons(int $contractId)
+    {
+        return ContractAddon::where('contract_id', $contractId)
+            ->where('type', 'tariff_change')
+            ->orderByDesc('id')
+            ->get();
+    }
+
+    public function getTariffAddon(int $id): ?ContractAddon
+    {
+        return ContractAddon::where('type', 'tariff_change')->find($id);
+    }
+
+    /**
+     * Vydá podpisový odkaz pro dodatek. Token nese cid (pro /sign/info + addon OTP)
+     * i aid (pro náhled a finalizaci konkrétního dodatku). Odešle e-mail zákazníkovi.
+     */
+    public function issueTariffAddonLink(int $addonId): array
+    {
+        $addon = ContractAddon::find($addonId);
+        if (!$addon) {
+            return ['url' => null, 'email_sent' => false, 'email' => null];
+        }
+        $contractId = (int) $addon->contract_id;
+
+        $payload = [
+            'cid' => $contractId,
+            'aid' => $addonId,
+            'exp' => time() + (7 * 86400),
+            'rnd' => bin2hex(random_bytes(8)),
+        ];
+        $json  = json_encode($payload, JSON_UNESCAPED_SLASHES);
+        $sig   = hash_hmac('sha256', $json, $this->tokenSecret, true);
+        $token = $this->b64url($json) . '.' . $this->b64url($sig);
+
+        if ($addon->status === 'draft') {
+            $addon->update(['status' => 'otp_sent']);
+        }
+
+        ContractEvent::create([
+            'contract_id' => $contractId,
+            'event'       => 'tariff_addon_link_issued',
+            'meta_json'   => json_encode([
+                'addon_id' => $addonId,
+                'by'       => auth()->user()?->login,
+                'token'    => substr($token, 0, 20) . '…',
+            ]),
+        ]);
+
+        $url   = route('sign.tariff_addon.show', ['t' => $token]);
+        $email = $this->queueSignLinkEmail($contractId, $url, true);
+
+        return ['url' => $url, 'email_sent' => $email !== null, 'email' => $email];
+    }
+
+    /** Ověří podpisový token dodatku (sig + exp). Vrací addon_id, nebo null. */
+    public function verifyTariffAddonToken(string $token): ?int
+    {
+        $parts = explode('.', $token, 2);
+        if (count($parts) !== 2) return null;
+
+        [$p64, $s64] = $parts;
+        $json = $this->b64urlDec($p64);
+        $sig  = $this->b64urlDec($s64);
+        if ($json === '' || $sig === '') return null;
+
+        $calc = hash_hmac('sha256', $json, $this->tokenSecret, true);
+        if (!hash_equals($calc, $sig)) return null;
+
+        $data = json_decode($json, true);
+        if (!is_array($data) || ((int) ($data['exp'] ?? 0)) < time()) return null;
+
+        $aid = (int) ($data['aid'] ?? 0);
+        return $aid > 0 ? $aid : null;
+    }
+
+    /**
+     * Finalizuje dodatek: vygeneruje podepsané PDF, uloží na řádek dodatku
+     * (status=signed, signed_at, pdf_path) a zaloguje. Volá se po ověření OTP.
+     */
+    public function signTariffAddon(ContractAddon $addon, PdfService $pdf, ?Request $request = null): ContractAddon
+    {
+        $fullpath = $pdf->renderTariffAddonPdf($addon, false, $request);
+        $raw      = (string) @file_get_contents($fullpath);
+        $sha256   = hash('sha256', $raw);
+
+        $addon->update([
+            'status'    => 'signed',
+            'signed_at' => now(),
+            'pdf_path'  => $fullpath,
+        ]);
+
+        ContractEvent::create([
+            'contract_id' => $addon->contract_id,
+            'event'       => 'tariff_addon_signed',
+            'meta_json'   => json_encode(['addon_id' => $addon->id, 'sha256' => $sha256], JSON_UNESCAPED_UNICODE),
+        ]);
+
+        return $addon->refresh();
+    }
+
     private function buildPartyData(Member $member): array
     {
         $mainUser = $member->users()->where('type', User::MAIN_USER)->first();
@@ -210,7 +447,11 @@ class ContractService
             ->first()
             ?->variable_symbol ?? '';
 
-        $speedName = $member->speedClass?->name ?? '';
+        $snap               = $this->tariffSnapshot($member);
+        $speedName          = $snap['speed_name'];
+        $basePrice          = $snap['price'];
+        $priceAfterDiscount = $snap['price_after_discount'];
+        $discountUntil      = $snap['discount_until'];
 
         // Birthday brát z users.birthday hlavního uživatele — PDF má fallback
         // 'ico → birthday', takže bez něj zůstává buňka u fyzických osob prázdná.
@@ -235,7 +476,9 @@ class ContractService
             'birthday'             => $birthday,
             'speed_name'           => $speedName,
             'variable_symbol'      => $vs,
-            'price'                => 320.00,
+            'price'                => $basePrice,
+            'price_after_discount' => $priceAfterDiscount,
+            'discount_until'       => $discountUntil,
             'phone'                => $phone,
             'email'                => $email,
         ];

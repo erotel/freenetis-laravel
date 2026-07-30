@@ -305,6 +305,63 @@
 </div>
 @endif
 
+{{-- Dodatky – změna tarifu --}}
+@if($contract->status === 'signed')
+<div class="m-section">Dodatky – změna tarifu</div>
+<div class="m-card" style="margin-bottom:16px">
+    <div style="font-size:14px;color:#6b7280;margin-bottom:12px">
+        Dodatek zaznamená změnu tarifu (původní → nový) s účinností od 1. dne dalšího měsíce.
+        Rychlost přepni v editaci člena předem; nová cena se strhne od data účinnosti.
+    </div>
+    @if($canEdit)
+    <form method="POST" action="{{ route('contracts.tariff_addon.create', $member->id) }}" style="margin-bottom:14px">
+        @csrf
+        <button class="m-btn m-btn-primary" type="submit">Vytvořit dodatek – změna tarifu</button>
+    </form>
+    @endif
+    @if(session('tariff_addon_link'))
+    <div class="m-alert" style="background:#fef3c7;border:1px solid #fcd34d;padding:10px;border-radius:6px;margin-bottom:12px">
+        Odkaz k podpisu (pošli zákazníkovi, když nedorazil e-mailem):<br>
+        <a href="{{ session('tariff_addon_link') }}" target="_blank" rel="noopener" style="word-break:break-all;color:#92400e">
+            {{ session('tariff_addon_link') }}
+        </a>
+    </div>
+    @endif
+    @forelse($tariffAddons as $a)
+    <div style="border-top:1px solid #eee;padding:10px 0;display:flex;gap:12px;flex-wrap:wrap;align-items:center">
+        <div style="flex:1;min-width:260px;font-size:14px">
+            <span style="color:#6b7280">Dodatek č. {{ $a->addon_no ?? '—' }}:</span>
+            <strong>{{ $a->old_speed_name ?: '—' }}</strong> ({{ $a->priceLabel($a->old_price) }})
+            &rarr; <strong>{{ $a->new_speed_name ?: '—' }}</strong> ({{ $a->priceLabel($a->new_price) }})
+            @if($a->new_price_after_discount !== null)
+                <span style="color:#6b7280">, zvýhodněná {{ $a->priceLabel($a->new_price_after_discount) }}</span>
+            @endif
+            <br>
+            <span style="color:#6b7280">účinnost {{ $a->effective_date?->format('d.m.Y') }} · {{ $a->statusLabel() }}</span>
+        </div>
+        @if($a->status === 'signed')
+        <a class="m-btn" href="{{ route('contracts.tariff_addon.download', $a->id) }}">Stáhnout PDF</a>
+        @else
+        <a class="m-btn" href="{{ route('contracts.tariff_addon.preview', $a->id) }}" target="_blank" rel="noopener">Náhled PDF</a>
+        @if($canEdit)
+        <form method="POST" action="{{ route('contracts.tariff_addon.send-link', $a->id) }}" style="display:inline">
+            @csrf
+            <button class="m-btn m-btn-primary" type="submit">Poslat odkaz k podpisu</button>
+        </form>
+        <form method="POST" action="{{ route('contracts.tariff_addon.delete', $a->id) }}" style="display:inline"
+              onsubmit="return confirm('Smazat tento dodatek?')">
+            @csrf @method('DELETE')
+            <button class="m-btn" type="submit">Smazat</button>
+        </form>
+        @endif
+        @endif
+    </div>
+    @empty
+    <div style="color:#9ca3af;font-size:14px">Zatím žádný dodatek změny tarifu.</div>
+    @endforelse
+</div>
+@endif
+
 {{-- Ukončení smlouvy (výpověď) — jen pro podepsané smlouvy --}}
 @if($canEdit && $contract->status === 'signed')
 <div class="m-section">Ukončení smlouvy</div>
