@@ -169,6 +169,9 @@ class SettingController extends Controller
             ->orderBy('f.name')
             ->get(['f.id', 'f.name', 'f.fee', 'f.from', 'f.to']);
 
+        // Ceník tarifů (rychlost/cena) — editace speed_classes.price ve Finance tabu
+        $speedClassesFinance = \App\Models\SpeedClass::orderBy('name')->get();
+
         $systemSettings = [];
         foreach (self::SYSTEM_KEYS as $key) {
             $systemSettings[$key] = Setting::get($key, '');
@@ -251,7 +254,7 @@ class SettingController extends Controller
         return view('settings.index', compact(
             'bankAccounts', 'memberTypes', 'routing', 'defaultBaId',
             'emailSettings', 'bccRules', 'messages', 'activeTab',
-            'pohodaEmail', 'financeSettings', 'feesForSelect',
+            'pohodaEmail', 'financeSettings', 'feesForSelect', 'speedClassesFinance',
             'systemSettings', 'usersSettings', 'networkSettings',
             'registrationSettings',
             'smsSettings', 'smsDriverSettings', 'gponSettings', 'gponOlts',
@@ -356,6 +359,17 @@ class SettingController extends Controller
         Setting::set('payment_blocked_redirect_enabled', $request->boolean('payment_blocked_redirect_enabled') ? 1 : 0);
         Setting::set('pending_termination_day', $validated['pending_termination_day'] ?? 14);
         Setting::set('admin_notification_email', $validated['admin_notification_email'] ?? '');
+
+        // Ceník tarifů — cena u speed_classes. Prázdné = NULL (propadne na základní),
+        // 0 = zdarma. Přijímá i desetinnou čárku.
+        foreach ((array) $request->input('speed_price', []) as $scId => $raw) {
+            $raw = trim((string) $raw);
+            if ($raw !== '' && !is_numeric($norm = str_replace(',', '.', $raw))) {
+                continue; // nečíselný vstup ignoruj
+            }
+            \App\Models\SpeedClass::where('id', (int) $scId)
+                ->update(['price' => $raw === '' ? null : (float) str_replace(',', '.', $raw)]);
+        }
 
         return redirect()->route('settings.index', ['tab' => 'finance'])
             ->with('success', 'Nastavení financí bylo uloženo.');

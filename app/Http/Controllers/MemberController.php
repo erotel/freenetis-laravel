@@ -15,6 +15,7 @@ use App\Models\Setting;
 use App\Models\Street;
 use App\Models\Town;
 use App\Services\ContractService;
+use App\Services\RegularFeeResolver;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 
@@ -247,6 +248,10 @@ class MemberController extends Controller
             }
         }
 
+        // Efektivní měsíční poplatek přes centrální resolver (shodné s tím, co se
+        // reálně strhne): individuální → cena tarifu → základní. Zdroj pro popisek.
+        [$monthlyFee, $monthlyFeeSource] = $this->resolveMonthlyFee((int) $member->id, (int) $member->type);
+
         // Detekce pozastaveného členství — má aktivní members_fees s fee.special_type_id=1
         $hasActiveInterrupt = DB::table('members_fees as mf')
             ->join('fees as f', 'f.id', '=', 'mf.fee_id')
@@ -261,6 +266,8 @@ class MemberController extends Controller
             'variableSymbols'     => $variableSymbols,
             'creditAccount'       => $creditAccount,
             'activeMemberFee'     => $activeMemberFee,
+            'monthlyFee'          => $monthlyFee,
+            'monthlyFeeSource'    => $monthlyFeeSource,
             'hasActiveInterrupt'  => $hasActiveInterrupt,
             'tvEnabled'           => (bool) \App\Models\Setting::get('sledovanitv_enabled', 0),
             'canEdit'             => $this->can('edit_all'),
@@ -1341,6 +1348,23 @@ class MemberController extends Controller
     }
 
     /**
+     * Efektivní měsíční poplatek + jeho zdroj pro zobrazení na kartě člena.
+     * Vrací [?float $amount, ?string $source] kde source ∈ {individuální|tarif|základní}.
+     * Pořadí drží App\Services\RegularFeeResolver (shodné se srážkou).
+     */
+    private function resolveMonthlyFee(int $memberId, int $memberType): array
+    {
+        $date = now()->toDateString();
+        $individual = RegularFeeResolver::individualFee($memberId, $date);
+        if ($individual !== null) return [$individual, 'individuální'];
+        $tarif = RegularFeeResolver::tarifPrice($memberId);
+        if ($tarif !== null) return [$tarif, 'tarif'];
+        $default = RegularFeeResolver::defaultFeeByType($memberType);
+        if ($default !== null) return [$default, 'základní'];
+        return [null, null];
+    }
+
+    /**
      * Strhne 1× měsíční poplatek aktuálního dne — používá restoreInterrupt po
      * obnově přerušeného členství. Prepaid pravidlo (jako DeductFees): při
      * nedostatku kreditu transfer nevytvořit, payment_blocked=1 + datum;
@@ -1351,28 +1375,8 @@ class MemberController extends Controller
      */
     private function chargeMonthlyFeeNow(int $memberId, int $memberType, string $date): string
     {
-        $individualFee = DB::table('members_fees as mf')
-            ->join('fees as f', 'f.id', '=', 'mf.fee_id')
-            ->join('enum_types as et', 'et.id', '=', 'f.type_id')
-            ->whereRaw('LOWER(et.value) = ?', ['regular member fee'])
-            ->where('mf.member_id', $memberId)
-            ->where('mf.activation_date', '<=', $date)
-            ->where('mf.deactivation_date', '>=', $date)
-            ->orderBy('mf.priority')
-            ->value('f.fee');
-
-        if ($individualFee !== null) {
-            $feeAmount = (float) $individualFee;
-        } else {
-            $defaultFeeId = match($memberType) {
-                MemberType::CUSTOMER => (int) Setting::get('default_fee_member_type_2', 0),
-                MemberType::REGULAR  => (int) Setting::get('default_fee_member_type_90', 0),
-                default              => 0,
-            };
-            $feeAmount = $defaultFeeId
-                ? (float) DB::table('fees')->where('id', $defaultFeeId)->value('fee')
-                : 0.0;
-        }
+        // Pořadí individuální → cena tarifu → základní řeší centrální resolver.
+        $feeAmount = (float) (RegularFeeResolver::amount($memberId, $memberType, $date) ?? 0.0);
 
         if ($feeAmount <= 0) return 'noop';
 

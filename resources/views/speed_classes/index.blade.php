@@ -22,6 +22,7 @@
             <th>Jméno</th>
             <th title="Maximální přenosová rychlost Download/Upload">Max. rychlost (D/U)</th>
             <th title="Garantovaná minimální rychlost Download/Upload">Min. rychlost (D/U)</th>
+            <th title="Ceníková cena tarifu (Kč/měs)">Cena</th>
             <th style="width:80px" title="Počet přiřazených členů">Členů</th>
             <th style="width:50px" title="Výchozí pro řadové členy">MD</th>
             <th style="width:50px" title="Výchozí pro žadatele">AD</th>
@@ -35,6 +36,7 @@
             <td>{{ $sc->name }}</td>
             <td style="font-family:monospace;font-size:14px">{{ \App\Models\SpeedClass::formatPair($sc->d_ceil, $sc->u_ceil) }}</td>
             <td style="font-family:monospace;font-size:14px">{{ \App\Models\SpeedClass::formatPair($sc->d_rate, $sc->u_rate) }}</td>
+            <td style="white-space:nowrap;{{ $sc->price === null ? 'color:#999' : '' }}">{{ $sc->priceLabel() }}</td>
             <td style="text-align:center">{{ $sc->members_count }}</td>
             <td style="text-align:center">
                 @if($canEdit)

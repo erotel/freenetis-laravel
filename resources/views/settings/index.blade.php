@@ -333,6 +333,40 @@ function addBccRow() {
     </div>
 </div>
 
+<div class="m-card" style="margin-bottom:16px;max-width:760px">
+    <div class="m-card-title">Ceník tarifů (rychlost / cena)</div>
+    <div class="m-form-hint" style="margin-bottom:12px;color:#666">
+        Cena tarifu se použije při strhávání poplatku, když člen nemá nastavený
+        individuální tarif. Pořadí: individuální → cena tarifu → výchozí tarif dle typu.
+        <strong>Prázdné</strong> = použije se výchozí tarif. <strong>0</strong> = zdarma (nestrhává se nic).
+    </div>
+    <table class="m-table" style="margin-bottom:0">
+        <thead>
+            <tr>
+                <th>Tarif</th>
+                <th>Max. rychlost (D/U)</th>
+                <th style="width:170px">Cena (Kč/měs)</th>
+            </tr>
+        </thead>
+        <tbody>
+        @forelse($speedClassesFinance as $sc)
+            <tr>
+                <td>{{ $sc->name }}</td>
+                <td style="font-family:monospace;font-size:14px">{{ \App\Models\SpeedClass::formatPair($sc->d_ceil, $sc->u_ceil) }}</td>
+                <td>
+                    <input class="m-form-input" type="text" inputmode="decimal"
+                        name="speed_price[{{ $sc->id }}]"
+                        value="{{ $sc->price !== null ? rtrim(rtrim(number_format((float) $sc->price, 2, ',', ''), '0'), ',') : '' }}"
+                        placeholder="— (výchozí)" style="max-width:150px">
+                </td>
+            </tr>
+        @empty
+            <tr><td colspan="3" style="color:#888">Žádné tarify — přidej je v sekci Třídy rychlosti.</td></tr>
+        @endforelse
+        </tbody>
+    </table>
+</div>
+
 <div class="m-actions">
     <button class="m-btn m-btn-primary" type="submit">Uložit nastavení financí</button>
 </div>

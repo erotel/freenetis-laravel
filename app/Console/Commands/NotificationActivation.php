@@ -408,7 +408,9 @@ class NotificationActivation extends Command
                           });
                     })
                     ->leftJoin('fees as f', 'f.id', '=', 'mf.fee_id')
-                    ->whereRaw('a.balance < COALESCE(f.fee, ?, 0)', [
+                    ->leftJoin('speed_classes as sc', 'sc.id', '=', 'm.speed_class_id')
+                    // Práh = individuální (f.fee) → cena tarifu (sc.price) → základní.
+                    ->whereRaw('a.balance < COALESCE(f.fee, sc.price, ?, 0)', [
                         $this->defaultFeeAmount(2),
                     ])
                     ->select(
@@ -446,7 +448,9 @@ class NotificationActivation extends Command
                           });
                     })
                     ->leftJoin('fees as f', 'f.id', '=', 'mf.fee_id')
-                    ->whereRaw('a.balance < COALESCE(f.fee, ?, 0)', [
+                    ->leftJoin('speed_classes as sc', 'sc.id', '=', 'm.speed_class_id')
+                    // Práh = individuální (f.fee) → cena tarifu (sc.price) → základní.
+                    ->whereRaw('a.balance < COALESCE(f.fee, sc.price, ?, 0)', [
                         $this->defaultFeeAmount(90),
                     ])
                     ->select(

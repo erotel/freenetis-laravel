@@ -100,10 +100,13 @@ class DeductFees extends Command
             $this->warn('Výchozí poplatky nejsou nastaveny v Nastavení → Finance. Používám fallback z tabulky fees.');
         }
 
-        // Members_fees per-member override: highest-priority active fee of type 'regular member fee'
+        // Resolver poplatku (mirror App\Services\RegularFeeResolver): individuální
+        // (members_fees) → cena tarifu (speed_classes.price) → základní (níže v PHP dle typu).
+        // Bulk SQL kvůli výkonu nad všemi členy najednou.
         // Idempotency: LEFT JOIN transfers where type=1 and datetime=$date (exact)
         $accounts = DB::select("
             SELECT a.id AS account_id, a.balance, m.id AS member_id, m.type AS member_type,
+                sc.price AS tarif_fee,
                 (
                     SELECT f2.fee
                     FROM members_fees mf2
@@ -118,6 +121,7 @@ class DeductFees extends Command
                 ) AS individual_fee
             FROM accounts a
             JOIN members m ON a.member_id = m.id
+            LEFT JOIN speed_classes sc ON sc.id = m.speed_class_id
             LEFT JOIN transfers t ON t.origin_id = a.id
                 AND t.type = :type AND t.datetime = :date3
             WHERE m.id <> 1
@@ -143,10 +147,13 @@ class DeductFees extends Command
         DB::beginTransaction();
         try {
             foreach ($accounts as $account) {
-                // Individuální tarif (members_fees) má přednost — i 0 Kč = osvobozený člen
-                // (feeAmount 0 se níže přeskočí). Bez přiřazeného tarifu => výchozí poplatek dle typu.
+                // Pořadí: individuální (members_fees) → cena tarifu (speed_classes.price)
+                // → základní dle typu. NULL propadá dál, 0 = osvobozeno (feeAmount 0 se
+                // níže přeskočí). Mirror App\Services\RegularFeeResolver.
                 if ($account->individual_fee !== null) {
                     $feeAmount = (float)$account->individual_fee;
+                } elseif ($account->tarif_fee !== null) {
+                    $feeAmount = (float)$account->tarif_fee;
                 } else {
                     $feeAmount = match((int)$account->member_type) {
                         2  => $defaultFeeType2  ?? 0.0,

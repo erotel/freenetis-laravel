@@ -8,16 +8,29 @@ class SpeedClass extends Model
 {
     public $timestamps = false;
     protected $table = 'speed_classes';
-    protected $fillable = ['name', 'd_ceil', 'd_rate', 'u_ceil', 'u_rate',
+    protected $fillable = ['name', 'd_ceil', 'd_rate', 'u_ceil', 'u_rate', 'price',
         'regular_member_default', 'applicant_default'];
     protected $casts = [
         'regular_member_default' => 'boolean',
         'applicant_default'      => 'boolean',
+        'price'                  => 'decimal:2',
     ];
 
     public function members()
     {
         return $this->hasMany(Member::class, 'speed_class_id');
+    }
+
+    // Ceníková cena tarifu jako štítek, "400 Kč" / "—" když není nastavena (NULL).
+    public function priceLabel(): string
+    {
+        return $this->price === null ? '—' : rtrim(rtrim(number_format((float) $this->price, 2, ',', ' '), '0'), ',') . ' Kč';
+    }
+
+    // Hodnota do formuláře: "400" / "350,5" / "" když NULL (bez oddělovače tisíců, čárka desetinná).
+    public function priceInput(): string
+    {
+        return $this->price === null ? '' : rtrim(rtrim(number_format((float) $this->price, 2, ',', ''), '0'), ',');
     }
 
     // Format bps to human readable

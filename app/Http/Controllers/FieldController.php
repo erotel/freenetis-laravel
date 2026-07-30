@@ -8,6 +8,7 @@ use App\Models\Contact;
 use App\Models\Device;
 use App\Models\Member;
 use App\Models\MemberFee;
+use App\Services\RegularFeeResolver;
 use App\Models\Setting;
 use App\Models\User;
 use Illuminate\Http\JsonResponse;
@@ -466,6 +467,17 @@ class FieldController extends Controller
             }
         }
 
+        // Efektivní měsíční poplatek přes resolver (shodné se srážkou):
+        // individuální → cena tarifu → základní.
+        $feeDate = now()->toDateString();
+        $feeIndividual = RegularFeeResolver::individualFee((int) $member->id, $feeDate);
+        $feeTarif      = RegularFeeResolver::tarifPrice((int) $member->id);
+        $feeDefault    = RegularFeeResolver::defaultFeeByType((int) $member->type);
+        if ($feeIndividual !== null)   { $monthlyFee = $feeIndividual; $monthlyFeeSource = 'individuální'; }
+        elseif ($feeTarif !== null)    { $monthlyFee = $feeTarif;      $monthlyFeeSource = 'tarif'; }
+        elseif ($feeDefault !== null)  { $monthlyFee = $feeDefault;    $monthlyFeeSource = 'základní'; }
+        else                           { $monthlyFee = null;           $monthlyFeeSource = null; }
+
         // Zařízení člena: přes jeho uživatele (devices.user_id → users.member_id).
         $devices = collect();
         if ($this->aclCheck('view_all', 'Devices_Controller', 'devices') && Setting::get('networks_enabled', 0)) {
@@ -496,6 +508,8 @@ class FieldController extends Controller
             'balance'         => $balance,
             'expirationDate'  => $expirationDate,
             'activeMemberFee' => $activeMemberFee,
+            'monthlyFee'      => $monthlyFee,
+            'monthlyFeeSource' => $monthlyFeeSource,
             'phones'          => $phones,
             'emails'          => $emails,
             'address'         => $address,

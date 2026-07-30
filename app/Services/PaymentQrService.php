@@ -207,44 +207,21 @@ class PaymentQrService
     }
 
     /**
-     * Výše aktivního pravidelného členského poplatku (tarifu). Pořadí fallbacku
-     * je stejné jako logika upozornění (NotificationActivation): vlastní řádek
-     * tarifu → výchozí poplatek pro typ člena (config default_fee_member_type_<type>,
-     * drží fee_id) → tarif sdružení (member 1).
+     * Výše aktivního pravidelného členského poplatku (tarifu). Pořadí:
+     * individuální (members_fees) → cena tarifu (speed_classes.price) → výchozí
+     * poplatek pro typ člena → tarif sdružení (member 1). První tři řeší centrální
+     * RegularFeeResolver (shodně s DeductFees), poslední fallback je specifikum QR.
      */
     private function regularFee(int $memberId, int $memberType): float
     {
         $date = now()->toDateString();
 
-        $pick = function (int $mid) use ($date) {
-            return DB::table('members_fees as mf')
-                ->join('fees as f', 'f.id', '=', 'mf.fee_id')
-                ->join('enum_types as et', 'et.id', '=', 'f.type_id')
-                ->where('mf.member_id', $mid)
-                ->where('et.value', 'regular member fee')
-                ->where('mf.activation_date', '<=', $date)
-                ->where(function ($q) use ($date) {
-                    $q->whereNull('mf.deactivation_date')
-                      ->orWhere('mf.deactivation_date', '>=', $date);
-                })
-                ->orderBy('mf.priority')
-                ->value('f.fee');
-        };
-
-        $fee = $pick($memberId);
-        if ($fee !== null) {
-            return (float) $fee;
+        $amount = RegularFeeResolver::amount($memberId, $memberType, $date);
+        if ($amount !== null) {
+            return $amount;
         }
 
-        // Výchozí poplatek pro typ člena — setting drží fee_id, ne částku.
-        $defaultFeeId = (int) Setting::get('default_fee_member_type_' . $memberType, 0);
-        if ($defaultFeeId) {
-            $fee = DB::table('fees')->where('id', $defaultFeeId)->value('fee');
-            if ($fee !== null) {
-                return (float) $fee;
-            }
-        }
-
-        return (float) ($pick(1) ?? 0);
+        // Poslední fallback jen pro QR: tarif sdružení (member 1).
+        return (float) (RegularFeeResolver::individualFee(1, $date) ?? 0);
     }
 }

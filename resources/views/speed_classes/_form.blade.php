@@ -27,4 +27,11 @@
         <div class="m-form-hint">Download/Upload v Mbps (např. <code>50/10</code>). Garantovaná minimální rychlost.</div>
         @error('qos_rate') <div class="m-form-hint" style="color:#c0392b">{{ $message }}</div> @enderror
     </div>
+    <div class="m-form-group">
+        <label class="m-form-label" for="price">Ceníková cena (Kč/měs)</label>
+        <input class="m-form-input" type="text" id="price" name="price" inputmode="decimal"
+               value="{{ old('price', $price ?? '') }}" placeholder="— (výchozí tarif)" style="max-width:180px">
+        <div class="m-form-hint">Použije se při strhávání poplatku, když člen nemá individuální tarif. Prázdné = výchozí tarif dle typu člena. <code>0</code> = zdarma.</div>
+        @error('price') <div class="m-form-hint" style="color:#c0392b">{{ $message }}</div> @enderror
+    </div>
 </div>

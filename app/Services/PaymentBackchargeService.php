@@ -166,32 +166,13 @@ class PaymentBackchargeService
     }
 
     /**
-     * Stejná logika jako DeductFees::deductMemberFees:
-     *  1) individuální tarif z members_fees (regular member fee, aktivní pro $date)
-     *  2) fallback: default_fee_member_type_2 (zákazník) / _90 (člen) → fees.fee
+     * Stejná logika jako DeductFees::deductMemberFees — centrálně přes
+     * RegularFeeResolver: individuální (members_fees) → cena tarifu
+     * (speed_classes.price) → základní (default_fee_member_type_<type>).
      */
     private function resolveFeeAmount(int $memberId, int $memberType, string $date): float
     {
-        $individual = DB::table('members_fees as mf')
-            ->join('fees as f', 'f.id', '=', 'mf.fee_id')
-            ->join('enum_types as et', 'et.id', '=', 'f.type_id')
-            ->whereRaw('LOWER(et.value) = ?', ['regular member fee'])
-            ->where('mf.member_id', $memberId)
-            ->where('mf.activation_date', '<=', $date)
-            ->where('mf.deactivation_date', '>=', $date)
-            ->orderBy('mf.priority')
-            ->value('f.fee');
-
-        if ($individual !== null) {
-            return (float) $individual;
-        }
-
-        $key   = "default_fee_member_type_{$memberType}";
-        $feeId = (int) Setting::get($key, 0);
-        if ($feeId <= 0) {
-            return 0.0;
-        }
-        return (float) (DB::table('fees')->where('id', $feeId)->value('fee') ?? 0);
+        return (float) (RegularFeeResolver::amount($memberId, $memberType, $date) ?? 0.0);
     }
 
     private function recalculateBalance(int $accountId): void

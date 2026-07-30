@@ -17,6 +17,7 @@
     'name'     => $speedClass->name,
     'qos_ceil' => \App\Models\SpeedClass::toBpsSlash($speedClass->d_ceil, $speedClass->u_ceil),
     'qos_rate' => \App\Models\SpeedClass::toBpsSlash($speedClass->d_rate, $speedClass->u_rate),
+    'price'    => $speedClass->priceInput(),
 ])
 <div class="m-actions">
     <button class="m-btn m-btn-primary" type="submit">Uložit</button>

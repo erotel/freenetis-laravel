@@ -72,10 +72,10 @@
             {{ $expirationDate ? \Carbon\Carbon::parse($expirationDate)->format('d.m.Y') : '—' }}
         </span>
     </div>
-    @if($activeMemberFee && $activeMemberFee->fee)
+    @if($monthlyFee !== null)
         <div class="f-kv">
             <span class="k">Měsíční poplatek</span>
-            <span class="v">{{ number_format((float) $activeMemberFee->fee->fee, 0, ',', ' ') }} Kč</span>
+            <span class="v">{{ number_format((float) $monthlyFee, 0, ',', ' ') }} Kč@if($monthlyFeeSource)<span style="font-size:11px;color:#999"> ({{ $monthlyFeeSource }})</span>@endif</span>
         </div>
     @endif
 </div>

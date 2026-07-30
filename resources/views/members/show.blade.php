@@ -218,8 +218,9 @@
     <div class="m-metric">
         <div class="m-metric-label">Měsíční platba</div>
         <div class="m-metric-value sm">
-            @if($activeMemberFee && $activeMemberFee->fee)
-                {{ number_format($activeMemberFee->fee->fee, 0, ',', ' ') }} Kč
+            @if($monthlyFee !== null)
+                {{ number_format($monthlyFee, 0, ',', ' ') }} Kč
+                @if($monthlyFeeSource)<span style="font-size:11px;color:#999;font-weight:normal"> ({{ $monthlyFeeSource }})</span>@endif
             @else —
             @endif
         </div>
