@@ -6,6 +6,46 @@ formát podle [Keep a Changelog](https://keepachangelog.com/cs/1.1.0/).
 Verzi v souboru `config/version.php` bumpni samostatným commitem `chore: bump version to X.Y.Z`,
 ať lze changelog snadno regenerovat přes `git log vX..vY --oneline`.
 
+## [2.16.0] — 2026-07-31
+
+### Added
+- **Dodatečné služby (poplatek za veřejnou IP).** Nevyužitý typ poplatku
+  „Pokuta" přejmenován na **„Dodatečné služby"**. Přiřazují se členovi v jeho
+  poplatcích (`members_fees`) a strhávají se měsíčně jako **samostatná
+  transakce (type 6)** oddělená od tarifu — v převodech je pak jasně vidět, co
+  je tarif a co služba navíc. Sčítá se **víc aktivních služeb**, platí stejné
+  prepaid pravidlo (nedostatek kreditu → `payment_blocked`) a dohánění po
+  platbě (`PaymentBackchargeService`). Nový `AdditionalServicesResolver` je
+  jedna pravda pro strhávání, dohánění i zobrazení. Na kartě člena přibyl
+  rozpis **„Dodatečné služby"** + **„Celkem měsíčně"** (tarif + služby).
+- **Dodatek „dodatečná služba" ke smlouvě.** Samostatný typ dodatku
+  (`contract_addons`, `type='additional_service'`) k podepsané smlouvě:
+  **přidání** služby podepíše zákazník přes **SMS OTP** (vlastní podpisová
+  stránka), **zrušení** vydá poskytovatel bez OTP a pošle zákazníkovi PDF
+  e-mailem (snižuje jen jeho závazek). Účinnost = 1. den dalšího měsíce,
+  číslování **„DODATEK č. X"** společné s dodatky změny tarifu. Admin obsluhuje
+  z karty smlouvy (vytvořit, náhled/stáhnout PDF, poslat odkaz, vydat, smazat).
+- **Dodatečné služby přímo ve smlouvě (nové smlouvy).** Nová smlouva ukazuje
+  řádky **„Doplňková služba"** + **„Celková cena"** (tarif/sleva + služby),
+  snapshotnuté do `contract_parties` (neměnné pro podepsané PDF).
+- **UI karta člena / smlouva.** Na kartě člena přibyl rychlý odkaz **„Smlouva"**
+  (k Povoleným podsítím/Zařízení); sekce dodatků z karty odstraněna — vše je
+  nově pod detailem smlouvy. Legacy „nulový tarif" dodatek přejmenován na
+  **„Dodatek ke smlouvě – umístění AP na nemovitosti"**. Sekce **„Historie"**
+  (audit log událostí) se zobrazuje jen administrátorovi, ne zákazníkovi.
+
+### Fixed
+- **QR platba zahrnuje dodatečné služby.** Částka v QR (SPAYD) i v upozorněních
+  je nově **celková měsíční = tarif + dodatečné služby**, ne jen tarif —
+  shodně s tím, co reálně strhává `fees:deduct`.
+
+### Database
+- freenetis: `enum_types` id 39 `penalty` → `additional service` (recyklace
+  nevyužitého typu poplatku).
+- contracts: `contract_addons` += `service_name`, `service_price`,
+  `service_action`; `download_tokens.file_type` += `service_addon`;
+  `contract_parties` += `additional_services_json`, `additional_services_total`.
+
 ## [2.15.0] — 2026-07-30
 
 ### Added
