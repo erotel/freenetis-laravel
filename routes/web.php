@@ -239,6 +239,11 @@ Route::prefix('sign')->name('sign.')->group(function () {
     Route::post('tariff-addon/info',       [\App\Http\Controllers\Contracts\PublicSignController::class, 'tariffAddonInfo'])->name('tariff_addon.info');
     Route::get ('tariff-addon/preview',    [\App\Http\Controllers\Contracts\PublicSignController::class, 'previewTariffAddon'])->name('tariff_addon.preview');
     Route::post('tariff-addon/otp/verify', [\App\Http\Controllers\Contracts\PublicSignController::class, 'verifyTariffAddonOtp'])->name('tariff_addon.otp.verify');
+
+    Route::get ('service-addon',            [\App\Http\Controllers\Contracts\PublicSignController::class, 'showServiceAddon'])->name('service_addon.show');
+    Route::post('service-addon/info',       [\App\Http\Controllers\Contracts\PublicSignController::class, 'serviceAddonInfo'])->name('service_addon.info');
+    Route::get ('service-addon/preview',    [\App\Http\Controllers\Contracts\PublicSignController::class, 'previewServiceAddon'])->name('service_addon.preview');
+    Route::post('service-addon/otp/verify', [\App\Http\Controllers\Contracts\PublicSignController::class, 'verifyServiceAddonOtp'])->name('service_addon.otp.verify');
 });
 
 // Protected area
@@ -680,6 +685,14 @@ Route::middleware('auth')->group(function () {
     Route::delete('contracts/tariff-addon/{addonId}',        [ContractController::class, 'deleteTariffAddon'])->name('contracts.tariff_addon.delete');
     Route::post('contracts/tariff-addon/{addonId}/send-link', [ContractController::class, 'sendTariffAddonLink'])->name('contracts.tariff_addon.send-link');
     Route::get('contracts/tariff-addon/{addonId}/download',   [ContractController::class, 'downloadTariffAddon'])->name('contracts.tariff_addon.download');
+
+    // Dodatek: dodatečná služba (fáze A — vytvořit/náhled/smazat; podpis ve fázi B)
+    Route::post('members/{id}/contract/service-addon',       [ContractController::class, 'createServiceAddon'])->name('contracts.service_addon.create');
+    Route::get('contracts/service-addon/{addonId}/preview',  [ContractController::class, 'previewServiceAddon'])->name('contracts.service_addon.preview');
+    Route::delete('contracts/service-addon/{addonId}',       [ContractController::class, 'deleteServiceAddon'])->name('contracts.service_addon.delete');
+    Route::post('contracts/service-addon/{addonId}/send-link', [ContractController::class, 'sendServiceAddonLink'])->name('contracts.service_addon.send-link');
+    Route::post('contracts/service-addon/{addonId}/issue-removal', [ContractController::class, 'issueServiceRemoval'])->name('contracts.service_addon.issue-removal');
+    Route::get('contracts/service-addon/{addonId}/download',   [ContractController::class, 'downloadServiceAddon'])->name('contracts.service_addon.download');
 
     // Device DHCP export — inside auth group but device self-call bypasses auth middleware
     Route::get('devices/{id}/export/{format}', [DeviceController::class, 'export'])

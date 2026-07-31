@@ -22,6 +22,9 @@ class ContractAddon extends Model
         'new_price',
         'new_price_after_discount',
         'discount_until',
+        'service_name',
+        'service_price',
+        'service_action',
         'effective_date',
         'status',
         'pdf_path',
@@ -37,6 +40,7 @@ class ContractAddon extends Model
         'new_price'                => 'decimal:2',
         'new_price_after_discount' => 'decimal:2',
         'discount_until'           => 'date',
+        'service_price'            => 'decimal:2',
         'effective_date'           => 'date',
         'signed_at'                => 'datetime',
         'created_at'               => 'datetime',
@@ -53,6 +57,16 @@ class ContractAddon extends Model
         return $value === null || $value === ''
             ? '—'
             : rtrim(rtrim(number_format((float) $value, 2, ',', ' '), '0'), ',') . ' Kč';
+    }
+
+    /** "Přidání" / "Zrušení" služby — jen pro type='additional_service'. */
+    public function serviceActionLabel(): string
+    {
+        return match ($this->service_action) {
+            'add'    => 'Přidání',
+            'remove' => 'Zrušení',
+            default  => '—',
+        };
     }
 
     public function statusLabel(): string

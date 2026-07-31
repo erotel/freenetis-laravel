@@ -225,11 +225,15 @@
 </div>
 @endif
 
-{{-- Dodatek --}}
+{{-- Dodatek – umístění AP --}}
 @if($contract->status === 'signed')
 @php $addonStatus = app(\App\Services\ContractService::class)->getAddonStatus($contract); @endphp
-<div class="m-section">Dodatek ke smlouvě</div>
+<div class="m-section">Dodatek ke smlouvě – umístění AP na nemovitosti</div>
 <div class="m-card" style="margin-bottom:16px">
+    <div style="font-size:14px;color:#6b7280;margin-bottom:12px">
+        Dodatek pro majitele nemovitosti, kde je umístěn přístupový bod (AP) — zvýhodněný (nulový) tarif.
+        Změnu tarifu nebo doplňkové služby řeš v sekcích níže.
+    </div>
     @if($addonStatus === 'none')
         <div style="font-size:16px;color:#888;padding:4px 0">Žádný dodatek.</div>
         @if($canEdit)
@@ -362,6 +366,90 @@
 </div>
 @endif
 
+{{-- Dodatky – dodatečné služby (např. veřejná IP) --}}
+@if($contract->status === 'signed')
+<div class="m-section">Dodatky – dodatečné služby</div>
+<div class="m-card" style="margin-bottom:16px">
+    <div style="font-size:14px;color:#6b7280;margin-bottom:12px">
+        Dodatek zaznamená přidání nebo zrušení doplňkové služby (např. veřejná IP) s účinností od 1. dne dalšího měsíce.
+        Službu přiřaď členovi předem v <a href="{{ route('members_fees.by_member', $member->id) }}">poplatcích člena</a>; dodatek přebírá její název a cenu.
+    </div>
+    @if($canEdit)
+        @if(!empty($assignableServices))
+        <form method="POST" action="{{ route('contracts.service_addon.create', $member->id) }}" style="margin-bottom:14px">
+            @csrf
+            <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end">
+                <div>
+                    <label class="m-form-label" for="svc_fee_id" style="font-size:14px;color:#6b7280">Služba</label>
+                    <select class="m-form-input" id="svc_fee_id" name="fee_id" style="min-width:220px">
+                        @foreach($assignableServices as $s)
+                        <option value="{{ $s['fee_id'] }}">{{ $s['name'] !== '' ? $s['name'] : 'Dodatečná služba' }} — {{ number_format($s['fee'], 0, ',', ' ') }} Kč</option>
+                        @endforeach
+                    </select>
+                </div>
+                <div>
+                    <label class="m-form-label" for="svc_action" style="font-size:14px;color:#6b7280">Akce</label>
+                    <select class="m-form-input" id="svc_action" name="action" style="min-width:140px">
+                        <option value="add">Přidání</option>
+                        <option value="remove">Zrušení</option>
+                    </select>
+                </div>
+                <button class="m-btn m-btn-primary" type="submit">Vytvořit dodatek</button>
+            </div>
+        </form>
+        @else
+        <div style="color:#9ca3af;font-size:14px;margin-bottom:12px">
+            Člen nemá žádnou aktivní dodatečnou službu. Nejprve ji přiřaď v <a href="{{ route('members_fees.by_member', $member->id) }}">poplatcích člena</a>.
+        </div>
+        @endif
+    @endif
+    @if(session('service_addon_link'))
+    <div class="m-alert" style="background:#fef3c7;border:1px solid #fcd34d;padding:10px;border-radius:6px;margin-bottom:12px">
+        Odkaz k podpisu (pošli zákazníkovi, když nedorazil e-mailem):<br>
+        <a href="{{ session('service_addon_link') }}" target="_blank" rel="noopener" style="word-break:break-all;color:#92400e">
+            {{ session('service_addon_link') }}
+        </a>
+    </div>
+    @endif
+    @forelse($serviceAddons as $a)
+    <div style="border-top:1px solid #eee;padding:10px 0;display:flex;gap:12px;flex-wrap:wrap;align-items:center">
+        <div style="flex:1;min-width:260px;font-size:14px">
+            <span style="color:#6b7280">Dodatek č. {{ $a->addon_no ?? '—' }}:</span>
+            <strong>{{ $a->serviceActionLabel() }}</strong> — {{ $a->service_name ?: '—' }} ({{ $a->priceLabel($a->service_price) }} / měsíc)
+            <br>
+            <span style="color:#6b7280">účinnost {{ $a->effective_date?->format('d.m.Y') }} · {{ $a->statusLabel() }}</span>
+        </div>
+        @if($a->status === 'signed')
+        <a class="m-btn" href="{{ route('contracts.service_addon.download', $a->id) }}">Stáhnout PDF</a>
+        @else
+        <a class="m-btn" href="{{ route('contracts.service_addon.preview', $a->id) }}" target="_blank" rel="noopener">Náhled PDF</a>
+        @if($canEdit)
+        @if($a->service_action === 'add')
+        <form method="POST" action="{{ route('contracts.service_addon.send-link', $a->id) }}" style="display:inline">
+            @csrf
+            <button class="m-btn m-btn-primary" type="submit">Poslat odkaz k podpisu</button>
+        </form>
+        @else
+        <form method="POST" action="{{ route('contracts.service_addon.issue-removal', $a->id) }}" style="display:inline"
+              onsubmit="return confirm('Vydat dodatek o zrušení služby bez podpisu zákazníka? Bude odeslán e-mailem.')">
+            @csrf
+            <button class="m-btn m-btn-primary" type="submit">Vydat (bez podpisu)</button>
+        </form>
+        @endif
+        <form method="POST" action="{{ route('contracts.service_addon.delete', $a->id) }}" style="display:inline"
+              onsubmit="return confirm('Smazat tento dodatek?')">
+            @csrf @method('DELETE')
+            <button class="m-btn" type="submit">Smazat</button>
+        </form>
+        @endif
+        @endif
+    </div>
+    @empty
+    <div style="color:#9ca3af;font-size:14px">Zatím žádný dodatek dodatečné služby.</div>
+    @endforelse
+</div>
+@endif
+
 {{-- Ukončení smlouvy (výpověď) — jen pro podepsané smlouvy --}}
 @if($canEdit && $contract->status === 'signed')
 <div class="m-section">Ukončení smlouvy</div>
@@ -390,8 +478,8 @@
 </div>
 @endif
 
-{{-- Historie událostí --}}
-@if($contract->events->isNotEmpty())
+{{-- Historie událostí — jen administrativně (zákazník audit log nevidí) --}}
+@if($isAdmin && $contract->events->isNotEmpty())
 <div class="m-section">Historie</div>
 <div class="m-card" style="margin-bottom:16px">
     @foreach($contract->events as $event)

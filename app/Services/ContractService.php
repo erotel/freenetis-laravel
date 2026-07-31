@@ -7,6 +7,7 @@ use App\Models\ContractAddon;
 use App\Models\ContractEvent;
 use App\Models\ContractParty;
 use App\Models\EmailQueue;
+use App\Models\EmailQueueAttachment;
 use App\Models\Member;
 use App\Models\Message;
 use App\Models\Setting;
@@ -426,6 +427,278 @@ class ContractService
         return $addon->refresh();
     }
 
+    // ── Dodatek: dodatečná služba (contract_addons, type='additional_service') ──
+
+    /**
+     * Vytvoř dodatek „dodatečná služba" k podepsané smlouvě. $action = 'add'|'remove'.
+     * Službu (název + cena) snímá z poplatku typu 'additional service' (fees),
+     * aby PDF sedělo s tím, co se reálně účtuje. Účinnost = 1. den dalšího měsíce.
+     */
+    public function createServiceAddon(int $contractId, int $feeId, string $action = 'add'): ?ContractAddon
+    {
+        $contract = Contract::find($contractId);
+        if (!$contract || $contract->status !== 'signed') {
+            return null;
+        }
+        if (!in_array($action, ['add', 'remove'], true)) {
+            return null;
+        }
+
+        // Poplatek musí být typu „additional service" (dodatečná služba).
+        $fee = DB::table('fees as f')
+            ->join('enum_types as et', 'et.id', '=', 'f.type_id')
+            ->whereRaw("LOWER(et.value) = 'additional service'")
+            ->where('f.id', $feeId)
+            ->first(['f.name', 'f.fee']);
+        if (!$fee) {
+            return null;
+        }
+
+        $maxNo   = (int) (ContractAddon::where('contract_id', $contractId)->max('addon_no') ?? 0);
+        $addonNo = max($maxNo, $contract->addon ? 1 : 0) + 1;
+
+        $addon = ContractAddon::create([
+            'contract_id'    => $contractId,
+            'type'           => 'additional_service',
+            'addon_no'       => $addonNo,
+            'service_name'   => $fee->name !== '' ? $fee->name : 'Dodatečná služba',
+            'service_price'  => (float) $fee->fee,
+            'service_action' => $action,
+            'effective_date' => now()->startOfMonth()->addMonth()->toDateString(),
+            'status'         => 'draft',
+            'created_by'     => auth()->user()?->login,
+            'created_at'     => now()->format('Y-m-d H:i:s'),
+        ]);
+
+        ContractEvent::create([
+            'contract_id' => $contractId,
+            'event'       => 'service_addon_created',
+            'meta_json'   => json_encode([
+                'addon_id' => $addon->id,
+                'action'   => $action,
+                'fee_id'   => $feeId,
+                'by'       => auth()->user()?->login,
+            ]),
+        ]);
+
+        return $addon;
+    }
+
+    public function deleteServiceAddon(ContractAddon $addon): bool
+    {
+        if ($addon->status === 'signed') {
+            return false;
+        }
+        $path = $this->serviceAddonPdfPath($addon);
+        if ($path && file_exists($path)) {
+            @unlink($path);
+        }
+        $cid = $addon->contract_id;
+        $aid = $addon->id;
+        $addon->delete();
+
+        ContractEvent::create([
+            'contract_id' => $cid,
+            'event'       => 'service_addon_deleted',
+            'meta_json'   => json_encode(['addon_id' => $aid, 'by' => auth()->user()?->login]),
+        ]);
+
+        return true;
+    }
+
+    public function serviceAddonPdfPath(ContractAddon $addon): ?string
+    {
+        if (!$addon->pdf_path) {
+            return null;
+        }
+        if (str_starts_with($addon->pdf_path, '/')) {
+            return $addon->pdf_path;
+        }
+        return $this->storageBase . '/' . $addon->pdf_path;
+    }
+
+    /** Všechny dodatky „dodatečná služba" dané smlouvy (nejnovější první). */
+    public function serviceAddons(int $contractId)
+    {
+        return ContractAddon::where('contract_id', $contractId)
+            ->where('type', 'additional_service')
+            ->orderByDesc('id')
+            ->get();
+    }
+
+    public function getServiceAddon(int $id): ?ContractAddon
+    {
+        return ContractAddon::where('type', 'additional_service')->find($id);
+    }
+
+    /**
+     * Vydá podpisový odkaz pro dodatek služby. Token nese cid (pro /sign OTP)
+     * i aid (pro náhled a finalizaci). Odešle e-mail zákazníkovi.
+     * Jen pro type='additional_service' a service_action='add' (zrušení = fáze C, bez OTP).
+     */
+    public function issueServiceAddonLink(int $addonId): array
+    {
+        $addon = ContractAddon::where('type', 'additional_service')->find($addonId);
+        if (!$addon || $addon->service_action !== 'add') {
+            return ['url' => null, 'email_sent' => false, 'email' => null];
+        }
+        $contractId = (int) $addon->contract_id;
+
+        $payload = [
+            'cid' => $contractId,
+            'aid' => $addonId,
+            'exp' => time() + (7 * 86400),
+            'rnd' => bin2hex(random_bytes(8)),
+        ];
+        $json  = json_encode($payload, JSON_UNESCAPED_SLASHES);
+        $sig   = hash_hmac('sha256', $json, $this->tokenSecret, true);
+        $token = $this->b64url($json) . '.' . $this->b64url($sig);
+
+        if ($addon->status === 'draft') {
+            $addon->update(['status' => 'otp_sent']);
+        }
+
+        ContractEvent::create([
+            'contract_id' => $contractId,
+            'event'       => 'service_addon_link_issued',
+            'meta_json'   => json_encode([
+                'addon_id' => $addonId,
+                'by'       => auth()->user()?->login,
+                'token'    => substr($token, 0, 20) . '…',
+            ]),
+        ]);
+
+        $url   = route('sign.service_addon.show', ['t' => $token]);
+        $email = $this->queueSignLinkEmail($contractId, $url, true);
+
+        return ['url' => $url, 'email_sent' => $email !== null, 'email' => $email];
+    }
+
+    /** Ověří podpisový token dodatku služby (sig + exp). Vrací addon_id, nebo null. */
+    public function verifyServiceAddonToken(string $token): ?int
+    {
+        $parts = explode('.', $token, 2);
+        if (count($parts) !== 2) return null;
+
+        [$p64, $s64] = $parts;
+        $json = $this->b64urlDec($p64);
+        $sig  = $this->b64urlDec($s64);
+        if ($json === '' || $sig === '') return null;
+
+        $calc = hash_hmac('sha256', $json, $this->tokenSecret, true);
+        if (!hash_equals($calc, $sig)) return null;
+
+        $data = json_decode($json, true);
+        if (!is_array($data) || ((int) ($data['exp'] ?? 0)) < time()) return null;
+
+        $aid = (int) ($data['aid'] ?? 0);
+        return $aid > 0 ? $aid : null;
+    }
+
+    /**
+     * Finalizuje dodatek služby: vygeneruje podepsané PDF, uloží na řádek
+     * (status=signed, signed_at, pdf_path) a zaloguje. Volá se po ověření OTP.
+     */
+    public function signServiceAddon(ContractAddon $addon, PdfService $pdf, ?Request $request = null): ContractAddon
+    {
+        $fullpath = $pdf->renderServiceAddonPdf($addon, false, $request);
+        $raw      = (string) @file_get_contents($fullpath);
+        $sha256   = hash('sha256', $raw);
+
+        $addon->update([
+            'status'    => 'signed',
+            'signed_at' => now(),
+            'pdf_path'  => $fullpath,
+        ]);
+
+        ContractEvent::create([
+            'contract_id' => $addon->contract_id,
+            'event'       => 'service_addon_signed',
+            'meta_json'   => json_encode(['addon_id' => $addon->id, 'sha256' => $sha256], JSON_UNESCAPED_UNICODE),
+        ]);
+
+        return $addon->refresh();
+    }
+
+    /**
+     * Vydá dodatek „zrušení služby" bez podpisu zákazníka (poskytovatel).
+     * Zrušení jen snižuje závazek účastníka, proto nevyžaduje OTP — poskytovatel
+     * vygeneruje PDF, označí jako vydané (signed) a zašle zákazníkovi na e-mail.
+     * Jen pro type='additional_service' a service_action='remove'.
+     */
+    public function issueServiceRemoval(ContractAddon $addon, PdfService $pdf): ?ContractAddon
+    {
+        if ($addon->type !== 'additional_service' || $addon->service_action !== 'remove' || $addon->status === 'signed') {
+            return null;
+        }
+
+        $fullpath = $pdf->renderServiceAddonPdf($addon, false, null);
+        $raw      = (string) @file_get_contents($fullpath);
+        $sha256   = hash('sha256', $raw);
+
+        $addon->update([
+            'status'    => 'signed',
+            'signed_at' => now(),
+            'pdf_path'  => $fullpath,
+        ]);
+
+        ContractEvent::create([
+            'contract_id' => $addon->contract_id,
+            'event'       => 'service_addon_removal_issued',
+            'meta_json'   => json_encode(['addon_id' => $addon->id, 'sha256' => $sha256], JSON_UNESCAPED_UNICODE),
+        ]);
+
+        $this->emailServiceRemoval($addon);
+
+        return $addon->refresh();
+    }
+
+    /** Best-effort: pošle zákazníkovi PDF zrušení služby (nepovinné, neblokuje). */
+    private function emailServiceRemoval(ContractAddon $addon): void
+    {
+        $contract = Contract::find($addon->contract_id);
+        if (!$contract) return;
+
+        $party = ContractParty::where('contract_id', $addon->contract_id)->orderByDesc('id')->first();
+        $email = trim((string) ($party?->email ?? ''));
+        $pdfPath = (string) $addon->pdf_path;
+        if ($email === '' || $pdfPath === '' || !is_file($pdfPath)) return;
+
+        try {
+            $no      = htmlspecialchars((string) $contract->contract_no, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+            $svc     = htmlspecialchars((string) $addon->service_name, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+            $subject = $this->buildSubject('Zrušení služby ke smlouvě ' . $contract->contract_no);
+            $body    = '<p>Dobrý den,</p>'
+                . '<p>v příloze Vám zasíláme dodatek o zrušení služby <strong>' . $svc . '</strong> ke smlouvě <strong>' . $no . '</strong>'
+                . ' s účinností od ' . htmlspecialchars((string) $addon->effective_date?->format('d.m.Y'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . '.</p>'
+                . '<p>Dokument si prosím uschovejte pro svoji evidenci.</p>'
+                . '<p>S pozdravem,<br>PVfree.net, z.s.</p>';
+
+            $q = EmailQueue::create([
+                'from'        => Setting::get('email_default_email', 'noreply@pvfree.net'),
+                'to'          => $email,
+                'subject'     => $subject,
+                'body'        => $body,
+                'state'       => EmailQueue::STATE_NEW,
+                'access_time' => now(),
+            ]);
+            EmailQueueAttachment::create([
+                'email_queue_id' => $q->id,
+                'path'           => $pdfPath,
+                'name'           => 'dodatek-sluzba-zruseni-' . $contract->contract_no . '.pdf',
+                'mime'           => 'application/pdf',
+                'created_at'     => now(),
+            ]);
+            ContractEvent::create([
+                'contract_id' => $contract->id,
+                'event'       => 'service_addon_removal_email_sent',
+                'meta_json'   => json_encode(['to' => $email, 'addon_id' => $addon->id], JSON_UNESCAPED_UNICODE),
+            ]);
+        } catch (\Throwable $e) {
+            \Log::warning('Service removal email failed for contract #' . $contract->id . ': ' . $e->getMessage());
+        }
+    }
+
     private function buildPartyData(Member $member): array
     {
         $mainUser = $member->users()->where('type', User::MAIN_USER)->first();
@@ -462,6 +735,11 @@ class ContractService
         $birthday = (is_string($birthday) && $birthday !== '' && $birthday !== '0000-00-00')
             ? $birthday : null;
 
+        // Snapshot dodatečných služeb (např. veřejná IP) aktivních při vzniku
+        // smlouvy — aby byly vidět přímo ve smlouvě (řádky + celková cena).
+        $services      = AdditionalServicesResolver::items((int) $member->id, now()->toDateString());
+        $servicesTotal = array_sum(array_column($services, 'fee'));
+
         return [
             'full_name'            => $member->name,
             'street'               => $streetFull,
@@ -479,6 +757,8 @@ class ContractService
             'price'                => $basePrice,
             'price_after_discount' => $priceAfterDiscount,
             'discount_until'       => $discountUntil,
+            'additional_services_json'  => !empty($services) ? $services : null,
+            'additional_services_total' => !empty($services) ? $servicesTotal : null,
             'phone'                => $phone,
             'email'                => $email,
         ];

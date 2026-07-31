@@ -27,6 +27,8 @@ class ContractParty extends Model
         'price',
         'price_after_discount',
         'discount_until',
+        'additional_services_json',
+        'additional_services_total',
         'phone',
         'email',
         'birthday',
@@ -35,10 +37,12 @@ class ContractParty extends Model
     protected $casts = [
         'created_at'           => 'datetime',
         'birthday'             => 'date',
-        'price'                => 'decimal:2',
-        'price_after_discount' => 'decimal:2',
-        'discount_until'       => 'date',
-        'active'               => 'boolean',
+        'price'                     => 'decimal:2',
+        'price_after_discount'      => 'decimal:2',
+        'discount_until'            => 'date',
+        'additional_services_json'  => 'array',
+        'additional_services_total' => 'decimal:2',
+        'active'                    => 'boolean',
     ];
 
     public $timestamps = false;

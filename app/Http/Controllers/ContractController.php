@@ -8,6 +8,7 @@ use App\Models\User;
 use App\Services\ContractService;
 use App\Services\Contracts\PdfService;
 use Illuminate\Http\RedirectResponse;
+use Illuminate\Http\Request;
 use Illuminate\Http\Response;
 use Illuminate\View\View;
 use Symfony\Component\HttpFoundation\BinaryFileResponse;
@@ -29,13 +30,19 @@ class ContractController extends Controller
         // Admin vidí vše; jinak musí jít o vlastní profil
         $isOwn   = (auth()->user()?->member_id == $memberId);
         $canEdit = $this->can('edit_all');
-        abort_unless($canEdit || $this->can('view_all') || $isOwn, 403);
+        // Admin = může editovat nebo má právo view_all. Obyčejný zákazník (jen vlastní
+        // profil, bez ACL) admin NENÍ → neuvidí administrativní historii dodatků.
+        $isAdmin = $canEdit || $this->can('view_all');
+        abort_unless($isAdmin || $isOwn, 403);
 
         $member   = Member::findOrFail($memberId);
         $contract = $this->contracts->getByMemberId($memberId);
-        $tariffAddons = $contract ? $this->contracts->tariffAddons($contract->id) : collect();
+        $tariffAddons  = $contract ? $this->contracts->tariffAddons($contract->id) : collect();
+        $serviceAddons = $contract ? $this->contracts->serviceAddons($contract->id) : collect();
+        // Aktivní dodatečné služby člena (pro výběr do dodatku) — z members_fees.
+        $assignableServices = \App\Services\AdditionalServicesResolver::items($memberId, now()->toDateString());
 
-        return view('contracts.show', compact('member', 'contract', 'canEdit', 'tariffAddons'));
+        return view('contracts.show', compact('member', 'contract', 'canEdit', 'isAdmin', 'tariffAddons', 'serviceAddons', 'assignableServices'));
     }
 
     public function create(int $memberId): RedirectResponse
@@ -419,6 +426,142 @@ class ContractController extends Controller
         return response()->download($path, 'dodatek-tarif-' . $addon->id . '.pdf', [
             'Content-Type' => 'application/pdf',
         ]);
+    }
+
+    // ── Dodatek: dodatečná služba (contract_addons, type='additional_service') ──
+
+    public function createServiceAddon(int $memberId, Request $request): RedirectResponse
+    {
+        abort_unless($this->can('edit_all'), 403);
+
+        $data = $request->validate([
+            'fee_id' => 'required|integer',
+            'action' => 'required|in:add,remove',
+        ]);
+
+        $contract = $this->contracts->getByMemberId($memberId);
+        if (!$contract || $contract->status !== 'signed') {
+            return redirect()->route('contracts.show', $memberId)
+                ->with('error', 'Dodatek – dodatečnou službu lze vytvořit jen k podepsané smlouvě.');
+        }
+
+        $addon = $this->contracts->createServiceAddon($contract->id, (int) $data['fee_id'], $data['action']);
+        if (!$addon) {
+            return redirect()->route('contracts.show', $memberId)
+                ->with('error', 'Dodatek se nepodařilo vytvořit (služba nenalezena nebo není typu „Dodatečné služby").');
+        }
+
+        return redirect()->route('contracts.show', $memberId)
+            ->with('success', 'Dodatek – dodatečná služba byl vytvořen (návrh). Zkontrolujte náhled PDF.');
+    }
+
+    public function previewServiceAddon(int $addonId, PdfService $pdf): Response|RedirectResponse
+    {
+        $addon = \App\Models\ContractAddon::find($addonId);
+        if (!$addon) abort(404);
+
+        $isOwn = (auth()->user()?->member_id == $addon->contract?->member_id);
+        abort_unless($this->can('view_all') || $isOwn, 403);
+
+        $bytes = $pdf->renderServiceAddonPdf($addon, true);
+
+        return response($bytes, 200, [
+            'Content-Type'        => 'application/pdf',
+            'Content-Disposition' => 'inline; filename="dodatek-sluzba-preview.pdf"',
+        ]);
+    }
+
+    public function deleteServiceAddon(int $addonId): RedirectResponse
+    {
+        abort_unless($this->can('edit_all'), 403);
+
+        $addon = \App\Models\ContractAddon::find($addonId);
+        if (!$addon) abort(404);
+
+        $memberId = $addon->contract?->member_id;
+        if (!$this->contracts->deleteServiceAddon($addon)) {
+            return redirect()->route('contracts.show', $memberId)
+                ->with('error', 'Podepsaný dodatek nelze smazat.');
+        }
+
+        return redirect()->route('contracts.show', $memberId)
+            ->with('success', 'Dodatek byl smazán.');
+    }
+
+    public function sendServiceAddonLink(int $addonId): RedirectResponse
+    {
+        abort_unless($this->can('edit_all'), 403);
+
+        $addon = \App\Models\ContractAddon::find($addonId);
+        if (!$addon) abort(404);
+
+        $memberId = $addon->contract?->member_id;
+        if ($addon->status === 'signed') {
+            return redirect()->route('contracts.show', $memberId)
+                ->with('error', 'Dodatek je již podepsán.');
+        }
+        if ($addon->service_action !== 'add') {
+            return redirect()->route('contracts.show', $memberId)
+                ->with('error', 'Odkaz k podpisu je jen pro přidání služby. Zrušení vydává poskytovatel bez podpisu zákazníka.');
+        }
+
+        $result = $this->contracts->issueServiceAddonLink($addon->id);
+        if (!$result['url']) {
+            return redirect()->route('contracts.show', $memberId)
+                ->with('error', 'Odkaz se nepodařilo vygenerovat.');
+        }
+        $message = $result['email_sent']
+            ? 'Odkaz pro podpis dodatku byl vygenerován a odeslán na email zákazníka.'
+            : 'Odkaz pro podpis dodatku byl vygenerován. Zákazník nemá email — zkopírujte odkaz ručně.';
+
+        return redirect()->route('contracts.show', $memberId)
+            ->with('service_addon_link', $result['url'])
+            ->with('success', $message);
+    }
+
+    public function downloadServiceAddon(int $addonId): BinaryFileResponse|RedirectResponse
+    {
+        $addon = \App\Models\ContractAddon::find($addonId);
+        if (!$addon) abort(404);
+
+        $isOwn = (auth()->user()?->member_id == $addon->contract?->member_id);
+        abort_unless($this->can('view_all') || $isOwn, 403);
+
+        $path = $this->contracts->serviceAddonPdfPath($addon);
+        if (!$path || !is_file($path)) {
+            return redirect()->back()->with('error', 'PDF dodatku není dostupné.');
+        }
+
+        return response()->download($path, 'dodatek-sluzba-' . $addon->id . '.pdf', [
+            'Content-Type' => 'application/pdf',
+        ]);
+    }
+
+    public function issueServiceRemoval(int $addonId, PdfService $pdf): RedirectResponse
+    {
+        abort_unless($this->can('edit_all'), 403);
+
+        $addon = \App\Models\ContractAddon::find($addonId);
+        if (!$addon) abort(404);
+
+        $memberId = $addon->contract?->member_id;
+        if ($addon->service_action !== 'remove') {
+            return redirect()->route('contracts.show', $memberId)
+                ->with('error', 'Vydat bez podpisu lze jen dodatek o zrušení služby.');
+        }
+        if ($addon->status === 'signed') {
+            return redirect()->route('contracts.show', $memberId)
+                ->with('error', 'Dodatek je již vydán.');
+        }
+
+        $result = $this->contracts->issueServiceRemoval($addon, $pdf);
+        if (!$result) {
+            return redirect()->route('contracts.show', $memberId)
+                ->with('error', 'Dodatek se nepodařilo vydat.');
+        }
+
+        return redirect()->route('contracts.show', $memberId)
+            ->with('success', 'Dodatek o zrušení služby byl vydán a odeslán zákazníkovi. Nezapomeň službu deaktivovat v poplatcích člena.');
     }
 
     /**

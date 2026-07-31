@@ -61,6 +61,7 @@ class PdfService
             '{{phone_mask}}'           => $this->h($phone),
             '{{price}}'                => $this->h($this->formatPrice($p['price'] ?? '')),
             '{{price_discount_row}}'   => $discountRow,
+            '{{services_rows}}'        => $this->servicesRowsHtml($p),
             '{{dat}}'                  => $this->h($signedAtStr),
             '{{service_full_address}}' => $this->h($serviceFullRaw),
         ];
@@ -241,6 +242,80 @@ class PdfService
     }
 
     /**
+     * PDF dodatku „dodatečná služba" (přidání/zrušení služby, např. veřejná IP).
+     * $preview=true → vodoznak NÁHLED, vrací string; false → uloží podepsané PDF
+     * s evidenční stránkou a vrací absolutní cestu.
+     */
+    public function renderServiceAddonPdf(\App\Models\ContractAddon $addon, bool $preview = true, ?Request $request = null): string
+    {
+        $contract = $addon->contract;
+        $party    = ContractParty::where('contract_id', $addon->contract_id)->orderByDesc('id')->first();
+        $p        = $party?->toArray() ?? [];
+
+        $birthday          = trim((string) ($p['birthday'] ?? ''));
+        $birthdayFormatted = '';
+        if ($birthday !== '') {
+            $dt = \DateTime::createFromFormat('Y-m-d', substr($birthday, 0, 10));
+            if ($dt !== false) $birthdayFormatted = $dt->format('d.m.Y');
+        }
+        $ico = trim((string) ($p['ico'] ?? ''));
+        $dic = trim((string) ($p['dic'] ?? ''));
+        if ($ico === '' && $dic === '') $ico = $birthdayFormatted;
+
+        $phone     = (string) ($contract->phone ?? '');
+        $phoneMask = $phone !== '' ? $this->maskPhone($phone) : '';
+
+        $effective = $addon->effective_date
+            ? date('d.m.Y', strtotime((string) $addon->effective_date))
+            : '';
+
+        $isRemove    = $addon->service_action === 'remove';
+        $actionTitle = $isRemove ? 'ZRUŠENÍ SLUŽBY' : 'DODATEČNÁ SLUŽBA';
+        $actionIntro = $isRemove
+            ? 'Tímto dodatkem se ke Smlouvě ruší níže uvedená doplňková služba'
+            : 'Tímto dodatkem se ke Smlouvě sjednává níže uvedená doplňková služba';
+
+        $repl = [
+            '{{contract_no}}'     => $this->h($contract->contract_no ?? ''),
+            '{{addon_no}}'        => $this->h((string) ($addon->addon_no ?? 1)),
+            '{{full_name}}'       => $this->h($p['full_name'] ?? ''),
+            '{{street}}'          => $this->h($p['street'] ?? ''),
+            '{{town}}'            => $this->h($p['town'] ?? ''),
+            '{{country}}'         => $this->h($p['country'] ?? ''),
+            '{{ico}}'             => $this->h($ico),
+            '{{dic}}'             => $this->h($dic),
+            '{{variable_symbol}}' => $this->h($p['variable_symbol'] ?? ''),
+            '{{phone_mask}}'      => $this->h($phoneMask),
+            '{{service_name}}'    => $this->h($addon->service_name ?? ''),
+            '{{service_price}}'   => $this->h($this->formatPrice($addon->service_price)),
+            '{{action_title}}'    => $this->h($actionTitle),
+            '{{action_intro}}'    => $this->h($actionIntro),
+            '{{effective_date}}'  => $this->h($effective),
+            '{{dat}}'             => $this->h(date('d.m.Y')),
+        ];
+
+        $html = $this->resolveTemplateAssets(strtr($this->loadTemplate('addon_additional_service.html'), $repl));
+        $mpdf = new Mpdf(['tempDir' => $this->tmpDir()]);
+        if ($preview) {
+            $mpdf->SetWatermarkText('NÁHLED');
+            $mpdf->showWatermarkText = true;
+        }
+        $mpdf->WriteHTML($html);
+
+        if ($preview) {
+            return $mpdf->Output('', Destination::STRING_RETURN);
+        }
+
+        $mpdf->AddPage();
+        $mpdf->WriteHTML($this->buildAddonEvidenceHtml($phoneMask, $request));
+
+        $fullpath = $this->storageDir() . "/service-addon-{$addon->id}.pdf";
+        $mpdf->Output($fullpath, Destination::FILE);
+
+        return $fullpath;
+    }
+
+    /**
      * Generate the membership-termination PDF.
      */
     public function renderTerminationPdf(Contract $contract, ?Request $request = null): string
@@ -343,6 +418,41 @@ class PdfService
     {
         if ($value === null || $value === '') return '';
         return rtrim(rtrim(number_format((float) $value, 2, ',', ' '), '0'), ',');
+    }
+
+    /**
+     * Řádky tabulky pro dodatečné služby ve smlouvě + řádek celkové ceny.
+     * Vstup = snapshot z contract_parties ($p). Prázdné, když člen žádnou
+     * doplňkovou službu neměl. Celková cena = efektivní základ (zvýhodněná
+     * cena má přednost před běžnou) + součet služeb.
+     */
+    private function servicesRowsHtml(array $p): string
+    {
+        $raw = $p['additional_services_json'] ?? null;
+        $services = is_array($raw)
+            ? $raw
+            : (is_string($raw) && $raw !== '' ? (json_decode($raw, true) ?: []) : []);
+        if (!is_array($services) || count($services) === 0) {
+            return '';
+        }
+
+        $rows = '';
+        $servicesTotal = 0.0;
+        foreach ($services as $s) {
+            $name = $this->h(($s['name'] ?? '') !== '' ? $s['name'] : 'Doplňková služba');
+            $fee  = (float) ($s['fee'] ?? 0);
+            $servicesTotal += $fee;
+            $rows .= '<tr><td>Doplňková služba:</td><td>' . $name . ' — ' . $this->h($this->formatPrice($fee)) . ' Kč / měsíc</td></tr>';
+        }
+
+        $base = (isset($p['price_after_discount']) && $p['price_after_discount'] !== null && $p['price_after_discount'] !== '')
+            ? (float) $p['price_after_discount']
+            : (float) ($p['price'] ?? 0);
+        $grand = $base + $servicesTotal;
+
+        $rows .= '<tr><td>Celková cena:</td><td><strong>' . $this->h($this->formatPrice($grand)) . ' Kč / měsíc</strong></td></tr>';
+
+        return $rows;
     }
 
     /** Popisek platnosti slevy: "platí do DD.MM.YYYY" nebo "bez časového omezení". */
