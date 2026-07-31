@@ -57,6 +57,9 @@
     @if($mainUser && $canViewDevices)
     <a class="m-btn" href="{{ route('devices.by_user', $mainUser->id) }}">Zařízení</a>
     @endif
+    @if(($memberContract ?? null) || (int) $member->type !== \App\Helpers\MemberType::REGULAR)
+    <a class="m-btn" href="{{ route('contracts.show', $member->id) }}">Smlouva</a>
+    @endif
     @if($canViewConnectionRequests)
     <a class="m-btn" href="{{ route('connection_requests.by_member', $member->id) }}">Žádosti o připojení</a>
     @endif
@@ -225,6 +228,21 @@
             @endif
         </div>
     </div>
+    @if(!empty($additionalServices))
+    <div class="m-metric">
+        <div class="m-metric-label">Dodatečné služby</div>
+        <div class="m-metric-value sm">
+            {{ number_format($additionalServicesTotal, 0, ',', ' ') }} Kč
+            <span style="font-size:11px;color:#999;font-weight:normal"> ({{ collect($additionalServices)->map(fn($s) => trim(($s['name'] !== '' ? $s['name'].' ' : '').number_format($s['fee'], 0, ',', ' ').' Kč'))->implode(', ') }})</span>
+        </div>
+    </div>
+    <div class="m-metric">
+        <div class="m-metric-label">Celkem měsíčně</div>
+        <div class="m-metric-value sm">
+            {{ number_format(($monthlyFee ?? 0) + $additionalServicesTotal, 0, ',', ' ') }} Kč
+        </div>
+    </div>
+    @endif
 </div>
 @endif
 
@@ -630,81 +648,7 @@
 </div>
 @endif
 
-{{-- Dodatek --}}
-@if($contract && $contract->status === 'signed')
-@php $addonStatus = app(\App\Services\ContractService::class)->getAddonStatus($contract); @endphp
-<div class="m-section">Dodatek ke smlouvě</div>
-<div class="m-card" style="margin-bottom:16px">
-    @if($addonStatus === 'none')
-        <div style="font-size:16px;color:#888;padding:4px 0">Žádný dodatek.</div>
-        @if($canEdit)
-        <div style="margin-top:10px">
-            <form method="POST" action="{{ route('contracts.addon.create', $member->id) }}" style="display:inline">
-                @csrf
-                <button type="submit" class="m-btn m-btn-success"
-                        onclick="return confirm('Vytvořit dodatek ke smlouvě {{ addslashes($contract->contract_no) }}?')">
-                    + Vytvořit dodatek
-                </button>
-            </form>
-        </div>
-        @endif
-    @elseif($addonStatus === 'pending')
-        <div class="m-field">
-            <span class="m-field-label">Stav dodatku</span>
-            <span class="m-field-value">
-                <span style="display:inline-block;padding:2px 8px;border-radius:12px;font-size:14px;font-weight:600;background:#fef3c71a;color:#d97706;border:1px solid #fcd34d55">
-                    Čeká na podpis
-                </span>
-            </span>
-        </div>
-        @if($canEdit)
-        <div class="m-field">
-            <span class="m-field-label">Akce</span>
-            <span class="m-field-value" style="display:flex;gap:8px;flex-wrap:wrap">
-                <form method="POST" action="{{ route('contracts.addon.send-link', $member->id) }}" style="display:inline">
-                    @csrf
-                    <button type="submit" class="m-btn">Odeslat odkaz pro podpis dodatku</button>
-                </form>
-                <form method="POST" action="{{ route('contracts.addon.delete', $contract->id) }}" style="display:inline">
-                    @csrf @method('DELETE')
-                    <button type="submit" class="m-btn m-btn-danger"
-                            onclick="return confirm('Smazat nepodepsaný dodatek?')">Smazat dodatek</button>
-                </form>
-            </span>
-        </div>
-        @endif
-        @if(session('addon_link'))
-        <div style="margin-top:8px;padding:10px 12px;background:#fffbeb;border:1px solid #fcd34d;border-radius:6px;font-size:16px;">
-            <strong>Odkaz pro podpis dodatku:</strong><br>
-            <a href="{{ session('addon_link') }}" target="_blank" rel="noopener" style="word-break:break-all">{{ session('addon_link') }}</a>
-        </div>
-        @endif
-    @else {{-- signed --}}
-        <div class="m-field">
-            <span class="m-field-label">Stav dodatku</span>
-            <span class="m-field-value">
-                <span style="display:inline-block;padding:2px 8px;border-radius:12px;font-size:14px;font-weight:600;background:#dcfce71a;color:#16a34a;border:1px solid #86efac55">
-                    Podepsáno
-                </span>
-            </span>
-        </div>
-        @if($contract->addon_signed_at)
-        <div class="m-field">
-            <span class="m-field-label">Datum podpisu</span>
-            <span class="m-field-value">{{ $contract->addon_signed_at->format('d.m.Y H:i') }}</span>
-        </div>
-        @endif
-        @if($contract->addon_pdf_path)
-        <div class="m-field">
-            <span class="m-field-label">PDF</span>
-            <span class="m-field-value">
-                <a class="m-btn" href="{{ route('contracts.addon.download', $contract->id) }}">Stáhnout PDF dodatku</a>
-            </span>
-        </div>
-        @endif
-    @endif
-</div>
-@endif
+{{-- Dodatky ke smlouvě jsou nově celé pod detailem smlouvy (contracts.show). --}}
 
 @if($canViewIpAddresses && $member->ipAddresses->count() > 0)
 <div class="m-section">IP adresy</div>

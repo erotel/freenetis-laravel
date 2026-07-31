@@ -17,7 +17,7 @@ use Illuminate\Support\Facades\DB;
  *   - cílového bankovního účtu podle typu člena (config bank_account_member_type_<type>),
  *     IBAN se vezme z bank_accounts.IBAN nebo dopočítá z čísla účtu + kódu banky,
  *   - variabilního symbolu z kreditního účtu člena (account_attribute_id = 221100),
- *   - částky podle aktivního pravidelného členského poplatku (tarifu).
+ *   - částky = pravidelný poplatek (tarif) + dodatečné služby (celková měsíční částka).
  *
  * Vrací null vždy, když QR nelze bezpečně sestavit (chybí účet/IBAN, VS nebo částka)
  * — volající pak QR prostě nezobrazí.
@@ -51,7 +51,10 @@ class PaymentQrService
             return null;
         }
 
-        $amount = $this->regularFee($memberId, (int) $member->type);
+        // Celková měsíční částka = pravidelný poplatek (tarif) + dodatečné služby
+        // (např. veřejná IP). Obojí se strhává měsíčně, tak QR pokryje obojí.
+        $amount = $this->regularFee($memberId, (int) $member->type)
+            + AdditionalServicesResolver::total($memberId, now()->toDateString());
         if ($amount <= 0) {
             return null;
         }

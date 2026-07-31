@@ -252,6 +252,11 @@ class MemberController extends Controller
         // reálně strhne): individuální → cena tarifu → základní. Zdroj pro popisek.
         [$monthlyFee, $monthlyFeeSource] = $this->resolveMonthlyFee((int) $member->id, (int) $member->type);
 
+        // Dodatečné služby (např. veřejná IP) — strhávají se měsíčně navíc k tarifu
+        // jako samostatná položka. Rozpis + součet pro zobrazení na kartě.
+        $additionalServices      = \App\Services\AdditionalServicesResolver::items((int) $member->id, now()->toDateString());
+        $additionalServicesTotal = array_sum(array_column($additionalServices, 'fee'));
+
         // Detekce pozastaveného členství — má aktivní members_fees s fee.special_type_id=1
         $hasActiveInterrupt = DB::table('members_fees as mf')
             ->join('fees as f', 'f.id', '=', 'mf.fee_id')
@@ -268,6 +273,8 @@ class MemberController extends Controller
             'activeMemberFee'     => $activeMemberFee,
             'monthlyFee'          => $monthlyFee,
             'monthlyFeeSource'    => $monthlyFeeSource,
+            'additionalServices'      => $additionalServices,
+            'additionalServicesTotal' => $additionalServicesTotal,
             'hasActiveInterrupt'  => $hasActiveInterrupt,
             'tvEnabled'           => (bool) \App\Models\Setting::get('sledovanitv_enabled', 0),
             'canEdit'             => $this->can('edit_all'),

@@ -18,9 +18,10 @@ use Illuminate\Support\Facades\Log;
  */
 class PaymentBackchargeService
 {
-    const TYPE_MEMBER_FEE   = 1;
-    const CREDIT_ACCOUNT    = 221100;
-    const OPERATING_ACCOUNT = 221101;
+    const TYPE_MEMBER_FEE             = 1;
+    const TYPE_ADDITIONAL_SERVICE_FEE = 6;
+    const CREDIT_ACCOUNT              = 221100;
+    const OPERATING_ACCOUNT           = 221101;
 
     /**
      * Vrací true pokud došlo k odblokování (payment_blocked 1 → 0),
@@ -133,6 +134,67 @@ class PaymentBackchargeService
                 $cursor->modify('first day of next month');
             }
 
+            // Dohnat i dodatečné služby (type=6) — stejný princip jako členský
+            // poplatek. Spustí se jen pokud členské poplatky prošly celé; pokud
+            // ne, člen tak jako tak zůstává blokovaný a služby dožene příště.
+            if (!$brokeEarly) {
+                $cursorSvc = new \DateTime($member->payment_blocked_since);
+                $cursorSvc->modify('first day of this month');
+
+                while ($cursorSvc <= $end) {
+                    $year         = (int) $cursorSvc->format('Y');
+                    $month        = (int) $cursorSvc->format('n');
+                    $lastDay      = (int) date('t', strtotime(sprintf('%04d-%02d-01', $year, $month)));
+                    $effectiveDay = min($deductDay, $lastDay);
+                    $targetDate   = sprintf('%04d-%02d-%02d', $year, $month, $effectiveDay);
+
+                    if ($targetDate > $today) {
+                        break;
+                    }
+
+                    $alreadyDeducted = DB::table('transfers')
+                        ->where('origin_id', $creditAccount->id)
+                        ->where('type', self::TYPE_ADDITIONAL_SERVICE_FEE)
+                        ->where('datetime', $targetDate)
+                        ->exists();
+                    if ($alreadyDeducted) {
+                        $cursorSvc->modify('first day of next month');
+                        continue;
+                    }
+
+                    $svcAmount = $this->resolveAdditionalServiceAmount((int) $member->id, $targetDate);
+                    if ($svcAmount <= 0) {
+                        $cursorSvc->modify('first day of next month');
+                        continue;
+                    }
+
+                    $currentBalance = (float) DB::table('accounts')
+                        ->where('id', $creditAccount->id)
+                        ->value('balance');
+
+                    if ($currentBalance < $svcAmount) {
+                        // Pořád dluh za služby tohoto měsíce → flag zůstává.
+                        $brokeEarly = true;
+                        break;
+                    }
+
+                    DB::table('transfers')->insert([
+                        'origin_id'         => $creditAccount->id,
+                        'destination_id'    => $orgAccount,
+                        'type'              => self::TYPE_ADDITIONAL_SERVICE_FEE,
+                        'amount'            => $svcAmount,
+                        'datetime'          => $targetDate,
+                        'creation_datetime' => $creationDatetime,
+                        'text'              => 'Dohnání srážky po platbě – dodatečné služby',
+                        'member_id'         => null,
+                        'user_id'           => null,
+                    ]);
+                    DB::table('accounts')->where('id', $creditAccount->id)->decrement('balance', $svcAmount);
+
+                    $cursorSvc->modify('first day of next month');
+                }
+            }
+
             // Odblokuj pokud backcharge dohnal/přeskočil všechny dlužné měsíce.
             // Zbytková bilance se nekontroluje — příští DeductFees (1. den měsíce)
             // přirozeně zafláguje pokud nebude mít na poplatek. To je správný
@@ -173,6 +235,16 @@ class PaymentBackchargeService
     private function resolveFeeAmount(int $memberId, int $memberType, string $date): float
     {
         return (float) (RegularFeeResolver::amount($memberId, $memberType, $date) ?? 0.0);
+    }
+
+    /**
+     * Součet všech aktivních dodatečných služeb člena k danému datu.
+     * Centrálně přes AdditionalServicesResolver (shodné se zobrazením na kartě).
+     * Mirror DeductFees::deductAdditionalServiceFees (bulk SQL).
+     */
+    private function resolveAdditionalServiceAmount(int $memberId, string $date): float
+    {
+        return AdditionalServicesResolver::total($memberId, $date);
     }
 
     private function recalculateBalance(int $accountId): void

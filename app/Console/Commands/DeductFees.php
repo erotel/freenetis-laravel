@@ -12,9 +12,10 @@ class DeductFees extends Command
     protected $description = 'Monthly fee deduction: member fees, entrance fees, device fees';
 
     // Transfer types (matches Kohana Transfer_Model constants)
-    const TYPE_MEMBER_FEE   = 1;
-    const TYPE_ENTRANCE_FEE = 2;
-    const TYPE_DEVICE_FEE   = 5;
+    const TYPE_MEMBER_FEE            = 1;
+    const TYPE_ENTRANCE_FEE          = 2;
+    const TYPE_DEVICE_FEE            = 5;
+    const TYPE_ADDITIONAL_SERVICE_FEE = 6; // dodatečné služby (např. veřejná IP)
 
     // Account attribute IDs
     const CREDIT_ACCOUNT         = 221100;
@@ -76,6 +77,8 @@ class DeductFees extends Command
 
         $deducted = 0;
         $deducted += $this->deductMemberFees($date, $orgOperating);
+        // Dodatečné služby po členském poplatku — členský má přednost na kredit.
+        $deducted += $this->deductAdditionalServiceFees($date, $orgOperating);
         $deducted += $this->deductEntranceFees($date, $orgInfrastructure);
         $deducted += $this->deductDeviceFees($date, $orgOperating);
 
@@ -217,6 +220,107 @@ class DeductFees extends Command
         }
 
         $this->info("Member fees: {$count} deductions, {$flagged} skipped (low credit, payment_blocked=1), {$cleared} flag-reset.");
+        return $count;
+    }
+
+    /**
+     * Měsíční srážka dodatečných služeb (enum_types 'additional service',
+     * dříve 'penalty'). Sečte VŠECHNY aktivní poplatky tohoto typu přiřazené
+     * členovi přes members_fees a strhne je jako SAMOSTATNOU transakci
+     * (type=6) oddělenou od členského poplatku — v převodech je pak jasně
+     * vidět, co je tarif a co služba navíc (např. veřejná IP).
+     *
+     * Prepaid pravidlo je stejné jako u členského: strhne se jen pokud kredit
+     * pokryje celou částku, jinak payment_blocked=1 a dohnání zajistí
+     * PaymentBackchargeService po platbě. Flag se tu ale jen NASTAVUJE, nikdy
+     * neresetuje — reset vlastní členská srážka, aby úspěšná služba omylem
+     * neodblokovala nezaplacený členský poplatek.
+     *
+     * Idempotence: LEFT JOIN transfers where type=6 and datetime=$date (exact).
+     */
+    private function deductAdditionalServiceFees(string $date, int $orgAccount): int
+    {
+        $accounts = DB::select("
+            SELECT a.id AS account_id, a.balance, m.id AS member_id,
+                (
+                    SELECT COALESCE(SUM(f2.fee), 0)
+                    FROM members_fees mf2
+                    JOIN fees f2 ON f2.id = mf2.fee_id
+                    JOIN enum_types et2 ON et2.id = f2.type_id
+                    WHERE LOWER(et2.value) = 'additional service'
+                      AND mf2.member_id = m.id
+                      AND mf2.activation_date <= :date1
+                      AND mf2.deactivation_date >= :date2
+                ) AS svc_fee
+            FROM accounts a
+            JOIN members m ON a.member_id = m.id
+            LEFT JOIN transfers t ON t.origin_id = a.id
+                AND t.type = :type AND t.datetime = :date3
+            WHERE m.id <> 1
+              AND a.account_attribute_id = :credit
+              AND m.entrance_date < :date4
+              AND (m.leaving_date = '0000-00-00' OR m.leaving_date = '9999-12-31' OR m.leaving_date > :date5)
+              AND t.id IS NULL
+        ", [
+            'date1'  => $date,
+            'date2'  => $date,
+            'type'   => self::TYPE_ADDITIONAL_SERVICE_FEE,
+            'date3'  => $date,
+            'credit' => self::CREDIT_ACCOUNT,
+            'date4'  => $date,
+            'date5'  => $date,
+        ]);
+
+        $count   = 0; // úspěšně stržené
+        $flagged = 0; // přeskočené pro nedostatek kreditu
+        $creationDatetime = date('Y-m-d H:i:s');
+
+        DB::beginTransaction();
+        try {
+            foreach ($accounts as $account) {
+                $svcFee = (float) $account->svc_fee;
+                if ($svcFee <= 0) continue;
+
+                // Prepaid: strhnout jen pokud kredit pokryje celou částku služeb.
+                if ((float) $account->balance < $svcFee) {
+                    DB::table('members')
+                        ->where('id', $account->member_id)
+                        ->update([
+                            'payment_blocked'       => 1,
+                            'payment_blocked_since' => DB::raw("COALESCE(payment_blocked_since, " . DB::getPdo()->quote($date) . ")"),
+                        ]);
+                    $flagged++;
+                    continue;
+                }
+
+                DB::table('transfers')->insert([
+                    'origin_id'         => $account->account_id,
+                    'destination_id'    => $orgAccount,
+                    'type'              => self::TYPE_ADDITIONAL_SERVICE_FEE,
+                    'amount'            => $svcFee,
+                    'datetime'          => $date,
+                    'creation_datetime' => $creationDatetime,
+                    'text'              => 'Automatická srážka – dodatečné služby',
+                    'member_id'         => null,
+                    'user_id'           => null,
+                ]);
+
+                DB::table('accounts')->where('id', $account->account_id)->decrement('balance', $svcFee);
+                $count++;
+            }
+
+            if ($count > 0) {
+                $this->recalculateBalance($orgAccount);
+            }
+
+            DB::commit();
+        } catch (\Throwable $e) {
+            DB::rollBack();
+            Log::error('DeductFees additional service error', ['error' => $e->getMessage()]);
+            $this->error('Additional service deduction failed: ' . $e->getMessage());
+        }
+
+        $this->info("Additional services: {$count} deductions, {$flagged} skipped (low credit).");
         return $count;
     }
 
