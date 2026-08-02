@@ -6,6 +6,22 @@ formát podle [Keep a Changelog](https://keepachangelog.com/cs/1.1.0/).
 Verzi v souboru `config/version.php` bumpni samostatným commitem `chore: bump version to X.Y.Z`,
 ať lze changelog snadno regenerovat přes `git log vX..vY --oneline`.
 
+## [2.16.1] — 2026-08-02
+
+### Fixed
+- **403 na povolených podsítích zákazníka.** Název podsítě byl proklik na její
+  detail (`subnets.show`), který je jen pro admina — zákazník tak po kliknutí
+  dostal „403 Forbidden". Nově se zákazníkovi název ukáže jako text, odkaz vidí
+  jen admin s oprávněním.
+
+### Changed
+- **Přehlednější přepínání podsítí.** Ve výpisu povolených podsítí je sloupec
+  **Stav** teď jen štítek (`✓ Zapnuto` / `✗ Vypnuto`) a ve sloupci **Akce**
+  přibylo jasné tlačítko **Zapnout** (u vypnuté) / **Vypnout** (u zapnuté)
+  místo malého ✓/✗ přepínače.
+- **Stabilní pořadí podsítí.** Řádky se řadí podle `id` a při přepnutí on/off
+  se už nepřehazují (dřív vypnutá podsíť skočila dolů).
+
 ## [2.16.0] — 2026-07-31
 
 ### Added

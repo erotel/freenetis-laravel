@@ -53,9 +53,10 @@ class AllowedSubnetController extends Controller
 
         $member = Member::findOrFail($memberId);
 
+        // Stabilní pořadí podle id — ať se řádky při přepnutí on/off nepřehazují
+        // (dřív se podle `enabled` vypnutá podsíť přesouvala dolů, což mátlo).
         $allowedSubnets = AllowedSubnet::where('member_id', $memberId)
             ->with('subnet')
-            ->orderBy('enabled', 'desc')
             ->orderBy('id')
             ->get();
 
@@ -80,6 +81,9 @@ class AllowedSubnetController extends Controller
             'globalCount'      => $globalCount,
             // Toggle smí člen sám (self-service), zbytek jen admin
             'canToggle'        => $isAdmin || $this->isOwner($memberId),
+            // Detail podsítě (subnets.show) je admin-only — zákazníkovi ho
+            // ukážeme jako text, ne jako proklik (jinak by dostal 403).
+            'canViewSubnetDetail' => $this->aclCheck('view_all', 'Subnets_Controller', 'subnet'),
             'canEditCount'     => $this->can('edit_all'),
             'canNew'           => $this->can('new_all'),
             'canDelete'        => $this->can('delete_all'),

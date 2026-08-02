@@ -89,33 +89,43 @@
         <tr>
             <th>Název podsítě</th>
             <th>Adresa sítě</th>
-            <th style="width:80px;text-align:center">Zapnuto</th>
-            <th style="width:70px">Akce</th>
+            <th style="width:90px;text-align:center">Stav</th>
+            <th style="width:170px">Akce</th>
         </tr>
     </thead>
     <tbody>
         @forelse($allowedSubnets as $as)
         <tr>
-            <td><a class="m-link" href="{{ route('subnets.show', $as->subnet_id) }}">{{ $as->subnet->name ?? '—' }}</a></td>
+            <td>
+                @if($canViewSubnetDetail)
+                    <a class="m-link" href="{{ route('subnets.show', $as->subnet_id) }}">{{ $as->subnet->name ?? '—' }}</a>
+                @else
+                    {{ $as->subnet->name ?? '—' }}
+                @endif
+            </td>
             <td style="font-family:monospace;font-size:14px">
                 {{ $as->subnet->network_address ?? '—' }}/{{ $as->subnet->netmask ?? '' }}
             </td>
             <td style="text-align:center">
-                @if($canToggle)
-                <form method="POST" action="{{ route('allowed_subnets.toggle', $as->id) }}" style="display:inline">
-                    @csrf
-                    <button type="submit" style="border:none;background:none;cursor:pointer;padding:0;font-size:19px"
-                            title="{{ $as->enabled ? 'Zapnuto — kliknutím vypnout' : 'Vypnuto — kliknutím zapnout' }}">
-                        <span style="color:{{ $as->enabled ? '#27ae60' : '#ddd' }}">{{ $as->enabled ? '✓' : '✗' }}</span>
-                    </button>
-                </form>
+                @if($as->enabled)
+                <span style="color:#27ae60;font-weight:600">✓ Zapnuto</span>
                 @else
-                <span style="color:{{ $as->enabled ? '#27ae60' : '#ddd' }}">{{ $as->enabled ? '✓' : '✗' }}</span>
+                <span style="color:#aaa">✗ Vypnuto</span>
                 @endif
             </td>
             <td>
+                @if($canToggle)
+                <form method="POST" action="{{ route('allowed_subnets.toggle', $as->id) }}" style="display:inline">
+                    @csrf
+                    @if($as->enabled)
+                    <button type="submit" style="background:#f0f0f0;color:#555;border:1px solid #ccc;border-radius:4px;padding:4px 10px;cursor:pointer;font-size:13px">Vypnout</button>
+                    @else
+                    <button type="submit" style="background:#27ae60;color:#fff;border:none;border-radius:4px;padding:4px 10px;cursor:pointer;font-size:13px">Zapnout</button>
+                    @endif
+                </form>
+                @endif
                 @if($canDelete)
-                <form method="POST" action="{{ route('allowed_subnets.destroy', $as->id) }}" style="display:inline"
+                <form method="POST" action="{{ route('allowed_subnets.destroy', $as->id) }}" style="display:inline;margin-left:6px"
                       onsubmit="return confirm('Odebrat podsíť {{ addslashes($as->subnet->name ?? '') }}?')">
                     @csrf @method('DELETE')
                     <button type="submit" style="background:none;border:none;cursor:pointer;padding:0;font-size:14px;color:#c0392b">Odebrat</button>
