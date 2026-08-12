@@ -23,9 +23,15 @@
         <env name="BCRYPT_ROUNDS" value="4"/>
         <env name="BROADCAST_CONNECTION" value="null"/>
         <env name="CACHE_STORE" value="array"/>
-        <env name="DB_CONNECTION" value="sqlite"/>
-        <env name="DB_DATABASE" value=":memory:"/>
-        <env name="DB_URL" value=""/>
+        <!--
+            Testy běží proti REÁLNÉ MySQL (connections 'mysql' + 'contracts' z .env),
+            NE proti SQLite :memory:. Důvod: legacy Kohana tabulky (members, fees,
+            messages, contracts, …) nejsou v migracích — schéma přišlo z produkční DB,
+            prázdná SQLite by je neměla. Testy dat se proto obalují DB transakcí a
+            rollbackem (Tests\DatabaseTestCase), takže nic v DB nezůstává.
+            Host DB nastav v .env (na tomhle serveru testovací data).
+        -->
+        <env name="DB_CONNECTION" value="mysql"/>
         <env name="MAIL_MAILER" value="array"/>
         <env name="QUEUE_CONNECTION" value="sync"/>
         <env name="SESSION_DRIVER" value="array"/>
