@@ -58,7 +58,7 @@ class ContractService
 
     public function createContract(Member $member): Contract
     {
-        $contractNo = $this->generateContractNo();
+        $contractNo = $this->generateContractNo((int) $member->id);
         $partyData  = $this->buildPartyData($member);
 
         $contract = Contract::create([
@@ -139,9 +139,15 @@ class ContractService
     }
 
     /**
-     * Zrušení nepodepsané smlouvy (draft/otp_sent/otp_verified). Po zrušení
-     * může admin vytvořit novou smlouvu — createContract() explicitně povoluje
-     * navazování na `canceled` (viz ContractController::create).
+     * Zrušení nepodepsané smlouvy (draft/otp_sent/otp_verified). Návrh nemá
+     * právní váhu, proto ho rovnou SMAŽEME (dřív se jen nastavil status
+     * `canceled` a mrtvé řádky se u člena hromadily). Smazáním se hlavně uvolní
+     * číslo smlouvy (= ID člena) pro případnou novou smlouvu — jinak by nová
+     * kolidovala s UNIQUE indexem `uq_contract_no`.
+     *
+     * Child tabulky (contract_parties/events/otps) padnou přes ON DELETE CASCADE.
+     * Podepsané (`signed`) a ukončené (`terminated`) smlouvy sem nikdy nespadnou
+     * (guard níže) — ty se ruší jen jako `terminated`, zůstávají jako doklad.
      */
     public function cancelContract(Contract $contract, ?string $reason = null): bool
     {
@@ -149,18 +155,16 @@ class ContractService
             return false;
         }
 
-        $contract->update(['status' => 'canceled']);
-
-        ContractEvent::create([
-            'contract_id' => $contract->id,
-            'event'       => 'canceled',
-            'meta_json'   => json_encode([
-                'by'     => auth()->user()?->login,
-                'reason' => $reason,
-            ], JSON_UNESCAPED_UNICODE),
+        // Audit stopa mimo mazanou tabulku (řádek i s eventy zmizí).
+        logger()->info('Zrušen (smazán) návrh smlouvy', [
+            'contract_no' => $contract->contract_no,
+            'member_id'   => $contract->member_id,
+            'status'      => $contract->status,
+            'reason'      => $reason,
+            'by'          => auth()->user()?->login,
         ]);
 
-        return true;
+        return (bool) $contract->delete();
     }
 
     /**
@@ -1086,17 +1090,31 @@ class ContractService
         return ($prefix !== '' ? $prefix . ' :: ' : '') . $name;
     }
 
-    private function generateContractNo(): string
+    /**
+     * Číslo smlouvy = ID člena doplněné na 6 cifer: `SML-<rok>-<ID_člena>`
+     * (konvence z původního importu). Jeden člen = jedna smlouva; zrušené návrhy
+     * se mažou (viz cancelContract), takže se číslo členovi uvolní.
+     *
+     * Vzácně může být ideální číslo obsazené legacy smlouvou jiného člena
+     * (pár signed smluv z 2026 dostalo ještě „ujeté" pořadové číslo). Aby se
+     * nespadlo na UNIQUE index `uq_contract_no`, přidá se v takovém případě
+     * suffix `-2`, `-3`, …
+     */
+    private function generateContractNo(int $memberId): string
     {
         $year = date('Y');
+        $base = sprintf('SML-%s-%06d', $year, $memberId);
 
-        $last = Contract::where('contract_no', 'like', "SML-{$year}-%")
-            ->orderByDesc('id')
-            ->value('contract_no');
+        if (!Contract::where('contract_no', $base)->exists()) {
+            return $base;
+        }
 
-        $seq = $last ? ((int) substr($last, -6) + 1) : 1;
-
-        return sprintf('SML-%s-%06d', $year, $seq);
+        for ($i = 2; ; $i++) {
+            $candidate = $base . '-' . $i;
+            if (!Contract::where('contract_no', $candidate)->exists()) {
+                return $candidate;
+            }
+        }
     }
 
     private function extractContacts(?User $user): array
