@@ -236,10 +236,21 @@
             <span style="font-size:11px;color:#999;font-weight:normal"> ({{ collect($additionalServices)->map(fn($s) => trim(($s['name'] !== '' ? $s['name'].' ' : '').number_format($s['fee'], 0, ',', ' ').' Kč'))->implode(', ') }})</span>
         </div>
     </div>
+    @endif
+    @if(!empty($subnetFees))
+    <div class="m-metric">
+        <div class="m-metric-label">Placená místa</div>
+        <div class="m-metric-value sm">
+            {{ number_format($subnetFeesTotal, 0, ',', ' ') }} Kč
+            <span style="font-size:11px;color:#999;font-weight:normal"> ({{ collect($subnetFees)->map(fn($s) => trim(($s['name'] !== '' ? $s['name'].' ' : '').number_format($s['fee'], 0, ',', ' ').' Kč'))->implode(', ') }})</span>
+        </div>
+    </div>
+    @endif
+    @if(!empty($additionalServices) || !empty($subnetFees))
     <div class="m-metric">
         <div class="m-metric-label">Celkem měsíčně</div>
         <div class="m-metric-value sm">
-            {{ number_format(($monthlyFee ?? 0) + $additionalServicesTotal, 0, ',', ' ') }} Kč
+            {{ number_format(($monthlyFee ?? 0) + $additionalServicesTotal + $subnetFeesTotal, 0, ',', ' ') }} Kč
         </div>
     </div>
     @endif

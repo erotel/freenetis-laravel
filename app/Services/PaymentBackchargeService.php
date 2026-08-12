@@ -238,13 +238,15 @@ class PaymentBackchargeService
     }
 
     /**
-     * Součet všech aktivních dodatečných služeb člena k danému datu.
-     * Centrálně přes AdditionalServicesResolver (shodné se zobrazením na kartě).
-     * Mirror DeductFees::deductAdditionalServiceFees (bulk SQL).
+     * Součet měsíčních příplatků člena (transfer type 6) k danému datu:
+     * dodatečné služby (AdditionalServicesResolver) + placená přípojná místa
+     * (AllowedSubnetFeesResolver). Shodné se zobrazením na kartě a s bulk SQL
+     * v DeductFees::deductAdditionalServiceFees.
      */
     private function resolveAdditionalServiceAmount(int $memberId, string $date): float
     {
-        return AdditionalServicesResolver::total($memberId, $date);
+        return AdditionalServicesResolver::total($memberId, $date)
+            + AllowedSubnetFeesResolver::total($memberId);
     }
 
     private function recalculateBalance(int $accountId): void

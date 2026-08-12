@@ -124,6 +124,36 @@ class AllowedSubnetController extends Controller
                 : 'Rychlost přípojného místa se nově dědí od člena.');
     }
 
+    /**
+     * Nastavení platby za přípojné místo (povolenou podsíť): zda se účtuje
+     * (charged) a případná ruční částka (fee_override). Prázdný override =
+     * cena rychlosti místa (jinak člena). Jen admin.
+     */
+    public function updateBilling(int $id, Request $request)
+    {
+        $as = AllowedSubnet::findOrFail($id);
+
+        if (!$this->can('edit_all')) {
+            abort(403);
+        }
+
+        $validated = $request->validate([
+            'charged'      => 'nullable|boolean',
+            'fee_override' => 'nullable|numeric|min:0',
+        ]);
+
+        $as->update([
+            'charged'      => (bool) ($validated['charged'] ?? false),
+            'fee_override' => ($validated['fee_override'] ?? '') !== ''
+                ? $validated['fee_override'] : null,
+        ]);
+
+        return redirect()->route('allowed_subnets.by_member', $as->member_id)
+            ->with('success', $as->charged
+                ? 'Platba za přípojné místo byla nastavena.'
+                : 'Přípojné místo se nově neúčtuje.');
+    }
+
     public function store(Request $request, int $memberId)
     {
         if (!$this->can('new_all')) {

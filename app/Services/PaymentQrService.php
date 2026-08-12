@@ -52,9 +52,11 @@ class PaymentQrService
         }
 
         // Celková měsíční částka = pravidelný poplatek (tarif) + dodatečné služby
-        // (např. veřejná IP). Obojí se strhává měsíčně, tak QR pokryje obojí.
+        // (např. veřejná IP) + placená přípojná místa. Vše se strhává měsíčně
+        // (transfer type 6 u služeb i míst), tak QR pokryje celek.
         $amount = $this->regularFee($memberId, (int) $member->type)
-            + AdditionalServicesResolver::total($memberId, now()->toDateString());
+            + AdditionalServicesResolver::total($memberId, now()->toDateString())
+            + AllowedSubnetFeesResolver::total($memberId);
         if ($amount <= 0) {
             return null;
         }

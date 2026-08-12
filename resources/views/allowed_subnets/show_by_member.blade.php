@@ -90,6 +90,7 @@
             <th>Název podsítě</th>
             <th>Adresa sítě</th>
             <th style="width:170px">Rychlost</th>
+            <th style="width:180px">Platba</th>
             <th style="width:90px;text-align:center">Stav</th>
             <th style="width:170px">Akce</th>
         </tr>
@@ -124,6 +125,30 @@
                     <span style="color:#999">zděděno{{ $memberSpeed ? ': '.$memberSpeed->name : '' }}</span>
                 @endif
             </td>
+            <td>
+                @php
+                    $speedPrice = $as->speedClass?->price ?? $memberSpeed?->price;
+                    $effFee = $as->charged ? ($as->fee_override ?? $speedPrice ?? 0) : null;
+                @endphp
+                @if($canEditSpeed)
+                <form method="POST" action="{{ route('allowed_subnets.update_billing', $as->id) }}" style="margin:0;display:flex;gap:4px;align-items:center;flex-wrap:wrap">
+                    @csrf @method('PUT')
+                    <label style="font-size:12px;display:flex;align-items:center;gap:3px">
+                        <input type="checkbox" name="charged" value="1" @checked($as->charged)> účtovat
+                    </label>
+                    <input type="number" step="0.01" min="0" name="fee_override" value="{{ $as->fee_override !== null ? rtrim(rtrim((string)$as->fee_override,'0'),'.') : '' }}"
+                           placeholder="{{ $speedPrice !== null ? number_format((float)$speedPrice,0,',',' ') : 'cena' }}"
+                           style="width:64px;font-size:12px;padding:2px 4px" title="Ruční částka; prázdné = cena rychlosti">
+                    <button type="submit" style="font-size:12px;padding:2px 6px;cursor:pointer">Uložit</button>
+                </form>
+                @else
+                    @if($effFee !== null)
+                        {{ number_format((float)$effFee, 2, ',', ' ') }} Kč
+                    @else
+                        <span style="color:#bbb">—</span>
+                    @endif
+                @endif
+            </td>
             <td style="text-align:center">
                 @if($as->enabled)
                 <span style="color:#27ae60;font-weight:600">✓ Zapnuto</span>
@@ -152,7 +177,7 @@
             </td>
         </tr>
         @empty
-        <tr><td colspan="5" style="text-align:center;color:#aaa;padding:2rem">Žádné povolené podsítě.</td></tr>
+        <tr><td colspan="6" style="text-align:center;color:#aaa;padding:2rem">Žádné povolené podsítě.</td></tr>
         @endforelse
     </tbody>
 </table>

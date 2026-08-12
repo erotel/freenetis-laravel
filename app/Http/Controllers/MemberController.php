@@ -257,6 +257,10 @@ class MemberController extends Controller
         $additionalServices      = \App\Services\AdditionalServicesResolver::items((int) $member->id, now()->toDateString());
         $additionalServicesTotal = array_sum(array_column($additionalServices, 'fee'));
 
+        // Placená přípojná místa (povolené podsítě s vlastní cenou) — také měsíčně.
+        $subnetFees      = \App\Services\AllowedSubnetFeesResolver::items((int) $member->id);
+        $subnetFeesTotal = array_sum(array_column($subnetFees, 'fee'));
+
         // Detekce pozastaveného členství — má aktivní members_fees s fee.special_type_id=1
         $hasActiveInterrupt = DB::table('members_fees as mf')
             ->join('fees as f', 'f.id', '=', 'mf.fee_id')
@@ -275,6 +279,8 @@ class MemberController extends Controller
             'monthlyFeeSource'    => $monthlyFeeSource,
             'additionalServices'      => $additionalServices,
             'additionalServicesTotal' => $additionalServicesTotal,
+            'subnetFees'          => $subnetFees,
+            'subnetFeesTotal'     => $subnetFeesTotal,
             'hasActiveInterrupt'  => $hasActiveInterrupt,
             'tvEnabled'           => (bool) \App\Models\Setting::get('sledovanitv_enabled', 0),
             'canEdit'             => $this->can('edit_all'),

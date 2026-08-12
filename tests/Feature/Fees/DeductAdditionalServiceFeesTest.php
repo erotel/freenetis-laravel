@@ -71,6 +71,10 @@ class DeductAdditionalServiceFeesTest extends DatabaseTestCase
                     AND mf.member_id = m.id
                     AND mf.activation_date <= ? AND mf.deactivation_date >= ?
               )
+              AND NOT EXISTS (
+                  SELECT 1 FROM allowed_subnets asub
+                  WHERE asub.member_id = m.id AND asub.charged = 1
+              )
             LIMIT 1
         ", [self::CREDIT, self::DATE, self::DATE, self::DATE, self::DATE]);
 
@@ -125,6 +129,25 @@ class DeductAdditionalServiceFeesTest extends DatabaseTestCase
         ($this->deduct)(self::DATE, $this->orgOperating); // druhý běh nesmí strhnout znovu
 
         $this->assertSame(1, $this->transferCount($account), 'druhý běh nesmí přidat další transfer');
+    }
+
+    public function test_strhne_i_placene_pripojne_misto(): void
+    {
+        [$account, $member] = $this->eligibleMember();
+        DB::table('accounts')->where('id', $account)->update(['balance' => 100000]);
+
+        // Placené přípojné místo s rychlostí Mega (cena 400), bez dodatečných služeb.
+        $subnetId = DB::table('subnets')->insertGetId(['name' => 'test-deduct-fee']);
+        DB::table('allowed_subnets')->insert([
+            'member_id' => $member, 'subnet_id' => $subnetId,
+            'speed_class_id' => 18, 'charged' => 1, 'enabled' => 1, // 18 = Mega, 400
+        ]);
+
+        ($this->deduct)(self::DATE, $this->orgOperating);
+
+        $t = DB::table('transfers')->where('origin_id', $account)->where('type', self::TYPE)->where('datetime', self::DATE)->first();
+        $this->assertNotNull($t, 'má vzniknout transfer typu 6 i za samotné placené místo');
+        $this->assertEqualsWithDelta(400.0, (float) $t->amount, 0.001, 'částka = cena Mega místa');
     }
 
     public function test_prepaid_blokace_pri_nedostatku_kreditu(): void

@@ -243,14 +243,26 @@ class DeductFees extends Command
         $accounts = DB::select("
             SELECT a.id AS account_id, a.balance, m.id AS member_id,
                 (
-                    SELECT COALESCE(SUM(f2.fee), 0)
-                    FROM members_fees mf2
-                    JOIN fees f2 ON f2.id = mf2.fee_id
-                    JOIN enum_types et2 ON et2.id = f2.type_id
-                    WHERE LOWER(et2.value) = 'additional service'
-                      AND mf2.member_id = m.id
-                      AND mf2.activation_date <= :date1
-                      AND mf2.deactivation_date >= :date2
+                    (
+                        SELECT COALESCE(SUM(f2.fee), 0)
+                        FROM members_fees mf2
+                        JOIN fees f2 ON f2.id = mf2.fee_id
+                        JOIN enum_types et2 ON et2.id = f2.type_id
+                        WHERE LOWER(et2.value) = 'additional service'
+                          AND mf2.member_id = m.id
+                          AND mf2.activation_date <= :date1
+                          AND mf2.deactivation_date >= :date2
+                    )
+                    +
+                    (
+                        -- Placená přípojná místa (mirror AllowedSubnetFeesResolver).
+                        SELECT COALESCE(SUM(COALESCE(asub.fee_override, scp.price, scm.price, 0)), 0)
+                        FROM allowed_subnets asub
+                        LEFT JOIN speed_classes scp ON scp.id = asub.speed_class_id
+                        LEFT JOIN speed_classes scm ON scm.id = m.speed_class_id
+                        WHERE asub.member_id = m.id
+                          AND asub.charged = 1
+                    )
                 ) AS svc_fee
             FROM accounts a
             JOIN members m ON a.member_id = m.id
