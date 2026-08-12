@@ -6,6 +6,7 @@ use App\Models\AllowedSubnet;
 use App\Models\AllowedSubnetsCount;
 use App\Models\Member;
 use App\Models\Setting;
+use App\Models\SpeedClass;
 use App\Models\Subnet;
 use Illuminate\Http\Request;
 
@@ -51,14 +52,18 @@ class AllowedSubnetController extends Controller
             abort(403);
         }
 
-        $member = Member::findOrFail($memberId);
+        $member = Member::with('speedClass')->findOrFail($memberId);
 
         // Stabilní pořadí podle id — ať se řádky při přepnutí on/off nepřehazují
         // (dřív se podle `enabled` vypnutá podsíť přesouvala dolů, což mátlo).
         $allowedSubnets = AllowedSubnet::where('member_id', $memberId)
-            ->with('subnet')
+            ->with(['subnet', 'speedClass'])
             ->orderBy('id')
             ->get();
+
+        // Nabídka rychlostí pro per-podsíť výběr (jen admin). Prázdná volba =
+        // „zdědit rychlost člena".
+        $speedClasses = $isAdmin ? SpeedClass::orderByDesc('d_ceil')->get() : collect();
 
         // Členové bez admin oprávnění nepotřebují seznam dostupných podsítí
         // (nemůžou je stejně přidávat), tak ho ani nenačítáme.
@@ -87,7 +92,36 @@ class AllowedSubnetController extends Controller
             'canEditCount'     => $this->can('edit_all'),
             'canNew'           => $this->can('new_all'),
             'canDelete'        => $this->can('delete_all'),
+            // Rychlost per podsíť smí měnit jen admin (edit_all).
+            'canEditSpeed'     => $this->can('edit_all'),
+            'speedClasses'     => $speedClasses,
+            'memberSpeed'      => $member->speedClass,
         ]);
+    }
+
+    /**
+     * Nastavení vlastní rychlosti přípojného místa (povolené podsítě).
+     * Prázdná hodnota = zdědit rychlost člena (members.speed_class_id).
+     * Vlastní rychlost se pak promítne do QoS exportu per IP té podsítě.
+     */
+    public function updateSpeed(int $id, Request $request)
+    {
+        $as = AllowedSubnet::findOrFail($id);
+
+        if (!$this->can('edit_all')) {
+            abort(403);
+        }
+
+        $validated = $request->validate([
+            'speed_class_id' => 'nullable|integer|exists:speed_classes,id',
+        ]);
+
+        $as->update(['speed_class_id' => $validated['speed_class_id'] ?? null]);
+
+        return redirect()->route('allowed_subnets.by_member', $as->member_id)
+            ->with('success', $as->speed_class_id
+                ? 'Rychlost přípojného místa byla nastavena.'
+                : 'Rychlost přípojného místa se nově dědí od člena.');
     }
 
     public function store(Request $request, int $memberId)

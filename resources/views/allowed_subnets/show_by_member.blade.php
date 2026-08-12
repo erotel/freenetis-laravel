@@ -89,6 +89,7 @@
         <tr>
             <th>Název podsítě</th>
             <th>Adresa sítě</th>
+            <th style="width:170px">Rychlost</th>
             <th style="width:90px;text-align:center">Stav</th>
             <th style="width:170px">Akce</th>
         </tr>
@@ -105,6 +106,23 @@
             </td>
             <td style="font-family:monospace;font-size:14px">
                 {{ $as->subnet->network_address ?? '—' }}/{{ $as->subnet->netmask ?? '' }}
+            </td>
+            <td>
+                @if($canEditSpeed)
+                <form method="POST" action="{{ route('allowed_subnets.update_speed', $as->id) }}" style="margin:0">
+                    @csrf @method('PUT')
+                    <select name="speed_class_id" onchange="this.form.submit()" style="font-size:13px;padding:2px 4px;max-width:155px">
+                        <option value="">— zdědit ({{ $memberSpeed->name ?? 'člen' }}) —</option>
+                        @foreach($speedClasses as $sc)
+                        <option value="{{ $sc->id }}" @selected((int)$as->speed_class_id === (int)$sc->id)>{{ $sc->name }}</option>
+                        @endforeach
+                    </select>
+                </form>
+                @elseif($as->speedClass)
+                    {{ $as->speedClass->name }}
+                @else
+                    <span style="color:#999">zděděno{{ $memberSpeed ? ': '.$memberSpeed->name : '' }}</span>
+                @endif
             </td>
             <td style="text-align:center">
                 @if($as->enabled)
@@ -134,7 +152,7 @@
             </td>
         </tr>
         @empty
-        <tr><td colspan="4" style="text-align:center;color:#aaa;padding:2rem">Žádné povolené podsítě.</td></tr>
+        <tr><td colspan="5" style="text-align:center;color:#aaa;padding:2rem">Žádné povolené podsítě.</td></tr>
         @endforelse
     </tbody>
 </table>

@@ -216,8 +216,6 @@ class WebInterfaceController extends Controller
         $speedClasses = DB::select('SELECT * FROM speed_classes ORDER BY d_ceil DESC');
 
         $profiles = [];
-        $members  = [];
-
         foreach ($speedClasses as $sc) {
             $profiles[] = [
                 'id'             => (int) $sc->id,
@@ -227,57 +225,110 @@ class WebInterfaceController extends Controller
                 'up_ceil_kbit'   => (int) ($sc->u_ceil  / 1000000 * 1024),
                 'down_ceil_kbit' => (int) ($sc->d_ceil  / 1000000 * 1024),
             ];
+        }
 
-            $ips4 = DB::select("
-                SELECT MIN(m.id) AS member_id, ip.ip_address
-                FROM members m
-                JOIN users u ON u.member_id = m.id
-                LEFT JOIN devices d ON d.user_id = u.id
-                LEFT JOIN ifaces i ON i.device_id = d.id
-                JOIN ip_addresses ip ON ip.iface_id = i.id OR ip.member_id = m.id
-                WHERE m.speed_class_id = ? AND m.id <> ?
-                GROUP BY ip.ip_address
-                ORDER BY MIN(m.id), MIN(ip.id)
-            ", [$sc->id, self::ASSOCIATION_MEMBER_ID]);
+        // Rychlost člena (fallback) a rychlost per přípojné místo (povolená podsíť).
+        $memberSpeed = DB::table('members')->pluck('speed_class_id', 'id'); // id => speed_class_id|null
+        $placeSpeed  = []; // "member-subnet" => speed_class_id
+        foreach (DB::table('allowed_subnets')->whereNotNull('speed_class_id')->get(['member_id', 'subnet_id', 'speed_class_id']) as $a) {
+            $placeSpeed[$a->member_id . '-' . $a->subnet_id] = (int) $a->speed_class_id;
+        }
 
-            foreach ($ips4 as $ip) {
-                $mid = (int) $ip->member_id;
-                if (!isset($members[$mid])) {
-                    $members[$mid] = ['member_id' => $mid, 'profile_id' => (int) $sc->id, 'ipv4' => [], 'ipv6' => []];
-                }
-                if ($members[$mid]['profile_id'] === (int) $sc->id) {
-                    $members[$mid]['ipv4'][] = (string) $ip->ip_address;
-                }
+        // IPv6 /56 se odvozuje z IPv4 (10.x.B.C → prefix:hex(B):hex(C)00::/mask),
+        // stejně jako v allowedIp6Addresses. Díky tomu IPv6 sdílí přípojné místo
+        // (a tedy rychlost) své IPv4 — netahá se z ip6_addresses samostatně.
+        $v6prefix = Setting::get('ipv6_prefix') ?: '2a07:9c0';
+        $v6mask   = Setting::get('ipv6_mask')   ?: '56';
+
+        // Efektivní profil každé IP: rychlost její podsítě (allowed_subnets), jinak
+        // rychlost člena. member->profile_id + ploché ipv4/ipv6 zůstávají pro zpětnou
+        // kompatibilitu (starý gateway aplikuje profil člena na všechny jeho IP);
+        // assignments[] je nové – profil per IP (+ odvozená IPv6 ve stejné skupině).
+        $members = [];
+        $seen    = []; // dedup podle ip_address (jeden vlastník na IP)
+
+        $rows = DB::select("
+            SELECT ip.ip_address, ip.subnet_id,
+                   COALESCE(ip.member_id, u.member_id) AS member_id, ip.id AS ip_id
+            FROM ip_addresses ip
+            LEFT JOIN ifaces i  ON i.id = ip.iface_id
+            LEFT JOIN devices d ON d.id = i.device_id
+            LEFT JOIN users u   ON u.id = d.user_id
+            WHERE COALESCE(ip.member_id, u.member_id) IS NOT NULL
+              AND COALESCE(ip.member_id, u.member_id) <> ?
+            ORDER BY member_id, ip.id
+        ", [self::ASSOCIATION_MEMBER_ID]);
+
+        foreach ($rows as $r) {
+            $ipStr = (string) $r->ip_address;
+            if ($ipStr === '' || isset($seen[$ipStr])) {
+                continue;
+            }
+            $mid = (int) $r->member_id;
+
+            $profile = $placeSpeed[$mid . '-' . $r->subnet_id]
+                ?? (isset($memberSpeed[$mid]) ? (int) $memberSpeed[$mid] : null);
+            if ($profile === null) {
+                continue; // člen ani místo nemají rychlost → do QoS nepatří
+            }
+            $seen[$ipStr] = true;
+
+            if (!isset($members[$mid])) {
+                $members[$mid] = [
+                    'member_id'   => $mid,
+                    'profile_id'  => isset($memberSpeed[$mid]) ? (int) $memberSpeed[$mid] : $profile,
+                    'ipv4'        => [],
+                    'ipv6'        => [],
+                    'assignments' => [],
+                ];
+            }
+            if (!isset($members[$mid]['assignments'][$profile])) {
+                $members[$mid]['assignments'][$profile] = ['profile_id' => $profile, 'ipv4' => [], 'ipv6' => []];
             }
 
-            $ips6 = DB::select("
-                SELECT MIN(m.id) AS member_id, ip.ip_address
-                FROM members m
-                JOIN users u ON u.member_id = m.id
-                LEFT JOIN devices d ON d.user_id = u.id
-                LEFT JOIN ifaces i ON i.device_id = d.id
-                JOIN ip6_addresses ip ON ip.iface_id = i.id OR ip.member_id = m.id
-                WHERE m.speed_class_id = ? AND m.id <> ?
-                GROUP BY ip.ip_address
-                ORDER BY MIN(m.id), MIN(ip.id)
-            ", [$sc->id, self::ASSOCIATION_MEMBER_ID]);
+            $members[$mid]['ipv4'][] = $ipStr;
+            $members[$mid]['assignments'][$profile]['ipv4'][] = $ipStr;
 
-            foreach ($ips6 as $ip) {
-                $mid = (int) $ip->member_id;
-                if (!isset($members[$mid])) {
-                    $members[$mid] = ['member_id' => $mid, 'profile_id' => (int) $sc->id, 'ipv4' => [], 'ipv6' => []];
-                }
-                if ($members[$mid]['profile_id'] === (int) $sc->id) {
-                    $members[$mid]['ipv6'][] = (string) $ip->ip_address;
-                }
+            // Odvozená IPv6 /56 (jen z 10.x adres) → do stejné rychlostní skupiny.
+            $v6 = $this->ipv4ToIpv6Prefix($ipStr, $v6prefix, $v6mask);
+            if ($v6 !== null) {
+                $members[$mid]['ipv6'][] = $v6;
+                $members[$mid]['assignments'][$profile]['ipv6'][] = $v6;
             }
         }
+
+        // dedup IPv6 (víc IPv4 může mapovat na stejnou /56) a assignments na seznam
+        $members = array_map(function ($m) {
+            $m['ipv6'] = array_values(array_unique($m['ipv6']));
+            $m['assignments'] = array_values(array_map(function ($a) {
+                $a['ipv6'] = array_values(array_unique($a['ipv6']));
+                return $a;
+            }, $m['assignments']));
+            return $m;
+        }, array_values($members));
 
         return response()->json([
             'generated_at' => gmdate('c'),
             'profiles'     => $profiles,
-            'members'      => array_values($members),
+            'members'      => $members,
         ]);
+    }
+
+    /**
+     * Odvodí IPv6 /56 prefix z IPv4 adresy: 10.x.B.C → "{prefix}:hex(B):hex(C)00::/{mask}".
+     * Jen pro adresy 10.x (ostatní, např. veřejné, IPv6 /56 nemají). Shodné se
+     * schématem v allowedIp6Addresses.
+     */
+    private function ipv4ToIpv6Prefix(string $ipv4, string $prefix, string $mask): ?string
+    {
+        $parts = explode('.', $ipv4);
+        if (count($parts) !== 4 || $parts[0] !== '10') {
+            return null;
+        }
+        $y = dechex((int) $parts[2]);
+        $z = dechex((int) $parts[3]);
+
+        return "{$prefix}:{$y}:{$z}00::/{$mask}";
     }
 
     // ── 8. public_port_forwards_json ─────────────────────────────────────────

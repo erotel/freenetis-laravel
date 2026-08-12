@@ -498,6 +498,7 @@ Route::middleware('auth')->group(function () {
     Route::put('members/{memberId}/allowed-subnets/count', [AllowedSubnetController::class, 'updateCount'])->name('allowed_subnets.update_count');
     Route::post('members/{memberId}/allowed-subnets', [AllowedSubnetController::class, 'store'])->name('allowed_subnets.store');
     Route::post('allowed-subnets/{id}/toggle',        [AllowedSubnetController::class, 'toggle'])->name('allowed_subnets.toggle');
+    Route::put('allowed-subnets/{id}/speed',          [AllowedSubnetController::class, 'updateSpeed'])->name('allowed_subnets.update_speed');
     Route::delete('allowed-subnets/{id}',             [AllowedSubnetController::class, 'destroy'])->name('allowed_subnets.destroy');
 
     Route::get('invoices', [InvoiceController::class, 'index'])->name('invoices.index')
