@@ -6,6 +6,40 @@ formát podle [Keep a Changelog](https://keepachangelog.com/cs/1.1.0/).
 Verzi v souboru `config/version.php` bumpni samostatným commitem `chore: bump version to X.Y.Z`,
 ať lze changelog snadno regenerovat přes `git log vX..vY --oneline`.
 
+## [2.20.0] — 2026-08-12
+
+Epos „rychlost + platba + dodatek per přípojné místo" (povolená podsíť).
+
+### Added
+- **Rychlost per přípojné místo.** `allowed_subnets.speed_class_id` — každá
+  povolená podsíť může mít vlastní rychlost; prázdné = zdědí rychlost člena.
+  Export `qos_json` rozšířen o `members[].assignments[]` (profil per IP; IPv6
+  /56 se odvozuje z IPv4 `10.x.B.C → prefix:hex(B):hex(C)00::/56` a jde do stejné
+  skupiny). Zpětně kompatibilní — stará pole (`profile_id`, `ipv4`, `ipv6`)
+  zůstávají. UI výběr rychlosti per podsíť. (Gateway skript `qos-sync` na igw
+  nasazen ručně, mimo repozitář.)
+- **Platba per přípojné místo.** `allowed_subnets.charged` — placené místo se
+  účtuje **cenou své (vlastní) rychlosti** (`speed_classes.price`); zděděná
+  rychlost se neúčtuje. Účtuje se každá charged podsíť bez ohledu na `enabled`
+  (platbu řídí admin). Sčítá se do měsíční částky člena (transfer type 6) —
+  `AllowedSubnetFeesResolver`, `DeductFees` (bulk SQL), QR, `{payment_amount}`,
+  `PaymentBackchargeService`, karta člena.
+- **Dodatek ke smlouvě „přípojné místo"** (`type='connection_point'`). Adresa
+  připojení se bere ze **zařízení v podsíti** (`device.address_point`; povinná,
+  s možností ruční úpravy), + rychlost a cena. Přidání podepíše zákazník přes
+  **SMS OTP**, zrušení vydá poskytovatel bez OTP a pošle e-mailem. Vlastní PDF,
+  veřejná podpisová stránka, admin obsluha z karty smlouvy.
+
+### Changed
+- Karta člena: **zvýrazněné „Celkem měsíčně"**; popisky „Měsíční platba tarif"
+  a „Placená místa navíc".
+
+### Database
+- `allowed_subnets`: `+speed_class_id`, `+charged` (sloupec `fee_override` byl
+  dočasně přidán a zase odstraněn — cena se bere vždy z rychlosti).
+- `contract_addons`: `+place_speed_name`; `download_tokens.file_type` +=
+  `connection_point_addon`.
+
 ## [2.19.0] — 2026-08-12
 
 ### Added
