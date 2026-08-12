@@ -20,18 +20,33 @@ class RedirectFormerMembers extends Command
         // Step 1: Mark today's expired members as former (type=15, locked=1)
         $today = now()->format('Y-m-d');
 
-        $updated = DB::table('members')
+        // Nejdřív si vytáhneme, koho budeme překlápět (kvůli deaktivaci poplatků
+        // k jejich vlastnímu leaving_date), pak teprve hromadně přepneme typ.
+        $toFormer = DB::table('members')
             ->whereNotIn('type', self::FORMER_TYPES)
             ->whereNotNull('leaving_date')
             ->where('leaving_date', '!=', '9999-12-31')
             ->where('leaving_date', '!=', '0000-00-00')
             ->where('leaving_date', '<=', $today)
-            ->update([
-                'type'   => self::TYPE_FORMER,
-                'locked' => 1,
-            ]);
+            ->get(['id', 'leaving_date']);
 
-        if ($updated > 0) {
+        $updated = 0;
+        if ($toFormer->isNotEmpty()) {
+            $updated = DB::table('members')
+                ->whereIn('id', $toFormer->pluck('id'))
+                ->update([
+                    'type'   => self::TYPE_FORMER,
+                    'locked' => 1,
+                ]);
+
+            // Individuální tarif + dodatečné služby ukončit k datu odchodu.
+            // Sem spadají budoucí datumy (endMembership je sice ukončil hned, ty
+            // jsou už FORMER a tudíž mimo tento výběr), přerušení s „ukončit po
+            // přerušení" i přímé editace leaving_date.
+            foreach ($toFormer as $m) {
+                \App\Services\MemberFeesTermination::deactivate((int) $m->id, $m->leaving_date);
+            }
+
             $this->info("Marked {$updated} members as former (type=15).");
         }
 

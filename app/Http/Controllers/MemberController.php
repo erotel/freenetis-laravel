@@ -622,6 +622,8 @@ class MemberController extends Controller
                 'locked'       => 1,
                 'leaving_date' => $leaving,
             ]);
+            // Individuální tarif a dodatečné služby ukončit k datu odchodu.
+            \App\Services\MemberFeesTermination::deactivate($id, $leaving);
             // Výpověď zákazníka → podepsané smlouvy označit jako ukončené.
             $terminated = $this->terminateSignedContracts($id, $leaving);
             // Rozpracované návrhy bývalého člena už nikdo nedokončí → smazat.
@@ -943,6 +945,10 @@ class MemberController extends Controller
             // Když měl aktivní payment_blocked redirect, smaž ho.
             app(\App\Services\PaymentBlockedRedirectService::class)->refreshForMember($id);
 
+            // Individuální tarif a dodatečné služby datumově ukončit k datu odchodu
+            // (i budoucímu) — jinak by bývalý člen dál „platil" a visel v seznamech.
+            \App\Services\MemberFeesTermination::deactivate($id, $validated['leaving_date']);
+
             // Přidat +U k variabilnímu symbolu (jako Kohana)
             $accountId = DB::table('accounts')
                 ->where('member_id', $id)
@@ -1253,12 +1259,16 @@ class MemberController extends Controller
 
         // 16 → 90 (zákazník), 15 → 2 (člen)
         $originalType = ($member->type == MemberType::FORMER_CUSTOMER) ? MemberType::REGULAR : MemberType::CUSTOMER;
+        $oldLeaving   = $member->leaving_date;
 
         DB::table('members')->where('id', $id)->update([
             'type'         => $originalType,
             'locked'       => 0,
             'leaving_date' => '9999-12-31',
         ]);
+
+        // Poplatky, které automatika ukončila k datu odchodu, zase oživit.
+        \App\Services\MemberFeesTermination::reactivate($id, $oldLeaving);
 
         $label = ($originalType == MemberType::REGULAR) ? 'zákazník' : 'člen';
         return redirect()->route('members.show', $id)

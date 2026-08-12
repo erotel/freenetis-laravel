@@ -6,6 +6,25 @@ formát podle [Keep a Changelog](https://keepachangelog.com/cs/1.1.0/).
 Verzi v souboru `config/version.php` bumpni samostatným commitem `chore: bump version to X.Y.Z`,
 ať lze changelog snadno regenerovat přes `git log vX..vY --oneline`.
 
+## [2.19.0] — 2026-08-12
+
+### Added
+- **Auto-ukončení individuálních poplatků při odchodu člena.** Nová služba
+  `MemberFeesTermination`: při ukončení členství/smlouvy se aktivní `members_fees`
+  člena (tarif, dodatečné služby, osvobození) nastaví `deactivation_date =
+  leaving_date` — bývalý člen tak přestane být účtovaný (`DeductFees` bere jen
+  aktivní) a nevisí v seznamech tarifů. Napojeno do všech cest ukončení
+  (`endMembership`, `destroy`, cron `RedirectFormerMembers`); obnovení člena
+  (`restore`) to vrací zpět. Přerušení členství (special_type_id=1) se nedotýká.
+
+### Database
+- Migrace `…_backfill_former_members_fee_end_dates` (freenetis): jednorázově
+  ukončila individuální poplatky stávajících bývalých členů (typ 15/16) k jejich
+  `leaving_date` (219 poplatků / 218 členů na testu).
+- Migrace `…_delete_fees_assigned_after_leaving` (freenetis): smazala chybná
+  přiřazení poplatků bývalým členům, kde poplatek začal až PO datu odchodu
+  (13 řádků na testu).
+
 ## [2.18.0] — 2026-08-12
 
 ### Added
