@@ -219,7 +219,7 @@
         </div>
     </div>
     <div class="m-metric">
-        <div class="m-metric-label">Měsíční platba</div>
+        <div class="m-metric-label">Měsíční platba tarif</div>
         <div class="m-metric-value sm">
             @if($monthlyFee !== null)
                 {{ number_format($monthlyFee, 0, ',', ' ') }} Kč
@@ -239,7 +239,7 @@
     @endif
     @if(!empty($subnetFees))
     <div class="m-metric">
-        <div class="m-metric-label">Placená místa</div>
+        <div class="m-metric-label">Placená místa navíc</div>
         <div class="m-metric-value sm">
             {{ number_format($subnetFeesTotal, 0, ',', ' ') }} Kč
             <span style="font-size:11px;color:#999;font-weight:normal"> ({{ collect($subnetFees)->map(fn($s) => trim(($s['name'] !== '' ? $s['name'].' ' : '').number_format($s['fee'], 0, ',', ' ').' Kč'))->implode(', ') }})</span>
@@ -247,9 +247,9 @@
     </div>
     @endif
     @if(!empty($additionalServices) || !empty($subnetFees))
-    <div class="m-metric">
-        <div class="m-metric-label">Celkem měsíčně</div>
-        <div class="m-metric-value sm">
+    <div class="m-metric" style="background:#fff7e6;border:1px solid #f5c96b;border-radius:8px;padding:8px 12px">
+        <div class="m-metric-label" style="color:#8a6d1f;font-weight:600">Celkem měsíčně</div>
+        <div class="m-metric-value" style="color:#8a5a00;font-weight:800">
             {{ number_format(($monthlyFee ?? 0) + $additionalServicesTotal + $subnetFeesTotal, 0, ',', ' ') }} Kč
         </div>
     </div>
