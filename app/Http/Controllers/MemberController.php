@@ -624,9 +624,10 @@ class MemberController extends Controller
             $newType = ($member->type == MemberType::REGULAR) ? MemberType::FORMER_CUSTOMER : MemberType::FORMER;
             $leaving = now()->format('Y-m-d');
             DB::table('members')->where('id', $id)->update([
-                'type'         => $newType,
-                'locked'       => 1,
-                'leaving_date' => $leaving,
+                'type'           => $newType,
+                'locked'         => 1,
+                'leaving_date'   => $leaving,
+                'speed_class_id' => null, // bývalý člen → rychlost „žádná"
             ]);
             // Individuální tarif a dodatečné služby ukončit k datu odchodu.
             \App\Services\MemberFeesTermination::deactivate($id, $leaving);
@@ -947,6 +948,7 @@ class MemberController extends Controller
                 'payment_blocked'       => 0,
                 'payment_blocked_since' => null,
                 'pending_termination'   => 0,
+                'speed_class_id'        => null, // bývalý člen → rychlost „žádná"
             ]);
             // Když měl aktivní payment_blocked redirect, smaž ho.
             app(\App\Services\PaymentBlockedRedirectService::class)->refreshForMember($id);

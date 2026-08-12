@@ -35,8 +35,9 @@ class RedirectFormerMembers extends Command
             $updated = DB::table('members')
                 ->whereIn('id', $toFormer->pluck('id'))
                 ->update([
-                    'type'   => self::TYPE_FORMER,
-                    'locked' => 1,
+                    'type'           => self::TYPE_FORMER,
+                    'locked'         => 1,
+                    'speed_class_id' => null, // bývalý člen → rychlost „žádná"
                 ]);
 
             // Individuální tarif + dodatečné služby ukončit k datu odchodu.
