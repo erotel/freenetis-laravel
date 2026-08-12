@@ -6,6 +6,37 @@ formát podle [Keep a Changelog](https://keepachangelog.com/cs/1.1.0/).
 Verzi v souboru `config/version.php` bumpni samostatným commitem `chore: bump version to X.Y.Z`,
 ať lze changelog snadno regenerovat přes `git log vX..vY --oneline`.
 
+## [2.18.0] — 2026-08-12
+
+### Added
+- **Archivace tarifů/poplatků.** Nový příznak `fees.archived` umožňuje skrýt
+  nepoužívaný tarif z nabídky při přiřazení poplatku členovi (i z výchozího
+  výpisu), **bez mazání** — poplatek i historická přiřazení v `members_fees`
+  zůstávají. Bezpečná, plně vratná alternativa k mazání (které by přes
+  ON DELETE CASCADE smazalo i historii srážek). Tlačítko „Archivovat" se
+  zobrazí jen u tarifů **bez aktivního přiřazení**; serverová pojistka archivaci
+  aktivního tarifu odmítne.
+- **Počet aktivních členů u tarifu + výpis.** Ve výpisu tarifů (`/fees`) přibyl
+  sloupec „Aktivních" (počet členů, kteří tarif aktuálně mají) s **prokliknem na
+  seznam** těch členů/zákazníků (`fees/{id}/members` — jméno s odkazem na detail,
+  typ, platnost, poznámka).
+
+### Changed
+- **„Osvobozen od poplatku" lze přiřadit ručně.** Nabídka poplatků (scope
+  `Fee::assignable()`) = běžné poplatky **+ „Osvobozen od poplatku"**
+  (`special_type_id=2`), i když je systémový (`readonly`). `readonly` nově slouží
+  jen jako ochrana proti editaci/smazání, ne jako zákaz přiřazení. Přerušení
+  členství (`special_type_id=1`) a ostatní systémové poplatky zůstávají mimo
+  nabídku.
+- **České názvy systémových poplatků** (`special_type_id` 1–4): „Membership
+  interrupt" → **Přerušení členství**, „Fee-free regular member" → **Osvobozen od
+  poplatku**, „Non-member" → **Nečlen**, „Honorary member" → **Čestný člen**.
+  Kosmetika — kód se řídí `special_type_id`, ne názvem.
+
+### Database
+- Migrace `…_add_archived_to_fees` (freenetis): sloupec `fees.archived`.
+- Migrace `…_czech_names_for_system_fees` (freenetis): české názvy poplatků 1–4.
+
 ## [2.17.0] — 2026-08-12
 
 ### Added

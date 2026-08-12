@@ -8,10 +8,11 @@ class Fee extends Model
 {
     public $timestamps = false;
     protected $table = 'fees';
-    protected $fillable = ['readonly', 'fee', 'from', 'to', 'type_id', 'name', 'special_type_id'];
+    protected $fillable = ['readonly', 'archived', 'fee', 'from', 'to', 'type_id', 'name', 'special_type_id'];
 
     protected $casts = [
         'readonly' => 'boolean',
+        'archived' => 'boolean',
         'fee'      => 'float',
         'from'     => 'date',
         'to'       => 'date',
@@ -37,13 +38,50 @@ class Fee extends Model
         ];
     }
 
+    // Systémové poplatky klíčované přes special_type_id (viz MembershipInterruptController atd.)
+    const SPECIAL_INTERRUPT = 1; // Přerušení členství (spravuje se vlastní funkcí)
+    const SPECIAL_FEE_FREE  = 2; // Osvobozen od poplatku (jde přiřadit ručně)
+
     public function enumType()
     {
         return $this->belongsTo(EnumType::class, 'type_id');
     }
 
+    /**
+     * Poplatky nabízené při ručním přiřazení členovi:
+     * běžné (nesystémové) + „Osvobozen od poplatku", vždy jen nearchivované.
+     * Systémové poplatky spravované vlastní funkcí (přerušení členství) sem
+     * záměrně nepatří. `readonly` slouží jen jako ochrana proti editaci/smazání,
+     * ne jako zákaz přiřazení — proto ho tady nefiltrujeme přímo.
+     */
+    public function scopeAssignable($query)
+    {
+        return $query->where('archived', false)
+            ->where(function ($q) {
+                $q->where('readonly', false)
+                  ->orWhere('special_type_id', self::SPECIAL_FEE_FREE);
+            });
+    }
+
     public function memberFees()
     {
         return $this->hasMany(MemberFee::class);
+    }
+
+    /** Počet aktivních přiřazení tarifu členům k danému dni. */
+    public function activeAssignmentsCount(?string $date = null): int
+    {
+        $date = $date ?: now()->toDateString();
+
+        return $this->memberFees()
+            ->where('activation_date', '<=', $date)
+            ->where('deactivation_date', '>=', $date)
+            ->count();
+    }
+
+    /** Má tarif k danému dni aspoň jedno aktivní přiřazení členovi? */
+    public function hasActiveAssignments(?string $date = null): bool
+    {
+        return $this->activeAssignmentsCount($date) > 0;
     }
 }

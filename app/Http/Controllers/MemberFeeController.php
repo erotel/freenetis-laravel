@@ -70,7 +70,7 @@ class MemberFeeController extends Controller
         abort_unless($this->can('new_all'), 403);
 
         $member = Member::findOrFail($memberId);
-        $fees   = Fee::where('readonly', false)->orderBy('type_id')->orderBy('name')->get();
+        $fees   = Fee::assignable()->orderBy('type_id')->orderBy('name')->get();
 
         return view('members_fees.create', [
             'member'      => $member,
@@ -110,7 +110,7 @@ class MemberFeeController extends Controller
         abort_unless($this->can('edit_all'), 403);
 
         $memberFee = MemberFee::with(['member', 'fee'])->findOrFail($id);
-        $fees      = Fee::where('readonly', false)->orderBy('type_id')->orderBy('name')->get();
+        $fees      = Fee::assignable()->orderBy('type_id')->orderBy('name')->get();
 
         return view('members_fees.edit', [
             'memberFee'  => $memberFee,

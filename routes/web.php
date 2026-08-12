@@ -404,6 +404,8 @@ Route::middleware('auth')->group(function () {
 
     Route::get('fees', [FeeController::class, 'index'])->name('fees.index')
         ->middleware('acl:view_all,Fees_Controller,fees');
+    Route::post('fees/{id}/toggle-archive', [FeeController::class, 'toggleArchive'])->name('fees.toggle_archive');
+    Route::get('fees/{id}/members', [FeeController::class, 'members'])->name('fees.members');
     Route::resource('fees', FeeController::class)->except(['index']);
 
     Route::get('members/{memberId}/fees',        [MemberFeeController::class, 'showByMember'])->name('members_fees.by_member');

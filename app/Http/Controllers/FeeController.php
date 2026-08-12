@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Fee;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 
 class FeeController extends Controller
 {
@@ -20,15 +21,56 @@ class FeeController extends Controller
         $sort = in_array($request->sort, ['id', 'type_id', 'name', 'fee', 'from', 'to']) ? $request->sort : 'type_id';
         $dir  = $request->dir === 'desc' ? 'desc' : 'asc';
 
-        $fees = Fee::with('enumType')->orderBy($sort, $dir)->paginate(50)->withQueryString();
+        // Archivované tarify jsou ve výchozím výpisu skryté (?archived=1 je zobrazí).
+        $showArchived = $request->boolean('archived');
+
+        $fees = Fee::with('enumType')
+            ->when(!$showArchived, fn ($q) => $q->where('archived', false))
+            ->orderBy($sort, $dir)
+            ->paginate(50)
+            ->withQueryString();
+
+        $archivedCount = Fee::where('archived', true)->count();
+
+        // Počet aktivních přiřazení u každého tarifu (klikací → výpis členů).
+        // U tarifu s aktivními přiřazeními se navíc nedá archivovat.
+        $today = now()->toDateString();
+        $fees->getCollection()->each(function ($fee) use ($today) {
+            $fee->active_count = $fee->activeAssignmentsCount($today);
+            $fee->has_active   = $fee->active_count > 0;
+        });
 
         return view('fees.index', [
-            'fees'      => $fees,
-            'sort'      => $sort,
-            'dir'       => $dir,
-            'canNew'    => $this->can('new_all'),
-            'canEdit'   => $this->can('edit_all'),
-            'canDelete' => $this->can('delete_all'),
+            'fees'          => $fees,
+            'sort'          => $sort,
+            'dir'           => $dir,
+            'showArchived'  => $showArchived,
+            'archivedCount' => $archivedCount,
+            'canNew'        => $this->can('new_all'),
+            'canEdit'       => $this->can('edit_all'),
+            'canDelete'     => $this->can('delete_all'),
+        ]);
+    }
+
+    /** Výpis členů, kteří mají daný tarif aktivně přiřazený (proklik z počtu). */
+    public function members(int $id)
+    {
+        abort_unless($this->can('view_all'), 403);
+
+        $fee   = Fee::with('enumType')->findOrFail($id);
+        $today = now()->toDateString();
+
+        $members = DB::table('members_fees as mf')
+            ->join('members as m', 'm.id', '=', 'mf.member_id')
+            ->where('mf.fee_id', $id)
+            ->where('mf.activation_date', '<=', $today)
+            ->where('mf.deactivation_date', '>=', $today)
+            ->orderBy('m.name')
+            ->get(['m.id as member_id', 'm.name', 'm.type', 'mf.activation_date', 'mf.deactivation_date', 'mf.comment']);
+
+        return view('fees.members', [
+            'fee'     => $fee,
+            'members' => $members,
         ]);
     }
 
@@ -86,6 +128,33 @@ class FeeController extends Controller
 
         session()->flash('success', 'Tarif byl úspěšně upraven.');
         return redirect()->route('fees.index');
+    }
+
+    /**
+     * Archivovat / obnovit tarif — skryje ho z nabídky při přiřazování poplatku
+     * členovi, aniž by se cokoli mazalo (historie v members_fees zůstává).
+     * Bezpečná vratná alternativa k mazání legacy tarifů.
+     */
+    public function toggleArchive(int $id)
+    {
+        abort_unless($this->can('edit_all'), 403);
+
+        $fee = Fee::findOrFail($id);
+
+        // Pojistka: archivovat lze jen tarif bez aktivního přiřazení (tlačítko se
+        // u aktivních ani nezobrazí, tohle chrání proti obejití). Obnovit lze vždy.
+        if (!$fee->archived && $fee->hasActiveAssignments()) {
+            session()->flash('error', 'Tarif má aktivní přiřazení, nelze ho archivovat. Nejdřív ho odeberte členům.');
+            return redirect()->back();
+        }
+
+        $fee->update(['archived' => !$fee->archived]);
+
+        session()->flash('success', $fee->archived
+            ? 'Tarif byl archivován (skryt z nabídky). Historie zůstává zachována.'
+            : 'Tarif byl obnoven do nabídky.');
+
+        return redirect()->back();
     }
 
     public function destroy(int $id)
