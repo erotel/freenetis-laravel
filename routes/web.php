@@ -493,6 +493,7 @@ Route::middleware('auth')->group(function () {
         ->name('speed_classes.set_default');
     Route::get('speed-classes', [SpeedClassController::class, 'index'])->name('speed_classes.index')
         ->middleware('acl:view_all,Speed_classes_Controller,speed_classes');
+    Route::get('speed-classes/{id}/members', [SpeedClassController::class, 'members'])->name('speed_classes.members');
     Route::resource('speed-classes', SpeedClassController::class)
         ->names('speed_classes')
         ->parameters(['speed-classes' => 'id'])

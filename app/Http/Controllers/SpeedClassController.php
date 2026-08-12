@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\SpeedClass;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 
 class SpeedClassController extends Controller
 {
@@ -29,6 +30,24 @@ class SpeedClassController extends Controller
         $canDel  = $this->can('delete_all');
 
         return view('speed_classes.index', compact('speedClasses', 'canEdit', 'canNew', 'canDel'));
+    }
+
+    /** Výpis členů, kteří mají danou třídu rychlosti (proklik z počtu). */
+    public function members(int $id)
+    {
+        abort_unless($this->can('view_all'), 403);
+
+        $speedClass = SpeedClass::findOrFail($id);
+
+        $members = DB::table('members as m')
+            ->where('m.speed_class_id', $id)
+            ->orderBy('m.name')
+            ->get(['m.id', 'm.name', 'm.type']);
+
+        return view('speed_classes.members', [
+            'speedClass' => $speedClass,
+            'members'    => $members,
+        ]);
     }
 
     public function create()

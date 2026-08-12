@@ -37,7 +37,13 @@
             <td style="font-family:monospace;font-size:14px">{{ \App\Models\SpeedClass::formatPair($sc->d_ceil, $sc->u_ceil) }}</td>
             <td style="font-family:monospace;font-size:14px">{{ \App\Models\SpeedClass::formatPair($sc->d_rate, $sc->u_rate) }}</td>
             <td style="white-space:nowrap;{{ $sc->price === null ? 'color:#999' : '' }}">{{ $sc->priceLabel() }}</td>
-            <td style="text-align:center">{{ $sc->members_count }}</td>
+            <td style="text-align:center">
+                @if($sc->members_count > 0)
+                <a class="m-link" href="{{ route('speed_classes.members', $sc->id) }}" title="Zobrazit členy s touto rychlostí">{{ $sc->members_count }}</a>
+                @else
+                <span style="color:#bbb">0</span>
+                @endif
+            </td>
             <td style="text-align:center">
                 @if($canEdit)
                 <form method="POST" action="{{ route('speed_classes.set_default', [$sc->id, 'member']) }}" style="display:inline">

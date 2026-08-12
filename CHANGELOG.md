@@ -33,6 +33,8 @@ Epos „rychlost + platba + dodatek per přípojné místo" (povolená podsíť)
 ### Changed
 - Karta člena: **zvýrazněné „Celkem měsíčně"**; popisky „Měsíční platba tarif"
   a „Placená místa navíc".
+- **Třídy rychlosti** (`/speed-classes`): počet členů je proklik na jejich
+  seznam (`speed-classes/{id}/members`) — stejně jako u tarifů.
 
 ### Database
 - `allowed_subnets`: `+speed_class_id`, `+charged` (sloupec `fee_override` byl
