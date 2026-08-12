@@ -6,6 +6,39 @@ formát podle [Keep a Changelog](https://keepachangelog.com/cs/1.1.0/).
 Verzi v souboru `config/version.php` bumpni samostatným commitem `chore: bump version to X.Y.Z`,
 ať lze changelog snadno regenerovat přes `git log vX..vY --oneline`.
 
+## [2.17.0] — 2026-08-12
+
+### Added
+- **Číslo smlouvy = ID člena.** `generateContractNo()` nově generuje
+  `SML-<rok>-<ID_člena>` (konvence z původního importu) místo pořadového čísla.
+  Jeden člen = jedna smlouva. Při vzácné kolizi s legacy smlouvou jiného člena
+  (pár podepsaných smluv z 2026 mělo ještě „ujeté" pořadové číslo) se přidá
+  suffix `-2`, aby se nespadlo na UNIQUE index `uq_contract_no`.
+
+### Changed
+- **Zrušení návrhu smlouvy ho maže.** `cancelContract()` nepodepsaný návrh
+  (`draft`/`otp_sent`/`otp_verified`) rovnou smaže (dřív jen nastavil status
+  `canceled` a mrtvé řádky se u člena hromadily a „spotřebovávaly" čísla).
+  Uvolní se tím číslo (= ID člena) pro novou smlouvu. Child tabulky padnou přes
+  ON DELETE CASCADE, do logu jde audit záznam. Podepsané/ukončené smlouvy
+  zůstávají jako doklad (guard je nepustí).
+- **Dynamická částka v upozornění na placení.** Zpráva „Upozornění na placení
+  (zákazník)" (typ 6) měla částku natvrdo `320kč`; nahrazena placeholderem
+  `{payment_amount}`, který se počítá z tarifu člena + dodatečných služeb
+  (stejný zdroj jako QR platba). Text i e-mail.
+
+### Fixed
+- **Odkaz na VOP ve smlouvě.** V bodě 5.2 nové smlouvy odkaz na obchodní
+  podmínky změněn z `…/smlouva-vop-ukonceni-smlouvy-dokumenty/` na
+  `…/smlouva-vop-prilohy-ke-smlouve/`.
+
+### Database
+- Migrace `…_make_payment_amount_dynamic_in_reminder` (freenetis): `320kč` →
+  `{payment_amount}` v `messages` typu 6 (idempotentní, má `down()`).
+- Migrace `…_delete_canceled_contract_drafts` (contracts): jednorázově smazala
+  historické zrušené návrhy (`status='canceled'`); `signed`/`terminated` i
+  rozpracované `draft`/`otp_sent` ponechány.
+
 ## [2.16.1] — 2026-08-02
 
 ### Fixed
