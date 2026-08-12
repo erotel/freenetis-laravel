@@ -1,0 +1,131 @@
+<!doctype html>
+<html lang="cs">
+<head>
+<meta charset="utf-8">
+<title>DODATEK – PŘÍPOJNÉ MÍSTO – {{contract_no}}</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+  table.lines { border-collapse: collapse; width: 100%; margin-top: 8px; }
+  table.lines td { border: 1px solid #000; padding: 6px 8px; vertical-align: top; }
+  table.lines td:first-child { width: 40%; background: #f9f9f9; font-weight: 600; }
+  :root{ --fg:#000; --muted:#666; --line:#000; }
+  html,body{ margin:0; padding:0; background:#fff; color:var(--fg); font-family: 'DejaVu Sans', Arial, sans-serif; font-size:8pt; line-height:1.3; }
+  .page{ max-width:800px; margin:18px auto 40px; padding:0 12px; }
+  h1{ font-size:14pt; margin:0 0 8px; text-align:center; text-transform:uppercase; letter-spacing:.02em; }
+  h2{ font-size:10pt; margin:14px 0 4px; }
+  .block{ margin:10px 0; }
+  table{ border-collapse:collapse; width:100%; }
+  td{ vertical-align:top; }
+  .w50{ width:50%; }
+  .line{ border-top:1px solid #000; height:1px; margin:24px 0; }
+  .muted{ color:#666; font-size:10pt; }
+</style>
+</head>
+<body>
+<div class="page">
+
+  <h1>DODATEK č. {{addon_no}} – {{action_title}}<br>
+  ke SMLOUVĚ O POSKYTOVÁNÍ SLUŽEB ELEKTRONICKÝCH KOMUNIKACÍ {{contract_no}}
+   (dále jen Smlouva)</h1>
+
+  <div class="block">
+    <strong>PVfree.net, z.s.</strong>, se sídlem Daliborka 3009/3, 796 01 Prostějov, IČO: 26656787, DIČ: CZ26656787 zapsán ve spolkovém rejstříku vedeném u Krajského soudu v Brně, spisová značka L 10341, www.pvfree.net (dále jen <strong>„Poskytovatel“</strong>)
+  </div>
+
+  <div class="block">a</div>
+
+<div class="block">
+  <table class="lines">
+    <tr>
+      <td>Jméno a příjmení (obchodní název):</td>
+      <td><strong>{{full_name}}</strong></td>
+    </tr>
+    <tr>
+      <td>Datum narození (IČO, DIČ):</td>
+      <td>{{ico}} &nbsp;&nbsp; {{dic}}</td>
+    </tr>
+    <tr>
+      <td>Variabilní symbol:</td>
+      <td>{{variable_symbol}}</td>
+    </tr>
+    <tr>
+      <td>Telefon</td>
+      <td>{{phone_mask}}</td>
+    </tr>
+    <tr>
+      <td>Adresa / Sídlo:</td>
+      <td>{{street}}, {{town}}, {{country}}</td>
+    </tr>
+  </table>
+</div>
+  <div class="block">
+    (dále jen <strong>„Účastník“</strong>)
+  </div>
+
+  <div class="block">
+    (Poskytovatel a Účastník společně též <strong>„Smluvní strany“</strong>)
+  </div>
+
+  <h2>1. PŘEDMĚT DODATKU</h2>
+  <div class="block">
+    <strong>1.1.</strong> {{action_intro}} s účinností od <strong>{{effective_date}}</strong>.
+  </div>
+
+  <h2>2. PŘÍPOJNÉ MÍSTO</h2>
+  <div class="block">
+    <table class="lines">
+      <tr>
+        <td>Adresa připojení:</td>
+        <td><strong>{{place_name}}</strong></td>
+      </tr>
+      <tr>
+        <td>Rychlost:</td>
+        <td>{{place_speed}}</td>
+      </tr>
+      <tr>
+        <td>Cena:</td>
+        <td>{{place_price}} Kč / měsíc</td>
+      </tr>
+      <tr>
+        <td>Účinnost:</td>
+        <td>{{effective_date}}</td>
+      </tr>
+    </table>
+  </div>
+
+  <h2>3. OSTATNÍ USTANOVENÍ</h2>
+  <div class="block">
+    <strong>3.1.</strong> Dodatek je platný podpisem oběma stranami. Účinnost nastává k datu uvedenému v bodu 1.1, tj. k prvnímu dni kalendářního měsíce následujícího po jeho akceptaci Poskytovatelem.
+  </div>
+  <div class="block">
+    <strong>3.2.</strong> Ostatní ujednání Smlouvy zůstávají tímto dodatkem nedotčena a nadále platí v plném rozsahu.
+  </div>
+  <div class="block">
+    <strong>3.3.</strong> Smluvní strany prohlašují, že tomuto Dodatku porozuměly a že jej uzavírají na základě své svobodné vůle, bez nátlaku či nápadně nevýhodných podmínek.
+  </div>
+
+  <div class="line"></div>
+
+  <table>
+    <tr>
+      <td class="w50"><strong>Dne:</strong> {{dat}}</td>
+    </tr>
+    <tr>
+      <td>Poskytovatel – PVfree.net, z.s.</td>
+      <td>Účastník – {{full_name}}</td>
+    </tr>
+    <tr>
+      <td style="padding-top:40px; text-align:center;">
+        <img src="podpis.png" style="height:60px;"><br>
+        <span class="muted">podpis</span>
+      </td>
+      <td style="padding-top:40px; text-align:center;">
+        ..........................................................<br>
+        <span class="muted">podpis</span>
+      </td>
+    </tr>
+  </table>
+
+</div>
+</body>
+</html>

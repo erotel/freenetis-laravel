@@ -450,6 +450,103 @@
 </div>
 @endif
 
+{{-- Dodatky – přípojná místa (placené povolené podsítě) --}}
+@if($contract->status === 'signed')
+<div class="m-section">Dodatky – přípojná místa</div>
+<div class="m-card" style="margin-bottom:16px">
+    <div style="font-size:14px;color:#6b7280;margin-bottom:12px">
+        Dodatek zaznamená přidání nebo zrušení placeného přípojného místa s účinností od 1. dne dalšího měsíce.
+        Místo označ jako placené v <a href="{{ route('allowed_subnets.by_member', $member->id) }}">povolených podsítích člena</a>; dodatek přebírá jeho podsíť, rychlost a cenu.
+    </div>
+    @if($canEdit)
+        @if(!empty($assignablePlaces))
+        <form method="POST" action="{{ route('contracts.connection_point.create', $member->id) }}" style="margin-bottom:14px">
+            @csrf
+            <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end">
+                <div>
+                    <label class="m-form-label" for="cp_id" style="font-size:14px;color:#6b7280">Placené místo (rychlost + cena)</label>
+                    <select class="m-form-input" id="cp_id" name="allowed_subnet_id" style="min-width:240px" onchange="cpSyncAddress()">
+                        @foreach($assignablePlaces as $p)
+                        <option value="{{ $p['id'] }}" data-address="{{ $p['address'] }}">{{ $p['name'] !== '' ? $p['name'] : 'Přípojné místo' }}{{ $p['speed'] !== '' ? ' ('.$p['speed'].')' : '' }} — {{ number_format($p['fee'], 0, ',', ' ') }} Kč</option>
+                        @endforeach
+                    </select>
+                </div>
+                <div>
+                    <label class="m-form-label" for="cp_address" style="font-size:14px;color:#6b7280">Adresa připojení (ze zařízení, lze upravit)</label>
+                    <input class="m-form-input" id="cp_address" name="address" value="{{ $assignablePlaces[0]['address'] ?? '' }}" required placeholder="ulice číslo, obec PSČ" style="min-width:240px">
+                </div>
+                <div>
+                    <label class="m-form-label" for="cp_action" style="font-size:14px;color:#6b7280">Akce</label>
+                    <select class="m-form-input" id="cp_action" name="action" style="min-width:140px">
+                        <option value="add">Přidání</option>
+                        <option value="remove">Zrušení</option>
+                    </select>
+                </div>
+                <button class="m-btn m-btn-primary" type="submit">Vytvořit dodatek</button>
+            </div>
+        </form>
+        <script>
+        function cpSyncAddress() {
+            var sel = document.getElementById('cp_id');
+            var addr = document.getElementById('cp_address');
+            if (!sel || !addr) return;
+            var opt = sel.options[sel.selectedIndex];
+            addr.value = opt ? (opt.getAttribute('data-address') || '') : '';
+        }
+        </script>
+        @else
+        <div style="color:#9ca3af;font-size:14px;margin-bottom:12px">
+            Člen nemá žádné placené přípojné místo. Nejprve ho označ jako placené v <a href="{{ route('allowed_subnets.by_member', $member->id) }}">povolených podsítích člena</a>.
+        </div>
+        @endif
+    @endif
+    @if(session('connection_point_addon_link'))
+    <div class="m-alert" style="background:#fef3c7;border:1px solid #fcd34d;padding:10px;border-radius:6px;margin-bottom:12px">
+        Odkaz k podpisu (pošli zákazníkovi, když nedorazil e-mailem):<br>
+        <a href="{{ session('connection_point_addon_link') }}" target="_blank" rel="noopener" style="word-break:break-all;color:#92400e">
+            {{ session('connection_point_addon_link') }}
+        </a>
+    </div>
+    @endif
+    @forelse($connectionPointAddons as $a)
+    <div style="border-top:1px solid #eee;padding:10px 0;display:flex;gap:12px;flex-wrap:wrap;align-items:center">
+        <div style="flex:1;min-width:260px;font-size:14px">
+            <span style="color:#6b7280">Dodatek č. {{ $a->addon_no ?? '—' }}:</span>
+            <strong>{{ $a->serviceActionLabel() }}</strong> — {{ $a->service_name ?: '—' }}{{ $a->place_speed_name ? ' ('.$a->place_speed_name.')' : '' }} ({{ $a->priceLabel($a->service_price) }} / měsíc)
+            <br>
+            <span style="color:#6b7280">účinnost {{ $a->effective_date?->format('d.m.Y') }} · {{ $a->statusLabel() }}</span>
+        </div>
+        @if($a->status === 'signed')
+        <a class="m-btn" href="{{ route('contracts.connection_point.download', $a->id) }}">Stáhnout PDF</a>
+        @else
+        <a class="m-btn" href="{{ route('contracts.connection_point.preview', $a->id) }}" target="_blank" rel="noopener">Náhled PDF</a>
+        @if($canEdit)
+        @if($a->service_action === 'add')
+        <form method="POST" action="{{ route('contracts.connection_point.send-link', $a->id) }}" style="display:inline">
+            @csrf
+            <button class="m-btn m-btn-primary" type="submit">Poslat odkaz k podpisu</button>
+        </form>
+        @else
+        <form method="POST" action="{{ route('contracts.connection_point.issue-removal', $a->id) }}" style="display:inline"
+              onsubmit="return confirm('Vydat dodatek o zrušení přípojného místa bez podpisu zákazníka? Bude odeslán e-mailem.')">
+            @csrf
+            <button class="m-btn m-btn-primary" type="submit">Vydat (bez podpisu)</button>
+        </form>
+        @endif
+        <form method="POST" action="{{ route('contracts.connection_point.delete', $a->id) }}" style="display:inline"
+              onsubmit="return confirm('Smazat tento dodatek?')">
+            @csrf @method('DELETE')
+            <button class="m-btn" type="submit">Smazat</button>
+        </form>
+        @endif
+        @endif
+    </div>
+    @empty
+    <div style="color:#9ca3af;font-size:14px">Zatím žádný dodatek přípojného místa.</div>
+    @endforelse
+</div>
+@endif
+
 {{-- Ukončení smlouvy (výpověď) — jen pro podepsané smlouvy --}}
 @if($canEdit && $contract->status === 'signed')
 <div class="m-section">Ukončení smlouvy</div>

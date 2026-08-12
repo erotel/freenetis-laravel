@@ -255,11 +255,11 @@ class DeductFees extends Command
                     )
                     +
                     (
-                        -- Placená přípojná místa (mirror AllowedSubnetFeesResolver).
-                        SELECT COALESCE(SUM(COALESCE(asub.fee_override, scp.price, scm.price, 0)), 0)
+                        -- Placená přípojná místa (mirror AllowedSubnetFeesResolver):
+                        -- cena = vlastní rychlost místa; zděděná rychlost se neúčtuje.
+                        SELECT COALESCE(SUM(COALESCE(scp.price, 0)), 0)
                         FROM allowed_subnets asub
-                        LEFT JOIN speed_classes scp ON scp.id = asub.speed_class_id
-                        LEFT JOIN speed_classes scm ON scm.id = m.speed_class_id
+                        JOIN speed_classes scp ON scp.id = asub.speed_class_id
                         WHERE asub.member_id = m.id
                           AND asub.charged = 1
                     )

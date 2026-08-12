@@ -25,6 +25,7 @@ class ContractAddon extends Model
         'service_name',
         'service_price',
         'service_action',
+        'place_speed_name',
         'effective_date',
         'status',
         'pdf_path',

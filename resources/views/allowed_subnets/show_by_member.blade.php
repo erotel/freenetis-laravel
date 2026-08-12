@@ -127,20 +127,24 @@
             </td>
             <td>
                 @php
-                    $speedPrice = $as->speedClass?->price ?? $memberSpeed?->price;
-                    $effFee = $as->charged ? ($as->fee_override ?? $speedPrice ?? 0) : null;
+                    // Účtovat lze jen místo s vlastní rychlostí; cena = cena té rychlosti.
+                    $ownSpeedPrice = $as->speedClass?->price;
+                    $effFee = ($as->charged && $as->speed_class_id) ? ($ownSpeedPrice ?? 0) : null;
                 @endphp
                 @if($canEditSpeed)
-                <form method="POST" action="{{ route('allowed_subnets.update_billing', $as->id) }}" style="margin:0;display:flex;gap:4px;align-items:center;flex-wrap:wrap">
-                    @csrf @method('PUT')
-                    <label style="font-size:12px;display:flex;align-items:center;gap:3px">
-                        <input type="checkbox" name="charged" value="1" @checked($as->charged)> účtovat
-                    </label>
-                    <input type="number" step="0.01" min="0" name="fee_override" value="{{ $as->fee_override !== null ? rtrim(rtrim((string)$as->fee_override,'0'),'.') : '' }}"
-                           placeholder="{{ $speedPrice !== null ? number_format((float)$speedPrice,0,',',' ') : 'cena' }}"
-                           style="width:64px;font-size:12px;padding:2px 4px" title="Ruční částka; prázdné = cena rychlosti">
-                    <button type="submit" style="font-size:12px;padding:2px 6px;cursor:pointer">Uložit</button>
-                </form>
+                    @if($as->speed_class_id)
+                    <form method="POST" action="{{ route('allowed_subnets.update_billing', $as->id) }}" style="margin:0;display:flex;gap:6px;align-items:center;flex-wrap:wrap">
+                        @csrf @method('PUT')
+                        <label style="font-size:12px;display:flex;align-items:center;gap:3px">
+                            <input type="checkbox" name="charged" value="1" @checked($as->charged) onchange="this.form.submit()"> účtovat
+                        </label>
+                        @if($as->charged)
+                        <span style="font-size:12px;color:#333">{{ $ownSpeedPrice !== null ? number_format((float)$ownSpeedPrice, 0, ',', ' ').' Kč' : 'rychlost bez ceny' }}</span>
+                        @endif
+                    </form>
+                    @else
+                    <span style="color:#bbb;font-size:12px" title="Zděděná rychlost se neúčtuje">— (zděděno)</span>
+                    @endif
                 @else
                     @if($effFee !== null)
                         {{ number_format((float)$effFee, 2, ',', ' ') }} Kč

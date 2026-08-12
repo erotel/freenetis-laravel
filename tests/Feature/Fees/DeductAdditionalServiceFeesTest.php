@@ -136,18 +136,20 @@ class DeductAdditionalServiceFeesTest extends DatabaseTestCase
         [$account, $member] = $this->eligibleMember();
         DB::table('accounts')->where('id', $account)->update(['balance' => 100000]);
 
-        // Placené přípojné místo s rychlostí Mega (cena 400), bez dodatečných služeb.
+        // Placené přípojné místo s vlastní rychlostí Mega, bez služeb.
+        $megaPrice = (float) DB::table('speed_classes')->where('id', 18)->value('price');
+        $this->assertGreaterThan(0, $megaPrice, 'Mega musí mít cenu');
         $subnetId = DB::table('subnets')->insertGetId(['name' => 'test-deduct-fee']);
         DB::table('allowed_subnets')->insert([
             'member_id' => $member, 'subnet_id' => $subnetId,
-            'speed_class_id' => 18, 'charged' => 1, 'enabled' => 1, // 18 = Mega, 400
+            'speed_class_id' => 18, 'charged' => 1, 'enabled' => 1,
         ]);
 
         ($this->deduct)(self::DATE, $this->orgOperating);
 
         $t = DB::table('transfers')->where('origin_id', $account)->where('type', self::TYPE)->where('datetime', self::DATE)->first();
         $this->assertNotNull($t, 'má vzniknout transfer typu 6 i za samotné placené místo');
-        $this->assertEqualsWithDelta(400.0, (float) $t->amount, 0.001, 'částka = cena Mega místa');
+        $this->assertEqualsWithDelta($megaPrice, (float) $t->amount, 0.001, 'částka = cena rychlosti Mega');
     }
 
     public function test_prepaid_blokace_pri_nedostatku_kreditu(): void

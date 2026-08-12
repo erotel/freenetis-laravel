@@ -703,6 +703,281 @@ class ContractService
         }
     }
 
+    // ── Dodatek: přípojné místo (contract_addons, type='connection_point') ──
+
+    /**
+     * Vytvoř dodatek „přípojné místo" k podepsané smlouvě. $action = 'add'|'remove'.
+     * Snímá placené místo (allowed_subnets): název podsítě, rychlost a efektivní
+     * cenu (fee_override ?? cena rychlosti místa ?? cena rychlosti člena).
+     * Účinnost = 1. den dalšího měsíce.
+     */
+    public function createConnectionPointAddon(int $contractId, int $allowedSubnetId, string $action = 'add', string $address = ''): ?ContractAddon
+    {
+        $contract = Contract::find($contractId);
+        if (!$contract || $contract->status !== 'signed') {
+            return null;
+        }
+        if (!in_array($action, ['add', 'remove'], true)) {
+            return null;
+        }
+
+        // Snímek místa z výchozí DB (allowed_subnets + podsíť + rychlost). Musí
+        // patřit členovi té smlouvy.
+        $place = DB::table('allowed_subnets as a')
+            ->leftJoin('subnets as s', 's.id', '=', 'a.subnet_id')
+            ->leftJoin('speed_classes as sc_place', 'sc_place.id', '=', 'a.speed_class_id')
+            ->where('a.id', $allowedSubnetId)
+            ->where('a.member_id', $contract->member_id)
+            ->first([
+                's.name as subnet_name',
+                'sc_place.name as place_speed', 'sc_place.price as place_price',
+            ]);
+        if (!$place) {
+            return null;
+        }
+
+        // Rychlost a cena z VLASTNÍ rychlosti místa (cena vždy podle rychlosti).
+        $speedName = $place->place_speed;
+        $fee       = $place->place_price ?? 0;
+
+        // Do dodatku jde ADRESA připojení (ne technický název podsítě). Předvyplňuje
+        // se ze zařízení v podsíti, admin ji může upravit — ale musí být vyplněná,
+        // jinak dodatek nevytvoříme.
+        $address = trim($address);
+        if ($address === '') {
+            return null;
+        }
+
+        $maxNo   = (int) (ContractAddon::where('contract_id', $contractId)->max('addon_no') ?? 0);
+        $addonNo = max($maxNo, $contract->addon ? 1 : 0) + 1;
+
+        $addon = ContractAddon::create([
+            'contract_id'      => $contractId,
+            'type'             => 'connection_point',
+            'addon_no'         => $addonNo,
+            'service_name'     => $address,
+            'service_price'    => (float) $fee,
+            'service_action'   => $action,
+            'place_speed_name' => $speedName,
+            'effective_date'   => now()->startOfMonth()->addMonth()->toDateString(),
+            'status'           => 'draft',
+            'created_by'       => auth()->user()?->login,
+            'created_at'       => now()->format('Y-m-d H:i:s'),
+        ]);
+
+        ContractEvent::create([
+            'contract_id' => $contractId,
+            'event'       => 'connection_point_addon_created',
+            'meta_json'   => json_encode([
+                'addon_id'          => $addon->id,
+                'action'            => $action,
+                'allowed_subnet_id' => $allowedSubnetId,
+                'by'                => auth()->user()?->login,
+            ]),
+        ]);
+
+        return $addon;
+    }
+
+    public function deleteConnectionPointAddon(ContractAddon $addon): bool
+    {
+        if ($addon->status === 'signed') {
+            return false;
+        }
+        $path = $this->serviceAddonPdfPath($addon); // cesta k PDF je typově neutrální
+        if ($path && file_exists($path)) {
+            @unlink($path);
+        }
+        $cid = $addon->contract_id;
+        $aid = $addon->id;
+        $addon->delete();
+
+        ContractEvent::create([
+            'contract_id' => $cid,
+            'event'       => 'connection_point_addon_deleted',
+            'meta_json'   => json_encode(['addon_id' => $aid, 'by' => auth()->user()?->login]),
+        ]);
+
+        return true;
+    }
+
+    /** Všechny dodatky „přípojné místo" dané smlouvy (nejnovější první). */
+    public function connectionPointAddons(int $contractId)
+    {
+        return ContractAddon::where('contract_id', $contractId)
+            ->where('type', 'connection_point')
+            ->orderByDesc('id')
+            ->get();
+    }
+
+    public function getConnectionPointAddon(int $id): ?ContractAddon
+    {
+        return ContractAddon::where('type', 'connection_point')->find($id);
+    }
+
+    /**
+     * Vydá podpisový odkaz pro dodatek přípojného místa (jen action='add').
+     * Token nese cid (pro OTP) i aid (náhled + finalizace). Odešle e-mail.
+     */
+    public function issueConnectionPointAddonLink(int $addonId): array
+    {
+        $addon = ContractAddon::where('type', 'connection_point')->find($addonId);
+        if (!$addon || $addon->service_action !== 'add') {
+            return ['url' => null, 'email_sent' => false, 'email' => null];
+        }
+        $contractId = (int) $addon->contract_id;
+
+        $payload = [
+            'cid' => $contractId,
+            'aid' => $addonId,
+            'exp' => time() + (7 * 86400),
+            'rnd' => bin2hex(random_bytes(8)),
+        ];
+        $json  = json_encode($payload, JSON_UNESCAPED_SLASHES);
+        $sig   = hash_hmac('sha256', $json, $this->tokenSecret, true);
+        $token = $this->b64url($json) . '.' . $this->b64url($sig);
+
+        if ($addon->status === 'draft') {
+            $addon->update(['status' => 'otp_sent']);
+        }
+
+        ContractEvent::create([
+            'contract_id' => $contractId,
+            'event'       => 'connection_point_addon_link_issued',
+            'meta_json'   => json_encode([
+                'addon_id' => $addonId,
+                'by'       => auth()->user()?->login,
+                'token'    => substr($token, 0, 20) . '…',
+            ]),
+        ]);
+
+        $url   = route('sign.connection_point.show', ['t' => $token]);
+        $email = $this->queueSignLinkEmail($contractId, $url, true);
+
+        return ['url' => $url, 'email_sent' => $email !== null, 'email' => $email];
+    }
+
+    /** Ověří podpisový token dodatku přípojného místa. Vrací addon_id, nebo null. */
+    public function verifyConnectionPointAddonToken(string $token): ?int
+    {
+        $parts = explode('.', $token, 2);
+        if (count($parts) !== 2) return null;
+
+        [$p64, $s64] = $parts;
+        $json = $this->b64urlDec($p64);
+        $sig  = $this->b64urlDec($s64);
+        if ($json === '' || $sig === '') return null;
+
+        $calc = hash_hmac('sha256', $json, $this->tokenSecret, true);
+        if (!hash_equals($calc, $sig)) return null;
+
+        $data = json_decode($json, true);
+        if (!is_array($data) || ((int) ($data['exp'] ?? 0)) < time()) return null;
+
+        $aid = (int) ($data['aid'] ?? 0);
+        return $aid > 0 ? $aid : null;
+    }
+
+    /** Finalizuje dodatek přípojného místa (podepsané PDF). Volá se po ověření OTP. */
+    public function signConnectionPointAddon(ContractAddon $addon, PdfService $pdf, ?Request $request = null): ContractAddon
+    {
+        $fullpath = $pdf->renderConnectionPointAddonPdf($addon, false, $request);
+        $raw      = (string) @file_get_contents($fullpath);
+        $sha256   = hash('sha256', $raw);
+
+        $addon->update([
+            'status'    => 'signed',
+            'signed_at' => now(),
+            'pdf_path'  => $fullpath,
+        ]);
+
+        ContractEvent::create([
+            'contract_id' => $addon->contract_id,
+            'event'       => 'connection_point_addon_signed',
+            'meta_json'   => json_encode(['addon_id' => $addon->id, 'sha256' => $sha256], JSON_UNESCAPED_UNICODE),
+        ]);
+
+        return $addon->refresh();
+    }
+
+    /**
+     * Vydá dodatek „zrušení přípojného místa" bez podpisu zákazníka
+     * (poskytovatel) — zrušení snižuje závazek, proto bez OTP. Jen
+     * type='connection_point' a service_action='remove'.
+     */
+    public function issueConnectionPointRemoval(ContractAddon $addon, PdfService $pdf): ?ContractAddon
+    {
+        if ($addon->type !== 'connection_point' || $addon->service_action !== 'remove' || $addon->status === 'signed') {
+            return null;
+        }
+
+        $fullpath = $pdf->renderConnectionPointAddonPdf($addon, false, null);
+        $raw      = (string) @file_get_contents($fullpath);
+        $sha256   = hash('sha256', $raw);
+
+        $addon->update([
+            'status'    => 'signed',
+            'signed_at' => now(),
+            'pdf_path'  => $fullpath,
+        ]);
+
+        ContractEvent::create([
+            'contract_id' => $addon->contract_id,
+            'event'       => 'connection_point_addon_removal_issued',
+            'meta_json'   => json_encode(['addon_id' => $addon->id, 'sha256' => $sha256], JSON_UNESCAPED_UNICODE),
+        ]);
+
+        $this->emailConnectionPointRemoval($addon);
+
+        return $addon->refresh();
+    }
+
+    /** Best-effort: pošle zákazníkovi PDF zrušení přípojného místa. */
+    private function emailConnectionPointRemoval(ContractAddon $addon): void
+    {
+        $contract = Contract::find($addon->contract_id);
+        if (!$contract) return;
+
+        $party = ContractParty::where('contract_id', $addon->contract_id)->orderByDesc('id')->first();
+        $email = trim((string) ($party?->email ?? ''));
+        $pdfPath = (string) $addon->pdf_path;
+        if ($email === '' || $pdfPath === '' || !is_file($pdfPath)) return;
+
+        try {
+            $no      = htmlspecialchars((string) $contract->contract_no, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+            $place   = htmlspecialchars((string) $addon->service_name, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+            $subject = $this->buildSubject('Zrušení přípojného místa ke smlouvě ' . $contract->contract_no);
+            $body    = '<p>Dobrý den,</p>'
+                . '<p>v příloze Vám zasíláme dodatek o zrušení přípojného místa <strong>' . $place . '</strong> ke smlouvě <strong>' . $no . '</strong>'
+                . ' s účinností od ' . htmlspecialchars((string) $addon->effective_date?->format('d.m.Y'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . '.</p>'
+                . '<p>Dokument si prosím uschovejte pro svoji evidenci.</p>'
+                . '<p>S pozdravem,<br>PVfree.net, z.s.</p>';
+
+            $q = EmailQueue::create([
+                'from'        => Setting::get('email_default_email', 'noreply@pvfree.net'),
+                'to'          => $email,
+                'subject'     => $subject,
+                'body'        => $body,
+                'state'       => EmailQueue::STATE_NEW,
+                'access_time' => now(),
+            ]);
+            EmailQueueAttachment::create([
+                'email_queue_id' => $q->id,
+                'path'           => $pdfPath,
+                'name'           => 'dodatek-misto-zruseni-' . $contract->contract_no . '.pdf',
+                'mime'           => 'application/pdf',
+                'created_at'     => now(),
+            ]);
+            ContractEvent::create([
+                'contract_id' => $contract->id,
+                'event'       => 'connection_point_addon_removal_email_sent',
+                'meta_json'   => json_encode(['to' => $email, 'addon_id' => $addon->id], JSON_UNESCAPED_UNICODE),
+            ]);
+        } catch (\Throwable $e) {
+            \Log::warning('Connection-point removal email failed for contract #' . $contract->id . ': ' . $e->getMessage());
+        }
+    }
+
     private function buildPartyData(Member $member): array
     {
         $mainUser = $member->users()->where('type', User::MAIN_USER)->first();

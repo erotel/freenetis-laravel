@@ -244,6 +244,10 @@ Route::prefix('sign')->name('sign.')->group(function () {
     Route::post('service-addon/info',       [\App\Http\Controllers\Contracts\PublicSignController::class, 'serviceAddonInfo'])->name('service_addon.info');
     Route::get ('service-addon/preview',    [\App\Http\Controllers\Contracts\PublicSignController::class, 'previewServiceAddon'])->name('service_addon.preview');
     Route::post('service-addon/otp/verify', [\App\Http\Controllers\Contracts\PublicSignController::class, 'verifyServiceAddonOtp'])->name('service_addon.otp.verify');
+    Route::get ('connection-point',            [\App\Http\Controllers\Contracts\PublicSignController::class, 'showConnectionPointAddon'])->name('connection_point.show');
+    Route::post('connection-point/info',       [\App\Http\Controllers\Contracts\PublicSignController::class, 'connectionPointAddonInfo'])->name('connection_point.info');
+    Route::get ('connection-point/preview',    [\App\Http\Controllers\Contracts\PublicSignController::class, 'previewConnectionPointAddon'])->name('connection_point.preview');
+    Route::post('connection-point/otp/verify', [\App\Http\Controllers\Contracts\PublicSignController::class, 'verifyConnectionPointAddonOtp'])->name('connection_point.otp.verify');
 });
 
 // Protected area
@@ -697,6 +701,12 @@ Route::middleware('auth')->group(function () {
     Route::post('contracts/service-addon/{addonId}/send-link', [ContractController::class, 'sendServiceAddonLink'])->name('contracts.service_addon.send-link');
     Route::post('contracts/service-addon/{addonId}/issue-removal', [ContractController::class, 'issueServiceRemoval'])->name('contracts.service_addon.issue-removal');
     Route::get('contracts/service-addon/{addonId}/download',   [ContractController::class, 'downloadServiceAddon'])->name('contracts.service_addon.download');
+    Route::post('members/{id}/contract/connection-point',       [ContractController::class, 'createConnectionPointAddon'])->name('contracts.connection_point.create');
+    Route::get('contracts/connection-point/{addonId}/preview',  [ContractController::class, 'previewConnectionPointAddon'])->name('contracts.connection_point.preview');
+    Route::delete('contracts/connection-point/{addonId}',       [ContractController::class, 'deleteConnectionPointAddon'])->name('contracts.connection_point.delete');
+    Route::post('contracts/connection-point/{addonId}/send-link', [ContractController::class, 'sendConnectionPointAddonLink'])->name('contracts.connection_point.send-link');
+    Route::post('contracts/connection-point/{addonId}/issue-removal', [ContractController::class, 'issueConnectionPointRemoval'])->name('contracts.connection_point.issue-removal');
+    Route::get('contracts/connection-point/{addonId}/download',   [ContractController::class, 'downloadConnectionPointAddon'])->name('contracts.connection_point.download');
 
     // Device DHCP export — inside auth group but device self-call bypasses auth middleware
     Route::get('devices/{id}/export/{format}', [DeviceController::class, 'export'])

@@ -8,11 +8,10 @@ class AllowedSubnet extends Model
 {
     public $timestamps = false;
     protected $table = 'allowed_subnets';
-    protected $fillable = ['member_id', 'subnet_id', 'speed_class_id', 'charged', 'fee_override', 'enabled', 'last_update'];
+    protected $fillable = ['member_id', 'subnet_id', 'speed_class_id', 'charged', 'enabled', 'last_update'];
     protected $casts = [
-        'enabled'      => 'boolean',
-        'charged'      => 'boolean',
-        'fee_override' => 'decimal:2',
+        'enabled' => 'boolean',
+        'charged' => 'boolean',
     ];
 
     public function member()

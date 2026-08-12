@@ -116,18 +116,24 @@ class AllowedSubnetController extends Controller
             'speed_class_id' => 'nullable|integer|exists:speed_classes,id',
         ]);
 
-        $as->update(['speed_class_id' => $validated['speed_class_id'] ?? null]);
+        $speedId = $validated['speed_class_id'] ?? null;
+        // Zděděná rychlost (bez vlastní) nejde účtovat → při zdědění zrušíme charged.
+        $update = ['speed_class_id' => $speedId];
+        if ($speedId === null) {
+            $update['charged'] = false;
+        }
+        $as->update($update);
 
         return redirect()->route('allowed_subnets.by_member', $as->member_id)
             ->with('success', $as->speed_class_id
                 ? 'Rychlost přípojného místa byla nastavena.'
-                : 'Rychlost přípojného místa se nově dědí od člena.');
+                : 'Rychlost přípojného místa se nově dědí od člena (účtování zrušeno).');
     }
 
     /**
-     * Nastavení platby za přípojné místo (povolenou podsíť): zda se účtuje
-     * (charged) a případná ruční částka (fee_override). Prázdný override =
-     * cena rychlosti místa (jinak člena). Jen admin.
+     * Nastavení platby za přípojné místo: zda se účtuje (charged). Cena se bere
+     * vždy z vlastní rychlosti místa; účtovat lze jen místo s vlastní rychlostí
+     * (zděděná rychlost se neúčtuje). Jen admin.
      */
     public function updateBilling(int $id, Request $request)
     {
@@ -137,20 +143,21 @@ class AllowedSubnetController extends Controller
             abort(403);
         }
 
-        $validated = $request->validate([
-            'charged'      => 'nullable|boolean',
-            'fee_override' => 'nullable|numeric|min:0',
+        $request->validate([
+            'charged' => 'nullable|boolean',
         ]);
 
-        $as->update([
-            'charged'      => (bool) ($validated['charged'] ?? false),
-            'fee_override' => ($validated['fee_override'] ?? '') !== ''
-                ? $validated['fee_override'] : null,
-        ]);
+        $charged = (bool) $request->input('charged', false);
+        if ($charged && !$as->speed_class_id) {
+            return redirect()->route('allowed_subnets.by_member', $as->member_id)
+                ->with('error', 'Účtovat lze jen místo s vlastní rychlostí. Nejprve mu nastavte rychlost (ne „zdědit").');
+        }
+
+        $as->update(['charged' => $charged]);
 
         return redirect()->route('allowed_subnets.by_member', $as->member_id)
-            ->with('success', $as->charged
-                ? 'Platba za přípojné místo byla nastavena.'
+            ->with('success', $charged
+                ? 'Přípojné místo se nově účtuje (cena podle rychlosti).'
                 : 'Přípojné místo se nově neúčtuje.');
     }
 

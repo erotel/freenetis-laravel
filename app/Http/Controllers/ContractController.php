@@ -41,8 +41,15 @@ class ContractController extends Controller
         $serviceAddons = $contract ? $this->contracts->serviceAddons($contract->id) : collect();
         // Aktivní dodatečné služby člena (pro výběr do dodatku) — z members_fees.
         $assignableServices = \App\Services\AdditionalServicesResolver::items($memberId, now()->toDateString());
+        // Dodatky přípojných míst + placená místa člena pro výběr do dodatku.
+        $connectionPointAddons = $contract ? $this->contracts->connectionPointAddons($contract->id) : collect();
+        // Placená místa + adresa ze zařízení v podsíti (předvyplnění dodatku).
+        $assignablePlaces = \App\Services\AllowedSubnetFeesResolver::chargedPlaces($memberId);
 
-        return view('contracts.show', compact('member', 'contract', 'canEdit', 'isAdmin', 'tariffAddons', 'serviceAddons', 'assignableServices'));
+        return view('contracts.show', compact(
+            'member', 'contract', 'canEdit', 'isAdmin', 'tariffAddons',
+            'serviceAddons', 'assignableServices', 'connectionPointAddons', 'assignablePlaces'
+        ));
     }
 
     public function create(int $memberId): RedirectResponse
@@ -562,6 +569,147 @@ class ContractController extends Controller
 
         return redirect()->route('contracts.show', $memberId)
             ->with('success', 'Dodatek o zrušení služby byl vydán a odeslán zákazníkovi. Nezapomeň službu deaktivovat v poplatcích člena.');
+    }
+
+    // ── Dodatek: přípojné místo (contract_addons, type='connection_point') ──
+
+    public function createConnectionPointAddon(int $memberId, Request $request): RedirectResponse
+    {
+        abort_unless($this->can('edit_all'), 403);
+
+        $data = $request->validate([
+            'allowed_subnet_id' => 'required|integer',
+            'action'            => 'required|in:add,remove',
+            'address'           => 'required|string|max:200',
+        ], [
+            'address.required' => 'Adresa připojení musí být vyplněná (zařízení v podsíti nemá adresu — doplňte ji ručně nebo u zařízení).',
+        ]);
+
+        $contract = $this->contracts->getByMemberId($memberId);
+        if (!$contract || $contract->status !== 'signed') {
+            return redirect()->route('contracts.show', $memberId)
+                ->with('error', 'Dodatek – přípojné místo lze vytvořit jen k podepsané smlouvě.');
+        }
+
+        $addon = $this->contracts->createConnectionPointAddon(
+            $contract->id, (int) $data['allowed_subnet_id'], $data['action'], (string) ($data['address'] ?? '')
+        );
+        if (!$addon) {
+            return redirect()->route('contracts.show', $memberId)
+                ->with('error', 'Dodatek se nepodařilo vytvořit (přípojné místo nenalezeno nebo nepatří členovi).');
+        }
+
+        return redirect()->route('contracts.show', $memberId)
+            ->with('success', 'Dodatek – přípojné místo byl vytvořen (návrh). Zkontrolujte náhled PDF.');
+    }
+
+    public function previewConnectionPointAddon(int $addonId, PdfService $pdf): Response|RedirectResponse
+    {
+        $addon = \App\Models\ContractAddon::find($addonId);
+        if (!$addon) abort(404);
+
+        $isOwn = (auth()->user()?->member_id == $addon->contract?->member_id);
+        abort_unless($this->can('view_all') || $isOwn, 403);
+
+        $bytes = $pdf->renderConnectionPointAddonPdf($addon, true);
+
+        return response($bytes, 200, [
+            'Content-Type'        => 'application/pdf',
+            'Content-Disposition' => 'inline; filename="dodatek-misto-preview.pdf"',
+        ]);
+    }
+
+    public function deleteConnectionPointAddon(int $addonId): RedirectResponse
+    {
+        abort_unless($this->can('edit_all'), 403);
+
+        $addon = \App\Models\ContractAddon::find($addonId);
+        if (!$addon) abort(404);
+
+        $memberId = $addon->contract?->member_id;
+        if (!$this->contracts->deleteConnectionPointAddon($addon)) {
+            return redirect()->route('contracts.show', $memberId)
+                ->with('error', 'Podepsaný dodatek nelze smazat.');
+        }
+
+        return redirect()->route('contracts.show', $memberId)
+            ->with('success', 'Dodatek byl smazán.');
+    }
+
+    public function sendConnectionPointAddonLink(int $addonId): RedirectResponse
+    {
+        abort_unless($this->can('edit_all'), 403);
+
+        $addon = \App\Models\ContractAddon::find($addonId);
+        if (!$addon) abort(404);
+
+        $memberId = $addon->contract?->member_id;
+        if ($addon->status === 'signed') {
+            return redirect()->route('contracts.show', $memberId)
+                ->with('error', 'Dodatek je již podepsán.');
+        }
+        if ($addon->service_action !== 'add') {
+            return redirect()->route('contracts.show', $memberId)
+                ->with('error', 'Odkaz k podpisu je jen pro přidání místa. Zrušení vydává poskytovatel bez podpisu zákazníka.');
+        }
+
+        $result = $this->contracts->issueConnectionPointAddonLink($addon->id);
+        if (!$result['url']) {
+            return redirect()->route('contracts.show', $memberId)
+                ->with('error', 'Odkaz se nepodařilo vygenerovat.');
+        }
+        $message = $result['email_sent']
+            ? 'Odkaz pro podpis dodatku byl vygenerován a odeslán na email zákazníka.'
+            : 'Odkaz pro podpis dodatku byl vygenerován. Zákazník nemá email — zkopírujte odkaz ručně.';
+
+        return redirect()->route('contracts.show', $memberId)
+            ->with('connection_point_addon_link', $result['url'])
+            ->with('success', $message);
+    }
+
+    public function downloadConnectionPointAddon(int $addonId): BinaryFileResponse|RedirectResponse
+    {
+        $addon = \App\Models\ContractAddon::find($addonId);
+        if (!$addon) abort(404);
+
+        $isOwn = (auth()->user()?->member_id == $addon->contract?->member_id);
+        abort_unless($this->can('view_all') || $isOwn, 403);
+
+        $path = $this->contracts->serviceAddonPdfPath($addon);
+        if (!$path || !is_file($path)) {
+            return redirect()->back()->with('error', 'PDF dodatku není dostupné.');
+        }
+
+        return response()->download($path, 'dodatek-misto-' . $addon->id . '.pdf', [
+            'Content-Type' => 'application/pdf',
+        ]);
+    }
+
+    public function issueConnectionPointRemoval(int $addonId, PdfService $pdf): RedirectResponse
+    {
+        abort_unless($this->can('edit_all'), 403);
+
+        $addon = \App\Models\ContractAddon::find($addonId);
+        if (!$addon) abort(404);
+
+        $memberId = $addon->contract?->member_id;
+        if ($addon->service_action !== 'remove') {
+            return redirect()->route('contracts.show', $memberId)
+                ->with('error', 'Vydat bez podpisu lze jen dodatek o zrušení přípojného místa.');
+        }
+        if ($addon->status === 'signed') {
+            return redirect()->route('contracts.show', $memberId)
+                ->with('error', 'Dodatek je již vydán.');
+        }
+
+        $result = $this->contracts->issueConnectionPointRemoval($addon, $pdf);
+        if (!$result) {
+            return redirect()->route('contracts.show', $memberId)
+                ->with('error', 'Dodatek se nepodařilo vydat.');
+        }
+
+        return redirect()->route('contracts.show', $memberId)
+            ->with('success', 'Dodatek o zrušení přípojného místa byl vydán a odeslán zákazníkovi. Nezapomeň místo odúčtovat v podsítích člena.');
     }
 
     /**

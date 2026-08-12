@@ -316,6 +316,81 @@ class PdfService
     }
 
     /**
+     * PDF dodatku „přípojné místo" (přidání/zrušení placeného přípojného místa).
+     * $preview=true → vodoznak NÁHLED, vrací string; false → uloží podepsané PDF
+     * s evidenční stránkou a vrací absolutní cestu.
+     */
+    public function renderConnectionPointAddonPdf(\App\Models\ContractAddon $addon, bool $preview = true, ?Request $request = null): string
+    {
+        $contract = $addon->contract;
+        $party    = ContractParty::where('contract_id', $addon->contract_id)->orderByDesc('id')->first();
+        $p        = $party?->toArray() ?? [];
+
+        $birthday          = trim((string) ($p['birthday'] ?? ''));
+        $birthdayFormatted = '';
+        if ($birthday !== '') {
+            $dt = \DateTime::createFromFormat('Y-m-d', substr($birthday, 0, 10));
+            if ($dt !== false) $birthdayFormatted = $dt->format('d.m.Y');
+        }
+        $ico = trim((string) ($p['ico'] ?? ''));
+        $dic = trim((string) ($p['dic'] ?? ''));
+        if ($ico === '' && $dic === '') $ico = $birthdayFormatted;
+
+        $phone     = (string) ($contract->phone ?? '');
+        $phoneMask = $phone !== '' ? $this->maskPhone($phone) : '';
+
+        $effective = $addon->effective_date
+            ? date('d.m.Y', strtotime((string) $addon->effective_date))
+            : '';
+
+        $isRemove    = $addon->service_action === 'remove';
+        $actionTitle = $isRemove ? 'ZRUŠENÍ PŘÍPOJNÉHO MÍSTA' : 'PŘÍPOJNÉ MÍSTO';
+        $actionIntro = $isRemove
+            ? 'Tímto dodatkem se ke Smlouvě ruší níže uvedené přípojné místo'
+            : 'Tímto dodatkem se ke Smlouvě sjednává níže uvedené přípojné místo';
+
+        $repl = [
+            '{{contract_no}}'     => $this->h($contract->contract_no ?? ''),
+            '{{addon_no}}'        => $this->h((string) ($addon->addon_no ?? 1)),
+            '{{full_name}}'       => $this->h($p['full_name'] ?? ''),
+            '{{street}}'          => $this->h($p['street'] ?? ''),
+            '{{town}}'            => $this->h($p['town'] ?? ''),
+            '{{country}}'         => $this->h($p['country'] ?? ''),
+            '{{ico}}'             => $this->h($ico),
+            '{{dic}}'             => $this->h($dic),
+            '{{variable_symbol}}' => $this->h($p['variable_symbol'] ?? ''),
+            '{{phone_mask}}'      => $this->h($phoneMask),
+            '{{place_name}}'      => $this->h($addon->service_name ?? ''),
+            '{{place_speed}}'     => $this->h($addon->place_speed_name ?? '—'),
+            '{{place_price}}'     => $this->h($this->formatPrice($addon->service_price)),
+            '{{action_title}}'    => $this->h($actionTitle),
+            '{{action_intro}}'    => $this->h($actionIntro),
+            '{{effective_date}}'  => $this->h($effective),
+            '{{dat}}'             => $this->h(date('d.m.Y')),
+        ];
+
+        $html = $this->resolveTemplateAssets(strtr($this->loadTemplate('addon_connection_point.html'), $repl));
+        $mpdf = new Mpdf(['tempDir' => $this->tmpDir()]);
+        if ($preview) {
+            $mpdf->SetWatermarkText('NÁHLED');
+            $mpdf->showWatermarkText = true;
+        }
+        $mpdf->WriteHTML($html);
+
+        if ($preview) {
+            return $mpdf->Output('', Destination::STRING_RETURN);
+        }
+
+        $mpdf->AddPage();
+        $mpdf->WriteHTML($this->buildAddonEvidenceHtml($phoneMask, $request));
+
+        $fullpath = $this->storageDir() . "/connection-point-addon-{$addon->id}.pdf";
+        $mpdf->Output($fullpath, Destination::FILE);
+
+        return $fullpath;
+    }
+
+    /**
      * Generate the membership-termination PDF.
      */
     public function renderTerminationPdf(Contract $contract, ?Request $request = null): string

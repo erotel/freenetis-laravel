@@ -404,6 +404,7 @@ class PublicSignController extends Controller
             'termination'  => $this->terminationPath($contract->id),
             'tariff_addon' => ($row->addon_id ?? null) ? ContractAddon::find($row->addon_id)?->pdf_path : null,
             'service_addon' => ($row->addon_id ?? null) ? ContractAddon::find($row->addon_id)?->pdf_path : null,
+            'connection_point_addon' => ($row->addon_id ?? null) ? ContractAddon::find($row->addon_id)?->pdf_path : null,
             default        => null,
         };
         if (!$path || !is_file($path)) return response('PDF nedostupné.', 404);
@@ -782,6 +783,143 @@ class PublicSignController extends Controller
             ]);
         } catch (\Throwable $e) {
             \Log::warning('Service addon post-sign email failed for contract #' . $contract->id . ': ' . $e->getMessage());
+        }
+    }
+
+    // ── Dodatek: přípojné místo (contract_addons, type='connection_point') ──
+
+    public function showConnectionPointAddon(Request $request)
+    {
+        $token = (string) $request->query('t', '');
+        return view('contracts.connection-point-sign', ['token' => $token]);
+    }
+
+    public function connectionPointAddonInfo(Request $request): JsonResponse
+    {
+        $addon = $this->resolveConnectionPointAddon($request);
+        if (!$addon) return $this->unauthorizedJson();
+
+        $contract = $addon->contract;
+        $party    = ContractParty::where('contract_id', $addon->contract_id)->orderByDesc('id')->first();
+
+        return response()->json([
+            'contract_no'     => $contract?->contract_no,
+            'full_name'       => $party?->full_name,
+            'variable_symbol' => $party?->variable_symbol,
+            'phone_mask'      => $contract?->phone ? $this->maskPhone((string) $contract->phone) : null,
+            'place_name'      => $addon->service_name,
+            'place_speed'     => $addon->place_speed_name,
+            'place_price'     => $addon->service_price !== null ? (float) $addon->service_price : null,
+            'effective_date'  => $addon->effective_date?->format('d.m.Y'),
+            'signed'          => $addon->status === 'signed' ? 1 : 0,
+        ], 200, [], JSON_UNESCAPED_UNICODE);
+    }
+
+    public function previewConnectionPointAddon(Request $request): Response
+    {
+        $addon = $this->resolveConnectionPointAddon($request);
+        if (!$addon) return response('', 401);
+
+        if ($addon->status === 'signed' && $addon->pdf_path && is_file($addon->pdf_path)) {
+            return response()->file($addon->pdf_path, [
+                'Content-Type'        => 'application/pdf',
+                'Content-Disposition' => 'inline; filename="dodatek-misto.pdf"',
+                'Cache-Control'       => 'no-store',
+            ]);
+        }
+
+        $pdf = $this->pdf->renderConnectionPointAddonPdf($addon, true, $request);
+        return response($pdf, 200, [
+            'Content-Type'        => 'application/pdf',
+            'Content-Disposition' => 'inline; filename="dodatek-misto-preview.pdf"',
+            'Cache-Control'       => 'no-store',
+        ]);
+    }
+
+    public function verifyConnectionPointAddonOtp(Request $request): JsonResponse
+    {
+        $contract = $this->resolveContract($request);              // cid z tokenu
+        $addon    = $this->resolveConnectionPointAddon($request);  // aid z tokenu
+        if (!$contract || !$addon || (int) $addon->contract_id !== (int) $contract->id) {
+            return $this->unauthorizedJson();
+        }
+        if ($addon->status === 'signed') {
+            return response()->json(['error' => 'Dodatek je již podepsán.'], 409);
+        }
+
+        $otp = trim((string) $request->input('otp', ''));
+        $res = $this->otp->verifyAddonOtp($contract, $otp, $request);
+        if (!($res['ok'] ?? false)) {
+            return $this->fromServiceResult($res);
+        }
+
+        try {
+            $addon = $this->contracts->signConnectionPointAddon($addon, $this->pdf, $request);
+        } catch (\Throwable $e) {
+            return response()->json(['error' => 'Server error', 'detail' => $e->getMessage()], 500);
+        }
+
+        $this->sendConnectionPointAddonPostSignEmail($contract, $addon);
+
+        $dlToken = $this->createDownloadToken($contract->id, 'connection_point_addon', 86400, null, 1, $addon->id);
+        return response()->json([
+            'ok'           => true,
+            'download_url' => route('sign.download', ['t' => $dlToken]),
+        ]);
+    }
+
+    private function resolveConnectionPointAddon(Request $request): ?ContractAddon
+    {
+        $token = (string) ($request->input('t') ?: $request->query('t', ''));
+        if ($token === '') return null;
+        $aid = $this->contracts->verifyConnectionPointAddonToken($token);
+        if (!$aid) return null;
+        return $this->contracts->getConnectionPointAddon($aid);
+    }
+
+    private function sendConnectionPointAddonPostSignEmail(Contract $contract, ContractAddon $addon): void
+    {
+        $party = ContractParty::where('contract_id', $contract->id)->orderByDesc('id')->first();
+        $email = trim((string) ($party?->email ?? ''));
+        if ($email === '') return;
+
+        $pdfPath = (string) $addon->pdf_path;
+        if ($pdfPath === '' || !is_file($pdfPath)) return;
+
+        try {
+            [$subject, $body] = $this->renderContractEmail(
+                Message::CONTRACT_ADDON_SIGNED,
+                (int) $contract->member_id,
+                (string) $contract->contract_no,
+                fn(string $h) => 'Podepsaný dodatek (přípojné místo) ke smlouvě ' . $contract->contract_no . ' - PVfree.net',
+                fn(string $h) => '<p>Dobrý den,</p>'
+                    . '<p>v příloze Vám zasíláme podepsaný dodatek (přípojné místo) ke smlouvě <strong>' . $h . '</strong>.</p>'
+                    . '<p>Dokument si prosím uschovejte pro svoji evidenci.</p>'
+                    . '<p>S pozdravem,<br>PVfree.net, z.s.</p>'
+            );
+
+            $q = EmailQueue::create([
+                'from'        => Setting::get('email_default_email', 'noreply@pvfree.net'),
+                'to'          => $email,
+                'subject'     => $subject,
+                'body'        => $body,
+                'state'       => EmailQueue::STATE_NEW,
+                'access_time' => now(),
+            ]);
+            EmailQueueAttachment::create([
+                'email_queue_id' => $q->id,
+                'path'           => $pdfPath,
+                'name'           => 'dodatek-misto-' . $contract->contract_no . '.pdf',
+                'mime'           => 'application/pdf',
+                'created_at'     => now(),
+            ]);
+            ContractEvent::create([
+                'contract_id' => $contract->id,
+                'event'       => 'connection_point_addon_post_sign_email_sent',
+                'meta_json'   => json_encode(['to' => $email, 'addon_id' => $addon->id], JSON_UNESCAPED_UNICODE),
+            ]);
+        } catch (\Throwable $e) {
+            \Log::warning('Connection-point addon post-sign email failed for contract #' . $contract->id . ': ' . $e->getMessage());
         }
     }
 
