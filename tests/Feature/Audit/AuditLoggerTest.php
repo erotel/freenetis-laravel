@@ -107,4 +107,27 @@ class AuditLoggerTest extends DatabaseTestCase
         $code = Artisan::call('audit:maintain-partitions', ['--dry-run' => true]);
         $this->assertSame(0, $code);
     }
+
+    /** Agregační dotaz historie člena (members + jeho allowed_subnets) — platné SQL. */
+    public function test_dotaz_historie_clena_agreguje_typy(): void
+    {
+        $member   = (int) DB::table('members')->where('id', '>', 1)->orderBy('id')->value('id');
+        $subnetId = DB::table('subnets')->insertGetId(['name' => 'NET audit-hist']);
+        $allowedId = (int) DB::table('allowed_subnets')->insertGetId([
+            'member_id' => $member, 'subnet_id' => $subnetId, 'charged' => 0, 'enabled' => 1,
+        ]);
+
+        AuditLogger::log('updated', 'members', $member, ['type' => 2], ['type' => 15]);
+        AuditLogger::log('deleted', 'allowed_subnets', $allowedId, ['charged' => 1], null);
+
+        $rows = DB::table('audit_logs as a')
+            ->where(function ($q) use ($member, $allowedId) {
+                $q->where(fn($x) => $x->where('a.auditable_type', 'members')->where('a.auditable_id', $member))
+                  ->orWhere(fn($x) => $x->where('a.auditable_type', 'allowed_subnets')->whereIn('a.auditable_id', [$allowedId]));
+            })
+            ->pluck('a.auditable_type');
+
+        $this->assertTrue($rows->contains('members'));
+        $this->assertTrue($rows->contains('allowed_subnets'));
+    }
 }

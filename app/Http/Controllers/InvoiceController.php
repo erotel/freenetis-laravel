@@ -68,7 +68,26 @@ class InvoiceController extends Controller
 
         $invoice = Invoice::with(['member', 'items'])->findOrFail($id);
 
-        return view('invoices.show', compact('invoice'));
+        // Audit trail (NIS2/ZoKB): historie změn faktury a jejích položek.
+        $itemIds = $invoice->items->pluck('id')->all();
+        $auditHistory = \Illuminate\Support\Facades\DB::table('audit_logs as a')
+            ->leftJoin('users as u', 'u.id', '=', 'a.user_id')
+            ->where(function ($q) use ($id, $itemIds) {
+                $q->where(function ($x) use ($id) {
+                    $x->where('a.auditable_type', 'invoices')->where('a.auditable_id', $id);
+                });
+                if (!empty($itemIds)) {
+                    $q->orWhere(function ($x) use ($itemIds) {
+                        $x->where('a.auditable_type', 'invoice_items')->whereIn('a.auditable_id', $itemIds);
+                    });
+                }
+            })
+            ->orderByDesc('a.id')
+            ->limit(100)
+            ->selectRaw("a.*, TRIM(CONCAT(COALESCE(u.surname,''),' ',COALESCE(u.name,''))) as actor_name, u.login as actor_login")
+            ->get();
+
+        return view('invoices.show', compact('invoice', 'auditHistory'));
     }
 
     public function downloadPdf(int $id)

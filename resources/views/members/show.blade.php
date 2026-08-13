@@ -677,5 +677,9 @@
 </div>
 @endif
 
+@if($canViewAudit)
+    @include('audit._history', ['entries' => $auditHistory])
+@endif
+
 </div>
 @endsection

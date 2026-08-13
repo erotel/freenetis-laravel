@@ -109,5 +109,7 @@
 </table>
 </div>
 
+@include('audit._history', ['entries' => $auditHistory])
+
 </div>
 @endsection

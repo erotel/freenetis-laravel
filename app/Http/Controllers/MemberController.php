@@ -270,8 +270,41 @@ class MemberController extends Controller
             ->where('mf.deactivation_date', '>=', now()->toDateString())
             ->exists();
 
+        // Audit trail (NIS2/ZoKB): historie změn člena, jeho uživatelů a placených
+        // míst. Jen pro adminy (edit_all) — obsahuje citlivé provozní údaje.
+        $canViewAudit = $this->can('edit_all');
+        $auditHistory = collect();
+        if ($canViewAudit) {
+            $userIds    = $member->users->pluck('id')->all();
+            $allowedIds = DB::table('allowed_subnets')->where('member_id', $id)->pluck('id')->all();
+
+            $auditHistory = DB::table('audit_logs as a')
+                ->leftJoin('users as u', 'u.id', '=', 'a.user_id')
+                ->where(function ($q) use ($id, $userIds, $allowedIds) {
+                    $q->where(function ($x) use ($id) {
+                        $x->where('a.auditable_type', 'members')->where('a.auditable_id', $id);
+                    });
+                    if (!empty($userIds)) {
+                        $q->orWhere(function ($x) use ($userIds) {
+                            $x->where('a.auditable_type', 'users')->whereIn('a.auditable_id', $userIds);
+                        });
+                    }
+                    if (!empty($allowedIds)) {
+                        $q->orWhere(function ($x) use ($allowedIds) {
+                            $x->where('a.auditable_type', 'allowed_subnets')->whereIn('a.auditable_id', $allowedIds);
+                        });
+                    }
+                })
+                ->orderByDesc('a.id')
+                ->limit(100)
+                ->selectRaw("a.*, TRIM(CONCAT(COALESCE(u.surname,''),' ',COALESCE(u.name,''))) as actor_name, u.login as actor_login")
+                ->get();
+        }
+
         return view('members.show', [
             'member'              => $member,
+            'canViewAudit'        => $canViewAudit,
+            'auditHistory'        => $auditHistory,
             'variableSymbols'     => $variableSymbols,
             'creditAccount'       => $creditAccount,
             'activeMemberFee'     => $activeMemberFee,
