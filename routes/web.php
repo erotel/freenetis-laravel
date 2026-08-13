@@ -15,6 +15,8 @@ use App\Http\Controllers\IfaceController;
 use App\Http\Controllers\LoginLogController;
 use App\Http\Controllers\TransferController;
 use App\Http\Controllers\Auth\LoginController;
+use App\Http\Controllers\Auth\MfaChallengeController;
+use App\Http\Controllers\MfaController;
 use App\Http\Controllers\ContactController;
 use App\Http\Controllers\DeviceController;
 use App\Http\Controllers\DeviceTemplateController;
@@ -103,6 +105,11 @@ foreach (['cs', 'en', 'sk'] as $lang) {
 Route::get('/login', [LoginController::class, 'showLoginForm'])->name('login')->middleware('guest');
 Route::post('/login', [LoginController::class, 'login'])->middleware(['guest', 'throttle:login']);
 Route::post('/logout', [LoginController::class, 'logout'])->name('logout')->middleware('auth');
+
+// Druhý faktor (MFA) — mezi heslem a plnou session. Uživatel zde NENÍ přihlášen
+// (jen session mfa.pending_user_id), proto guest, ne auth.
+Route::get('/mfa/challenge',  [MfaChallengeController::class, 'show'])->name('mfa.challenge')->middleware('guest');
+Route::post('/mfa/challenge', [MfaChallengeController::class, 'verify'])->middleware(['guest', 'throttle:login'])->name('mfa.challenge.verify');
 
 // ── Field Mode (mobile-first UI pro techniky v terénu) ──────────────────────
 // Žádný nový auth — používá existující 'web' guard. Veřejné jsou jen login routy;
@@ -338,6 +345,15 @@ Route::middleware('auth')->group(function () {
         ->name('users.password');
     Route::put('users/{id}/password', [UserController::class, 'updatePassword'])
         ->name('users.password.update');
+
+    // MFA (dvoufázové přihlášení) — self-service pro přihlášeného uživatele.
+    Route::get('mfa',  [MfaController::class, 'status'])->name('mfa.status');
+    Route::get('mfa/setup',  [MfaController::class, 'setup'])->name('mfa.setup');
+    Route::post('mfa/setup', [MfaController::class, 'confirm'])->name('mfa.confirm');
+    Route::post('mfa/recovery/regenerate', [MfaController::class, 'regenerateRecovery'])->name('mfa.recovery.regenerate');
+    Route::post('mfa/disable', [MfaController::class, 'disable'])->name('mfa.disable');
+    // Admin reset cizího MFA.
+    Route::post('users/{id}/mfa/reset', [UserController::class, 'resetMfa'])->name('users.mfa.reset');
     Route::get('users', [UserController::class, 'index'])->name('users.index')
         ->middleware('acl:view_all,Users_Controller,users');
     Route::resource('users', UserController::class)->except(['index']);

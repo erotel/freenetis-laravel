@@ -23,7 +23,17 @@
     @if($canChangeAppPwd) <a class="m-btn" href="{{ route('users.edit', $user->id) }}#application_password">Změnit app. heslo</a> @endif
     @if($canViewDevices) <a class="m-btn" href="{{ route('devices.by_user', $user->id) }}">Zařízení</a> @endif
     @if($canViewLoginLogs) <a class="m-btn" href="{{ route('login_logs.by_user', $user->id) }}">Logy přihlášení</a> @endif
+    @if($canResetMfa && $mfaEnabled)
+        <form method="POST" action="{{ route('users.mfa.reset', $user->id) }}" style="display:inline"
+              onsubmit="return confirm('Resetovat dvoufázové přihlášení tohoto uživatele? Bude si ho muset zřídit znovu.')">
+            @csrf
+            <button class="m-btn m-btn-danger" title="Když uživatel ztratil telefon i záložní kódy">Resetovat MFA</button>
+        </form>
+    @endif
 </div>
+@if($mfaEnabled)
+    <div style="font-size:13px;color:#1a7f37;margin-top:-6px;margin-bottom:8px">🔒 Dvoufázové přihlášení: zapnuto</div>
+@endif
 
 <div class="m-grid2">
     <div class="m-card">

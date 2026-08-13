@@ -47,6 +47,7 @@ return [
         'secret',
         'snmp_auth_pass',
         'snmp_priv_pass',
+        'totp_secret',
     ],
 
     /*

@@ -279,6 +279,9 @@ class WebAuthnController extends Controller
 
         Auth::login($user);
         $request->session()->regenerate();
+        // WebAuthn (klíč/biometrie) je sám o sobě silný faktor → počítá se jako
+        // splněné MFA (pro budoucí vynucení ve fázi B).
+        $request->session()->put('mfa_passed', true);
 
         $credential->update([
             'sign_count'   => $newCount,

@@ -131,7 +131,31 @@ class UserController extends Controller
             'canDeleteContact'     => $this->aclCheck('delete_all', 'Users_Controller', 'additional_contacts'),
             'canViewDevices'       => $this->aclCheck('view_all', 'Devices_Controller',    'devices'),
             'canViewLoginLogs'     => $this->aclCheck('view_all', 'Login_logs_Controller', 'logs'),
+            'mfaEnabled'           => app(\App\Services\MfaService::class)->isEnabled((int) $user->id),
+            'canResetMfa'          => $this->can('edit_all'),
         ]);
+    }
+
+    /**
+     * Admin reset cizího MFA — když uživatel ztratí telefon i záložní kódy.
+     * Smaže jeho TOTP i záložní kódy; při dalším přihlášení už MFA nebude
+     * vyžadováno a může si ho zřídit znovu. Auditováno.
+     */
+    public function resetMfa(int $id)
+    {
+        abort_unless($this->can('edit_all'), 403);
+
+        $user = User::findOrFail($id);
+        app(\App\Services\MfaService::class)->disable((int) $user->id);
+
+        \App\Services\AuditLogger::log('mfa_reset', 'users', (int) $user->id, null, [
+            'by_user_id' => auth()->id(),
+        ]);
+        logger()->warning('auth.mfa.admin_reset', [
+            'user_id' => $user->id, 'by' => auth()->id(), 'ip' => request()->ip(),
+        ]);
+
+        return back()->with('success', 'Dvoufázové přihlášení uživatele bylo resetováno.');
     }
 
     public function create(Request $request)

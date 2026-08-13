@@ -25,6 +25,7 @@ class FreenetisMenu extends Component
                 ['name' => 'home', 'label' => 'Domů', 'items' => [
                     ['url' => route('members.show', $user?->member_id ?? 1), 'label' => 'Můj profil', 'current' => $currentPath === 'members/' . ($user?->member_id ?? 1), 'count' => null],
                     ['url' => route('me.notifications'), 'label' => 'Moje oznámení', 'current' => $currentPath === 'me/notifications', 'count' => null],
+                    ['url' => route('mfa.status'), 'label' => 'Zabezpečení (MFA)', 'current' => $currentPath === 'mfa', 'count' => null],
                 ]],
             ];
             return;
@@ -70,6 +71,7 @@ class FreenetisMenu extends Component
             ['name' => 'home', 'label' => 'Domů', 'items' => [
                 ['url' => route('members.show', $user?->member_id ?? 1), 'path' => '', 'label' => 'Můj profil', 'acl' => null],
                 ['url' => route('me.notifications'), 'path' => 'me/notifications', 'label' => 'Moje oznámení', 'acl' => null],
+                ['url' => route('mfa.status'), 'path' => 'mfa', 'label' => 'Zabezpečení (MFA)', 'acl' => null],
             ]],
             ['name' => 'members', 'label' => 'Uživatelé', 'items' => [
                 // Bývalí (typy 15, 16) jsou v záměrně vyloučeni — admin je najde přes filtr typů.

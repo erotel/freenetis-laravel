@@ -62,7 +62,12 @@ class LoginController extends Controller
         // tj. cookie by byla vázaná na NULL token (forgeable, nerevokovatelná). Pokud by
         // remember-me bylo potřeba, doplň migraci pro users.remember_token a opravu
         // get/set/getRememberTokenName v App\Models\User.
-        if (!Auth::attempt($credentials)) {
+        // Ověřit heslo (a zámek účtu) BEZ přihlášení — kvůli MFA musíme mezi
+        // heslo a plnou session vsunout druhý faktor. Provider řeší i legacy
+        // hashe a members.locked (stejně jako Auth::attempt).
+        $provider = Auth::getProvider();
+        $user = $provider->retrieveByCredentials($credentials);
+        if (!$user || !$provider->validateCredentials($user, $credentials)) {
             RateLimiter::hit($loginKey, self::LOGIN_DECAY_SECONDS);
             logger()->warning('auth.login.failed', [
                 'login'    => $credentials['login'],
@@ -77,6 +82,17 @@ class LoginController extends Controller
         }
 
         RateLimiter::clear($loginKey);
+
+        // Má uživatel zapnutý druhý faktor? Pak NEpřihlašovat rovnou — jen si
+        // zapamatovat „čeká na 2. faktor" a poslat na challenge. Plné přihlášení
+        // (i login_logs) proběhne až po ověření kódu v MfaChallengeController.
+        if (app(\App\Services\MfaService::class)->isEnabled((int) $user->id)) {
+            $request->session()->put('mfa.pending_user_id', (int) $user->id);
+            $request->session()->put('mfa.pending_at', now()->timestamp);
+            return redirect()->route('mfa.challenge');
+        }
+
+        Auth::login($user);
         $request->session()->regenerate();
 
         // Write to FreenetIS login_logs table
