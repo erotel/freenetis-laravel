@@ -37,11 +37,11 @@
         <div class="m-alert m-alert-danger">{{ $errors->first() }}</div>
     @endif
 
-    <p class="hint">Zadejte váš login, e-mail nebo variabilní symbol. Pošleme vám odkaz pro reset hesla.</p>
+    <p class="hint">Zadejte váš login nebo variabilní symbol. Pošleme vám odkaz pro reset hesla.</p>
 
     <form method="POST" action="{{ route('forgotten-password.store') }}">
         @csrf
-        <label for="login">Login / E-mail / Variabilní symbol</label>
+        <label for="login">Login / Variabilní symbol</label>
         <input type="text" id="login" name="login" value="{{ old('login') }}" autofocus>
         <button type="submit">Odeslat odkaz pro reset</button>
     </form>
