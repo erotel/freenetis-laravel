@@ -4,12 +4,19 @@
     actor_name / actor_login (leftJoin users). Voláno např. z members.show.
 --}}
 @php
-    $auditLabels = ['created' => 'Vytvoření', 'updated' => 'Úprava', 'deleted' => 'Smazání'];
+    $auditLabels = [
+        'created' => 'Vytvoření', 'updated' => 'Úprava', 'deleted' => 'Smazání',
+        'notified' => 'Notifikace', 'fee_deduction' => 'Stržení poplatků',
+        'backcharge' => 'Dobírka', 'auto_former' => 'Auto: bývalý člen',
+        'auto_pending_termination' => 'Auto: k ukončení',
+    ];
     $auditColors = [
         'created' => ['#1a7f37', '#e6f4ea'],
         'updated' => ['#9a6700', '#fff8e1'],
         'deleted' => ['#b02a37', '#fdecef'],
     ];
+    // Vlastní akce (ne create/update/delete) → neutrální modrý badge.
+    $auditNeutral = ['#1f5fbf', '#e8f0fe'];
     // Naformátuje hodnotu do čitelného řetězce (skalár / pole / null).
     $fmtVal = function ($v) {
         if ($v === null) return '∅';
@@ -43,7 +50,7 @@
                         $old = $e->old_values ? json_decode($e->old_values, true) : [];
                         $new = $e->new_values ? json_decode($e->new_values, true) : [];
                         $keys = array_keys(($old ?? []) + ($new ?? []));
-                        [$fg, $bg] = $auditColors[$e->action] ?? ['#555', '#f0f0f0'];
+                        [$fg, $bg] = $auditColors[$e->action] ?? $auditNeutral;
                         $label = $auditLabels[$e->action] ?? $e->action;
                         $actor = trim($e->actor_name ?? '') !== ''
                             ? trim($e->actor_name) . ($e->actor_login ? " ({$e->actor_login})" : '')
@@ -74,14 +81,14 @@
                                     @endphp
                                     <div style="margin:1px 0">
                                         <span style="color:#666">{{ $k }}:</span>
-                                        @if($e->action === 'created')
-                                            <span style="color:#1a7f37">{{ $fmtVal($hasNew ? $new[$k] : null) }}</span>
-                                        @elseif($e->action === 'deleted')
-                                            <span style="color:#b02a37;text-decoration:line-through">{{ $fmtVal($hasOld ? $old[$k] : null) }}</span>
+                                        @if(!$hasOld && $hasNew)
+                                            <span style="color:#1a7f37">{{ $fmtVal($new[$k]) }}</span>
+                                        @elseif($hasOld && !$hasNew)
+                                            <span style="color:#b02a37;text-decoration:line-through">{{ $fmtVal($old[$k]) }}</span>
                                         @else
-                                            <span style="color:#b02a37;text-decoration:line-through">{{ $fmtVal($hasOld ? $old[$k] : null) }}</span>
+                                            <span style="color:#b02a37;text-decoration:line-through">{{ $fmtVal($old[$k]) }}</span>
                                             <span style="color:#999">→</span>
-                                            <span style="color:#1a7f37">{{ $fmtVal($hasNew ? $new[$k] : null) }}</span>
+                                            <span style="color:#1a7f37">{{ $fmtVal($new[$k]) }}</span>
                                         @endif
                                     </div>
                                 @endforeach

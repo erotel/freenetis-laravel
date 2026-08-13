@@ -121,6 +121,12 @@ class RedirectController extends Controller
                 ]);
             }
 
+            \App\Services\AuditLogger::log('created', 'messages_ip_addresses', $memberId, null, [
+                'message_id' => $data['message_id'],
+                'ip_count'   => $ips->count(),
+                'scope'      => 'member',
+            ]);
+
             return redirect()->route('members.show', $memberId)
                 ->with('success', 'Přesměrování bylo aktivováno pro všechny IP adresy člena.');
         }
@@ -165,6 +171,11 @@ class RedirectController extends Controller
                 'datetime'      => now(),
             ]);
 
+            \App\Services\AuditLogger::log('created', 'messages_ip_addresses', $ipId, null, [
+                'message_id' => $data['message_id'],
+                'scope'      => 'ip',
+            ]);
+
             return redirect()->route('ip_addresses.show', $ipId)
                 ->with('success', 'Přesměrování bylo aktivováno.');
         }
@@ -190,6 +201,11 @@ class RedirectController extends Controller
             'message_id'    => $msgId,
         ])->delete();
 
+        \App\Services\AuditLogger::log('deleted', 'messages_ip_addresses', $ipId, [
+            'message_id' => $msgId,
+            'scope'      => 'ip',
+        ], null);
+
         return redirect()->back()->with('success', 'Přesměrování bylo zrušeno.');
     }
 
@@ -205,6 +221,12 @@ class RedirectController extends Controller
             ->whereIn('ip_address_id', $ips)
             ->where('message_id', $msgId)
             ->delete();
+
+        \App\Services\AuditLogger::log('deleted', 'messages_ip_addresses', $memberId, [
+            'message_id' => $msgId,
+            'ip_count'   => $ips->count(),
+            'scope'      => 'member',
+        ], null);
 
         return redirect()->route('members.show', $memberId)
             ->with('success', 'Přesměrování bylo zrušeno pro všechny IP adresy člena.');

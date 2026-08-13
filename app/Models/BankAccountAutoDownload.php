@@ -6,6 +6,8 @@ use Illuminate\Database\Eloquent\Model;
 
 class BankAccountAutoDownload extends Model
 {
+    use \App\Models\Concerns\Auditable;
+
     public $timestamps = false;
     protected $table = 'bank_accounts_automatical_downloads';
 

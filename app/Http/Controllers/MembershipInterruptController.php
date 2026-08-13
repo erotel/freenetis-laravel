@@ -174,6 +174,12 @@ class MembershipInterruptController extends Controller
             }
         });
 
+        \App\Services\AuditLogger::log('created', 'membership_interrupts', $member->id, null, [
+            'from'      => $dates['from']->toDateString(),
+            'to'        => $dates['to']->toDateString(),
+            'end_after' => (bool) $endAfter,
+        ]);
+
         return redirect()->route('members.show', $memberId)
             ->with('success', 'Přerušení členství bylo přidáno.');
     }
@@ -236,6 +242,13 @@ class MembershipInterruptController extends Controller
             }
         });
 
+        \App\Services\AuditLogger::log('updated', 'membership_interrupts', $interrupt->member_id, null, [
+            'interrupt_id' => $interrupt->id,
+            'from'         => $dates['from']->toDateString(),
+            'to'           => $dates['to']->toDateString(),
+            'end_after'    => (bool) $endAfter,
+        ]);
+
         return redirect()->route('members.show', $interrupt->member_id)
             ->with('success', 'Přerušení členství bylo upraveno.');
     }
@@ -262,6 +275,10 @@ class MembershipInterruptController extends Controller
             DB::table('membership_interrupts')->where('id', $interrupt->id)->delete();
             DB::table('members_fees')->where('id', $interrupt->members_fee_id)->delete();
         });
+
+        \App\Services\AuditLogger::log('deleted', 'membership_interrupts', $interrupt->member_id, [
+            'interrupt_id' => $interrupt->id,
+        ], null);
 
         return redirect()->route('members.show', $interrupt->member_id)
             ->with('success', 'Přerušení členství bylo smazáno.');

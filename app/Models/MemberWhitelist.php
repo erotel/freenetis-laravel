@@ -6,6 +6,8 @@ use Illuminate\Database\Eloquent\Model;
 
 class MemberWhitelist extends Model
 {
+    use \App\Models\Concerns\Auditable;
+
     public $timestamps = false;
     protected $table = 'members_whitelists';
 

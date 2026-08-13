@@ -315,9 +315,15 @@ class DeviceController extends Controller
     {
         abort_unless($this->can('delete_all', 'engineer'), 403);
 
+        // Hromadný delete přes query builder nespustí model events — logujeme ručně.
         DeviceEngineer::where('device_id', $deviceId)
             ->where('user_id', $userId)
             ->delete();
+
+        \App\Services\AuditLogger::log('deleted', 'device_engineers', $deviceId, [
+            'device_id' => $deviceId,
+            'user_id'   => $userId,
+        ], null);
 
         return redirect()->route('devices.show', $deviceId)
             ->with('success', 'Technik byl odebrán.');

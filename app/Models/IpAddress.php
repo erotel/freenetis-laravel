@@ -6,6 +6,8 @@ use Illuminate\Database\Eloquent\Model;
 
 class IpAddress extends Model
 {
+    use \App\Models\Concerns\Auditable;
+
     public $timestamps = false;
     protected $table = 'ip_addresses';
     protected $fillable = [

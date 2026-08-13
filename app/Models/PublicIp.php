@@ -6,6 +6,8 @@ use Illuminate\Database\Eloquent\Model;
 
 class PublicIp extends Model
 {
+    use \App\Models\Concerns\Auditable;
+
     protected $table = 'public_ips';
 
     public $timestamps = false;

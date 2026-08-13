@@ -6,6 +6,8 @@ use Illuminate\Database\Eloquent\Model;
 
 class ConnectionRequest extends Model
 {
+    use \App\Models\Concerns\Auditable;
+
     public $timestamps = false;
     protected $table = 'connection_requests';
     protected $fillable = [

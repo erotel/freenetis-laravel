@@ -6,6 +6,8 @@ use Illuminate\Database\Eloquent\Model;
 
 class Street extends Model
 {
+    use \App\Models\Concerns\Auditable;
+
     public $timestamps = false;
     protected $table = 'streets';
     protected $fillable = ['street', 'town_id'];

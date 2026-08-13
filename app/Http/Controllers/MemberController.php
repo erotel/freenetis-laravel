@@ -1346,6 +1346,17 @@ class MemberController extends Controller
             'leaving_date' => '9999-12-31',
         ]);
 
+        \App\Services\AuditLogger::log('updated', 'members', $id, [
+            'type'         => $member->type,
+            'locked'       => $member->locked,
+            'leaving_date' => $oldLeaving,
+        ], [
+            'type'         => $originalType,
+            'locked'       => 0,
+            'leaving_date' => '9999-12-31',
+            'note'         => 'obnovení bývalého člena',
+        ]);
+
         // Poplatky, které automatika ukončila k datu odchodu, zase oživit.
         \App\Services\MemberFeesTermination::reactivate($id, $oldLeaving);
 
@@ -1429,6 +1440,11 @@ class MemberController extends Controller
 
             $chargeResult = $this->chargeMonthlyFeeNow($id, (int) $member->type, $effective);
         });
+
+        \App\Services\AuditLogger::log('updated', 'members', $id, null, [
+            'note'      => 'obnovení přerušení členství',
+            'effective' => $effective,
+        ]);
 
         $when = $effective === now()->toDateString() ? 'dnes' : 'k ' . $effective;
         if ($chargeResult === 'skipped_blocked') {

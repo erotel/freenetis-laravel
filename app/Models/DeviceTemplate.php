@@ -6,6 +6,8 @@ use Illuminate\Database\Eloquent\Model;
 
 class DeviceTemplate extends Model
 {
+    use \App\Models\Concerns\Auditable;
+
     public $timestamps = false;
     protected $table = 'device_templates';
     protected $casts = ['values' => 'array', 'default' => 'boolean'];

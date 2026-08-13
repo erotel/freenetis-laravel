@@ -6,6 +6,8 @@ use Illuminate\Database\Eloquent\Model;
 
 class Vlan extends Model
 {
+    use \App\Models\Concerns\Auditable;
+
     const DEFAULT_VLAN_TAG = 1;
 
     public $timestamps = false;

@@ -6,6 +6,8 @@ use Illuminate\Database\Eloquent\Model;
 
 class Iface extends Model
 {
+    use \App\Models\Concerns\Auditable;
+
     // Matches Kohana Iface_Model constants (stored in DB)
     const WIRELESS   = 1;
     const ETHERNET   = 2;

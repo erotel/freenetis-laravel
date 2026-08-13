@@ -6,6 +6,8 @@ use Illuminate\Database\Eloquent\Model;
 
 class PublicIpNat1to1 extends Model
 {
+    use \App\Models\Concerns\Auditable;
+
     protected $table = 'public_ip_nat_1to1';
 
     public $timestamps = false;

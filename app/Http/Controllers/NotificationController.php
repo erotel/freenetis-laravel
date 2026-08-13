@@ -253,6 +253,15 @@ class NotificationController extends Controller
             }
         }
 
+        // Audit trail: souhrn hromadné notifikace (aktivace/deaktivace přesměrování).
+        if ($stats['redir_activated'] || $stats['redir_deactivated']) {
+            \App\Services\AuditLogger::log('notified', 'messages_ip_addresses', $messageId, null, [
+                'message_id'        => $messageId,
+                'redir_activated'   => $stats['redir_activated'],
+                'redir_deactivated' => $stats['redir_deactivated'],
+            ]);
+        }
+
         $parts = [];
         if ($stats['redir_activated'])   $parts[] = "Přesměrování aktivováno pro {$stats['redir_activated']} IP.";
         if ($stats['redir_deactivated']) $parts[] = "Přesměrování deaktivováno pro {$stats['redir_deactivated']} IP.";
@@ -414,6 +423,15 @@ class NotificationController extends Controller
                     }
                 });
             }
+        }
+
+        // Audit trail: notifikace jednoho člena (aktivace/deaktivace přesměrování).
+        if ($stats['redirections_activated'] || $stats['redirections_deactivated']) {
+            \App\Services\AuditLogger::log('notified', 'messages_ip_addresses', $id, null, [
+                'member_id'         => $id,
+                'redir_activated'   => $stats['redirections_activated'],
+                'redir_deactivated' => $stats['redirections_deactivated'],
+            ]);
         }
 
         // ── Build flash message ───────────────────────────────────────────────

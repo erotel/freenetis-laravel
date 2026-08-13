@@ -146,6 +146,13 @@ class RegistrationController extends Controller
             ]);
         });
 
+        // Audit trail: veřejná samoregistrace (user_id NULL = anonymní registrace).
+        \App\Services\AuditLogger::log('created', 'members', $memberId, null, [
+            'type'  => (int) $validated['registration_type'],
+            'login' => $validated['login'],
+            'via'   => 'veřejná registrace',
+        ]);
+
         $this->sendRegistrationSummary($userId, (int) $validated['registration_type']);
 
         return redirect()->route('registration.success');

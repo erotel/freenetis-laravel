@@ -48,6 +48,12 @@ class RedirectFormerMembers extends Command
                 \App\Services\MemberFeesTermination::deactivate((int) $m->id, $m->leaving_date);
             }
 
+            // Audit trail: automatické překlopení na bývalé členy (systém, user_id NULL).
+            \App\Services\AuditLogger::log('auto_former', 'members', null, null, [
+                'marked_former' => $updated,
+                'member_ids'    => $toFormer->pluck('id')->all(),
+            ]);
+
             $this->info("Marked {$updated} members as former (type=15).");
         }
 

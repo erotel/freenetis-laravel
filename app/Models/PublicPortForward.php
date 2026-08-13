@@ -6,6 +6,8 @@ use Illuminate\Database\Eloquent\Model;
 
 class PublicPortForward extends Model
 {
+    use \App\Models\Concerns\Auditable;
+
     protected $table = 'public_port_forwards';
 
     public $timestamps = false;

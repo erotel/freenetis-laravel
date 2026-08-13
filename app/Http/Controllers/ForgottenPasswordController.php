@@ -111,6 +111,11 @@ class ForgottenPasswordController extends Controller
             'password_request_expires_at'  => now()->addMinutes(self::TOKEN_TTL_MIN),
         ]);
 
+        // Audit: žádost o reset hesla (token samotný neukládáme — je citlivý).
+        \App\Services\AuditLogger::log('updated', 'users', (int) $user->id, null, [
+            'password_reset_requested' => true,
+        ]);
+
         $siteTitle = Setting::get('title', 'FreenetIS');
         $resetUrl  = route('forgotten-password.reset') . '?request=' . $token;
         $fromEmail = Setting::get('email_default_email', 'noreply@freenetis.org');
@@ -195,6 +200,12 @@ class ForgottenPasswordController extends Controller
             'password'                    => bcrypt($request->password),
             'password_request'            => null,
             'password_request_expires_at' => null,
+        ]);
+
+        // Audit: dokončený reset hesla (heslo redigováno na '***'). Bezpečnostní událost.
+        \App\Services\AuditLogger::log('updated', 'users', (int) $user->id, null, [
+            'password'      => '***',
+            'password_reset' => true,
         ]);
 
         // Zneplatnit všechny existující sessiony tohoto uživatele — kdo už byl přihlášen,

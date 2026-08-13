@@ -6,6 +6,8 @@ use Illuminate\Database\Eloquent\Model;
 
 class DeviceAdmin extends Model
 {
+    use \App\Models\Concerns\Auditable;
+
     public $timestamps = false;
     protected $table = 'device_admins';
     protected $fillable = ['device_id', 'user_id'];

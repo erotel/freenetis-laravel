@@ -7,6 +7,8 @@ use Illuminate\Support\Facades\DB;
 
 class Message extends Model
 {
+    use \App\Models\Concerns\Auditable;
+
     public $timestamps = false;
     protected $table = 'messages';
     protected $fillable = ['name', 'text', 'email_text', 'sms_text', 'type', 'self_cancel', 'ignore_whitelist'];

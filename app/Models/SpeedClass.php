@@ -6,6 +6,8 @@ use Illuminate\Database\Eloquent\Model;
 
 class SpeedClass extends Model
 {
+    use \App\Models\Concerns\Auditable;
+
     public $timestamps = false;
     protected $table = 'speed_classes';
     protected $fillable = ['name', 'd_ceil', 'd_rate', 'u_ceil', 'u_rate', 'price',

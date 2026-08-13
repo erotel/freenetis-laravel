@@ -6,6 +6,8 @@ use Illuminate\Database\Eloquent\Model;
 
 class Subnet extends Model
 {
+    use \App\Models\Concerns\Auditable;
+
     public $timestamps = false;
     protected $table = 'subnets';
     // Zachovej mikrosekundy při zápisu dhcp_changed_at (výchozí 'Y-m-d H:i:s' by

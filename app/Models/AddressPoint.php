@@ -6,6 +6,8 @@ use Illuminate\Database\Eloquent\Model;
 
 class AddressPoint extends Model
 {
+    use \App\Models\Concerns\Auditable;
+
     public $timestamps = false;
     protected $table = 'address_points';
     protected $fillable = ['name', 'country_id', 'town_id', 'street_id', 'street_number'];

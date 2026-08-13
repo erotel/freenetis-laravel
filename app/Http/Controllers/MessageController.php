@@ -138,6 +138,11 @@ class MessageController extends Controller
             ]);
         }
 
+        \App\Services\AuditLogger::log('created', 'messages_ip_addresses', $id, null, [
+            'message_id' => $id,
+            'ip_count'   => count($validated['ip_address_ids']),
+        ]);
+
         return back()->with('success', 'Zpráva byla aktivována pro ' . count($validated['ip_address_ids']) . ' IP adres.');
     }
 
@@ -149,6 +154,10 @@ class MessageController extends Controller
             ->where('message_id', $id)
             ->where('ip_address_id', $ipAddressId)
             ->delete();
+
+        \App\Services\AuditLogger::log('deleted', 'messages_ip_addresses', $ipAddressId, [
+            'message_id' => $id,
+        ], null);
 
         return back()->with('success', 'Zpráva byla deaktivována.');
     }

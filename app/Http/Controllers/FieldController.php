@@ -541,11 +541,18 @@ class FieldController extends Controller
             DB::table('accounts')->where('id', $creditAccount->id)->update(['comments_thread_id' => $threadId]);
         }
 
-        DB::table('comments')->insert([
+        $commentId = DB::table('comments')->insertGetId([
             'comments_thread_id' => $threadId,
             'user_id'            => Auth::id(),
             'text'               => trim($request->input('text')),
             'datetime'           => now(),
+        ]);
+
+        \App\Services\AuditLogger::log('created', 'comments', $commentId, null, [
+            'thread_id' => $threadId,
+            'member_id' => $member->id,
+            'text'      => trim($request->input('text')),
+            'via'       => 'field',
         ]);
 
         return redirect()->route('field.member', $member->id)->with('success', 'Poznámka byla přidána.');

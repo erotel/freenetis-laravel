@@ -6,6 +6,8 @@ use Illuminate\Database\Eloquent\Model;
 
 class VariableSymbol extends Model
 {
+    use \App\Models\Concerns\Auditable;
+
     public $timestamps = false;
     protected $table = 'variable_symbols';
     protected $fillable = ['account_id', 'variable_symbol'];

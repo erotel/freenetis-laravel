@@ -6,6 +6,8 @@ use Illuminate\Database\Eloquent\Model;
 
 class BankAccount extends Model
 {
+    use \App\Models\Concerns\Auditable;
+
     public $timestamps = false;
     protected $table = 'bank_accounts';
     protected $fillable = ['name', 'member_id', 'account_nr', 'bank_nr', 'type', 'IBAN', 'SWIFT', 'payment_purpose'];

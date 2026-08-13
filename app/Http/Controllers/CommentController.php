@@ -144,11 +144,16 @@ class CommentController extends Controller
 
         $request->validate(['text' => 'required|string|max:5000']);
 
-        DB::table('comments')->insert([
+        $commentId = DB::table('comments')->insertGetId([
             'comments_thread_id' => $threadId,
             'user_id'            => auth()->id(),
             'text'               => trim($request->input('text')),
             'datetime'           => now(),
+        ]);
+
+        \App\Services\AuditLogger::log('created', 'comments', $commentId, null, [
+            'thread_id' => $threadId,
+            'text'      => trim($request->input('text')),
         ]);
 
         return $this->getReturnRedirect($thread, 'Komentář byl přidán.');
@@ -183,6 +188,12 @@ class CommentController extends Controller
             'text' => trim($request->input('text')),
         ]);
 
+        \App\Services\AuditLogger::log('updated', 'comments', $id, [
+            'text' => $comment->text,
+        ], [
+            'text' => trim($request->input('text')),
+        ]);
+
         return $this->getReturnRedirect($thread, 'Komentář byl upraven.');
     }
 
@@ -195,6 +206,11 @@ class CommentController extends Controller
         $thread  = $this->getThread($comment->comments_thread_id);
 
         DB::table('comments')->where('id', $id)->delete();
+
+        \App\Services\AuditLogger::log('deleted', 'comments', $id, [
+            'thread_id' => $comment->comments_thread_id,
+            'text'      => $comment->text,
+        ], null);
 
         return $this->getReturnRedirect($thread, 'Komentář byl smazán.');
     }

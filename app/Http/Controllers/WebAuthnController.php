@@ -155,6 +155,13 @@ class WebAuthnController extends Controller
             ->where('user_id', Auth::id())
             ->delete();
 
+        if ($deleted) {
+            // Bulk delete nespustí model events — logujeme ručně (bezpečnostní událost).
+            \App\Services\AuditLogger::log('deleted', 'webauthn_credentials', $id, [
+                'user_id' => Auth::id(),
+            ], null);
+        }
+
         return response()->json(['ok' => (bool) $deleted]);
     }
 

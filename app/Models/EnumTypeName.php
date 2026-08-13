@@ -6,6 +6,8 @@ use Illuminate\Database\Eloquent\Model;
 
 class EnumTypeName extends Model
 {
+    use \App\Models\Concerns\Auditable;
+
     public $timestamps = false;
     protected $table = 'enum_type_names';
     protected $fillable = ['type_name'];

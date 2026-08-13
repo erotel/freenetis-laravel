@@ -71,6 +71,12 @@ class MessageAutoSettingController extends Controller
             'send_activation_to_email' => $validated['send_activation_to_email'] ?? '',
         ]);
 
+        \App\Services\AuditLogger::log('created', 'messages_automatical_activations', $messageId, null, [
+            'message_id' => $messageId,
+            'type'       => $validated['type'],
+            'attribute'  => $validated['attribute'] ?? '',
+        ]);
+
         return redirect()->route('message-auto-settings.index', $messageId)
             ->with('success', 'Pravidlo automatické aktivace bylo přidáno.');
     }
@@ -114,6 +120,12 @@ class MessageAutoSettingController extends Controller
                 'send_activation_to_email' => $validated['send_activation_to_email'] ?? '',
             ]);
 
+        \App\Services\AuditLogger::log('updated', 'messages_automatical_activations', $id, null, [
+            'message_id' => $messageId,
+            'type'       => $validated['type'],
+            'attribute'  => $validated['attribute'] ?? '',
+        ]);
+
         return redirect()->route('message-auto-settings.index', $messageId)
             ->with('success', 'Pravidlo bylo upraveno.');
     }
@@ -124,6 +136,9 @@ class MessageAutoSettingController extends Controller
         DB::table('messages_automatical_activations')
             ->where('id', $id)->where('message_id', $messageId)
             ->delete();
+        \App\Services\AuditLogger::log('deleted', 'messages_automatical_activations', $id, [
+            'message_id' => $messageId,
+        ], null);
         return redirect()->route('messages.show', $messageId)
             ->with('success', 'Pravidlo bylo smazáno.');
     }

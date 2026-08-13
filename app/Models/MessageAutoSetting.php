@@ -5,6 +5,8 @@ use Illuminate\Database\Eloquent\Model;
 
 class MessageAutoSetting extends Model
 {
+    use \App\Models\Concerns\Auditable;
+
     public $timestamps = false;
     protected $table   = 'messages_automatical_activations';
     protected $fillable = [

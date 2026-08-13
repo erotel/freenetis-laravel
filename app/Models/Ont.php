@@ -9,6 +9,8 @@ use App\Models\User;
 
 class Ont extends Model
 {
+    use \App\Models\Concerns\Auditable;
+
     protected $table = 'onts';
 
     protected $fillable = [
