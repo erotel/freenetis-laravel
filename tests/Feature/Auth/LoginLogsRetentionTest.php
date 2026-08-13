@@ -51,4 +51,10 @@ class LoginLogsRetentionTest extends DatabaseTestCase
 
         $this->assertNotNull(DB::table('login_logs')->where('id', $oldId)->first());
     }
+
+    /** Retence legacy `logs` (partition drop) — dry-run proběhne bez chyby. */
+    public function test_legacy_logs_prune_dry_run_probehne(): void
+    {
+        $this->assertSame(0, Artisan::call('logs:prune-legacy', ['--dry-run' => true]));
+    }
 }

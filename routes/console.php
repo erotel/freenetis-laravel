@@ -66,3 +66,7 @@ Schedule::command('audit:maintain-partitions')->dailyAt('02:15');
 // Retence login_logs (NIS2/ZoKB): denně smazat přihlašovací záznamy starší než
 // login_logs_retention_months (default 24; 0 = vypnuto).
 Schedule::command('login-logs:prune')->dailyAt('02:20');
+
+// Retence zmrazené legacy tabulky logs (starý Kohana audit): denně dropnout
+// partitions starší než audit.retention_months (default 24; 0 = vypnuto).
+Schedule::command('logs:prune-legacy')->dailyAt('02:25');
