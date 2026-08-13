@@ -8,7 +8,7 @@ use Illuminate\Support\Facades\Log;
 
 class DeductFees extends Command
 {
-    protected $signature   = 'fees:deduct {--date= : Date YYYY-MM-DD, defaults to today} {--force : Skip enabled/day checks}';
+    protected $signature   = 'fees:deduct {--date= : Date YYYY-MM-DD, defaults to today} {--force : Skip enabled/day checks} {--member= : Jen tento člen (ladění/test)}';
     protected $description = 'Monthly fee deduction: member fees, entrance fees, device fees';
 
     // Transfer types (matches Kohana Transfer_Model constants)
@@ -75,12 +75,14 @@ class DeductFees extends Command
             return 1;
         }
 
+        $only = $this->option('member') ? (int) $this->option('member') : null;
+
         $deducted = 0;
-        $deducted += $this->deductMemberFees($date, $orgOperating);
+        $deducted += $this->deductMemberFees($date, $orgOperating, $only);
         // Dodatečné služby po členském poplatku — členský má přednost na kredit.
-        $deducted += $this->deductAdditionalServiceFees($date, $orgOperating);
-        $deducted += $this->deductEntranceFees($date, $orgInfrastructure);
-        $deducted += $this->deductDeviceFees($date, $orgOperating);
+        $deducted += $this->deductAdditionalServiceFees($date, $orgOperating, $only);
+        $deducted += $this->deductEntranceFees($date, $orgInfrastructure, $only);
+        $deducted += $this->deductDeviceFees($date, $orgOperating, $only);
 
         $this->info("Done. Total deductions: {$deducted}");
 
@@ -96,8 +98,9 @@ class DeductFees extends Command
         return 0;
     }
 
-    private function deductMemberFees(string $date, int $orgAccount): int
+    private function deductMemberFees(string $date, int $orgAccount, ?int $only = null): int
     {
+        $mf = $only ? " AND m.id = {$only}" : '';
         // Výchozí poplatek dle nastavení (Settings → Finance), fallback na fees tabulku
         $defaultFeeIdType2  = (int) Setting::get('default_fee_member_type_2', 0);
         $defaultFeeIdType90 = (int) Setting::get('default_fee_member_type_90', 0);
@@ -137,7 +140,7 @@ class DeductFees extends Command
             LEFT JOIN speed_classes sc ON sc.id = m.speed_class_id
             LEFT JOIN transfers t ON t.origin_id = a.id
                 AND t.type = :type AND t.datetime = :date3
-            WHERE m.id <> 1
+            WHERE m.id <> 1{$mf}
               AND a.account_attribute_id = :credit
               AND m.entrance_date < :date4
               AND (m.leaving_date = '0000-00-00' OR m.leaving_date = '9999-12-31' OR m.leaving_date > :date5)
@@ -248,8 +251,9 @@ class DeductFees extends Command
      *
      * Idempotence: LEFT JOIN transfers where type=6 and datetime=$date (exact).
      */
-    private function deductAdditionalServiceFees(string $date, int $orgAccount): int
+    private function deductAdditionalServiceFees(string $date, int $orgAccount, ?int $only = null): int
     {
+        $mf = $only ? " AND m.id = {$only}" : '';
         $accounts = DB::select("
             SELECT a.id AS account_id, a.balance, m.id AS member_id,
                 (
@@ -278,7 +282,7 @@ class DeductFees extends Command
             JOIN members m ON a.member_id = m.id
             LEFT JOIN transfers t ON t.origin_id = a.id
                 AND t.type = :type AND t.datetime = :date3
-            WHERE m.id <> 1
+            WHERE m.id <> 1{$mf}
               AND a.account_attribute_id = :credit
               AND m.entrance_date < :date4
               AND (m.leaving_date = '0000-00-00' OR m.leaving_date = '9999-12-31' OR m.leaving_date > :date5)
@@ -346,8 +350,9 @@ class DeductFees extends Command
         return $count;
     }
 
-    private function deductEntranceFees(string $date, int $orgAccount): int
+    private function deductEntranceFees(string $date, int $orgAccount, ?int $only = null): int
     {
+        $mf = $only ? " AND m.id = {$only}" : '';
         // debt = entrance_fee - SUM(already paid type=2 transfers)
         // rate = members.debt_payment_rate (per-member column)
         // exclude: applicants (type=1), former members (type=15) whose leaving_date has passed
@@ -361,7 +366,7 @@ class DeductFees extends Command
                 FROM accounts a
                 JOIN members m ON a.member_id = m.id
                 LEFT JOIN transfers t ON t.origin_id = a.id AND t.type = :type1
-                WHERE a.account_attribute_id = :credit
+                WHERE a.account_attribute_id = :credit{$mf}
                   AND m.entrance_fee > 0
                   AND m.type <> :applicant
                   AND m.type <> :former_customer
@@ -442,8 +447,9 @@ class DeductFees extends Command
         return $count;
     }
 
-    private function deductDeviceFees(string $date, int $orgAccount): int
+    private function deductDeviceFees(string $date, int $orgAccount, ?int $only = null): int
     {
+        $mf = $only ? " AND m.id = {$only}" : '';
         // debt = device.price - SUM(already paid type=5 transfers)
         // rate = devices.payment_rate
         // idempotency: exclude accounts that already have a type=5 transfer with datetime=$date
@@ -461,7 +467,7 @@ class DeductFees extends Command
                 WHERE a.id NOT IN (
                     SELECT t2.origin_id FROM transfers t2
                     WHERE t2.type = :type2 AND t2.datetime = :date1
-                )
+                ){$mf}
                 GROUP BY a.id
             ) a
             JOIN accounts ac ON ac.id = a.id
