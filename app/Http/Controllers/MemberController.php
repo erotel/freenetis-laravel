@@ -312,10 +312,30 @@ class MemberController extends Controller
                 ->get();
         }
 
+        // Zámek přihlášení: pokud je některý uživatel člena zamčený po neúspěšných
+        // pokusech, ukázat to rovnou na kartě člena (ať to admin nehledá v users).
+        $canUnlockLogin = $this->aclCheck('edit_all', 'Users_Controller', 'users');
+        $lockedUsers    = [];
+        if ($canUnlockLogin) {
+            $lockService = app(\App\Services\LoginLockService::class);
+            foreach ($member->users as $u) {
+                $st = $lockService->status((int) $u->id);
+                if ($st['locked_until']) {
+                    $lockedUsers[] = [
+                        'id'           => $u->id,
+                        'login'        => $u->login,
+                        'locked_until' => $st['locked_until'],
+                    ];
+                }
+            }
+        }
+
         return view('members.show', [
             'member'              => $member,
             'canViewAudit'        => $canViewAudit,
             'auditHistory'        => $auditHistory,
+            'canUnlockLogin'      => $canUnlockLogin,
+            'lockedUsers'         => $lockedUsers,
             'variableSymbols'     => $variableSymbols,
             'creditAccount'       => $creditAccount,
             'activeMemberFee'     => $activeMemberFee,

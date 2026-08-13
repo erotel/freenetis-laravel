@@ -133,7 +133,30 @@ class UserController extends Controller
             'canViewLoginLogs'     => $this->aclCheck('view_all', 'Login_logs_Controller', 'logs'),
             'mfaEnabled'           => app(\App\Services\MfaService::class)->isEnabled((int) $user->id),
             'canResetMfa'          => $this->can('edit_all'),
+            'loginLock'            => app(\App\Services\LoginLockService::class)->status((int) $user->id),
+            'canUnlockLogin'       => $this->can('edit_all'),
         ]);
+    }
+
+    /**
+     * Ruční odemčení účtu zamčeného po opakovaných neúspěšných přihlášeních.
+     * Auditováno.
+     */
+    public function unlockLogin(int $id)
+    {
+        abort_unless($this->can('edit_all'), 403);
+
+        $user = User::findOrFail($id);
+        app(\App\Services\LoginLockService::class)->unlock((int) $user->id);
+
+        \App\Services\AuditLogger::log('login_unlock', 'users', (int) $user->id, null, [
+            'by_user_id' => auth()->id(),
+        ]);
+        logger()->info('auth.account.admin_unlock', [
+            'user_id' => $user->id, 'by' => auth()->id(), 'ip' => request()->ip(),
+        ]);
+
+        return back()->with('success', 'Účet byl odemčen.');
     }
 
     /**

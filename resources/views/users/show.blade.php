@@ -30,9 +30,24 @@
             <button class="m-btn m-btn-danger" title="Když uživatel ztratil telefon i záložní kódy">Resetovat MFA</button>
         </form>
     @endif
+    @if($canUnlockLogin && $loginLock['locked_until'])
+        <form method="POST" action="{{ route('users.login_unlock', $user->id) }}" style="display:inline">
+            @csrf
+            <button class="m-btn m-btn-success" title="Zrušit dočasný zámek po neúspěšných přihlášeních">Odemknout účet</button>
+        </form>
+    @endif
 </div>
 @if($mfaEnabled)
     <div style="font-size:13px;color:#1a7f37;margin-top:-6px;margin-bottom:8px">🔒 Dvoufázové přihlášení: zapnuto</div>
+@endif
+@if($loginLock['locked_until'])
+    <div style="font-size:13px;color:#b02a37;margin-top:-6px;margin-bottom:8px">
+        🔒 Účet uzamčen po neúspěšných přihlášeních do {{ $loginLock['locked_until']->format('d.m.Y H:i') }}
+    </div>
+@elseif($loginLock['failed_count'] > 0)
+    <div style="font-size:13px;color:#9a6700;margin-top:-6px;margin-bottom:8px">
+        Neúspěšných pokusů o přihlášení: {{ $loginLock['failed_count'] }}
+    </div>
 @endif
 
 <div class="m-grid2">

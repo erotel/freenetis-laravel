@@ -37,6 +37,20 @@
 </div>
 <div class="member-id">ID člena: {{ $member->id }}</div>
 
+{{-- Upozornění: uzamčený login uživatele (po neúspěšných pokusech) --}}
+@if($canUnlockLogin && !empty($lockedUsers))
+    @foreach($lockedUsers as $lu)
+    <div style="background:#fdecef;border:1px solid #f5c6cb;border-radius:6px;padding:10px 12px;margin:10px 0;display:flex;flex-wrap:wrap;gap:8px;align-items:center">
+        <span style="color:#b02a37;font-weight:600">🔒 Účet „{{ $lu['login'] }}" je uzamčen</span>
+        <span style="color:#7a2530;font-size:14px">po neúspěšných přihlášeních do {{ $lu['locked_until']->format('d.m.Y H:i') }}.</span>
+        <form method="POST" action="{{ route('users.login_unlock', $lu['id']) }}" style="margin-left:auto">
+            @csrf
+            <button class="m-btn m-btn-success">Odemknout účet</button>
+        </form>
+    </div>
+    @endforeach
+@endif
+
 {{-- Akční tlačítka --}}
 <div class="m-actions">
     @if($canEdit)

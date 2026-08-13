@@ -67,7 +67,30 @@ class LoginController extends Controller
         // hashe a members.locked (stejně jako Auth::attempt).
         $provider = Auth::getProvider();
         $user = $provider->retrieveByCredentials($credentials);
+
+        // Trvalý zámek účtu po N selháních — pokud je účet zamčený, odmítnout
+        // i se správným heslem (dokud zámek nevyprší / admin neodemkne).
+        $lock = app(\App\Services\LoginLockService::class);
+        if ($user && $lock->isLocked((int) $user->id)) {
+            $until = $lock->lockedUntil((int) $user->id);
+            $mins  = $until ? max(1, (int) ceil(now()->diffInSeconds($until) / 60)) : $lock->lockMinutes();
+            logger()->warning('auth.account.locked_attempt', ['user_id' => $user->id, 'ip' => $request->ip()]);
+            return back()
+                ->withInput($request->only('login'))
+                ->withErrors(['login' => __('Účet je dočasně uzamčen kvůli opakovaným neúspěšným pokusům. Zkuste to znovu za :m min.', ['m' => $mins])]);
+        }
+
         if (!$user || !$provider->validateCredentials($user, $credentials)) {
+            // Zaznamenat selhání a případně zamknout účet (jen když uživatel existuje).
+            if ($user) {
+                if ($lock->recordFailure((int) $user->id)) {
+                    logger()->warning('auth.account.locked', ['user_id' => $user->id, 'ip' => $request->ip()]);
+                    \App\Services\AuditLogger::log('account_locked', 'users', (int) $user->id, null, [
+                        'reason'  => 'failed_logins',
+                        'minutes' => $lock->lockMinutes(),
+                    ]);
+                }
+            }
             RateLimiter::hit($loginKey, self::LOGIN_DECAY_SECONDS);
             logger()->warning('auth.login.failed', [
                 'login'    => $credentials['login'],
@@ -81,6 +104,7 @@ class LoginController extends Controller
                 ->withErrors(['login' => __('Nesprávné přihlašovací jméno nebo heslo, nebo je účet zablokován.')]);
         }
 
+        $lock->clear((int) $user->id);
         RateLimiter::clear($loginKey);
 
         // Má uživatel zapnutý druhý faktor? Pak NEpřihlašovat rovnou — jen si

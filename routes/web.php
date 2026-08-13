@@ -354,6 +354,8 @@ Route::middleware('auth')->group(function () {
     Route::post('mfa/disable', [MfaController::class, 'disable'])->name('mfa.disable');
     // Admin reset cizího MFA.
     Route::post('users/{id}/mfa/reset', [UserController::class, 'resetMfa'])->name('users.mfa.reset');
+    // Admin odemčení účtu zamčeného po neúspěšných přihlášeních.
+    Route::post('users/{id}/unlock', [UserController::class, 'unlockLogin'])->name('users.login_unlock');
     Route::get('users', [UserController::class, 'index'])->name('users.index')
         ->middleware('acl:view_all,Users_Controller,users');
     Route::resource('users', UserController::class)->except(['index']);
