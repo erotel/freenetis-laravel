@@ -108,6 +108,44 @@ class AuditLoggerTest extends DatabaseTestCase
         $this->assertSame('deleted', $deleted->action);
     }
 
+    public function test_preskoci_telemetrii_access_time(): void
+    {
+        // Update, kde se mění JEN telemetrie (access_time), se nezaloguje.
+        $before = DB::table('audit_logs')->count();
+        AuditLogger::log('updated', 'devices', 991001,
+            ['access_time' => '2026-08-13 10:00:00'],
+            ['access_time' => '2026-08-13 10:01:00']);
+        $this->assertSame($before, DB::table('audit_logs')->count(), 'telemetrický update se neměl zalogovat');
+
+        // Když se mění i něco smysluplného, zaloguje se — ale bez access_time.
+        AuditLogger::log('updated', 'devices', 991001,
+            ['access_time' => 'x', 'name' => 'Staré'],
+            ['access_time' => 'y', 'name' => 'Nové']);
+        $new = json_decode($this->lastFor('devices', 991001)->new_values, true);
+        $this->assertArrayNotHasKey('access_time', $new);
+        $this->assertSame('Nové', $new['name']);
+
+        // Subnet: změna jen DHCP-flagů (setExpired po změně IP) se nezaloguje.
+        $before2 = DB::table('audit_logs')->count();
+        AuditLogger::log('updated', 'subnets', 991002,
+            ['dhcp_expired' => 0, 'dhcp_changed_at' => '2026-08-13 10:00:00'],
+            ['dhcp_expired' => 1, 'dhcp_changed_at' => '2026-08-13 10:08:00']);
+        $this->assertSame($before2, DB::table('audit_logs')->count(), 'DHCP-flag update se neměl zalogovat');
+    }
+
+    public function test_setting_heartbeat_klice_se_neauditji(): void
+    {
+        $count = fn() => DB::table('audit_logs')->where('auditable_type', 'config')->count();
+
+        $before = $count();
+        \App\Models\Setting::set('cron_last_active', (string) time());
+        $this->assertSame($before, $count(), 'heartbeat klíč cron_last_active se neměl zalogovat');
+
+        // Smysluplné nastavení se naopak auditovat MÁ.
+        \App\Models\Setting::set('audit_test_klic_' . uniqid(), 'hodnota');
+        $this->assertGreaterThan($before, $count(), 'změna běžného nastavení se měla zalogovat');
+    }
+
     public function test_udrzba_partitions_dry_run_probehne(): void
     {
         $code = Artisan::call('audit:maintain-partitions', ['--dry-run' => true]);

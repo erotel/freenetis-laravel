@@ -58,6 +58,12 @@ return [
     'exclude_columns' => [
         'created_at',
         'updated_at',
+        // Telemetrie / machine-heartbeat — píše se automaticky, bez auditní
+        // hodnoty. Když se ve změně mění JEN tyto sloupce, audit se přeskočí.
+        'access_time',      // devices: „naposledy se ozval" (MikroTik poll pro DHCP config)
+        'last_update',      // allowed_subnets: čas posledního sync
+        'dhcp_expired',     // subnets: flag „přegenerovat DHCP" (Subnet::setExpired po změně IP)
+        'dhcp_changed_at',  // subnets: čas poslední změny DHCP
     ],
 
     /*

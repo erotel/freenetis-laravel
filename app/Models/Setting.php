@@ -70,4 +70,26 @@ class Setting extends Model
         }
         static::updateOrCreate(['name' => $name], ['value' => $stored]);
     }
+
+    /**
+     * `config` je key/value tabulka — kromě smysluplných nastavení (které
+     * auditovat CHCEME) obsahuje i systémové/heartbeat klíče, jež se přepisují
+     * automaticky (cron každou minutu, redirect sync). Ty do auditu nepatří:
+     * je to šum bez odpovědnosti („kdo") a zaplavily by log.
+     */
+    public function auditShouldSkip(string $action): bool
+    {
+        $name = (string) ($this->name ?? '');
+
+        $systemKeys = [
+            'cron_last_active', 'cron_state', 'redirection_state',
+            'sledovanitv_last_sync', 'sledovanitv_last_sync_status',
+        ];
+        if (in_array($name, $systemKeys, true)) {
+            return true;
+        }
+
+        // Budoucí telemetrie stejného typu (…_last_active / …_last_sync / …_heartbeat).
+        return (bool) preg_match('/(_last_active|_last_sync|_last_run|_heartbeat)$/', $name);
+    }
 }

@@ -21,6 +21,9 @@ trait Auditable
     public static function bootAuditable(): void
     {
         static::created(function ($model) {
+            if (self::auditSkips($model, 'created')) {
+                return;
+            }
             AuditLogger::log(
                 AuditLogger::CREATED,
                 $model->getTable(),
@@ -31,6 +34,9 @@ trait Auditable
         });
 
         static::updated(function ($model) {
+            if (self::auditSkips($model, 'updated')) {
+                return;
+            }
             $changes = $model->getChanges();
             if (empty($changes)) {
                 return;
@@ -51,6 +57,9 @@ trait Auditable
         });
 
         static::deleted(function ($model) {
+            if (self::auditSkips($model, 'deleted')) {
+                return;
+            }
             AuditLogger::log(
                 AuditLogger::DELETED,
                 $model->getTable(),
@@ -59,6 +68,15 @@ trait Auditable
                 null
             );
         });
+    }
+
+    /**
+     * Model může potlačit audit konkrétní změny (např. machine-heartbeat řádky
+     * v key/value tabulce) definováním `auditShouldSkip(string $action): bool`.
+     */
+    protected static function auditSkips($model, string $action): bool
+    {
+        return method_exists($model, 'auditShouldSkip') && $model->auditShouldSkip($action);
     }
 
     /** Primární klíč jako int (null, pokud není číselný). */
