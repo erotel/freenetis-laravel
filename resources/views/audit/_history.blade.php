@@ -9,11 +9,13 @@
         'notified' => 'Notifikace', 'fee_deduction' => 'Stržení poplatků',
         'backcharge' => 'Dobírka', 'auto_former' => 'Auto: bývalý člen',
         'auto_pending_termination' => 'Auto: k ukončení',
+        'device_removed' => 'Smazání zařízení',
     ];
     $auditColors = [
         'created' => ['#1a7f37', '#e6f4ea'],
         'updated' => ['#9a6700', '#fff8e1'],
         'deleted' => ['#b02a37', '#fdecef'],
+        'device_removed' => ['#b02a37', '#fdecef'],
     ];
     // Vlastní akce (ne create/update/delete) → neutrální modrý badge.
     $auditNeutral = ['#1f5fbf', '#e8f0fe'];
@@ -27,8 +29,19 @@
     };
 @endphp
 
-<div class="m-section">Historie změn</div>
-<div class="m-card" style="margin-bottom:16px">
+@php $collapsible = $collapsible ?? false; @endphp
+@if($collapsible)
+<details style="margin-bottom:16px">
+    <summary style="cursor:pointer;font-weight:600;font-size:16px;color:#333;padding:8px 0;user-select:none">
+        Historie změn @if($entries->isNotEmpty())<span style="color:#999;font-weight:400;font-size:14px">({{ $entries->count() }})</span>@endif
+    </summary>
+    <div class="m-card" style="margin-top:8px;margin-bottom:0">
+@else
+    @if(($showHeading ?? true))
+    <div class="m-section">Historie změn</div>
+    @endif
+    <div class="m-card" style="margin-bottom:16px">
+@endif
     @if($entries->isEmpty())
         <div style="font-size:15px;color:#888;padding:4px 0">Žádné zaznamenané změny.</div>
     @else
@@ -100,4 +113,7 @@
         </table>
     </div>
     @endif
-</div>
+    </div>
+@if($collapsible)
+</details>
+@endif

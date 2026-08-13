@@ -277,10 +277,16 @@ class MemberController extends Controller
         if ($canViewAudit) {
             $userIds    = $member->users->pluck('id')->all();
             $allowedIds = DB::table('allowed_subnets')->where('member_id', $id)->pluck('id')->all();
+            // Zařízení člena (přes jeho uživatele) — pro create/update, které mají živé ID.
+            // Smazání zařízení se navíc loguje member-keyed (viz DeviceController::destroy),
+            // protože smazaný řádek už v `devices` není a přes ID by se nedohledal.
+            $deviceIds = !empty($userIds)
+                ? DB::table('devices')->whereIn('user_id', $userIds)->pluck('id')->all()
+                : [];
 
             $auditHistory = DB::table('audit_logs as a')
                 ->leftJoin('users as u', 'u.id', '=', 'a.user_id')
-                ->where(function ($q) use ($id, $userIds, $allowedIds) {
+                ->where(function ($q) use ($id, $userIds, $allowedIds, $deviceIds) {
                     $q->where(function ($x) use ($id) {
                         $x->where('a.auditable_type', 'members')->where('a.auditable_id', $id);
                     });
@@ -292,6 +298,11 @@ class MemberController extends Controller
                     if (!empty($allowedIds)) {
                         $q->orWhere(function ($x) use ($allowedIds) {
                             $x->where('a.auditable_type', 'allowed_subnets')->whereIn('a.auditable_id', $allowedIds);
+                        });
+                    }
+                    if (!empty($deviceIds)) {
+                        $q->orWhere(function ($x) use ($deviceIds) {
+                            $x->where('a.auditable_type', 'devices')->whereIn('a.auditable_id', $deviceIds);
                         });
                     }
                 })

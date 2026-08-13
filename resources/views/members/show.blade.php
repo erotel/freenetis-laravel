@@ -678,7 +678,7 @@
 @endif
 
 @if($canViewAudit)
-    @include('audit._history', ['entries' => $auditHistory])
+    @include('audit._history', ['entries' => $auditHistory, 'collapsible' => true])
 @endif
 
 </div>

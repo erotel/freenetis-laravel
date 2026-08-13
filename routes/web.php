@@ -26,6 +26,7 @@ use App\Http\Controllers\StreetController;
 use App\Http\Controllers\TownController;
 use App\Http\Controllers\UserController;
 use App\Http\Controllers\AroGroupController;
+use App\Http\Controllers\AuditLogController;
 use App\Http\Controllers\SpeedClassController;
 use App\Http\Controllers\AllowedSubnetController;
 use App\Http\Controllers\SavedFilterController;
@@ -475,6 +476,9 @@ Route::middleware('auth')->group(function () {
     Route::get('acl/{id}/edit',    [AroGroupController::class, 'aclEdit'])->name('acl.edit');
     Route::put('acl/{id}',         [AroGroupController::class, 'aclUpdate'])->name('acl.update');
     Route::delete('acl/{id}',      [AroGroupController::class, 'aclDestroy'])->name('acl.destroy');
+
+    Route::get('audit', [AuditLogController::class, 'index'])->name('audit.index')
+        ->middleware('acl:view_all,Aro_groups_Controller,aro_group');
 
     Route::get('aro-groups', [AroGroupController::class, 'index'])->name('aro-groups.index')
         ->middleware('acl:view_all,Aro_groups_Controller,aro_group');

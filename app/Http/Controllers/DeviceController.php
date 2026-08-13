@@ -841,12 +841,15 @@ class DeviceController extends Controller
         // Posbíráme subnety dotčené smazáním (aby ->ipAddresses()->delete()
         // jako mass-delete bez Eloquent eventů nezamlčel dhcp_expired flag).
         $touchedSubnetIds = [];
+        $removedIps = [];
         foreach ($device->ifaces as $iface) {
             foreach ($iface->ipAddresses as $ip) {
                 if ($ip->subnet_id) $touchedSubnetIds[$ip->subnet_id] = true;
+                if ($ip->ip_address) $removedIps[] = $ip->ip_address;
             }
         }
 
+        $deviceName = $device->name;
         DB::transaction(function () use ($device) {
             foreach ($device->ifaces as $iface) {
                 $iface->ip6Addresses()->delete();
@@ -855,6 +858,17 @@ class DeviceController extends Controller
             $device->ifaces()->delete();
             $device->delete();
         });
+
+        // Trait zaloguje smazání device-centricky, ale rozhraní/IP se mažou hromadně
+        // (bez eventů) a smazané zařízení už nedohledáme přes živé ID. Proto navíc
+        // member-keyed záznam s IP adresami — aby bylo smazání vidět na kartě člena.
+        if ($memberId) {
+            \App\Services\AuditLogger::log('device_removed', 'members', $memberId, [
+                'device_id'   => $id,
+                'device_name' => $deviceName,
+                'ip_adresy'   => $removedIps,
+            ], null);
+        }
 
         foreach (array_keys($touchedSubnetIds) as $sid) {
             Subnet::find($sid)?->setExpired();

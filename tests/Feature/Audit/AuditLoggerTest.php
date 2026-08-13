@@ -135,6 +135,27 @@ class AuditLoggerTest extends DatabaseTestCase
         $this->assertSame(42, json_decode($row->new_values, true)['deductions']);
     }
 
+    /** Historie člena zahrnuje zařízení (device-keyed) i smazání (member-keyed device_removed). */
+    public function test_historie_clena_zahrnuje_zarizeni_a_smazani(): void
+    {
+        $member   = (int) DB::table('members')->where('id', '>', 1)->orderBy('id')->value('id');
+        $deviceId = 999123; // audit_logs nemá FK — nepotřebujeme reálný řádek v devices
+
+        AuditLogger::log('created', 'devices', $deviceId, null, ['name' => 'AUDIT-DEV']);
+        AuditLogger::log('device_removed', 'members', $member, ['device_id' => $deviceId, 'ip_adresy' => ['10.0.0.9']], null);
+
+        // Replikace agregace z MemberController::show (deviceIds větev).
+        $rows = DB::table('audit_logs as a')
+            ->where(function ($q) use ($member, $deviceId) {
+                $q->where(fn($x) => $x->where('a.auditable_type', 'members')->where('a.auditable_id', $member))
+                  ->orWhere(fn($x) => $x->where('a.auditable_type', 'devices')->whereIn('a.auditable_id', [$deviceId]));
+            })
+            ->get();
+
+        $this->assertTrue($rows->contains(fn($r) => $r->action === 'device_removed'), 'chybí member-keyed device_removed');
+        $this->assertTrue($rows->contains(fn($r) => $r->auditable_type === 'devices' && $r->action === 'created'), 'chybí device-keyed created');
+    }
+
     /** Agregační dotaz historie člena (members + jeho allowed_subnets) — platné SQL. */
     public function test_dotaz_historie_clena_agreguje_typy(): void
     {
