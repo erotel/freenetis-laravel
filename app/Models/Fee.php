@@ -6,6 +6,8 @@ use Illuminate\Database\Eloquent\Model;
 
 class Fee extends Model
 {
+    use \App\Models\Concerns\Auditable;
+
     public $timestamps = false;
     protected $table = 'fees';
     protected $fillable = ['readonly', 'archived', 'fee', 'from', 'to', 'type_id', 'name', 'special_type_id'];

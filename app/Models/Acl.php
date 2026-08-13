@@ -6,6 +6,8 @@ use Illuminate\Database\Eloquent\Model;
 
 class Acl extends Model
 {
+    use \App\Models\Concerns\Auditable;
+
     public $timestamps = false;
     protected $table = 'acl';
     protected $fillable = ['note', 'allow', 'enabled'];

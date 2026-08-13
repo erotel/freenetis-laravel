@@ -7,6 +7,8 @@ use Illuminate\Database\Eloquent\SoftDeletes;
 
 class BankTransfer extends Model
 {
+    use \App\Models\Concerns\Auditable;
+
     use SoftDeletes;
 
     public $timestamps = false;

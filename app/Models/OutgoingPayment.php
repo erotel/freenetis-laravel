@@ -6,6 +6,8 @@ use Illuminate\Database\Eloquent\Model;
 
 class OutgoingPayment extends Model
 {
+    use \App\Models\Concerns\Auditable;
+
     protected $table = 'outgoing_payments';
 
     const STATUS_DRAFT     = 'draft';

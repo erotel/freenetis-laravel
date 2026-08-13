@@ -475,6 +475,13 @@ class MemberController extends Controller
             }
         });
 
+        \App\Services\AuditLogger::log('created', 'members', $memberId, null, [
+            'name'          => $request->surname ? trim($request->name . ' ' . $request->surname) : $request->name,
+            'type'          => $request->type,
+            'entrance_date' => $request->entrance_date,
+            'login'         => $request->login,
+        ]);
+
         return redirect()->route('members.show', $memberId)
             ->with('success', 'Člen byl úspěšně vytvořen.');
     }
@@ -614,6 +621,7 @@ class MemberController extends Controller
                 DB::table('members')->where('id', $id)->delete();
             });
             $this->purgeUnsignedContracts($id);
+            \App\Services\AuditLogger::log('deleted', 'members', $id, (array) $member, null);
             return redirect()->route('members.index')
                 ->with('success', 'Čekající člen byl smazán.');
         }
@@ -628,6 +636,17 @@ class MemberController extends Controller
                 'locked'         => 1,
                 'leaving_date'   => $leaving,
                 'speed_class_id' => null, // bývalý člen → rychlost „žádná"
+            ]);
+            \App\Services\AuditLogger::log('updated', 'members', $id, [
+                'type'           => $member->type,
+                'locked'         => $member->locked,
+                'leaving_date'   => $member->leaving_date,
+                'speed_class_id' => $member->speed_class_id,
+            ], [
+                'type'           => $newType,
+                'locked'         => 1,
+                'leaving_date'   => $leaving,
+                'speed_class_id' => null,
             ]);
             // Individuální tarif a dodatečné služby ukončit k datu odchodu.
             \App\Services\MemberFeesTermination::deactivate($id, $leaving);
@@ -689,6 +708,7 @@ class MemberController extends Controller
         });
 
         $this->purgeUnsignedContracts($id);
+        \App\Services\AuditLogger::log('deleted', 'members', $id, (array) $member, null);
 
         return redirect()->route('members.index')
             ->with('success', 'Člen a všechna jeho data byla trvale smazána.');
@@ -949,6 +969,16 @@ class MemberController extends Controller
                 'payment_blocked_since' => null,
                 'pending_termination'   => 0,
                 'speed_class_id'        => null, // bývalý člen → rychlost „žádná"
+            ]);
+            \App\Services\AuditLogger::log('updated', 'members', $id, [
+                'type'         => $member->type,
+                'locked'       => $member->locked,
+                'leaving_date' => $member->leaving_date,
+            ], [
+                'type'         => $newType,
+                'locked'       => $lockNow,
+                'leaving_date' => $validated['leaving_date'],
+                'end_mode'     => $endMode,
             ]);
             // Když měl aktivní payment_blocked redirect, smaž ho.
             app(\App\Services\PaymentBlockedRedirectService::class)->refreshForMember($id);

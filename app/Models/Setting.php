@@ -8,6 +8,8 @@ use Illuminate\Support\Facades\Crypt;
 
 class Setting extends Model
 {
+    use \App\Models\Concerns\Auditable;
+
     public $timestamps = false;
     protected $table      = 'config';
     protected $primaryKey = 'name';

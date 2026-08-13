@@ -6,6 +6,8 @@ use Illuminate\Database\Eloquent\Model;
 
 class MemberFee extends Model
 {
+    use \App\Models\Concerns\Auditable;
+
     public $timestamps = false;
     protected $table = 'members_fees';
     protected $fillable = ['fee_id', 'member_id', 'activation_date', 'deactivation_date', 'priority', 'comment'];

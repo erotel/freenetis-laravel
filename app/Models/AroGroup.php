@@ -6,6 +6,8 @@ use Illuminate\Database\Eloquent\Model;
 
 class AroGroup extends Model
 {
+    use \App\Models\Concerns\Auditable;
+
     public $timestamps = false;
     protected $table = 'aro_groups';
 

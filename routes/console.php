@@ -58,3 +58,7 @@ Schedule::command('members:mark-pending-termination')->dailyAt('06:30');
 
 // SledovaniTV — denně synchronizovat seznam aktivních TV zákazníků (skips unless module enabled)
 Schedule::command('sledovanitv:sync')->dailyAt('03:30');
+
+// Audit trail (NIS2/ZoKB): denně dopředu vytvořit budoucí měsíční partitions
+// audit_logs a dropnout partitions starší než audit.retention_months.
+Schedule::command('audit:maintain-partitions')->dailyAt('02:15');

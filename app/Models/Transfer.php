@@ -6,6 +6,8 @@ use Illuminate\Database\Eloquent\Model;
 
 class Transfer extends Model
 {
+    use \App\Models\Concerns\Auditable;
+
     const DEDUCT_MEMBER_FEE       = 1;
     const DEDUCT_ENTRANCE_FEE     = 2;
     const DEDUCT_VOIP_UNACCOUNTED = 3;

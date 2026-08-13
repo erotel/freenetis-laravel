@@ -168,6 +168,10 @@ class AroGroupController extends Controller
                 'group_id' => $id,
                 'aro_id'   => $validated['user_id'],
             ]);
+            \App\Services\AuditLogger::log('created', 'groups_aro_map', $id, null, [
+                'group_id' => $id,
+                'user_id'  => (int) $validated['user_id'],
+            ]);
             $this->acl->flushUserCache((int) $validated['user_id']);
         }
 
@@ -183,6 +187,10 @@ class AroGroupController extends Controller
             ->where('group_id', $id)
             ->where('aro_id', $userId)
             ->delete();
+        \App\Services\AuditLogger::log('deleted', 'groups_aro_map', $id, [
+            'group_id' => $id,
+            'user_id'  => $userId,
+        ], null);
         $this->acl->flushUserCache($userId);
 
         return redirect()->route('aro-groups.show', $id)
@@ -207,6 +215,10 @@ class AroGroupController extends Controller
                 'group_id' => $id,
                 'acl_id'   => $validated['acl_id'],
             ]);
+            \App\Services\AuditLogger::log('created', 'aro_groups_map', $id, null, [
+                'group_id' => $id,
+                'acl_id'   => (int) $validated['acl_id'],
+            ]);
             $this->acl->flushAllCache();
         }
 
@@ -222,6 +234,10 @@ class AroGroupController extends Controller
             ->where('group_id', $id)
             ->where('acl_id', $aclId)
             ->delete();
+        \App\Services\AuditLogger::log('deleted', 'aro_groups_map', $id, [
+            'group_id' => $id,
+            'acl_id'   => $aclId,
+        ], null);
         $this->acl->flushAllCache();
 
         return redirect()->route('aro-groups.show', $id)
@@ -282,6 +298,13 @@ class AroGroupController extends Controller
             DB::table('aro_groups_map')->insert(['acl_id' => $aclId, 'group_id' => $groupId]);
         }
 
+        \App\Services\AuditLogger::log('created', 'acl', $aclId, null, [
+            'note'      => $validated['note'],
+            'actions'   => $validated['actions'],
+            'axo_ids'   => $validated['axo_ids'],
+            'group_ids' => $validated['group_ids'] ?? [],
+        ]);
+
         $this->acl->flushAllCache();
 
         return redirect()->route('aro-groups.index')
@@ -324,7 +347,17 @@ class AroGroupController extends Controller
             'group_ids.*' => 'integer|exists:aro_groups,id',
         ]);
 
+        $aclOld = DB::table('acl')->where('id', $id)->value('note');
         DB::table('acl')->where('id', $id)->update(['note' => $validated['note']]);
+
+        \App\Services\AuditLogger::log('updated', 'acl', $id, [
+            'note' => $aclOld,
+        ], [
+            'note'      => $validated['note'],
+            'actions'   => $validated['actions'],
+            'axo_ids'   => $validated['axo_ids'],
+            'group_ids' => $validated['group_ids'] ?? [],
+        ]);
 
         DB::table('aco_map')->where('acl_id', $id)->delete();
         foreach ($validated['actions'] as $action) {
@@ -356,10 +389,12 @@ class AroGroupController extends Controller
     {
         abort_unless($this->can('delete_all'), 403);
 
+        $aclOld = DB::table('acl')->where('id', $id)->value('note');
         DB::table('aco_map')->where('acl_id', $id)->delete();
         DB::table('axo_map')->where('acl_id', $id)->delete();
         DB::table('aro_groups_map')->where('acl_id', $id)->delete();
         DB::table('acl')->where('id', $id)->delete();
+        \App\Services\AuditLogger::log('deleted', 'acl', $id, ['note' => $aclOld], null);
         $this->acl->flushAllCache();
 
         return redirect()->route('aro-groups.index')

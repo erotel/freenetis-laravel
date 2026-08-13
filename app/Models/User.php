@@ -7,6 +7,8 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class User extends Authenticatable
 {
+    use \App\Models\Concerns\Auditable;
+
     protected $table = 'users';
     public $timestamps = false;
 
