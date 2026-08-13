@@ -62,3 +62,7 @@ Schedule::command('sledovanitv:sync')->dailyAt('03:30');
 // Audit trail (NIS2/ZoKB): denně dopředu vytvořit budoucí měsíční partitions
 // audit_logs a dropnout partitions starší než audit.retention_months.
 Schedule::command('audit:maintain-partitions')->dailyAt('02:15');
+
+// Retence login_logs (NIS2/ZoKB): denně smazat přihlašovací záznamy starší než
+// login_logs_retention_months (default 24; 0 = vypnuto).
+Schedule::command('login-logs:prune')->dailyAt('02:20');
