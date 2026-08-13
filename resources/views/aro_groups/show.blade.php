@@ -29,6 +29,27 @@
         </span>
     </div>
     @endif
+    <div class="m-field" style="align-items:center">
+        <span class="m-field-label">Dvoufázové přihlášení</span>
+        <span class="m-field-value">
+            @if($mfaRequired)
+                <span style="color:#1a7f37;font-weight:600">🔒 Povinné</span>
+            @else
+                <span style="color:#888">nepovinné</span>
+            @endif
+            @if($canEdit)
+                <form method="POST" action="{{ route('aro-groups.mfa-required', $group->id) }}" style="display:inline;margin-left:8px">
+                    @csrf
+                    <input type="hidden" name="required" value="{{ $mfaRequired ? 0 : 1 }}">
+                    <button class="m-btn" style="padding:2px 8px;font-size:13px"
+                            onsubmit="return true"
+                            @if(!$mfaRequired) onclick="return confirm('Zapnout povinné MFA pro tuto skupinu? Členové budou při dalším přihlášení vyzváni k nastavení.')" @endif>
+                        {{ $mfaRequired ? 'Vypnout' : 'Zapnout povinné' }}
+                    </button>
+                </form>
+            @endif
+        </span>
+    </div>
 </div>
 
 <div class="m-section">Uživatelé ve skupině</div>

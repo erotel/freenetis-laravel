@@ -509,6 +509,7 @@ Route::middleware('auth')->group(function () {
     Route::delete('aro-groups/{id}',                  [AroGroupController::class, 'destroy'])->name('aro-groups.destroy');
     Route::post('aro-groups/{id}/users',              [AroGroupController::class, 'addUser'])->name('aro-groups.add-user');
     Route::delete('aro-groups/{id}/users/{userId}',   [AroGroupController::class, 'removeUser'])->name('aro-groups.remove-user');
+    Route::post('aro-groups/{id}/mfa-required',        [AroGroupController::class, 'toggleMfaRequired'])->name('aro-groups.mfa-required');
     Route::post('aro-groups/{id}/acls',               [AroGroupController::class, 'addAcl'])->name('aro-groups.add-acl');
     Route::delete('aro-groups/{id}/acls/{aclId}',     [AroGroupController::class, 'removeAcl'])->name('aro-groups.remove-acl');
 

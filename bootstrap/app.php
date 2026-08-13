@@ -28,6 +28,9 @@ return Application::configure(basePath: dirname(__DIR__))
             \App\Http\Middleware\EnsureSetupComplete::class,
             \App\Http\Middleware\EnableDebugForAdmins::class,
             \App\Http\Middleware\SecurityHeaders::class,
+            // MFA fáze B: vynucení pro role s povinným MFA (no-op, dokud není
+            // žádná skupina označená v mfa_required_groups).
+            \App\Http\Middleware\EnsureMfa::class,
         ]);
 
         // Důvěryhodné reverzní proxy (kvůli správné detekci HTTPS a klientské IP

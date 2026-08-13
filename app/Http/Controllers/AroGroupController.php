@@ -71,7 +71,29 @@ class AroGroupController extends Controller
             ->orderBy('id')
             ->get();
 
-        return view('aro_groups.show', compact('group', 'aclRules', 'users', 'allUsers', 'allAcls'));
+        $mfaRequired = app(\App\Services\MfaEnforcementService::class)->isGroupRequired($id);
+        $canEdit     = $this->can('edit_all');
+
+        return view('aro_groups.show', compact('group', 'aclRules', 'users', 'allUsers', 'allAcls', 'mfaRequired', 'canEdit'));
+    }
+
+    /** MFA fáze B: přepnout, zda skupina vyžaduje dvoufázové přihlášení. */
+    public function toggleMfaRequired(Request $request, int $id)
+    {
+        abort_unless($this->can('edit_all'), 403);
+        AroGroup::findOrFail($id);
+
+        $required = $request->boolean('required');
+        app(\App\Services\MfaEnforcementService::class)->setGroupRequired($id, $required);
+
+        \App\Services\AuditLogger::log('updated', 'mfa_required_groups', $id, null, [
+            'group_id' => $id, 'required' => $required,
+        ]);
+
+        return redirect()->route('aro-groups.show', $id)
+            ->with('success', $required
+                ? 'Skupina teď vyžaduje dvoufázové přihlášení. Členové budou při dalším přihlášení vyzváni k nastavení.'
+                : 'Povinné dvoufázové přihlášení pro skupinu vypnuto.');
     }
 
     public function create()
