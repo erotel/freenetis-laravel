@@ -131,6 +131,13 @@ class AuditLoggerTest extends DatabaseTestCase
             ['dhcp_expired' => 0, 'dhcp_changed_at' => '2026-08-13 10:00:00'],
             ['dhcp_expired' => 1, 'dhcp_changed_at' => '2026-08-13 10:08:00']);
         $this->assertSame($before2, DB::table('audit_logs')->count(), 'DHCP-flag update se neměl zalogovat');
+
+        // WebAuthn klíč: použití při loginu (last_used_at/sign_count) se nezaloguje.
+        $before3 = DB::table('audit_logs')->count();
+        AuditLogger::log('updated', 'webauthn_credentials', 991003,
+            ['last_used_at' => '2026-08-13 09:00:00', 'sign_count' => 5],
+            ['last_used_at' => '2026-08-13 11:54:00', 'sign_count' => 6]);
+        $this->assertSame($before3, DB::table('audit_logs')->count(), 'použití WebAuthn klíče se nemělo zalogovat');
     }
 
     public function test_setting_heartbeat_klice_se_neauditji(): void

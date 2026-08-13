@@ -65,6 +65,8 @@ return [
         'last_update',      // allowed_subnets: čas posledního sync
         'dhcp_expired',     // subnets: flag „přegenerovat DHCP" (Subnet::setExpired po změně IP)
         'dhcp_changed_at',  // subnets: čas poslední změny DHCP
+        'last_used_at',     // webauthn_credentials: čas posledního použití klíče (login = login_logs)
+        'sign_count',       // webauthn_credentials: čítač podpisů (mění se při každém loginu)
     ],
 
     /*
