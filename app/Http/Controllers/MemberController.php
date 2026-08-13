@@ -1094,6 +1094,14 @@ class MemberController extends Controller
                         'status'              => 'new',
                     ]);
 
+                    \App\Services\AuditLogger::log('created', 'outgoing_payments', $outgoingPaymentId, null, [
+                        'member_id'      => $id,
+                        'amount'         => $refundAmount,
+                        'target_account' => $validated['refund_account'],
+                        'doc_number'     => $refundDocNumber,
+                        'reason'         => 'termination_refund',
+                    ]);
+
                     // Vymazání kreditního účtu člena
                     $creditAccount = DB::table('accounts')
                         ->where('member_id', $id)
@@ -1507,6 +1515,12 @@ class MemberController extends Controller
             'user_id'           => auth()->id(),
         ]);
         DB::table('accounts')->where('id', $creditAccount->id)->decrement('balance', $feeAmount);
+        \App\Services\AuditLogger::log('created', 'transfers', null, null, [
+            'member_id' => $memberId,
+            'amount'    => $feeAmount,
+            'type'      => 1,
+            'text'      => 'Doplatek za měsíc po obnovení přerušení',
+        ]);
         return 'charged';
     }
 

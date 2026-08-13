@@ -72,6 +72,7 @@ class PaymentBackchargeService
             // měsíc, flag musí zůstat 1 — pořád se dluží. Pokud projde celé (ať
             // už strhl, nebo přeskočil 'alreadyDeducted'), může se odblokovat.
             $brokeEarly = false;
+            $chargedCount = 0; // kolik měsíců/položek se reálně dohnalo (pro audit)
 
             while ($cursor <= $end) {
                 $year         = (int) $cursor->format('Y');
@@ -130,6 +131,7 @@ class PaymentBackchargeService
                     'user_id'           => null,
                 ]);
                 DB::table('accounts')->where('id', $creditAccount->id)->decrement('balance', $feeAmount);
+                $chargedCount++;
 
                 $cursor->modify('first day of next month');
             }
@@ -190,6 +192,7 @@ class PaymentBackchargeService
                         'user_id'           => null,
                     ]);
                     DB::table('accounts')->where('id', $creditAccount->id)->decrement('balance', $svcAmount);
+                    $chargedCount++;
 
                     $cursorSvc->modify('first day of next month');
                 }
@@ -214,6 +217,16 @@ class PaymentBackchargeService
 
             // Operating balance přepočet (pokud se cokoliv stáhlo)
             $this->recalculateBalance($orgAccount);
+
+            // Audit trail: souhrn dobírky člena (prepaid backcharge). Systémový
+            // proces (user_id=NULL), auditujeme jen pokud se reálně něco dohnalo.
+            if ($chargedCount > 0) {
+                \App\Services\AuditLogger::log('backcharge', 'transfers', $memberId, null, [
+                    'member_id' => $memberId,
+                    'charged'   => $chargedCount,
+                    'unblocked' => $unblocked,
+                ]);
+            }
 
             DB::commit();
             return $unblocked;

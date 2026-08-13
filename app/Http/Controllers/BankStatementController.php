@@ -33,9 +33,17 @@ class BankStatementController extends Controller
 
         $stmt = BankStatement::with('bankTransfers')->findOrFail($id);
         $bankAccountId = $stmt->bank_account_id;
+        $btCount = $stmt->bankTransfers->count();
 
         // Delete associated bank transfers (soft-delete via model)
         $stmt->bankTransfers()->delete();
+        // Hromadné soft-delete přes relaci nespustí per-model eventy — zalogujeme
+        // souhrn (kolik bankovních převodů výpis smazal). Samotný BankStatement se
+        // auditne přes trait ($stmt->delete()).
+        \App\Services\AuditLogger::log('deleted', 'bank_transfers', $id, [
+            'bank_statement_id'     => $id,
+            'bank_transfers_deleted' => $btCount,
+        ], null);
         $stmt->delete();
 
         return redirect()

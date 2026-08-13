@@ -7,6 +7,8 @@ use Illuminate\Support\Facades\DB;
 
 class Account extends Model
 {
+    use \App\Models\Concerns\Auditable;
+
     const ACCOUNTING_SYSTEM = 1;
     const CREDIT            = 2;
     const PROJECT           = 3;

@@ -108,6 +108,33 @@ class AuditLoggerTest extends DatabaseTestCase
         $this->assertSame(0, $code);
     }
 
+    public function test_trait_audituje_financni_model_account(): void
+    {
+        $member = (int) DB::table('members')->where('id', '>', 1)->orderBy('id')->value('id');
+
+        $acc = \App\Models\Account::create([
+            'member_id' => $member, 'account_attribute_id' => 221100,
+            'balance' => 0, 'comment' => 'audit test',
+        ]);
+        $this->assertSame('created', $this->lastFor('accounts', $acc->id)->action);
+
+        $acc->update(['balance' => 100]);
+        $upd = $this->lastFor('accounts', $acc->id);
+        $this->assertSame('updated', $upd->action);
+        $this->assertArrayHasKey('balance', json_decode($upd->new_values, true));
+    }
+
+    public function test_vlastni_akce_se_ulozi(): void
+    {
+        // Nestandardní action string (např. souhrn cronu) musí projít.
+        AuditLogger::log('fee_deduction', 'transfers', null, null, ['date' => '2026-08-01', 'deductions' => 42]);
+        $row = DB::table('audit_logs')
+            ->where('action', 'fee_deduction')
+            ->orderByDesc('id')->first();
+        $this->assertNotNull($row);
+        $this->assertSame(42, json_decode($row->new_values, true)['deductions']);
+    }
+
     /** Agregační dotaz historie člena (members + jeho allowed_subnets) — platné SQL. */
     public function test_dotaz_historie_clena_agreguje_typy(): void
     {

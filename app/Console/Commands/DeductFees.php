@@ -83,6 +83,16 @@ class DeductFees extends Command
         $deducted += $this->deductDeviceFees($date, $orgOperating);
 
         $this->info("Done. Total deductions: {$deducted}");
+
+        // Audit trail: souhrn automatického strhávání (cron, user_id=NULL = systém).
+        // Jednotlivé postingy jsou v `transfers`; auditujeme běh, ne každý řádek.
+        if ($deducted > 0) {
+            \App\Services\AuditLogger::log('fee_deduction', 'transfers', null, null, [
+                'date'       => $date,
+                'deductions' => $deducted,
+            ]);
+        }
+
         return 0;
     }
 

@@ -461,6 +461,17 @@ class ImportController extends Controller
             }
         }
 
+        // Audit trail: souhrn importu (kdo naimportoval kolik převodů). Jednotlivé
+        // postingy jsou v `transfers`; auditujeme dávku, ne každý řádek.
+        if ($imported > 0) {
+            \App\Services\AuditLogger::log('created', 'bank_transfers', $account->id, null, [
+                'bank_account_id' => $account->id,
+                'imported'        => $imported,
+                'skipped'         => $skipped,
+                'source'          => $type,
+            ]);
+        }
+
         return [$imported, $skipped];
     }
 
