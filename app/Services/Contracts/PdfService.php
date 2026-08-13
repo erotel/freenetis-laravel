@@ -109,12 +109,7 @@ class PdfService
         $party = ContractParty::where('contract_id', $contract->id)->orderByDesc('id')->first();
         $p     = $party?->toArray() ?? [];
 
-        $birthday          = trim((string) ($p['birthday'] ?? ''));
-        $birthdayFormatted = '';
-        if ($birthday !== '') {
-            $dt = \DateTime::createFromFormat('Y-m-d', $birthday);
-            if ($dt !== false) $birthdayFormatted = $dt->format('d.m.Y');
-        }
+        $birthdayFormatted = $this->partyBirthday($party);
 
         $ico = trim((string) ($p['ico'] ?? ''));
         $dic = trim((string) ($p['dic'] ?? ''));
@@ -174,12 +169,7 @@ class PdfService
         $party    = ContractParty::where('contract_id', $addon->contract_id)->orderByDesc('id')->first();
         $p        = $party?->toArray() ?? [];
 
-        $birthday          = trim((string) ($p['birthday'] ?? ''));
-        $birthdayFormatted = '';
-        if ($birthday !== '') {
-            $dt = \DateTime::createFromFormat('Y-m-d', substr($birthday, 0, 10));
-            if ($dt !== false) $birthdayFormatted = $dt->format('d.m.Y');
-        }
+        $birthdayFormatted = $this->partyBirthday($party);
         $ico = trim((string) ($p['ico'] ?? ''));
         $dic = trim((string) ($p['dic'] ?? ''));
         if ($ico === '' && $dic === '') $ico = $birthdayFormatted;
@@ -252,12 +242,7 @@ class PdfService
         $party    = ContractParty::where('contract_id', $addon->contract_id)->orderByDesc('id')->first();
         $p        = $party?->toArray() ?? [];
 
-        $birthday          = trim((string) ($p['birthday'] ?? ''));
-        $birthdayFormatted = '';
-        if ($birthday !== '') {
-            $dt = \DateTime::createFromFormat('Y-m-d', substr($birthday, 0, 10));
-            if ($dt !== false) $birthdayFormatted = $dt->format('d.m.Y');
-        }
+        $birthdayFormatted = $this->partyBirthday($party);
         $ico = trim((string) ($p['ico'] ?? ''));
         $dic = trim((string) ($p['dic'] ?? ''));
         if ($ico === '' && $dic === '') $ico = $birthdayFormatted;
@@ -326,12 +311,7 @@ class PdfService
         $party    = ContractParty::where('contract_id', $addon->contract_id)->orderByDesc('id')->first();
         $p        = $party?->toArray() ?? [];
 
-        $birthday          = trim((string) ($p['birthday'] ?? ''));
-        $birthdayFormatted = '';
-        if ($birthday !== '') {
-            $dt = \DateTime::createFromFormat('Y-m-d', substr($birthday, 0, 10));
-            if ($dt !== false) $birthdayFormatted = $dt->format('d.m.Y');
-        }
+        $birthdayFormatted = $this->partyBirthday($party);
         $ico = trim((string) ($p['ico'] ?? ''));
         $dic = trim((string) ($p['dic'] ?? ''));
         if ($ico === '' && $dic === '') $ico = $birthdayFormatted;
@@ -486,6 +466,16 @@ class PdfService
     private function h($v): string
     {
         return htmlspecialchars((string) $v, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+    }
+
+    /**
+     * Datum narození ze snapshotu party (d.m.Y). Formátuje přímo Carbon v app
+     * TZ — NE přes toArray(), který `date` cast serializuje do UTC ISO a u
+     * TZ > UTC (Europe/Prague) posune datum o den zpět (off-by-one bug).
+     */
+    private function partyBirthday($party): string
+    {
+        return $party?->birthday?->format('d.m.Y') ?? '';
     }
 
     /** Cena bez zbytečných desetin: "400" / "350,5", tisíce mezerou. Prázdné → "". */

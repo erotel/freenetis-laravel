@@ -78,6 +78,22 @@ class ConnectionPointAddonTest extends DatabaseTestCase
         $this->assertStringStartsWith('%PDF', $bytes);
     }
 
+    /**
+     * Regrese: datum narození v dodatku se posouvalo o den zpět (toArray()
+     * serializuje `date` cast do UTC ISO → u Europe/Prague o den míň). Oprava
+     * formátuje přímo Carbon v app TZ.
+     */
+    public function test_datum_narozeni_neni_o_den_posunute(): void
+    {
+        $svc = app(PdfService::class);
+        $m = new \ReflectionMethod(PdfService::class, 'partyBirthday');
+        $m->setAccessible(true);
+
+        $party = new \App\Models\ContractParty(['birthday' => '2004-03-28']);
+        $this->assertSame('28.03.2004', $m->invoke($svc, $party));
+        $this->assertSame('', $m->invoke($svc, new \App\Models\ContractParty([])));
+    }
+
     public function test_podpisovy_token_round_trip(): void
     {
         $addon = $this->svc->createConnectionPointAddon($this->contractId, $this->allowedSubnetId, 'add', 'Testovací 1, Prostějov');
