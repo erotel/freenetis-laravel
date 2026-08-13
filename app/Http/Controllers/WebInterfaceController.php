@@ -46,8 +46,17 @@ class WebInterfaceController extends Controller
 
     private function guardTrusted(): void
     {
-        // Token má přednost — platí odkudkoli (klienti volají přes HTTPS+token,
-        // igw1/igw2). Stejný princip jako DHCP export (dhcp_api_token).
+        $this->guardAuth();
+    }
+
+    /**
+     * M2M autentizace (NIS2/ZoKB): token má přednost, jinak IP-allowlist
+     * (dokud není zapnuté vynucení). Sdílené guardTrusted i guardRedirection.
+     */
+    private function guardAuth(): void
+    {
+        // Token platí odkudkoli (klienti volají přes HTTPS+token, igw1/igw2).
+        // Stejný princip jako DHCP export (dhcp_api_token).
         if ($this->hasValidWebInterfaceToken()) {
             return;
         }
@@ -94,9 +103,12 @@ class WebInterfaceController extends Controller
 
     private function guardRedirection(): void
     {
-        if (Setting::get('redirection_enabled', '0') != '1' || !$this->isFromTrustedRange()) {
+        // Funkční brána: když je redirection vypnutá, tyto endpointy nic nevrací.
+        if (Setting::get('redirection_enabled', '0') != '1') {
             abort(403);
         }
+        // Autentizace stejná jako ostatní M2M endpointy (token / IP / vynucení).
+        $this->guardAuth();
     }
 
     private function textResponse(array $lines): Response

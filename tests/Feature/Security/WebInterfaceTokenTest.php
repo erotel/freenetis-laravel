@@ -22,12 +22,12 @@ class WebInterfaceTokenTest extends DatabaseTestCase
         Setting::set('web_interface_api_token', $this->token);
         Setting::set('address_ranges', '10.0.0.0/8'); // nezahrnuje 127.0.0.1 ani 1.2.3.4
         Setting::set('web_interface_require_token', 0);
+        Setting::set('redirection_enabled', 1); // aby guardRedirection endpointy nešly 403 na funkční bránu
     }
 
-    private function hit(string $ip, string $query = ''): TestResponse
+    private function hit(string $ip, string $query = '', string $path = '/web-interface/qos-json'): TestResponse
     {
-        return $this->withServerVariables(['REMOTE_ADDR' => $ip])
-            ->get('/web-interface/qos-json' . $query);
+        return $this->withServerVariables(['REMOTE_ADDR' => $ip])->get($path . $query);
     }
 
     public function test_platny_token_projde_i_z_neduveryhodne_ip(): void
@@ -62,5 +62,18 @@ class WebInterfaceTokenTest extends DatabaseTestCase
     {
         Setting::set('web_interface_require_token', 1);
         $this->hit('127.0.0.1')->assertOk();
+    }
+
+    // ── guardRedirection endpointy (fw-sync: allowed-ip-addresses atd.) ──────────
+
+    public function test_redirection_endpoint_s_tokenem_projde(): void
+    {
+        // Token musí fungovat i na fw-sync endpointech (guardRedirection), ne jen na qos.
+        $this->hit('1.2.3.4', '?token=' . $this->token, '/web-interface/allowed-ip-addresses')->assertOk();
+    }
+
+    public function test_redirection_endpoint_bez_tokenu_neduveryhodna_ip_403(): void
+    {
+        $this->hit('1.2.3.4', '', '/web-interface/allowed-ip-addresses')->assertForbidden();
     }
 }
