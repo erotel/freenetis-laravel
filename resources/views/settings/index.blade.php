@@ -540,7 +540,18 @@ function addBccRow() {
         <label class="m-form-label">Rozsahy IP adres</label>
         <input class="m-form-input" type="text" name="address_ranges"
             value="{{ $networkSettings['address_ranges'] ?? '' }}" placeholder="10.133.0.0/16,185.138.44.0/22">
-        <div class="m-form-hint">Oddělte čárkou.</div>
+        <div class="m-form-hint">Oddělte čárkou. Slouží jako IP-allowlist pro M2M web-interface endpointy.</div>
+    </div>
+    <div class="m-form-group">
+        <label class="m-form-label">
+            <input type="checkbox" name="web_interface_require_token" value="1"
+                {{ ($networkSettings['web_interface_require_token'] ?? '') == '1' ? 'checked' : '' }}>
+            Vyžadovat token pro web-interface (M2M)
+        </label>
+        <div class="m-form-hint">
+            Vypnuto (fáze 1): pustí token <strong>nebo</strong> důvěryhodnou IP. Zapnuto (fáze 2):
+            <strong>jen token</strong> (samotná IP nestačí; localhost je výjimka). Zapni až budou igw1/igw2 token posílat.
+        </div>
     </div>
     <div class="m-form-group">
         <label class="m-form-label">DNS servery</label>
@@ -609,6 +620,23 @@ function addBccRow() {
     </div>
     <form method="POST" action="{{ route('settings.regenerate-dhcp-token') }}"
           onsubmit="return confirm('Regenerovat token? Stávající token přestane fungovat.')">
+        @csrf
+        <button type="submit" class="m-btn">Regenerovat token</button>
+    </form>
+</div>
+
+<div class="m-card" style="margin-top:16px;max-width:560px">
+    <div class="m-card-title">Web-interface API token (M2M — igw1/igw2)</div>
+    <div class="m-form-group">
+        <label class="m-form-label">Token</label>
+        <input class="m-form-input" type="text" readonly value="{{ $webInterfaceApiToken }}" style="font-family:monospace">
+        <div class="m-form-hint">
+            Použití: <code>https://is.pvfree.net/freenetis/web-interface/qos-json?token={{ $webInterfaceApiToken }}</code>
+            <br>Chrání M2M endpointy (qos-json, allowed-ip-addresses, NAT…) vedle IP-allowlistu. Nastav ho ve skriptech na igw1/igw2.
+        </div>
+    </div>
+    <form method="POST" action="{{ route('settings.regenerate-web-interface-token') }}"
+          onsubmit="return confirm('Regenerovat token? Dokud ho neaktualizuješ na igw1/igw2, budou při zapnutém vynucení odmítnuty.')">
         @csrf
         <button type="submit" class="m-btn">Regenerovat token</button>
     </form>

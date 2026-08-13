@@ -482,6 +482,7 @@ Route::middleware('auth')->group(function () {
     Route::put('settings/users',    [SettingController::class, 'updateUsers'])->name('settings.update-users');
     Route::put('settings/network',  [SettingController::class, 'updateNetwork'])->name('settings.update-network');
     Route::post('settings/regenerate-dhcp-token', [SettingController::class, 'regenerateDhcpToken'])->name('settings.regenerate-dhcp-token');
+    Route::post('settings/regenerate-web-interface-token', [SettingController::class, 'regenerateWebInterfaceToken'])->name('settings.regenerate-web-interface-token');
     Route::put('settings/sms',      [SettingController::class, 'updateSms'])->name('settings.update-sms');
     Route::put('settings/sledovanitv',  [SettingController::class, 'updateSledovaniTv'])->name('settings.update-sledovanitv');
     Route::post('settings/sledovanitv/sync', [SettingController::class, 'syncSledovaniTv'])->name('settings.sledovanitv-sync');

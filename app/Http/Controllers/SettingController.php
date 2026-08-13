@@ -61,6 +61,7 @@ class SettingController extends Controller
         'redirection_enabled', 'networks_enabled', 'address_ranges', 'dns_servers',
         'ipv6_prefix', 'ipv6_mask', 'connection_request_notify_email',
         'dhcp_lease_time', 'allowed_subnets_default_count', 'dhcp_relay_map',
+        'web_interface_require_token',
     ];
 
     public const GPON_KEYS = [
@@ -197,6 +198,11 @@ class SettingController extends Controller
         }
         $dhcpApiToken = Setting::get('dhcp_api_token');
 
+        if (!Setting::get('web_interface_api_token')) {
+            Setting::set('web_interface_api_token', Str::random(32));
+        }
+        $webInterfaceApiToken = Setting::get('web_interface_api_token');
+
         // SMS settings
         $smsSettings = [
             'sms_enabled'       => Setting::get('sms_enabled', '0'),
@@ -255,7 +261,7 @@ class SettingController extends Controller
             'bankAccounts', 'memberTypes', 'routing', 'defaultBaId',
             'emailSettings', 'bccRules', 'messages', 'activeTab',
             'pohodaEmail', 'financeSettings', 'feesForSelect', 'speedClassesFinance',
-            'systemSettings', 'usersSettings', 'networkSettings',
+            'systemSettings', 'usersSettings', 'networkSettings', 'webInterfaceApiToken',
             'registrationSettings',
             'smsSettings', 'smsDriverSettings', 'gponSettings', 'gponOlts',
             'dhcpApiToken', 'smlouvySettings', 'sledovanitvSettings'
@@ -433,6 +439,7 @@ class SettingController extends Controller
         abort_unless($this->can('edit_all'), 403);
         Setting::set('redirection_enabled', $request->boolean('redirection_enabled') ? 1 : 0);
         Setting::set('networks_enabled',    $request->boolean('networks_enabled') ? 1 : 0);
+        Setting::set('web_interface_require_token', $request->boolean('web_interface_require_token') ? 1 : 0);
         Setting::set('address_ranges',      $request->input('address_ranges', ''));
         Setting::set('dns_servers',         $request->input('dns_servers', ''));
         Setting::set('ipv6_prefix',                    $request->input('ipv6_prefix', ''));
@@ -455,6 +462,17 @@ class SettingController extends Controller
         Setting::set('dhcp_api_token', Str::random(32));
         return redirect()->route('settings.index', ['tab' => 'network'])
             ->with('success', 'DHCP API token byl regenerován.');
+    }
+
+    public function regenerateWebInterfaceToken()
+    {
+        abort_unless($this->can('edit_all'), 403);
+        Setting::set('web_interface_api_token', Str::random(32));
+        \App\Services\AuditLogger::log('updated', 'config', null, null, [
+            'web_interface_api_token' => '***', 'action' => 'regenerated',
+        ]);
+        return redirect()->route('settings.index', ['tab' => 'network'])
+            ->with('success', 'Web-interface API token byl regenerován. Nezapomeňte ho aktualizovat na igw1/igw2.');
     }
 
     public function updateGpon(Request $request)

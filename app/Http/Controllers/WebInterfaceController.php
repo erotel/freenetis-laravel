@@ -46,9 +46,50 @@ class WebInterfaceController extends Controller
 
     private function guardTrusted(): void
     {
-        if (!$this->isFromTrustedRange()) {
+        // Token má přednost — platí odkudkoli (klienti volají přes HTTPS+token,
+        // igw1/igw2). Stejný princip jako DHCP export (dhcp_api_token).
+        if ($this->hasValidWebInterfaceToken()) {
+            return;
+        }
+
+        // Bez platného tokenu: když je vynucení zapnuté (fáze 2), pustíme už jen
+        // localhost (lokální konzument, např. RADIUS na stejném serveru), jinak 403.
+        if (Setting::get('web_interface_require_token', 0)) {
+            if ($this->isLocalhost()) {
+                return;
+            }
+            $this->logM2mRejected('missing_or_invalid_token');
             abort(403);
         }
+
+        // Fáze 1 (permisivní): fallback na IP allowlist — nic se nerozbije,
+        // dokud se token nerozdistribuuje na igw1/igw2.
+        if (!$this->isFromTrustedRange()) {
+            $this->logM2mRejected('untrusted_ip');
+            abort(403);
+        }
+    }
+
+    /** Ověří web_interface_api_token z ?token= nebo Authorization: Bearer (constant-time). */
+    private function hasValidWebInterfaceToken(): bool
+    {
+        $token = request()->input('token') ?? request()->bearerToken();
+        $valid = (string) Setting::get('web_interface_api_token', '');
+        return $token !== null && $token !== '' && $valid !== '' && hash_equals($valid, (string) $token);
+    }
+
+    private function isLocalhost(): bool
+    {
+        return in_array(request()->ip(), ['127.0.0.1', '::1'], true);
+    }
+
+    private function logM2mRejected(string $reason): void
+    {
+        logger()->warning('web_interface.access_denied', [
+            'reason' => $reason,
+            'ip'     => request()->ip(),
+            'path'   => request()->path(),
+        ]);
     }
 
     private function guardRedirection(): void

@@ -28,6 +28,7 @@ class Setting extends Model
         'pdf_sign_pass',
         'email_password',
         'dhcp_api_token',
+        'web_interface_api_token',
     ];
 
     private const ENCRYPTED_KEY_PREFIXES = [
