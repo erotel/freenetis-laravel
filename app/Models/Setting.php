@@ -83,13 +83,16 @@ class Setting extends Model
 
         $systemKeys = [
             'cron_last_active', 'cron_state', 'redirection_state',
+            'allowed_subnets_update_state',              // cron subnets:update-allowed (každou minutu)
+            'pohoda_export_last_sent',
             'sledovanitv_last_sync', 'sledovanitv_last_sync_status',
         ];
         if (in_array($name, $systemKeys, true)) {
             return true;
         }
 
-        // Budoucí telemetrie stejného typu (…_last_active / …_last_sync / …_heartbeat).
-        return (bool) preg_match('/(_last_active|_last_sync|_last_run|_heartbeat)$/', $name);
+        // Konvence tohoto codebase: …_state (příp. s číslem, sms_driver_state1)
+        // a …_last_*  jsou strojový stav / timestamp, ne admin nastavení.
+        return (bool) preg_match('/(_state\d*|_last_active|_last_sync|_last_sync_status|_last_sent|_last_run|_heartbeat)$/', $name);
     }
 }

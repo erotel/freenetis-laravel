@@ -139,7 +139,10 @@ class AuditLoggerTest extends DatabaseTestCase
 
         $before = $count();
         \App\Models\Setting::set('cron_last_active', (string) time());
-        $this->assertSame($before, $count(), 'heartbeat klíč cron_last_active se neměl zalogovat');
+        \App\Models\Setting::set('cron_state', date('Y-m-d H:i:s'));
+        \App\Models\Setting::set('allowed_subnets_update_state', date('Y-m-d H:i:s'));
+        \App\Models\Setting::set('sms_driver_state1', '1');
+        $this->assertSame($before, $count(), 'heartbeat/_state klíče se neměly zalogovat');
 
         // Smysluplné nastavení se naopak auditovat MÁ.
         \App\Models\Setting::set('audit_test_klic_' . uniqid(), 'hodnota');
