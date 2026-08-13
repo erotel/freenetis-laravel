@@ -17,7 +17,7 @@ class ForgottenPasswordController extends Controller
     /**
      * TTL pro password reset token v minutách. Po této době je token neplatný.
      */
-    private const TOKEN_TTL_MIN = 60;
+    private const TOKEN_TTL_MIN = 15;
 
     /**
      * Generic response — vždy vrátit stejnou zprávu, ať uživatel existuje nebo ne.
@@ -105,9 +105,12 @@ class ForgottenPasswordController extends Controller
             return $this->genericResponse();
         }
 
+        // Do e-mailu jde raw token; do DB jen jeho SHA-256 hash (únik DB pak
+        // nedá útočníkovi použitelný token). Token je vysoce náhodný (40 znaků),
+        // takže sha256 stačí (rychlý deterministický lookup, neprolomitelný).
         $token = Str::random(40);
         DB::table('users')->where('id', $user->id)->update([
-            'password_request'             => $token,
+            'password_request'             => hash('sha256', $token),
             'password_request_expires_at'  => now()->addMinutes(self::TOKEN_TTL_MIN),
         ]);
 
@@ -149,7 +152,7 @@ class ForgottenPasswordController extends Controller
     {
         if (!$token) return null;
 
-        $user = DB::table('users')->where('password_request', $token)->first();
+        $user = DB::table('users')->where('password_request', hash('sha256', $token))->first();
         if (!$user) return null;
 
         // Token bez expirace (legacy záznam, nebo migrovaný DB) → odmítnout.

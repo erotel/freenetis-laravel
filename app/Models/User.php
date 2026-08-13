@@ -2,12 +2,15 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\EncryptsSensitiveAttributes;
+use Illuminate\Database\Eloquent\Casts\Attribute;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class User extends Authenticatable
 {
     use \App\Models\Concerns\Auditable;
+    use EncryptsSensitiveAttributes;
 
     protected $table = 'users';
     public $timestamps = false;
@@ -21,6 +24,29 @@ class User extends Authenticatable
 
     const MAIN_USER = 1;
     const USER = 2;
+
+    /**
+     * Bezpečně vygeneruje aplikační heslo. Dřív `str_shuffle` (není CSPRNG,
+     * jen 8 znaků) — teď Str::random (CSPRNG přes random_bytes), 12 znaků
+     * base62 (~71 bitů entropie). Sloupec je varchar(50), takže se vejde.
+     */
+    public static function generateApplicationPassword(): string
+    {
+        return \Illuminate\Support\Str::random(12);
+    }
+
+    /**
+     * application_password je šifrované at-rest (Laravel Crypt). Čtení dešifruje
+     * (fallback na legacy plaintext), zápis přes Eloquent šifruje. POZOR: zápisy
+     * přes DB::table() mutator NEspustí — tam se šifruje explicitně (Crypt).
+     */
+    protected function applicationPassword(): Attribute
+    {
+        return Attribute::make(
+            get: fn ($value) => self::decryptSensitive($value),
+            set: fn ($value) => self::encryptSensitive($value),
+        );
+    }
 
     protected function casts(): array
     {

@@ -58,6 +58,14 @@ class FreenetisUserProvider extends EloquentUserProvider
         }
 
         if (!str_starts_with($stored, '$2')) {
+            // Viditelnost: účet se přihlásil se slabým legacy hashem (SHA1/MD5).
+            // Rovnou ho migrujeme na bcrypt (níže), ale zalogujeme, ať je vidět,
+            // kolik účtů ještě na starém hashi je.
+            logger()->info('auth.legacy_hash_login', [
+                'user_id' => $user->id ?? null,
+                'login'   => $user->login ?? null,
+                'algo'    => strlen($stored) === 40 ? 'sha1' : (strlen($stored) === 32 ? 'md5' : 'other'),
+            ]);
             $user->forceFill(['password' => password_hash($plain, PASSWORD_BCRYPT)])->saveQuietly();
         }
 

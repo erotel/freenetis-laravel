@@ -464,7 +464,7 @@ class MemberController extends Controller
                 'surname'              => $request->surname ?? '',
                 'login'                => $request->login,
                 'password'             => bcrypt($request->password),
-                'application_password' => substr(str_shuffle('abcdefghijklmnopqrstuvwxyz0123456789'), 0, 8),
+                'application_password' => \Illuminate\Support\Facades\Crypt::encryptString(\App\Models\User::generateApplicationPassword()),
                 'type'                 => 1, // MAIN_USER
                 'birthday'             => $request->birthday ?: null,
                 'comment'              => '',

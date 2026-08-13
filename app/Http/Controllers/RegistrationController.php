@@ -99,7 +99,7 @@ class RegistrationController extends Controller
                     : mb_substr($validated['surname'] ?? '', 0, 60),
                 'login'                => $validated['login'],
                 'password'             => bcrypt($validated['password']),
-                'application_password' => substr(str_shuffle('abcdefghijklmnopqrstuvwxyz0123456789'), 0, 8),
+                'application_password' => \Illuminate\Support\Facades\Crypt::encryptString(\App\Models\User::generateApplicationPassword()),
                 'type'                 => 1,
                 'birthday'             => $validated['birthday'],
                 'comment'              => '',
