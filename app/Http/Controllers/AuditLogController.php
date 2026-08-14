@@ -29,7 +29,8 @@ class AuditLogController extends Controller
 
         $query = DB::table('audit_logs as a')
             ->leftJoin('users as u', 'u.id', '=', 'a.user_id')
-            ->selectRaw("a.*, TRIM(CONCAT(COALESCE(u.surname,''),' ',COALESCE(u.name,''))) as actor_name, u.login as actor_login");
+            ->leftJoin('members as mem', 'mem.id', '=', 'u.member_id')
+            ->selectRaw("a.*, TRIM(CONCAT(COALESCE(u.surname,''),' ',COALESCE(u.name,''))) as actor_name, u.login as actor_login, u.member_id as actor_member_id, mem.name as actor_member_name");
 
         if ($q !== '') {
             $query->where(function ($w) use ($q) {

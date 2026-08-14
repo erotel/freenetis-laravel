@@ -108,8 +108,9 @@ class SearchController extends Controller
                 ->join('members as m', 'm.id', '=', 'u.member_id')
                 ->leftJoin('users_contacts as uc', 'uc.user_id', '=', 'u.id')
                 ->leftJoin('contacts as c', 'c.id', '=', 'uc.contact_id')
-                ->where(function($q) use ($like, $tokens, $multi) {
+                ->where(function($q) use ($like, $query, $tokens, $multi) {
                     $q->where('u.login', 'LIKE', $like)
+                      ->orWhere('u.id', '=', ctype_digit($query) ? (int) $query : -1)
                       ->orWhere(DB::raw("CONCAT(u.name, ' ', u.surname)"), 'LIKE', $like)
                       ->orWhere('c.value', 'LIKE', $like);
                     if ($multi) {
@@ -252,8 +253,9 @@ class SearchController extends Controller
                 ->join('members as m', 'm.id', '=', 'u.member_id')
                 ->leftJoin('users_contacts as uc', 'uc.user_id', '=', 'u.id')
                 ->leftJoin('contacts as c', 'c.id', '=', 'uc.contact_id')
-                ->where(function($q) use ($like, $tokens, $multi) {
+                ->where(function($q) use ($like, $query, $tokens, $multi) {
                     $q->where('u.login', 'LIKE', $like)
+                      ->orWhere('u.id', '=', ctype_digit($query) ? (int) $query : -1)
                       ->orWhere('c.value', 'LIKE', $like);
                     if ($multi) {
                         $q->orWhere(function ($q) use ($tokens) {
@@ -263,13 +265,13 @@ class SearchController extends Controller
                         });
                     }
                 })
-                ->select('m.id as member_id', 'm.name as member_name', 'u.login', 'c.value as contact')
+                ->select('u.id', 'm.id as member_id', 'm.name as member_name', 'u.login', 'c.value as contact')
                 ->distinct()->limit(5)->get();
 
             foreach ($users as $u) {
                 $results[] = [
                     'url'    => route('members.show', $u->member_id),
-                    'title'  => 'Uživatel ' . $u->login,
+                    'title'  => 'Uživatel ' . $u->login . ' (#' . $u->id . ')',
                     'detail' => $u->contact ?? $u->member_name,
                 ];
             }

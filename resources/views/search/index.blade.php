@@ -64,13 +64,15 @@
 <div class="m-card" style="padding:0;overflow-x:auto;margin-bottom:16px">
 <table class="m-table" style="margin-bottom:0">
     <thead>
-        <tr><th>Login</th><th>Jméno</th><th>Člen</th></tr>
+        <tr><th style="width:70px">User ID</th><th>Login</th><th>Jméno</th><th style="width:90px">Člen ID</th><th>Člen</th></tr>
     </thead>
     <tbody>
         @foreach($results['users'] as $u)
         <tr>
+            <td><a class="m-link" href="{{ route('users.show', $u->id) }}" style="font-family:monospace">{{ $u->id }}</a></td>
             <td>{{ $u->login }}</td>
             <td>{{ $u->name }} {{ $u->surname }}</td>
+            <td style="font-family:monospace">{{ $u->member_id }}</td>
             <td><a class="m-link" href="{{ route('members.show', $u->member_id) }}">{{ $u->member_name }}</a></td>
         </tr>
         @endforeach

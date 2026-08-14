@@ -68,12 +68,20 @@
                         $actor = trim($e->actor_name ?? '') !== ''
                             ? trim($e->actor_name) . ($e->actor_login ? " ({$e->actor_login})" : '')
                             : ($e->user_id ? "uživatel #{$e->user_id}" : 'systém / cron');
+                        // Vazba member↔user je „ujetá" (id se rozešla) — u aktéra proto
+                        // ukážeme jak user id, tak člena (id + odkaz), ať se nedohledává ručně.
+                        $actorMemberId   = $e->actor_member_id ?? null;
                     @endphp
                     <tr style="border-bottom:1px solid #f2f2f2;vertical-align:top">
                         <td style="padding:6px 8px;white-space:nowrap;color:#444">
                             {{ \Illuminate\Support\Carbon::parse($e->occurred_at)->format('d.m.Y H:i') }}
                         </td>
-                        <td style="padding:6px 8px;white-space:nowrap">{{ $actor }}</td>
+                        <td style="padding:6px 8px;white-space:nowrap">
+                            {{ $actor }}
+                            @if($e->user_id)
+                                <div style="font-size:12px;color:#888">user #{{ $e->user_id }}@if($actorMemberId) · <a class="m-link" href="{{ route('members.show', $actorMemberId) }}">člen #{{ $actorMemberId }}</a>@endif</div>
+                            @endif
+                        </td>
                         <td style="padding:6px 8px;white-space:nowrap;color:#888">{{ $e->ip_address ?? '—' }}</td>
                         <td style="padding:6px 8px;white-space:nowrap;color:#888">
                             {{ $e->auditable_type }}{{ $e->auditable_id ? " #{$e->auditable_id}" : '' }}
