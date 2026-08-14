@@ -272,9 +272,19 @@ class WebAuthnController extends Controller
             return response()->json(['error' => 'Bezpečnostní kontrola selhala (možná klonovaný klíč).'], 422);
         }
 
-        $user = User::find($credential->user_id);
+        $user = User::with('member')->find($credential->user_id);
         if (!$user) {
             return response()->json(['error' => 'Uživatel neexistuje.'], 422);
+        }
+
+        // Zamčený člen se NESMÍ přihlásit ani přes passkey — heslové cesty ho
+        // blokují (FreenetisUserProvider::validateCredentials), WebAuthn musí
+        // dodržet stejné pravidlo, jinak je zámek účtu obejit.
+        if ($user->member && $user->member->locked) {
+            logger()->warning('auth.webauthn.locked_member', [
+                'user_id' => $user->id, 'ip' => $request->ip(),
+            ]);
+            return response()->json(['error' => 'Účet je zablokován.'], 422);
         }
 
         Auth::login($user);

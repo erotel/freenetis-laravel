@@ -45,14 +45,14 @@
 <div class="m-card" style="margin-bottom:16px;max-width:480px">
     <div class="m-form-group">
         <label class="m-form-label" for="target_account">Cílový účet</label>
-        <input class="m-form-input" type="text" name="target_account" id="target_account"
-               value="{{ old('target_account', $prefill['target_account']) }}" style="font-family:monospace">
-        @error('target_account') <div class="m-form-hint" style="color:#c0392b">{{ $message }}</div> @enderror
+        <input class="m-form-input" type="text" id="target_account"
+               value="{{ $prefill['target_account'] }}" style="font-family:monospace;background:#f5f5f5" readonly>
+        <div class="m-form-hint">Vrácení jde vždy zpět odesílateli — účet nelze měnit.</div>
     </div>
     <div class="m-form-group">
         <label class="m-form-label">Název příjemce</label>
-        <input class="m-form-input" type="text" name="target_name"
-               value="{{ old('target_name', $prefill['target_name']) }}">
+        <input class="m-form-input" type="text"
+               value="{{ $prefill['target_name'] }}" style="background:#f5f5f5" readonly>
     </div>
     <div class="m-form-row">
         <div class="m-form-group">
@@ -60,6 +60,7 @@
             <input class="m-form-input" type="text" name="amount"
                    value="{{ old('amount', number_format($prefill['amount'], 2, '.', '')) }}"
                    style="font-family:monospace;max-width:140px">
+            <div class="m-form-hint">Max. {{ number_format($prefill['amount'], 2, ',', ' ') }} CZK (přijatá částka).</div>
             @error('amount') <div class="m-form-hint" style="color:#c0392b">{{ $message }}</div> @enderror
         </div>
         <div class="m-form-group">

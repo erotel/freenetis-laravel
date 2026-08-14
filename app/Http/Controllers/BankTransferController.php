@@ -105,18 +105,38 @@ class BankTransferController extends Controller
     {
         abort_unless($this->can('edit_all', 'unidentified_transfers'), 403);
 
-        $bt = BankTransfer::with(['transfer'])->findOrFail($id);
+        $bt = BankTransfer::with(['transfer', 'originAccount'])->findOrFail($id);
         abort_if($bt->transfer && $bt->transfer->member_id, 403);
 
         $validated = $request->validate([
             'bank_account_id' => 'required|integer|exists:bank_accounts,id',
-            'target_account'  => 'required|string|max:50',
-            'target_name'     => 'nullable|string|max:255',
             'amount'          => 'required|numeric|min:0.01',
             'currency'        => 'required|string|size:3',
             'variable_symbol' => 'nullable|string|max:20',
             'message'         => 'nullable|string|max:255',
         ]);
+
+        // Vrácení neidentifikované platby smí jít VÝHRADNĚ zpět odesílateli a
+        // NEJVÝŠ v přijaté částce. Cílový účet i jméno proto odvozujeme ze
+        // serveru (z origin účtu přijaté platby), NE z requestu — jinak by šlo
+        // poslat libovolnou částku na libovolný účet (arbitrary payout).
+        if (!$bt->transfer) {
+            return back()->with('error', 'K tomuto bankovnímu pohybu chybí účetní převod — vrácení nelze provést.');
+        }
+        $origin = $bt->originAccount;
+        if (!$origin || !$origin->account_nr) {
+            return back()->with('error', 'Neznámý odesílatel platby — vrácení nelze bezpečně provést (chybí protiúčet).');
+        }
+
+        $maxAmount = round(abs((float) $bt->transfer->amount), 2);
+        if (round((float) $validated['amount'], 2) > $maxAmount) {
+            return back()
+                ->withInput()
+                ->with('error', 'Vrácená částka nesmí převýšit přijatou platbu (' . number_format($maxAmount, 2, ',', ' ') . ' Kč).');
+        }
+
+        $targetAccount = $origin->account_nr . '/' . $origin->bank_nr;
+        $targetName    = $origin->name ?? '';
 
         // Check if refund already exists for this transfer
         $existing = OutgoingPayment::where('transfer_id', $bt->transfer_id)->first();
@@ -127,8 +147,8 @@ class BankTransferController extends Controller
         OutgoingPayment::create([
             'bank_account_id' => $validated['bank_account_id'],
             'transfer_id'     => $bt->transfer_id,
-            'target_account'  => $validated['target_account'],
-            'target_name'     => $validated['target_name'] ?? '',
+            'target_account'  => $targetAccount,
+            'target_name'     => $targetName,
             'amount'          => $validated['amount'],
             'currency'        => $validated['currency'],
             'variable_symbol' => $validated['variable_symbol'] ?? '',
@@ -136,6 +156,12 @@ class BankTransferController extends Controller
             'reason'          => 'unidentified_refund',
             'status'          => 'draft',
             'created_by'      => auth()->id(),
+        ]);
+
+        \App\Services\AuditLogger::log('created', 'outgoing_payments', (int) $bt->transfer_id, null, [
+            'reason'         => 'unidentified_refund',
+            'amount'         => $validated['amount'],
+            'target_account' => $targetAccount,
         ]);
 
         return redirect()->route('bank_transfers.unidentified')

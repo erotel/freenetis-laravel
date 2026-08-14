@@ -8,6 +8,7 @@ use App\Models\Contact;
 use App\Models\Device;
 use App\Models\Member;
 use App\Models\MemberFee;
+use App\Services\LoginService;
 use App\Services\RegularFeeResolver;
 use App\Models\Setting;
 use App\Models\User;
@@ -15,7 +16,6 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\RateLimiter;
 
 /**
  * Field Mode — mobile-first podmnožina FreenetIS pro techniky v terénu.
@@ -26,9 +26,7 @@ use Illuminate\Support\Facades\RateLimiter;
  */
 class FieldController extends Controller
 {
-    /** Per-username throttle pro field login (stejně jako Auth\LoginController). */
-    private const LOGIN_MAX_ATTEMPTS = 10;
-    private const LOGIN_DECAY_SECONDS = 300;
+    public function __construct(private LoginService $loginService) {}
 
     /** Member status tečka. */
     private function memberStatus(?bool $locked, ?float $balance, ?bool $paymentBlocked = false, ?bool $pendingTermination = false): string
@@ -118,36 +116,36 @@ class FieldController extends Controller
             'password' => ['required', 'string'],
         ]);
 
-        $loginKey = 'field_login_user:' . sha1(strtolower(trim((string) $credentials['login'])));
-        if (RateLimiter::tooManyAttempts($loginKey, self::LOGIN_MAX_ATTEMPTS)) {
-            $seconds = RateLimiter::availableIn($loginKey);
-            return back()
-                ->withInput($request->only('login'))
-                ->withErrors(['login' => __('Příliš mnoho neúspěšných pokusů. Zkuste to znovu za :s s.', ['s' => $seconds])]);
+        // Stejný ověřovací flow jako /login (sdílená LoginService): rate-limit,
+        // trvalý zámek účtu, members.locked i MFA gate. Field login NESMÍ být
+        // druhá cesta, která tyhle brány obchází.
+        $result = $this->loginService->attempt($credentials, $request, 'field');
+
+        switch ($result['status']) {
+            case LoginService::RATE_LIMITED:
+                return back()
+                    ->withInput($request->only('login'))
+                    ->withErrors(['login' => __('Příliš mnoho neúspěšných pokusů. Zkuste to znovu za :s s.', ['s' => $result['seconds']])]);
+
+            case LoginService::LOCKED:
+                return back()
+                    ->withInput($request->only('login'))
+                    ->withErrors(['login' => __('Účet je dočasně uzamčen kvůli opakovaným neúspěšným pokusům. Zkuste to znovu za :m min.', ['m' => $result['minutes']])]);
+
+            case LoginService::INVALID:
+                return back()
+                    ->withInput($request->only('login'))
+                    ->withErrors(['login' => __('Nesprávné jméno nebo heslo, nebo je účet zablokován.')]);
+
+            case LoginService::MFA_REQUIRED:
+                // Po ověření 2. faktoru se má technik vrátit do Field UI, ne na
+                // desktop dashboard → nastavíme intended URL pro challenge.
+                $this->loginService->beginMfaChallenge($result['user'], $request);
+                $request->session()->put('url.intended', route('field.search'));
+                return redirect()->route('mfa.challenge');
         }
 
-        if (!Auth::attempt($credentials)) {
-            RateLimiter::hit($loginKey, self::LOGIN_DECAY_SECONDS);
-            logger()->warning('auth.login.failed', [
-                'login'   => $credentials['login'],
-                'ip'      => $request->ip(),
-                'channel' => 'field',
-                'ua'      => substr((string) $request->userAgent(), 0, 200),
-            ]);
-            return back()
-                ->withInput($request->only('login'))
-                ->withErrors(['login' => __('Nesprávné jméno nebo heslo, nebo je účet zablokován.')]);
-        }
-
-        RateLimiter::clear($loginKey);
-        $request->session()->regenerate();
-
-        DB::table('login_logs')->insert([
-            'user_id'    => Auth::id(),
-            'time'       => now(),
-            'IP_address' => $request->ip(),
-        ]);
-
+        $this->loginService->completeLogin($result['user'], $request);
         return redirect()->intended(route('field.search'));
     }
 

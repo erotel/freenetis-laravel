@@ -79,10 +79,18 @@ class WebInterfaceController extends Controller
         }
     }
 
-    /** Ověří web_interface_api_token z ?token= nebo Authorization: Bearer (constant-time). */
+    /**
+     * Ověří web_interface_api_token (constant-time).
+     *
+     * Preferujeme Authorization: Bearer PŘED ?token= — token v query stringu se
+     * propisuje do access logů Apache/proxy i do Referer hlaviček (CWE-598) a
+     * jde o sdílený secret pro 100+ zařízení. Query fallback zůstává kvůli
+     * legacy MikroTikům, které hlavičku poslat neumí; pro ně je v Apache configu
+     * potřeba stripovat query string z logu těchto rout (viz deploy poznámka).
+     */
     private function hasValidWebInterfaceToken(): bool
     {
-        $token = request()->input('token') ?? request()->bearerToken();
+        $token = request()->bearerToken() ?? request()->input('token');
         $valid = (string) Setting::get('web_interface_api_token', '');
         return $token !== null && $token !== '' && $valid !== '' && hash_equals($valid, (string) $token);
     }
