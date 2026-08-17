@@ -6,6 +6,19 @@ formát podle [Keep a Changelog](https://keepachangelog.com/cs/1.1.0/).
 Verzi v souboru `config/version.php` bumpni samostatným commitem `chore: bump version to X.Y.Z`,
 ať lze changelog snadno regenerovat přes `git log vX..vY --oneline`.
 
+## [2.20.1] — 2026-08-17
+
+### Fixed
+- **„Zaplaceno do" (`Account::getExpirationDate`) počítalo špatný poplatek.**
+  Měsíční poplatek se rozlišoval jen z `members_fees` (člen → fallback
+  `member_id=1` default, aktuálně 320 Kč) a **ignoroval cenu tarifu**
+  (`speed_classes.price`) i základní poplatek dle typu — na rozdíl od reálné
+  srážky (`DeductFees` / `RegularFeeResolver`). U členů s tarifním poplatkem
+  odlišným od 320 proto „Zaplaceno do" nesedělo s tím, co se reálně strhává.
+  Nově se rozlišuje shodně přes `RegularFeeResolver` (individuální → cena tarifu
+  → základní dle typu); tarif a default se předpočítají před iterací (výkon).
+  Regresní testy `AccountExpirationDateTest`.
+
 ## [2.20.0] — 2026-08-12
 
 Epos „rychlost + platba + dodatek per přípojné místo" (povolená podsíť).

@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\DB;
+use App\Services\RegularFeeResolver;
 
 class Account extends Model
 {
@@ -110,6 +111,17 @@ class Account extends Model
 
         $maxIterations = 600; // ~50 years
 
+        // Poplatek se rozlišuje SHODNĚ s reálnou srážkou (App\Services\RegularFeeResolver,
+        // který mirroruje DeductFees): individuální (members_fees) → cena tarifu
+        // (speed_classes.price) → základní dle typu. Tarif a základní jsou v rámci člena
+        // konstantní → předpočítáme je před cyklem (iteruje se až 600×); jen individuální
+        // závisí na datu, řeší se per měsíc. Dřív to bralo jen members_fees(member) →
+        // fallback member_id=1 default (320), takže „Zaplaceno do" nesedělo s tím, co se
+        // reálně strhává u členů s tarifním poplatkem.
+        $memberType = (int) ($member->type ?? 0);
+        $tarifFee   = RegularFeeResolver::tarifPrice($memberId);
+        $defaultFee = RegularFeeResolver::defaultFeeByType($memberType);
+
         for ($i = 0; $i < $maxIterations; $i++) {
             $day = min($deductDay, cal_days_in_month(CAL_GREGORIAN, $month, $year));
             $date = sprintf('%04d-%02d-%02d', $year, $month, $day);
@@ -118,8 +130,10 @@ class Account extends Model
             if ($sign === 1 && $maxFeeRow && $date > $maxFeeRow) break;
             if ($sign === -1 && $minFeeRow && $date < $minFeeRow) break;
 
-            // Get regular member fee for this month
-            $fee = $this->regularFeeForMember($memberId, $date);
+            // Poplatek za tento měsíc (mirror RegularFeeResolver::amount):
+            // individuální per měsíc, jinak předpočítaný tarif / základní.
+            $individual = RegularFeeResolver::individualFee($memberId, $date);
+            $fee = $individual ?? $tarifFee ?? $defaultFee ?? 0.0;
 
             // Add debt payment if any
             if (isset($payments[$year][$month])) {
@@ -181,37 +195,4 @@ class Account extends Model
     }
 
     /** Get regular member fee for member on date — member-specific first, then association default */
-    private function regularFeeForMember(int $memberId, string $date): float
-    {
-        $row = DB::table('members_fees as mf')
-            ->join('fees as f', 'f.id', '=', 'mf.fee_id')
-            ->join('enum_types as et', 'et.id', '=', 'f.type_id')
-            ->where('mf.member_id', $memberId)
-            ->where('et.value', 'regular member fee')
-            ->where('mf.activation_date', '<=', $date)
-            ->where(function ($q) use ($date) {
-                $q->whereNull('mf.deactivation_date')
-                  ->orWhere('mf.deactivation_date', '>=', $date);
-            })
-            ->orderBy('mf.priority')
-            ->first(['f.fee']);
-
-        if ($row) return (float) $row->fee;
-
-        // Fallback: association default (member_id = 1)
-        $default = DB::table('members_fees as mf')
-            ->join('fees as f', 'f.id', '=', 'mf.fee_id')
-            ->join('enum_types as et', 'et.id', '=', 'f.type_id')
-            ->where('mf.member_id', 1)
-            ->where('et.value', 'regular member fee')
-            ->where('mf.activation_date', '<=', $date)
-            ->where(function ($q) use ($date) {
-                $q->whereNull('mf.deactivation_date')
-                  ->orWhere('mf.deactivation_date', '>=', $date);
-            })
-            ->orderBy('mf.priority')
-            ->first(['f.fee']);
-
-        return $default ? (float) $default->fee : 0.0;
-    }
 }
