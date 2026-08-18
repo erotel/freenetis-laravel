@@ -6,6 +6,40 @@ formát podle [Keep a Changelog](https://keepachangelog.com/cs/1.1.0/).
 Verzi v souboru `config/version.php` bumpni samostatným commitem `chore: bump version to X.Y.Z`,
 ať lze changelog snadno regenerovat přes `git log vX..vY --oneline`.
 
+## [2.20.2] — 2026-08-18
+
+Bezpečnostní hardening: audit ACL **view↔server** (broken function-level access
+control / mass-assignment). Jemná ACL práva se historicky podmiňovala jen v Blade
+šablonách, ale zápisové cesty (`store()`/`update()`) autorizovaly jen hrubým
+`edit_all`/`new_all` na celý controller — citlivé pole tak šlo podvrhnout ručně
+sestaveným POST requestem, i když ho formulář skrýval. Dvě vlny auditu (6 agentů)
+prošly Member, User, Device, AllowedSubnet, ConnectionRequest, SMS, Field,
+SpeedClass, BankTransfer, BankAccount, Invoice, PohodaRefundQueue, Subnet,
+Contact. Většina cest byla v pořádku; našlo a opravilo se 5 případů.
+
+### Security
+- **Rychlost/tarif člena** (`MemberController::update`) — `speed_class_id` se
+  uloží jen s právem `Members_Controller#qos_ceil` (bez něj se ponechá stávající
+  hodnota, ne přepis na null). Formulář pole skrývá stejným právem. Reálně
+  zneužitelné skupinami s editací člena bez `qos_ceil` (Tech6).
+- **Login uživatele** (`UserController::store`) — `login` se přijme jen s právem
+  `Users_Controller#login` (dřív `nullable` větev pole pustila i bez práva),
+  zrcadlo `update()`.
+- **DHCP export zařízení** (`DeviceController::export`) — odstraněna legacy
+  autentizace „volání z IP zařízení" (`$fromDevice`). Vydávala přes DHCP export
+  cross-member data (MAC + jméno člena + IP sousedů na sdíleném subnetu) komukoliv
+  volajícímu z IP zařízení. Autentizace nově jen `dhcp_api_token`, nebo přihlášený
+  s `Devices_Controller#export`.
+- **Login/heslo zařízení** (`DeviceController::store` + create formulář) — přijmou
+  se jen s právem `Devices_Controller#login`/`#password` (zrcadlo `update()`);
+  formulář pole i skrývá. Reálně zneužitelné skupinami s `new_all#devices` bez
+  `view_all#login` (Tech4).
+- **Subnet flagy dhcp/dns/qos** (`SubnetController::validateSubnet`) — nastaví se
+  jen s odpovídajícím jemným právem `Subnets_Controller#dhcp|dns|qos`; dřív šlo
+  POSTem zapnout DHCP/DNS/QoS server na subnetu bez jemného práva.
+
+Regresní testy: `tests/Feature/Security/{MemberSpeedClassAclTest,DeviceExportAuthTest,DeviceStoreCredentialsAclTest,SubnetFlagsAclTest}`.
+
 ## [2.20.1] — 2026-08-17
 
 ### Fixed
