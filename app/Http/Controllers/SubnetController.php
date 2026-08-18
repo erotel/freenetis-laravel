@@ -114,7 +114,7 @@ class SubnetController extends Controller
             abort(403);
         }
 
-        $data = $this->validateSubnet($request);
+        $data = $this->validateSubnet($request, null, 'new_all');
 
         $subnet = Subnet::create($data);
 
@@ -152,12 +152,15 @@ class SubnetController extends Controller
             abort(404);
         }
 
-        $data = $this->validateSubnet($request, $id);
+        $data = $this->validateSubnet($request, $id, 'edit_all');
 
         // Když admin vypne DHCP na subnetu, vyresetuj i dhcp_expired flag —
         // jinak by zůstal viset na 1 (export ho resetuje jen u subnet.dhcp=1)
         // a zařízení by se v DHCP listing tvářilo trvale jako 'Změněno'.
-        if (!($data['dhcp'] ?? false) && $subnet->dhcp_expired) {
+        // Efektivní stav dhcp: když ho uživatel bez práva neposlal (odstraněno
+        // z $data), zůstává původní hodnota subnetu.
+        $effectiveDhcp = array_key_exists('dhcp', $data) ? $data['dhcp'] : $subnet->dhcp;
+        if (!$effectiveDhcp && $subnet->dhcp_expired) {
             $data['dhcp_expired'] = 0;
         }
 
@@ -191,7 +194,7 @@ class SubnetController extends Controller
 
     // -------------------------------------------------------------------------
 
-    private function validateSubnet(Request $request, ?int $excludeId = null): array
+    private function validateSubnet(Request $request, ?int $excludeId = null, string $action = 'edit_all'): array
     {
         $data = $request->validate([
             'name'            => 'nullable|string|max:254',
@@ -227,6 +230,16 @@ class SubnetController extends Controller
             return back()->withInput()
                 ->withErrors(['network_address' => 'Síťová adresa neodpovídá zadané masce.'])
                 ->throwResponse();
+        }
+
+        // Jemná práva: dhcp/dns/qos smí nastavit jen kdo má odpovídající právo
+        // ($action = new_all při store, edit_all při update) — stejně jako view
+        // podmiňuje canSetDhcp/Dns/Qos. Bez práva pole z $data odstranit →
+        // create nastaví default, update ponechá stávající hodnotu beze změny.
+        foreach (['dhcp', 'dns', 'qos'] as $flag) {
+            if (!$this->can($action, $flag)) {
+                unset($data[$flag]);
+            }
         }
 
         return $data;
