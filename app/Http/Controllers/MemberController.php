@@ -585,6 +585,11 @@ class MemberController extends Controller
             abort(404);
         }
 
+        // Třídu rychlosti (QoS) smí měnit jen kdo má jemné právo qos_ceil.
+        // Formulář pole skrývá stejným právem (members/edit.blade.php), ale server
+        // ho musí vynutit taky — jinak by šlo speed_class_id podvrhnout POSTem.
+        $canEditQos = $this->aclCheck('edit_all', 'Members_Controller', 'qos_ceil');
+
         $data = $request->validate([
             'name'           => 'required|string|max:100',
             'type'           => 'required|integer|in:' . implode(',', array_keys(MemberType::labels())),
@@ -612,7 +617,7 @@ class MemberController extends Controller
             'vat_organization_identifier' => $data['vat_organization_identifier'] ?? null,
             'locked'                      => $request->boolean('locked'),
             'registration'                => $request->boolean('registration'),
-            'speed_class_id'              => $data['speed_class_id'] ?? null,
+            'speed_class_id'              => $canEditQos ? ($data['speed_class_id'] ?? null) : $member->speed_class_id,
             'notification_by_redirection' => $request->boolean('notification_by_redirection'),
             'notification_by_email'       => $request->boolean('notification_by_email'),
             'notification_by_sms'         => $request->boolean('notification_by_sms'),

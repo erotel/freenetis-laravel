@@ -217,10 +217,11 @@ class UserController extends Controller
             'comment'               => 'nullable|string|max:250',
         ];
 
+        // Login smí zadat jen kdo má jemné právo new_all#login. Bez něj se pole
+        // do pravidel vůbec nepřidá → případný podvržený POST se zahodí (stejně
+        // jako to dělá update()). Dřív tu byla nullable větev, kterou šlo obejít.
         if ($this->can('new_all', 'login')) {
             $rules['login'] = 'required|string|max:100|unique:users,login';
-        } else {
-            $rules['login'] = 'nullable|string|max:100|unique:users,login';
         }
 
         $data = $request->validate($rules);

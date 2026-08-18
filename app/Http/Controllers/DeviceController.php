@@ -675,6 +675,8 @@ class DeviceController extends Controller
             'members'             => $members,
             'towns'               => $towns,
             'preselectedMemberId' => $preselectedMemberId,
+            'canEditLogin'        => $this->can('view_all', 'login'),
+            'canEditPassword'     => $this->can('view_all', 'password'),
         ]);
     }
 
@@ -684,15 +686,13 @@ class DeviceController extends Controller
             abort(403);
         }
 
-        $data = $request->validate([
+        $rules = [
             'member_id'       => 'required|integer|exists:members,id',
             'name'            => 'required|string|max:255',
             'type'            => 'required|integer|exists:enum_types,id',
             'trade_name'      => 'nullable|string|max:50',
             'operating_system'=> 'nullable|integer',
             'PPPoE_logging_in'=> 'nullable|integer',
-            'login'           => 'nullable|string|max:30',
-            'password'        => 'nullable|string|max:30',
             'price'           => 'nullable|numeric|min:0',
             'payment_rate'    => 'nullable|numeric|min:0',
             'buy_date'        => 'nullable|date',
@@ -700,7 +700,18 @@ class DeviceController extends Controller
             'town_id'         => 'nullable|integer|exists:towns,id',
             'street_id'       => 'nullable|integer|exists:streets,id',
             'street_number'   => 'nullable|string|max:50',
-        ]);
+        ];
+
+        // Login/heslo jsou citlivá — přijmout jen s jemným právem (stejně jako
+        // update()). Formulář je i skrývá; bez práva se podvržený POST zahodí.
+        if ($this->can('view_all', 'login')) {
+            $rules['login'] = 'nullable|string|max:30';
+        }
+        if ($this->can('view_all', 'password')) {
+            $rules['password'] = 'nullable|string|max:30';
+        }
+
+        $data = $request->validate($rules);
 
         $userId = $this->resolveMainUserId((int) $data['member_id']);
         if (!$userId) {
@@ -941,18 +952,16 @@ class DeviceController extends Controller
             abort(request()->ip() ? 404 : 404);
         }
 
-        // Auth: device calling from its own IP, or logged-in user with ACL
-        $fromDevice = DB::table('ip_addresses')
-            ->join('ifaces', 'ifaces.id', '=', 'ip_addresses.iface_id')
-            ->where('ifaces.device_id', $id)
-            ->where('ip_addresses.ip_address', $request->ip())
-            ->exists();
-
+        // Auth: DHCP servery se ověřují dhcp_api_tokenem, jinak přihlášený uživatel
+        // s ACL view_all#export. Legacy „volání z vlastní IP zařízení" (fromDevice)
+        // bylo odstraněno (audit 2026-08-18): DHCP servery už jezdí přes token a
+        // IP-based větev jen otevírala cross-member únik (buildDhcpServers vydává
+        // MAC + jméno člena sousedů na subnetu komukoliv, kdo zavolá z IP zařízení).
         $token      = $request->input('token') ?? $request->bearerToken();
         $validToken = Setting::get('dhcp_api_token');
         $tokenValid = $token && $validToken && hash_equals($validToken, $token);
 
-        if (!$fromDevice && !$tokenValid) {
+        if (!$tokenValid) {
             if (auth()->guest()) {
                 abort(403);
             }
@@ -960,7 +969,7 @@ class DeviceController extends Controller
         }
 
         // Update access_time on every authorized call
-        if ($fromDevice || $tokenValid) {
+        if ($tokenValid) {
             $device->update(['access_time' => now()]);
         }
 
@@ -971,7 +980,7 @@ class DeviceController extends Controller
         $forced = $request->boolean('forced');
         $client = $this->normalizeDhcpClient($request->input('client'));
 
-        if (!$forced && ($fromDevice || $tokenValid)) {
+        if (!$forced && $tokenValid) {
             if ($client !== null) {
                 $latestChange = null;
                 foreach ($device->ifaces as $iface) {
@@ -1023,7 +1032,7 @@ class DeviceController extends Controller
         // Zapiš, že tento konzument je aktuální. Per-client posune jen jeho
         // high-water-mark (ostatní DHCP servery změnu pořád uvidí); legacy shodí
         // sdílený flag jako dosud.
-        if ($fromDevice || $tokenValid) {
+        if ($tokenValid) {
             if ($client !== null) {
                 DB::table('dhcp_export_state')->updateOrInsert(
                     ['client' => $client],

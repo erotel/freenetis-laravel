@@ -101,18 +101,24 @@
             @error('buy_date') <div class="m-form-hint" style="color:#c0392b">{{ $message }}</div> @enderror
         </div>
     </div>
+    @if($canEditLogin || $canEditPassword)
     <div class="m-form-row">
+        @if($canEditLogin)
         <div class="m-form-group">
             <label class="m-form-label" for="login">Login</label>
             <input class="m-form-input" type="text" id="login" name="login" value="{{ old('login') }}" maxlength="30">
             @error('login') <div class="m-form-hint" style="color:#c0392b">{{ $message }}</div> @enderror
         </div>
+        @endif
+        @if($canEditPassword)
         <div class="m-form-group">
             <label class="m-form-label" for="password">Heslo</label>
             <input class="m-form-input" type="text" id="password" name="password" value="{{ old('password') }}" maxlength="30">
             @error('password') <div class="m-form-hint" style="color:#c0392b">{{ $message }}</div> @enderror
         </div>
+        @endif
     </div>
+    @endif
     <div class="m-form-row">
         <div class="m-form-group">
             <label class="m-form-label" for="price">Cena</label>
