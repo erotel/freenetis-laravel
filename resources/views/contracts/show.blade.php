@@ -384,35 +384,50 @@
 <div class="m-section">Dodatky – dodatečné služby</div>
 <div class="m-card" style="margin-bottom:16px">
     <div style="font-size:14px;color:#6b7280;margin-bottom:12px">
-        Dodatek zaznamená přidání nebo zrušení doplňkové služby (např. veřejná IP) s účinností od 1. dne dalšího měsíce.
-        Službu přiřaď členovi předem v <a href="{{ route('members_fees.by_member', $member->id) }}">poplatcích člena</a>; dodatek přebírá její název a cenu.
+        Dodatek zaznamená přidání nebo zrušení doplňkové služby (např. veřejná IP).
+        <strong>Přidání</strong> se členovi přiřadí (začne účtovat) <strong>až po podpisu</strong> dodatku;
+        <strong>zrušení</strong> se aplikuje vydáním dodatku (bez podpisu, snižuje platbu). Službu už nepřiřazuj předem ručně.
     </div>
     @if($canEdit)
+        {{-- Přidání služby: výběr z dostupných poplatků, přiřadí se až podpisem --}}
+        @if(!empty($availableServices) && count($availableServices) > 0)
+        <form method="POST" action="{{ route('contracts.service_addon.create', $member->id) }}" style="margin-bottom:10px">
+            @csrf
+            <input type="hidden" name="action" value="add">
+            <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end">
+                <div>
+                    <label class="m-form-label" for="svc_add_fee_id" style="font-size:14px;color:#6b7280">Přidat službu</label>
+                    <select class="m-form-input" id="svc_add_fee_id" name="fee_id" style="min-width:220px">
+                        @foreach($availableServices as $f)
+                        <option value="{{ $f->id }}">{{ $f->name !== '' ? $f->name : 'Dodatečná služba' }} — {{ number_format((float) $f->fee, 0, ',', ' ') }} Kč</option>
+                        @endforeach
+                    </select>
+                </div>
+                <button class="m-btn m-btn-primary" type="submit">Vytvořit dodatek (přidání)</button>
+            </div>
+        </form>
+        @endif
+        {{-- Zrušení služby: výběr z aktivních služeb člena, deaktivuje se vydáním --}}
         @if(!empty($assignableServices))
         <form method="POST" action="{{ route('contracts.service_addon.create', $member->id) }}" style="margin-bottom:14px">
             @csrf
+            <input type="hidden" name="action" value="remove">
             <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end">
                 <div>
-                    <label class="m-form-label" for="svc_fee_id" style="font-size:14px;color:#6b7280">Služba</label>
-                    <select class="m-form-input" id="svc_fee_id" name="fee_id" style="min-width:220px">
+                    <label class="m-form-label" for="svc_rem_fee_id" style="font-size:14px;color:#6b7280">Zrušit službu</label>
+                    <select class="m-form-input" id="svc_rem_fee_id" name="fee_id" style="min-width:220px">
                         @foreach($assignableServices as $s)
                         <option value="{{ $s['fee_id'] }}">{{ $s['name'] !== '' ? $s['name'] : 'Dodatečná služba' }} — {{ number_format($s['fee'], 0, ',', ' ') }} Kč</option>
                         @endforeach
                     </select>
                 </div>
-                <div>
-                    <label class="m-form-label" for="svc_action" style="font-size:14px;color:#6b7280">Akce</label>
-                    <select class="m-form-input" id="svc_action" name="action" style="min-width:140px">
-                        <option value="add">Přidání</option>
-                        <option value="remove">Zrušení</option>
-                    </select>
-                </div>
-                <button class="m-btn m-btn-primary" type="submit">Vytvořit dodatek</button>
+                <button class="m-btn" type="submit">Vytvořit dodatek (zrušení)</button>
             </div>
         </form>
-        @else
+        @endif
+        @if(empty($availableServices) && empty($assignableServices))
         <div style="color:#9ca3af;font-size:14px;margin-bottom:12px">
-            Člen nemá žádnou aktivní dodatečnou službu. Nejprve ji přiřaď v <a href="{{ route('members_fees.by_member', $member->id) }}">poplatcích člena</a>.
+            Žádné dodatečné služby k dispozici. Poplatky typu „Dodatečné služby" spravuješ v <a href="{{ route('fees.index') }}">ceníku</a>.
         </div>
         @endif
     @endif

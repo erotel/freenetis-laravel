@@ -478,9 +478,12 @@ class ContractService
     // ── Dodatek: dodatečná služba (contract_addons, type='additional_service') ──
 
     /**
-     * Vytvoř dodatek „dodatečná služba" k podepsané smlouvě. $action = 'add'|'remove'.
-     * Službu (název + cena) snímá z poplatku typu 'additional service' (fees),
-     * aby PDF sedělo s tím, co se reálně účtuje. Účinnost = 1. den dalšího měsíce.
+     * Vytvoř dodatek „dodatečná služba" k podepsané smlouvě jako NÁVRH.
+     * $action = 'add'|'remove'. Službu (název + cena) snímá z poplatku typu
+     * 'additional service' (fees) a uloží jeho ID do `fee_id`. Poplatek se
+     * členovi NEPŘIŘADÍ hned — u 'add' se přiřadí teprve podpisem
+     * (signServiceAddon), u 'remove' se deaktivuje vydáním (issueServiceRemoval).
+     * Účinnost = datum podpisu/vydání (viz sign/issue); zde jen předvyplněná.
      */
     public function createServiceAddon(int $contractId, int $feeId, string $action = 'add'): ?ContractAddon
     {
@@ -512,7 +515,9 @@ class ContractService
             'service_name'   => $fee->name !== '' ? $fee->name : 'Dodatečná služba',
             'service_price'  => (float) $fee->fee,
             'service_action' => $action,
-            'effective_date' => now()->startOfMonth()->addMonth()->toDateString(),
+            'fee_id'         => $feeId,
+            // Účinnost = den podpisu/vydání (apply-on-sign). Předvyplněno na dnešek.
+            'effective_date' => now()->toDateString(),
             'status'         => 'draft',
             'created_by'     => auth()->user()?->login,
             'created_at'     => now()->format('Y-m-d H:i:s'),
@@ -649,14 +654,18 @@ class ContractService
      */
     public function signServiceAddon(ContractAddon $addon, PdfService $pdf, ?Request $request = null): ContractAddon
     {
+        // Účinnost = den podpisu (apply-on-sign). Před renderem PDF.
+        $addon->effective_date = now()->toDateString();
+
         $fullpath = $pdf->renderServiceAddonPdf($addon, false, $request);
         $raw      = (string) @file_get_contents($fullpath);
         $sha256   = hash('sha256', $raw);
 
         $addon->update([
-            'status'    => 'signed',
-            'signed_at' => now(),
-            'pdf_path'  => $fullpath,
+            'status'         => 'signed',
+            'signed_at'      => now(),
+            'pdf_path'       => $fullpath,
+            'effective_date' => $addon->effective_date,
         ]);
 
         ContractEvent::create([
@@ -665,7 +674,100 @@ class ContractService
             'meta_json'   => json_encode(['addon_id' => $addon->id, 'sha256' => $sha256], JSON_UNESCAPED_UNICODE),
         ]);
 
+        // Přiřazení služby (poplatku) na člena AŽ TEĎ (po podpisu). Billing
+        // (AdditionalServicesResolver/DeductFees) čte živý stav members_fees.
+        if ($addon->service_action === 'add' && $addon->fee_id) {
+            $this->applyServiceAddonAdd($addon);
+        }
+
         return $addon->refresh();
+    }
+
+    /**
+     * Přiřadí poplatek dodatku „dodatečná služba" (add) členovi do members_fees
+     * s účinností = datum účinnosti dodatku. Idempotentní — když už člen tuto
+     * službu aktivní má, nic nepřidává.
+     */
+    private function applyServiceAddonAdd(ContractAddon $addon): void
+    {
+        $memberId = Contract::find($addon->contract_id)?->member_id;
+        if (!$memberId) {
+            return;
+        }
+
+        $from = $addon->effective_date
+            ? $addon->effective_date->toDateString()
+            : now()->toDateString();
+
+        // Už aktivní stejná služba? (activation<=today<=deactivation) → nepřidávat.
+        $already = \App\Models\MemberFee::where('member_id', $memberId)
+            ->where('fee_id', $addon->fee_id)
+            ->whereDate('activation_date', '<=', now()->toDateString())
+            ->whereDate('deactivation_date', '>=', now()->toDateString())
+            ->exists();
+        if ($already) {
+            return;
+        }
+
+        \App\Models\MemberFee::create([
+            'member_id'         => $memberId,
+            'fee_id'            => $addon->fee_id,
+            'activation_date'   => $from,
+            'deactivation_date' => '9999-12-31',
+            'priority'          => 1,
+            'comment'           => 'Dodatek č. ' . ($addon->addon_no ?? '?') . ' ke smlouvě (dodatečná služba)',
+        ]);
+
+        ContractEvent::create([
+            'contract_id' => $addon->contract_id,
+            'event'       => 'service_addon_applied',
+            'meta_json'   => json_encode([
+                'addon_id'  => $addon->id,
+                'member_id' => $memberId,
+                'fee_id'    => (int) $addon->fee_id,
+                'from'      => $from,
+            ], JSON_UNESCAPED_UNICODE),
+        ]);
+    }
+
+    /**
+     * Deaktivuje aktivní přiřazení poplatku dodatku „dodatečná služba" (remove)
+     * u člena — nastaví deactivation_date na datum účinnosti dodatku. Přes
+     * Eloquent instance (ne bulk update), ať se změna zapíše do auditu.
+     */
+    private function applyServiceAddonRemoval(ContractAddon $addon): void
+    {
+        $memberId = Contract::find($addon->contract_id)?->member_id;
+        if (!$memberId) {
+            return;
+        }
+
+        $to = $addon->effective_date
+            ? $addon->effective_date->toDateString()
+            : now()->toDateString();
+
+        $rows = \App\Models\MemberFee::where('member_id', $memberId)
+            ->where('fee_id', $addon->fee_id)
+            ->whereDate('deactivation_date', '>=', now()->toDateString())
+            ->get();
+
+        foreach ($rows as $row) {
+            $row->update(['deactivation_date' => $to]);
+        }
+
+        if ($rows->isNotEmpty()) {
+            ContractEvent::create([
+                'contract_id' => $addon->contract_id,
+                'event'       => 'service_addon_removal_applied',
+                'meta_json'   => json_encode([
+                    'addon_id'  => $addon->id,
+                    'member_id' => $memberId,
+                    'fee_id'    => (int) $addon->fee_id,
+                    'until'     => $to,
+                    'count'     => $rows->count(),
+                ], JSON_UNESCAPED_UNICODE),
+            ]);
+        }
     }
 
     /**
@@ -680,14 +782,18 @@ class ContractService
             return null;
         }
 
+        // Účinnost = den vydání. Před renderem PDF.
+        $addon->effective_date = now()->toDateString();
+
         $fullpath = $pdf->renderServiceAddonPdf($addon, false, null);
         $raw      = (string) @file_get_contents($fullpath);
         $sha256   = hash('sha256', $raw);
 
         $addon->update([
-            'status'    => 'signed',
-            'signed_at' => now(),
-            'pdf_path'  => $fullpath,
+            'status'         => 'signed',
+            'signed_at'      => now(),
+            'pdf_path'       => $fullpath,
+            'effective_date' => $addon->effective_date,
         ]);
 
         ContractEvent::create([
@@ -695,6 +801,11 @@ class ContractService
             'event'       => 'service_addon_removal_issued',
             'meta_json'   => json_encode(['addon_id' => $addon->id, 'sha256' => $sha256], JSON_UNESCAPED_UNICODE),
         ]);
+
+        // Deaktivace služby (poplatku) na členovi AŽ TEĎ (vydání dodatku o zrušení).
+        if ($addon->fee_id) {
+            $this->applyServiceAddonRemoval($addon);
+        }
 
         $this->emailServiceRemoval($addon);
 

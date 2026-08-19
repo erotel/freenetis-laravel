@@ -260,6 +260,19 @@ class PdfService
             ? 'Tímto dodatkem se ke Smlouvě ruší níže uvedená doplňková služba'
             : 'Tímto dodatkem se ke Smlouvě sjednává níže uvedená doplňková služba';
 
+        // Účinnost: přidání = dnem podpisu (akceptace zákazníkem), zrušení =
+        // dnem vydání Poskytovatelem (bez podpisu, snižuje závazek).
+        $effectiveBasis = $isRemove ? 'vydání' : 'podpisu (akceptace)';
+
+        // Právo na odstoupení do 14 dnů (distanční/elektronický podpis) se týká
+        // jen PŘIDÁNÍ služby, které Účastník podepisuje; u zrušení bez podpisu ne.
+        $withdrawalSection = $isRemove ? '' : (
+            '<h2>4. ODSTOUPENÍ OD DODATKU</h2>'
+            . '<div class="block"><strong>4.1.</strong> Tento Dodatek je uzavírán distančním způsobem, prostředky komunikace na dálku (elektronickým podpisem). Je-li Účastník spotřebitelem, má právo od tohoto Dodatku odstoupit ve lhůtě <strong>14 dnů</strong> ode dne jeho uzavření, a to bez uvedení důvodu a bez jakékoli sankce.</div>'
+            . '<div class="block"><strong>4.2.</strong> Pro odstoupení postačí, aby Účastník ve výše uvedené lhůtě odeslal Poskytovateli oznámení o odstoupení, a to písemně na adresu sídla Poskytovatele nebo elektronicky na kontaktní adresu uvedenou na www.pvfree.net. Lhůta je zachována, je-li oznámení odesláno před jejím uplynutím.</div>'
+            . '<div class="block"><strong>4.3.</strong> Účastník výslovně žádá, aby poskytování služby bylo zahájeno již ve lhůtě pro odstoupení, tj. ke dni účinnosti dle bodu 1.1. Odstoupením se tento Dodatek od počátku ruší a doplňková služba se neposkytuje.</div>'
+        );
+
         $repl = [
             '{{contract_no}}'     => $this->h($contract->contract_no ?? ''),
             '{{addon_no}}'        => $this->h((string) ($addon->addon_no ?? 1)),
@@ -276,6 +289,8 @@ class PdfService
             '{{action_title}}'    => $this->h($actionTitle),
             '{{action_intro}}'    => $this->h($actionIntro),
             '{{effective_date}}'  => $this->h($effective),
+            '{{effective_basis}}' => $this->h($effectiveBasis),
+            '{{withdrawal_section}}' => $withdrawalSection,
             '{{dat}}'             => $this->h(date('d.m.Y')),
         ];
 

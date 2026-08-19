@@ -68,7 +68,7 @@
 
   <h2>1. PŘEDMĚT DODATKU</h2>
   <div class="block">
-    <strong>1.1.</strong> {{action_intro}} s účinností od <strong>{{effective_date}}</strong>.
+    <strong>1.1.</strong> {{action_intro}} s účinností ode dne {{effective_basis}} tohoto dodatku.
   </div>
 
   <h2>2. DODATEČNÁ SLUŽBA</h2>
@@ -80,18 +80,15 @@
       </tr>
       <tr>
         <td>Cena:</td>
-        <td>{{service_price}} Kč / měsíc</td>
-      </tr>
-      <tr>
-        <td>Účinnost:</td>
-        <td>{{effective_date}}</td>
+        <td>{{service_price}} Kč / měsíc vč. DPH</td>
       </tr>
     </table>
+    <div class="muted" style="margin-top:6px">Uvedená cena je v Kč včetně DPH.</div>
   </div>
 
   <h2>3. OSTATNÍ USTANOVENÍ</h2>
   <div class="block">
-    <strong>3.1.</strong> Dodatek je platný podpisem oběma stranami. Účinnost nastává k datu uvedenému v bodu 1.1, tj. k prvnímu dni kalendářního měsíce následujícího po jeho akceptaci Poskytovatelem.
+    <strong>3.1.</strong> Dodatek nabývá platnosti okamžikem jeho elektronické akceptace. Účinnost nastává dnem {{effective_basis}} tohoto dodatku.
   </div>
   <div class="block">
     <strong>3.2.</strong> Ostatní ujednání Smlouvy zůstávají tímto dodatkem nedotčena a nadále platí v plném rozsahu.
@@ -99,6 +96,8 @@
   <div class="block">
     <strong>3.3.</strong> Smluvní strany prohlašují, že tomuto Dodatku porozuměly a že jej uzavírají na základě své svobodné vůle, bez nátlaku či nápadně nevýhodných podmínek.
   </div>
+
+  {{withdrawal_section}}
 
   <div class="line"></div>
 

@@ -6,6 +6,7 @@ use App\Models\Fee;
 use App\Models\Member;
 use App\Models\MemberFee;
 use App\Models\Setting;
+use App\Services\ContractService;
 use Illuminate\Http\Request;
 
 class MemberFeeController extends Controller
@@ -91,6 +92,18 @@ class MemberFeeController extends Controller
             'deactivation_date' => 'nullable|date|after_or_equal:activation_date',
             'comment'           => 'nullable|string|max:1000',
         ]);
+
+        // Dodatečnou službu (typ „additional service") NELZE přiřadit přímo členovi
+        // s podepsanou smlouvou — musí projít dodatkem, který službu přiřadí až po
+        // podpisu (apply-on-sign). Jinak by zákazník platil za nepodepsanou službu.
+        $fee = Fee::find($data['fee_id']);
+        if ($fee && (int) $fee->type_id === Fee::TYPE_ADDITIONAL_SERVICE) {
+            $contract = app(ContractService::class)->getByMemberId($memberId);
+            if ($contract && $contract->status === 'signed') {
+                return redirect()->route('contracts.show', $memberId)
+                    ->with('error', 'Dodatečnou službu u člena s podepsanou smlouvou přidej dodatkem ke smlouvě (přiřadí se po podpisu), ne přímo v poplatcích.');
+            }
+        }
 
         MemberFee::create([
             'member_id'         => $memberId,

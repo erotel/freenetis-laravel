@@ -39,8 +39,17 @@ class ContractController extends Controller
         $contract = $this->contracts->getByMemberId($memberId);
         $tariffAddons  = $contract ? $this->contracts->tariffAddons($contract->id) : collect();
         $serviceAddons = $contract ? $this->contracts->serviceAddons($contract->id) : collect();
-        // Aktivní dodatečné služby člena (pro výběr do dodatku) — z members_fees.
+        // Aktivní dodatečné služby člena (pro dodatek ZRUŠENÍ) — z members_fees.
         $assignableServices = \App\Services\AdditionalServicesResolver::items($memberId, now()->toDateString());
+        // Dostupné dodatečné služby k PŘIDÁNÍ (poplatky typu „additional service",
+        // které člen ještě aktivní nemá) — přiřadí se teprve podpisem dodatku.
+        $activeFeeIds = array_column($assignableServices, 'fee_id');
+        $availableServices = \App\Models\Fee::query()
+            ->whereHas('enumType', fn ($q) => $q->whereRaw("LOWER(value) = 'additional service'"))
+            ->where('archived', 0)
+            ->whereNotIn('id', $activeFeeIds ?: [0])
+            ->orderBy('name')
+            ->get(['id', 'name', 'fee']);
         // Dodatky přípojných míst + placená místa člena pro výběr do dodatku.
         $connectionPointAddons = $contract ? $this->contracts->connectionPointAddons($contract->id) : collect();
         // Placená místa + adresa ze zařízení v podsíti (předvyplnění dodatku).
@@ -51,7 +60,7 @@ class ContractController extends Controller
 
         return view('contracts.show', compact(
             'member', 'contract', 'canEdit', 'isAdmin', 'tariffAddons',
-            'serviceAddons', 'assignableServices', 'connectionPointAddons', 'assignablePlaces',
+            'serviceAddons', 'assignableServices', 'availableServices', 'connectionPointAddons', 'assignablePlaces',
             'canEditQos', 'speedClasses'
         ));
     }
