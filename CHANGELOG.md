@@ -6,6 +6,45 @@ formát podle [Keep a Changelog](https://keepachangelog.com/cs/1.1.0/).
 Verzi v souboru `config/version.php` bumpni samostatným commitem `chore: bump version to X.Y.Z`,
 ať lze changelog snadno regenerovat přes `git log vX..vY --oneline`.
 
+## [2.21.0] — 2026-08-19
+
+Dodatky ke smlouvě „apply-on-sign": změna se aplikuje AŽ po podpisu dodatku.
+Dosud admin změnil tarif / přiřadil službu / zpoplatnil přípojné místo přímo
+u člena a bylo to okamžitě účinné technicky i finančně (billing čte živý stav
+člena); dodatek se tvořil až potom a jen dokumentoval už provedenou změnu.
+Zákazník tak platil vyšší částku i bez podpisu dodatku → právně nekryté. Nově je
+dodatek jen NÁVRH; nová rychlost/služba/zpoplatnění naskočí až podpisem
+(u zrušení služby/místa vydáním dodatku, které snižuje závazek, proto bez OTP).
+
+### Added
+- **Tarifní dodatek** — `contract_addons.new_speed_class_id` nese navrhovaný
+  tarif; `ContractService::signTariffAddon` propíše `members.speed_class_id` na
+  člena teprve po podpisu (+ event `tariff_addon_applied`). Vytvoření dodatku
+  vyžaduje právo `Members_Controller#qos_ceil` a výběr cílového tarifu.
+- **Dodatek dodatečné služby** — `contract_addons.fee_id`; podpis (add) přiřadí
+  poplatek do `members_fees` (`service_addon_applied`), vydání (remove)
+  deaktivuje (`service_addon_removal_applied`).
+- **Dodatek přípojného místa** — `contract_addons.allowed_subnet_id`; podpis
+  (add) zapne `allowed_subnets.charged` (`connection_point_addon_applied`),
+  vydání (remove) vypne (`connection_point_addon_removal_applied`). Nový
+  `AllowedSubnetFeesResolver::chargeablePlaces`.
+- **Serverové vynucení (guard)** proti obejití dodatku u člena s podepsanou
+  smlouvou: přímá změna tarifu (`MemberController::update`), přímé přiřazení
+  dodatečné služby (`MemberFeeController::store`) i přímé zpoplatnění místa
+  (`AllowedSubnetController::updateBilling`) jsou zablokované a odkazují na
+  dodatek. Formuláře editace člena / výběr dodatku se řídí stejnými pravidly.
+- **PDF dodatků** — částky nově „vč. DPH", účinnost „ode dne podpisu (akceptace)"
+  resp. „vydání" (dřív chybně „1. den dalšího měsíce"), a u podepisovaných
+  dodatků (add) doplněna sekce **odstoupení do 14 dnů** (distanční/elektronický
+  podpis, § 1829 obč. zák.).
+
+Testy: `tests/Feature/Contracts/{TariffAddonApplyOnSignTest,ServiceAddonApplyOnSignTest,ConnectionPointAddonApplyOnSignTest}`.
+
+### Poznámka k nasazení
+Tři migrace na connectionu `contracts` (`new_speed_class_id`, `fee_id`,
+`allowed_subnet_id` v `contract_addons`) — spustit `php artisan migrate` i na
+produkci.
+
 ## [2.20.2] — 2026-08-18
 
 Bezpečnostní hardening: audit ACL **view↔server** (broken function-level access
