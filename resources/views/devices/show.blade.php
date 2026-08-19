@@ -73,6 +73,19 @@
         @if($canViewPassword)
         <div class="m-field"><span class="m-field-label">Heslo</span><span class="m-field-value">{{ $device->password ?? '—' }}</span></div>
         @endif
+        @if($canViewPassword && $device->isAp())
+        <div class="m-field">
+            <span class="m-field-label">Šifrovací klíč (WPA2)</span>
+            <span class="m-field-value">
+                @if($device->wpa_key)
+                    <span id="wpa_val" data-key="{{ $device->wpa_key }}">••••••••</span>
+                    <button type="button" class="btnlink" style="background:none;border:0;color:#2563eb;cursor:pointer;padding:0 0 0 8px" onclick="var e=document.getElementById('wpa_val');var k=e.getAttribute('data-key');if(e.textContent===k){e.textContent='••••••••';this.textContent='zobrazit';}else{e.textContent=k;this.textContent='skrýt';}">zobrazit</button>
+                @else
+                    —
+                @endif
+            </span>
+        </div>
+        @endif
         <div class="m-field"><span class="m-field-label">Poslední přístup</span><span class="m-field-value">{{ $device->access_time ?? '—' }}</span></div>
         @if($device->price !== null)
         <div class="m-field"><span class="m-field-label">Cena</span><span class="m-field-value">{{ $device->price }}</span></div>

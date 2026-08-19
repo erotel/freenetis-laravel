@@ -25,6 +25,23 @@ class DeviceController extends Controller
     private const ACL_SECTION = 'Devices_Controller';
     private const ACL_VALUE   = 'devices';
 
+    /**
+     * WPA2 klíč: prázdný string → null; klíč dává smysl jen u AP, u ostatních
+     * typů ho zahodíme (např. při přetypování AP → switch se klíč vymaže).
+     * Působí jen když je `wpa_key` v datech (tj. uživatel má právo na heslo).
+     */
+    private function normalizeWpaKey(array $data): array
+    {
+        if (!array_key_exists('wpa_key', $data)) {
+            return $data;
+        }
+        $key = trim((string) ($data['wpa_key'] ?? ''));
+        $isAp = (int) ($data['type'] ?? 0) === Device::AP_TYPE_ID;
+        $data['wpa_key'] = ($isAp && $key !== '') ? $key : null;
+
+        return $data;
+    }
+
     private function can(string $action, string $value = self::ACL_VALUE): bool
     {
         return $this->aclCheck($action, self::ACL_SECTION, $value);
@@ -677,6 +694,7 @@ class DeviceController extends Controller
             'preselectedMemberId' => $preselectedMemberId,
             'canEditLogin'        => $this->can('view_all', 'login'),
             'canEditPassword'     => $this->can('view_all', 'password'),
+            'apTypeId'            => Device::AP_TYPE_ID,
         ]);
     }
 
@@ -709,9 +727,14 @@ class DeviceController extends Controller
         }
         if ($this->can('view_all', 'password')) {
             $rules['password'] = 'nullable|string|max:30';
+            // WPA2 klíč AP: stejné jemné právo jako heslo. Délka dle WPA2 (8–63),
+            // min 16 pro dostatečnou entropii (doporučení NIS2/ZKB pro sdílený klíč).
+            $rules['wpa_key']  = 'nullable|string|min:16|max:63';
         }
 
         $data = $request->validate($rules);
+
+        $data = $this->normalizeWpaKey($data);
 
         $userId = $this->resolveMainUserId((int) $data['member_id']);
         if (!$userId) {
@@ -776,6 +799,7 @@ class DeviceController extends Controller
             'currentStreetNumber' => $currentStreetNumber,
             'canEditLogin'        => $this->can('view_all', 'login'),
             'canEditPassword'     => $this->can('view_all', 'password'),
+            'apTypeId'            => Device::AP_TYPE_ID,
         ]);
     }
 
@@ -812,9 +836,12 @@ class DeviceController extends Controller
 
         if ($this->can('view_all', 'password')) {
             $rules['password'] = 'nullable|string|max:30';
+            $rules['wpa_key']  = 'nullable|string|min:16|max:63';
         }
 
         $data = $request->validate($rules);
+
+        $data = $this->normalizeWpaKey($data);
 
         $userId = $this->resolveMainUserId((int) $data['member_id']);
         if (!$userId) {

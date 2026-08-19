@@ -106,6 +106,18 @@
         <input class="m-form-input" type="text" id="password" name="password" value="{{ old('password', $device->password) }}" maxlength="30">
         @error('password') <div class="m-form-hint" style="color:#c0392b">{{ $message }}</div> @enderror
     </div>
+    <div class="m-form-group" id="wpa_field" style="{{ (int) old('type', $device->type) === (int) $apTypeId ? '' : 'display:none' }}">
+        <label class="m-form-label" for="wpa_key">Šifrovací klíč (WPA2)</label>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+            <input class="m-form-input" type="password" id="wpa_key" name="wpa_key"
+                   value="{{ old('wpa_key', $device->wpa_key) }}" minlength="16" maxlength="63"
+                   autocomplete="new-password" style="flex:1;min-width:220px">
+            <button type="button" class="m-btn" onclick="wpaToggle()">Zobrazit</button>
+            <button type="button" class="m-btn" onclick="wpaGenerate()">Generovat</button>
+        </div>
+        <div class="m-form-hint">WPA2‑PSK klíč přístupového bodu. Doporučeno ≥ 16 znaků (generátor dělá 20). Uloženo šifrovaně.</div>
+        @error('wpa_key') <div class="m-form-hint" style="color:#c0392b">{{ $message }}</div> @enderror
+    </div>
     @endif
     <div class="m-form-row">
         <div class="m-form-group">
@@ -175,4 +187,35 @@
     }
 })();
 </script>
+
+@if($canEditPassword)
+<script>
+// Šifrovací klíč (WPA2) — pole jen u typu AP; generátor + odkrytí.
+var WPA_AP_TYPE = {{ (int) $apTypeId }};
+function wpaToggleField() {
+    var t = document.getElementById('type');
+    var f = document.getElementById('wpa_field');
+    if (!t || !f) return;
+    f.style.display = (parseInt(t.value, 10) === WPA_AP_TYPE) ? '' : 'none';
+}
+function wpaToggle() {
+    var i = document.getElementById('wpa_key');
+    if (i) i.type = (i.type === 'password') ? 'text' : 'password';
+}
+function wpaGenerate() {
+    // 20 znaků z bezpečné abecedy (bez matoucích 0/O/1/l/I) ≈ 118 bitů entropie.
+    var abc = 'abcdefghijkmnpqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+    var out = '', a = new Uint32Array(20);
+    (window.crypto || window.msCrypto).getRandomValues(a);
+    for (var k = 0; k < a.length; k++) out += abc[a[k] % abc.length];
+    var i = document.getElementById('wpa_key');
+    if (i) { i.type = 'text'; i.value = out; }
+}
+(function () {
+    var t = document.getElementById('type');
+    if (t) t.addEventListener('change', wpaToggleField);
+    wpaToggleField();
+})();
+</script>
+@endif
 @endsection
