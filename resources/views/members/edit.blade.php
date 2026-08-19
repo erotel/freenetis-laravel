@@ -175,7 +175,19 @@
             </label>
         </div>
     </div>
-    @if($canEditQos && $speedClasses->count() > 0)
+    @if($hasSignedContract)
+    <div class="m-form-group">
+        <label class="m-form-label">Třída rychlosti (QoS)</label>
+        <div class="m-form-static" style="max-width:420px">
+            {{ $member->speedClass?->name ?? '— žádná —' }}
+        </div>
+        <div class="m-form-hint">
+            Člen má podepsanou smlouvu — tarif změň
+            <a href="{{ route('contracts.show', $member->id) }}">dodatkem</a>
+            (změna se aplikuje až po podpisu).
+        </div>
+    </div>
+    @elseif($canEditQos && $speedClasses->count() > 0)
     <div class="m-form-group">
         <label class="m-form-label" for="speed_class_id">Třída rychlosti (QoS)</label>
         <select class="m-form-select" id="speed_class_id" name="speed_class_id" style="max-width:420px">

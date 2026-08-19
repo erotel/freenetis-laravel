@@ -571,7 +571,12 @@ class MemberController extends Controller
         $defaultSpeedClass = \App\Models\SpeedClass::where('regular_member_default', true)->first();
         $canEditQos        = $this->aclCheck('edit_all', 'Members_Controller', 'qos_ceil');
 
-        return view('members.edit', compact('member', 'types', 'towns', 'streets', 'speedClasses', 'defaultSpeedClass', 'canEditQos'));
+        // Má-li člen podepsanou smlouvu, tarif se mění POUZE dodatkem (apply-on-sign),
+        // ne přímou editací — jinak by dostal novou rychlost/cenu bez podpisu.
+        $signed            = app(ContractService::class)->getByMemberId($id);
+        $hasSignedContract = $signed && $signed->status === 'signed';
+
+        return view('members.edit', compact('member', 'types', 'towns', 'streets', 'speedClasses', 'defaultSpeedClass', 'canEditQos', 'hasSignedContract'));
     }
 
     public function update(Request $request, int $id)
@@ -589,6 +594,15 @@ class MemberController extends Controller
         // Formulář pole skrývá stejným právem (members/edit.blade.php), ale server
         // ho musí vynutit taky — jinak by šlo speed_class_id podvrhnout POSTem.
         $canEditQos = $this->aclCheck('edit_all', 'Members_Controller', 'qos_ceil');
+
+        // Má-li člen podepsanou smlouvu, přímá změna tarifu je zakázaná — mění se
+        // jen dodatkem, který se aplikuje až po podpisu (apply-on-sign). Vynucení
+        // i na serveru (view dropdown skrývá, ale POST nesmí projít).
+        $signed            = app(ContractService::class)->getByMemberId($id);
+        $hasSignedContract = $signed && $signed->status === 'signed';
+        if ($hasSignedContract) {
+            $canEditQos = false;
+        }
 
         $data = $request->validate([
             'name'           => 'required|string|max:100',

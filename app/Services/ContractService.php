@@ -204,8 +204,28 @@ class ContractService
      */
     public function tariffSnapshot(Member $member): array
     {
-        $speedName  = $member->speedClass?->name ?? '';
-        $tarifPrice = $member->speedClass?->price;
+        return $this->buildTariffSnapshot(
+            $member,
+            $member->speedClass?->name ?? '',
+            $member->speedClass?->price
+        );
+    }
+
+    /**
+     * Jako tariffSnapshot(), ale pro KONKRÉTNÍ (navrhovanou) třídu rychlosti —
+     * použití u tarifního dodatku, kde `new_*` je návrh, ne živý stav člena.
+     * Zvýhodněná cena (individuální 'regular member fee') je vlastnost člena,
+     * ne rychlosti, takže se snímá stejně.
+     */
+    public function tariffSnapshotForSpeedClass(Member $member, int $speedClassId): array
+    {
+        $sc = \App\Models\SpeedClass::find($speedClassId);
+        return $this->buildTariffSnapshot($member, $sc?->name ?? '', $sc?->price);
+    }
+
+    /** Společné jádro snapshotu tarifu — jméno/cena rychlosti + individuální sleva člena. */
+    private function buildTariffSnapshot(Member $member, string $speedName, $tarifPrice): array
+    {
         $basePrice  = $tarifPrice !== null
             ? (float) $tarifPrice
             : (RegularFeeResolver::defaultFeeByType((int) $member->type) ?? 0.0);
@@ -230,11 +250,13 @@ class ContractService
     }
 
     /**
-     * Vytvoř dodatek „změna tarifu" k podepsané smlouvě. Snímá PŮVODNÍ stav
-     * (poslední podepsaný tariff_change dodatek, jinak snapshot smlouvy) a NOVÝ
-     * (živý tarif člena). Účinnost = 1. den dalšího měsíce. Repeatable.
+     * Vytvoř dodatek „změna tarifu" k podepsané smlouvě jako NÁVRH. `old_*` snímá
+     * SOUČASNÝ tarif člena (živý stav = poslední aplikovaný), `new_*` snímá
+     * NAVRHOVANÝ tarif (`$newSpeedClassId`) a uloží jeho ID do `new_speed_class_id`.
+     * Rychlost člena se NEMĚNÍ — propíše se teprve při podpisu (signTariffAddon).
+     * Účinnost = datum podpisu (viz signTariffAddon); zde jen předvyplněná. Repeatable.
      */
-    public function createTariffChangeAddon(int $contractId): ?ContractAddon
+    public function createTariffChangeAddon(int $contractId, int $newSpeedClassId): ?ContractAddon
     {
         $contract = Contract::find($contractId);
         if (!$contract || $contract->status !== 'signed') {
@@ -244,27 +266,15 @@ class ContractService
         if (!$member) {
             return null;
         }
-
-        $lastSigned = ContractAddon::where('contract_id', $contractId)
-            ->where('type', 'tariff_change')->where('status', 'signed')
-            ->orderByDesc('effective_date')->orderByDesc('id')->first();
-
-        if ($lastSigned) {
-            $old = [
-                'speed_name'           => $lastSigned->new_speed_name,
-                'price'                => $lastSigned->new_price,
-                'price_after_discount' => $lastSigned->new_price_after_discount,
-            ];
-        } else {
-            $party = ContractParty::where('contract_id', $contractId)->orderByDesc('id')->first();
-            $old = [
-                'speed_name'           => $party?->speed_name,
-                'price'                => $party?->price,
-                'price_after_discount' => $party?->price_after_discount,
-            ];
+        // Navrhovaná třída rychlosti musí existovat.
+        if (!\App\Models\SpeedClass::whereKey($newSpeedClassId)->exists()) {
+            return null;
         }
 
-        $new = $this->tariffSnapshot($member);
+        // Původní = SOUČASNÝ (živý) tarif člena; s apply-on-sign je to zároveň
+        // poslední podepsaný stav (rychlost se mění až podpisem dodatku).
+        $old = $this->tariffSnapshot($member);
+        $new = $this->tariffSnapshotForSpeedClass($member, $newSpeedClassId);
 
         // Pořadové číslo dodatku — navazuje i na legacy nulový-tarif addon (č. 1).
         $maxNo    = (int) (ContractAddon::where('contract_id', $contractId)->max('addon_no') ?? 0);
@@ -280,8 +290,11 @@ class ContractService
             'new_speed_name'           => $new['speed_name'],
             'new_price'                => $new['price'],
             'new_price_after_discount' => $new['price_after_discount'],
+            'new_speed_class_id'       => $newSpeedClassId,
             'discount_until'           => $new['discount_until'],
-            'effective_date'           => now()->startOfMonth()->addMonth()->toDateString(),
+            // Účinnost = den podpisu (apply-on-sign). Zde jen předvyplněno na dnešek
+            // (náhled), při podpisu se přepíše na skutečné datum (signTariffAddon).
+            'effective_date'           => now()->toDateString(),
             'status'                   => 'draft',
             'created_by'               => auth()->user()?->login,
             'created_at'               => now()->format('Y-m-d H:i:s'),
@@ -412,14 +425,19 @@ class ContractService
      */
     public function signTariffAddon(ContractAddon $addon, PdfService $pdf, ?Request $request = null): ContractAddon
     {
+        // Účinnost = den podpisu (apply-on-sign, bez plánovače). Musí být před
+        // renderem PDF, aby dokument nesl skutečné datum účinnosti.
+        $addon->effective_date = now()->toDateString();
+
         $fullpath = $pdf->renderTariffAddonPdf($addon, false, $request);
         $raw      = (string) @file_get_contents($fullpath);
         $sha256   = hash('sha256', $raw);
 
         $addon->update([
-            'status'    => 'signed',
-            'signed_at' => now(),
-            'pdf_path'  => $fullpath,
+            'status'         => 'signed',
+            'signed_at'      => now(),
+            'pdf_path'       => $fullpath,
+            'effective_date' => $addon->effective_date,
         ]);
 
         ContractEvent::create([
@@ -427,6 +445,32 @@ class ContractService
             'event'       => 'tariff_addon_signed',
             'meta_json'   => json_encode(['addon_id' => $addon->id, 'sha256' => $sha256], JSON_UNESCAPED_UNICODE),
         ]);
+
+        // Aplikace tarifu na člena AŽ TEĎ (po podpisu). Billing (RegularFeeResolver
+        // /DeductFees) čte živý stav člena, takže nová cena naskočí automaticky.
+        // Vzor: PublicSignController::finalizeContract (aktivace člena po podpisu).
+        if ($addon->new_speed_class_id) {
+            $contract = Contract::find($addon->contract_id);
+            $memberId = $contract?->member_id;
+            $member   = $memberId ? Member::find($memberId) : null;
+            if ($member) {
+                $oldSpeedClassId = $member->speed_class_id;
+                if ((int) $oldSpeedClassId !== (int) $addon->new_speed_class_id) {
+                    $member->update(['speed_class_id' => $addon->new_speed_class_id]);
+
+                    ContractEvent::create([
+                        'contract_id' => $addon->contract_id,
+                        'event'       => 'tariff_addon_applied',
+                        'meta_json'   => json_encode([
+                            'addon_id'            => $addon->id,
+                            'member_id'           => $member->id,
+                            'old_speed_class_id'  => $oldSpeedClassId,
+                            'new_speed_class_id'  => (int) $addon->new_speed_class_id,
+                        ], JSON_UNESCAPED_UNICODE),
+                    ]);
+                }
+            }
+        }
 
         return $addon->refresh();
     }

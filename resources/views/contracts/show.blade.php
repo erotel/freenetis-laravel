@@ -314,14 +314,27 @@
 <div class="m-section">Dodatky – změna tarifu</div>
 <div class="m-card" style="margin-bottom:16px">
     <div style="font-size:14px;color:#6b7280;margin-bottom:12px">
-        Dodatek zaznamená změnu tarifu (původní → nový) s účinností od 1. dne dalšího měsíce.
-        Rychlost přepni v editaci člena předem; nová cena se strhne od data účinnosti.
+        Vyber nový tarif — dodatek je jen návrh. Nová rychlost i cena naskočí zákazníkovi
+        <strong>až po podpisu</strong> dodatku (do té doby má původní tarif).
     </div>
-    @if($canEdit)
-    <form method="POST" action="{{ route('contracts.tariff_addon.create', $member->id) }}" style="margin-bottom:14px">
+    @if($canEdit && $canEditQos)
+    <form method="POST" action="{{ route('contracts.tariff_addon.create', $member->id) }}"
+          style="margin-bottom:14px;display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end">
         @csrf
+        <div>
+            <label for="speed_class_id" style="display:block;font-size:13px;color:#6b7280;margin-bottom:4px">Nový tarif</label>
+            <select id="speed_class_id" name="speed_class_id" class="m-form-select" required style="min-width:280px">
+                @foreach($speedClasses as $sc)
+                    <option value="{{ $sc->id }}" {{ (int) $member->speed_class_id === (int) $sc->id ? 'selected' : '' }}>
+                        {{ $sc->name }}@if($sc->price !== null) ({{ number_format((float) $sc->price, 0, ',', ' ') }} Kč)@endif
+                    </option>
+                @endforeach
+            </select>
+        </div>
         <button class="m-btn m-btn-primary" type="submit">Vytvořit dodatek – změna tarifu</button>
     </form>
+    @elseif($canEdit)
+    <div style="color:#9ca3af;font-size:13px">Na změnu tarifu nemáš oprávnění (qos_ceil).</div>
     @endif
     @if(session('tariff_addon_link'))
     <div class="m-alert" style="background:#fef3c7;border:1px solid #fcd34d;padding:10px;border-radius:6px;margin-bottom:12px">

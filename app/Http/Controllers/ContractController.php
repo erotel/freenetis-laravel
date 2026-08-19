@@ -45,10 +45,14 @@ class ContractController extends Controller
         $connectionPointAddons = $contract ? $this->contracts->connectionPointAddons($contract->id) : collect();
         // Placená místa + adresa ze zařízení v podsíti (předvyplnění dodatku).
         $assignablePlaces = \App\Services\AllowedSubnetFeesResolver::chargedPlaces($memberId);
+        // Výběr cílového tarifu do dodatku (jen s jemným právem qos_ceil).
+        $canEditQos  = $this->aclCheck('edit_all', 'Members_Controller', 'qos_ceil');
+        $speedClasses = \App\Models\SpeedClass::orderBy('name')->get();
 
         return view('contracts.show', compact(
             'member', 'contract', 'canEdit', 'isAdmin', 'tariffAddons',
-            'serviceAddons', 'assignableServices', 'connectionPointAddons', 'assignablePlaces'
+            'serviceAddons', 'assignableServices', 'connectionPointAddons', 'assignablePlaces',
+            'canEditQos', 'speedClasses'
         ));
     }
 
@@ -341,9 +345,19 @@ class ContractController extends Controller
 
     // ── Dodatek: změna tarifu (contract_addons) ─────────────────────────────
 
-    public function createTariffAddon(int $memberId): RedirectResponse
+    public function createTariffAddon(Request $request, int $memberId): RedirectResponse
     {
         abort_unless($this->can('edit_all'), 403);
+        // Dodatek teď řídí cenu i cílový tarif → stejné jemné právo jako editace
+        // rychlosti člena (qos_ceil), viz bezpečnostní oprava 2.20.2.
+        abort_unless(
+            $this->aclCheck('edit_all', 'Members_Controller', 'qos_ceil'),
+            403
+        );
+
+        $data = $request->validate([
+            'speed_class_id' => 'required|integer|exists:speed_classes,id',
+        ]);
 
         $contract = $this->contracts->getByMemberId($memberId);
         if (!$contract || $contract->status !== 'signed') {
@@ -351,7 +365,7 @@ class ContractController extends Controller
                 ->with('error', 'Dodatek – změnu tarifu lze vytvořit jen k podepsané smlouvě.');
         }
 
-        $addon = $this->contracts->createTariffChangeAddon($contract->id);
+        $addon = $this->contracts->createTariffChangeAddon($contract->id, (int) $data['speed_class_id']);
         if (!$addon) {
             return redirect()->route('contracts.show', $memberId)
                 ->with('error', 'Dodatek se nepodařilo vytvořit.');

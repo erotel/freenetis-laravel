@@ -184,7 +184,7 @@ class PdfService
         $discountRow = '';
         if ($addon->new_price_after_discount !== null && $addon->new_price_after_discount !== '') {
             $discountRow = '<tr><td>Zvýhodněná cena:</td><td>'
-                . $this->h($this->formatPrice($addon->new_price_after_discount)) . ' Kč / měsíc ('
+                . $this->h($this->formatPrice($addon->new_price_after_discount)) . ' Kč / měsíc vč. DPH ('
                 . $this->h($this->discountUntilLabel($addon->discount_until)) . ')</td></tr>';
         }
 
