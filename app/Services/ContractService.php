@@ -861,10 +861,12 @@ class ContractService
     // ── Dodatek: přípojné místo (contract_addons, type='connection_point') ──
 
     /**
-     * Vytvoř dodatek „přípojné místo" k podepsané smlouvě. $action = 'add'|'remove'.
-     * Snímá placené místo (allowed_subnets): název podsítě, rychlost a efektivní
-     * cenu (fee_override ?? cena rychlosti místa ?? cena rychlosti člena).
-     * Účinnost = 1. den dalšího měsíce.
+     * Vytvoř dodatek „přípojné místo" k podepsané smlouvě jako NÁVRH.
+     * $action = 'add'|'remove'. Snímá místo (allowed_subnets): rychlost a cenu
+     * (dle vlastní rychlosti místa) + adresu; uloží `allowed_subnet_id`. Účtování
+     * místa (charged) se NEMĚNÍ hned — u 'add' se zapne podpisem
+     * (signConnectionPointAddon), u 'remove' vypne vydáním
+     * (issueConnectionPointRemoval). Účinnost = datum podpisu/vydání; předvyplněná.
      */
     public function createConnectionPointAddon(int $contractId, int $allowedSubnetId, string $action = 'add', string $address = ''): ?ContractAddon
     {
@@ -914,7 +916,9 @@ class ContractService
             'service_price'    => (float) $fee,
             'service_action'   => $action,
             'place_speed_name' => $speedName,
-            'effective_date'   => now()->startOfMonth()->addMonth()->toDateString(),
+            'allowed_subnet_id' => $allowedSubnetId,
+            // Účinnost = den podpisu/vydání (apply-on-sign). Předvyplněno na dnešek.
+            'effective_date'   => now()->toDateString(),
             'status'           => 'draft',
             'created_by'       => auth()->user()?->login,
             'created_at'       => now()->format('Y-m-d H:i:s'),
@@ -1036,14 +1040,18 @@ class ContractService
     /** Finalizuje dodatek přípojného místa (podepsané PDF). Volá se po ověření OTP. */
     public function signConnectionPointAddon(ContractAddon $addon, PdfService $pdf, ?Request $request = null): ContractAddon
     {
+        // Účinnost = den podpisu (apply-on-sign). Před renderem PDF.
+        $addon->effective_date = now()->toDateString();
+
         $fullpath = $pdf->renderConnectionPointAddonPdf($addon, false, $request);
         $raw      = (string) @file_get_contents($fullpath);
         $sha256   = hash('sha256', $raw);
 
         $addon->update([
-            'status'    => 'signed',
-            'signed_at' => now(),
-            'pdf_path'  => $fullpath,
+            'status'         => 'signed',
+            'signed_at'      => now(),
+            'pdf_path'       => $fullpath,
+            'effective_date' => $addon->effective_date,
         ]);
 
         ContractEvent::create([
@@ -1052,7 +1060,55 @@ class ContractService
             'meta_json'   => json_encode(['addon_id' => $addon->id, 'sha256' => $sha256], JSON_UNESCAPED_UNICODE),
         ]);
 
+        // Zapnutí účtování místa AŽ TEĎ (po podpisu). Billing
+        // (AllowedSubnetFeesResolver/DeductFees) účtuje místa s charged=1.
+        if ($addon->service_action === 'add' && $addon->allowed_subnet_id) {
+            $this->applyConnectionPointCharged($addon, true);
+        }
+
         return $addon->refresh();
+    }
+
+    /**
+     * Přepne účtování (charged) přípojného místa dodatku na $charged. Přes
+     * Eloquent instance (audit). Ověří, že místo patří členovi smlouvy; při
+     * zapínání musí mít vlastní rychlost (jinak nelze účtovat — konzistentní
+     * s AllowedSubnetController::updateBilling).
+     */
+    private function applyConnectionPointCharged(ContractAddon $addon, bool $charged): void
+    {
+        $memberId = Contract::find($addon->contract_id)?->member_id;
+        if (!$memberId) {
+            return;
+        }
+
+        $as = \App\Models\AllowedSubnet::where('id', $addon->allowed_subnet_id)
+            ->where('member_id', $memberId)
+            ->first();
+        if (!$as) {
+            return;
+        }
+        if ($charged && !$as->speed_class_id) {
+            // Bez vlastní rychlosti nelze účtovat — přeskočit (nemělo by nastat,
+            // výběr do dodatku nabízí jen místa s rychlostí).
+            return;
+        }
+        if ((bool) $as->charged === $charged) {
+            return; // beze změny
+        }
+
+        $as->update(['charged' => $charged]);
+
+        ContractEvent::create([
+            'contract_id' => $addon->contract_id,
+            'event'       => $charged ? 'connection_point_addon_applied' : 'connection_point_addon_removal_applied',
+            'meta_json'   => json_encode([
+                'addon_id'          => $addon->id,
+                'member_id'         => $memberId,
+                'allowed_subnet_id' => (int) $addon->allowed_subnet_id,
+                'charged'           => $charged,
+            ], JSON_UNESCAPED_UNICODE),
+        ]);
     }
 
     /**
@@ -1066,14 +1122,18 @@ class ContractService
             return null;
         }
 
+        // Účinnost = den vydání. Před renderem PDF.
+        $addon->effective_date = now()->toDateString();
+
         $fullpath = $pdf->renderConnectionPointAddonPdf($addon, false, null);
         $raw      = (string) @file_get_contents($fullpath);
         $sha256   = hash('sha256', $raw);
 
         $addon->update([
-            'status'    => 'signed',
-            'signed_at' => now(),
-            'pdf_path'  => $fullpath,
+            'status'         => 'signed',
+            'signed_at'      => now(),
+            'pdf_path'       => $fullpath,
+            'effective_date' => $addon->effective_date,
         ]);
 
         ContractEvent::create([
@@ -1081,6 +1141,11 @@ class ContractService
             'event'       => 'connection_point_addon_removal_issued',
             'meta_json'   => json_encode(['addon_id' => $addon->id, 'sha256' => $sha256], JSON_UNESCAPED_UNICODE),
         ]);
+
+        // Vypnutí účtování místa AŽ TEĎ (vydání dodatku o zrušení).
+        if ($addon->allowed_subnet_id) {
+            $this->applyConnectionPointCharged($addon, false);
+        }
 
         $this->emailConnectionPointRemoval($addon);
 

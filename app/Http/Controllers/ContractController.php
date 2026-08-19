@@ -52,15 +52,18 @@ class ContractController extends Controller
             ->get(['id', 'name', 'fee']);
         // Dodatky přípojných míst + placená místa člena pro výběr do dodatku.
         $connectionPointAddons = $contract ? $this->contracts->connectionPointAddons($contract->id) : collect();
-        // Placená místa + adresa ze zařízení v podsíti (předvyplnění dodatku).
+        // Účtovaná místa (pro dodatek ZRUŠENÍ) + adresa ze zařízení v podsíti.
         $assignablePlaces = \App\Services\AllowedSubnetFeesResolver::chargedPlaces($memberId);
+        // Neúčtovaná místa s vlastní rychlostí (pro dodatek PŘIDÁNÍ) — účtování se
+        // zapne teprve podpisem dodatku.
+        $availablePlaces  = \App\Services\AllowedSubnetFeesResolver::chargeablePlaces($memberId);
         // Výběr cílového tarifu do dodatku (jen s jemným právem qos_ceil).
         $canEditQos  = $this->aclCheck('edit_all', 'Members_Controller', 'qos_ceil');
         $speedClasses = \App\Models\SpeedClass::orderBy('name')->get();
 
         return view('contracts.show', compact(
             'member', 'contract', 'canEdit', 'isAdmin', 'tariffAddons',
-            'serviceAddons', 'assignableServices', 'availableServices', 'connectionPointAddons', 'assignablePlaces',
+            'serviceAddons', 'assignableServices', 'availableServices', 'connectionPointAddons', 'assignablePlaces', 'availablePlaces',
             'canEditQos', 'speedClasses'
         ));
     }

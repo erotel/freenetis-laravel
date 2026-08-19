@@ -66,6 +66,32 @@ class AllowedSubnetFeesResolver
     }
 
     /**
+     * Místa člena, která lze začít účtovat (mají vlastní rychlost, ale charged=0)
+     * — pro dodatek PŘIDÁNÍ přípojného místa (charged se zapne až podpisem).
+     * Vrací stejný tvar jako chargedPlaces().
+     */
+    public static function chargeablePlaces(int $memberId): array
+    {
+        return DB::table('allowed_subnets as a')
+            ->join('speed_classes as sc_place', 'sc_place.id', '=', 'a.speed_class_id') // jen místa s vlastní rychlostí
+            ->leftJoin('subnets as s', 's.id', '=', 'a.subnet_id')
+            ->where('a.member_id', $memberId)
+            ->where('a.charged', 0)
+            ->selectRaw('a.id, a.subnet_id, s.name as name, sc_place.name as speed, ' . self::EFFECTIVE_FEE_SQL . ' AS fee')
+            ->orderBy('a.id')
+            ->get()
+            ->map(fn ($r) => [
+                'id'        => (int) $r->id,
+                'subnet_id' => (int) $r->subnet_id,
+                'name'      => (string) $r->name,
+                'speed'     => (string) ($r->speed ?? ''),
+                'fee'       => (float) $r->fee,
+                'address'   => self::deviceAddress($memberId, (int) $r->subnet_id),
+            ])
+            ->all();
+    }
+
+    /**
      * Adresa zařízení člena, které má IP v dané podsíti (přes device.address_point).
      * Formát „ulice číslo, obec PSČ" (shodně s výpisem zařízení). '' když není.
      */

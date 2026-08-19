@@ -153,6 +153,17 @@ class AllowedSubnetController extends Controller
                 ->with('error', 'Účtovat lze jen místo s vlastní rychlostí. Nejprve mu nastavte rychlost (ne „zdědit").');
         }
 
+        // Účtování NOVÉHO placeného místa u člena s podepsanou smlouvou nelze zapnout
+        // přímo — musí projít dodatkem, který místo zpoplatní až po podpisu
+        // (apply-on-sign). Vypnutí (charged=false) povoleno (snižuje závazek).
+        if ($charged) {
+            $contract = app(\App\Services\ContractService::class)->getByMemberId((int) $as->member_id);
+            if ($contract && $contract->status === 'signed') {
+                return redirect()->route('contracts.show', $as->member_id)
+                    ->with('error', 'Zpoplatnění přípojného místa u člena s podepsanou smlouvou zapni dodatkem ke smlouvě (začne účtovat po podpisu), ne přímo v podsítích.');
+            }
+        }
+
         $as->update(['charged' => $charged]);
 
         return redirect()->route('allowed_subnets.by_member', $as->member_id)

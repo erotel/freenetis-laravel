@@ -483,50 +483,70 @@
 <div class="m-section">Dodatky – přípojná místa</div>
 <div class="m-card" style="margin-bottom:16px">
     <div style="font-size:14px;color:#6b7280;margin-bottom:12px">
-        Dodatek zaznamená přidání nebo zrušení placeného přípojného místa s účinností od 1. dne dalšího měsíce.
-        Místo označ jako placené v <a href="{{ route('allowed_subnets.by_member', $member->id) }}">povolených podsítích člena</a>; dodatek přebírá jeho podsíť, rychlost a cenu.
+        Dodatek zaznamená přidání nebo zrušení placeného přípojného místa.
+        <strong>Přidání</strong> se místo začne účtovat <strong>až po podpisu</strong> dodatku;
+        <strong>zrušení</strong> se aplikuje vydáním dodatku (bez podpisu, snižuje platbu).
+        Místo musí mít vlastní rychlost (nastav v <a href="{{ route('allowed_subnets.by_member', $member->id) }}">povolených podsítích</a>); účtování řídí dodatek.
     </div>
     @if($canEdit)
+        {{-- Přidání místa: z neúčtovaných míst s vlastní rychlostí, začne účtovat až podpisem --}}
+        @if(!empty($availablePlaces))
+        <form method="POST" action="{{ route('contracts.connection_point.create', $member->id) }}" style="margin-bottom:10px">
+            @csrf
+            <input type="hidden" name="action" value="add">
+            <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end">
+                <div>
+                    <label class="m-form-label" for="cp_add_id" style="font-size:14px;color:#6b7280">Přidat místo (rychlost + cena)</label>
+                    <select class="m-form-input" id="cp_add_id" name="allowed_subnet_id" style="min-width:240px" onchange="cpSyncAddress('cp_add_id','cp_add_address')">
+                        @foreach($availablePlaces as $p)
+                        <option value="{{ $p['id'] }}" data-address="{{ $p['address'] }}">{{ $p['name'] !== '' ? $p['name'] : 'Přípojné místo' }}{{ $p['speed'] !== '' ? ' ('.$p['speed'].')' : '' }} — {{ number_format($p['fee'], 0, ',', ' ') }} Kč</option>
+                        @endforeach
+                    </select>
+                </div>
+                <div>
+                    <label class="m-form-label" for="cp_add_address" style="font-size:14px;color:#6b7280">Adresa připojení (ze zařízení, lze upravit)</label>
+                    <input class="m-form-input" id="cp_add_address" name="address" value="{{ $availablePlaces[0]['address'] ?? '' }}" required placeholder="ulice číslo, obec PSČ" style="min-width:240px">
+                </div>
+                <button class="m-btn m-btn-primary" type="submit">Vytvořit dodatek (přidání)</button>
+            </div>
+        </form>
+        @endif
+        {{-- Zrušení místa: z účtovaných míst, deaktivuje se vydáním --}}
         @if(!empty($assignablePlaces))
         <form method="POST" action="{{ route('contracts.connection_point.create', $member->id) }}" style="margin-bottom:14px">
             @csrf
+            <input type="hidden" name="action" value="remove">
             <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end">
                 <div>
-                    <label class="m-form-label" for="cp_id" style="font-size:14px;color:#6b7280">Placené místo (rychlost + cena)</label>
-                    <select class="m-form-input" id="cp_id" name="allowed_subnet_id" style="min-width:240px" onchange="cpSyncAddress()">
+                    <label class="m-form-label" for="cp_rem_id" style="font-size:14px;color:#6b7280">Zrušit místo (rychlost + cena)</label>
+                    <select class="m-form-input" id="cp_rem_id" name="allowed_subnet_id" style="min-width:240px" onchange="cpSyncAddress('cp_rem_id','cp_rem_address')">
                         @foreach($assignablePlaces as $p)
                         <option value="{{ $p['id'] }}" data-address="{{ $p['address'] }}">{{ $p['name'] !== '' ? $p['name'] : 'Přípojné místo' }}{{ $p['speed'] !== '' ? ' ('.$p['speed'].')' : '' }} — {{ number_format($p['fee'], 0, ',', ' ') }} Kč</option>
                         @endforeach
                     </select>
                 </div>
                 <div>
-                    <label class="m-form-label" for="cp_address" style="font-size:14px;color:#6b7280">Adresa připojení (ze zařízení, lze upravit)</label>
-                    <input class="m-form-input" id="cp_address" name="address" value="{{ $assignablePlaces[0]['address'] ?? '' }}" required placeholder="ulice číslo, obec PSČ" style="min-width:240px">
+                    <label class="m-form-label" for="cp_rem_address" style="font-size:14px;color:#6b7280">Adresa připojení (ze zařízení, lze upravit)</label>
+                    <input class="m-form-input" id="cp_rem_address" name="address" value="{{ $assignablePlaces[0]['address'] ?? '' }}" required placeholder="ulice číslo, obec PSČ" style="min-width:240px">
                 </div>
-                <div>
-                    <label class="m-form-label" for="cp_action" style="font-size:14px;color:#6b7280">Akce</label>
-                    <select class="m-form-input" id="cp_action" name="action" style="min-width:140px">
-                        <option value="add">Přidání</option>
-                        <option value="remove">Zrušení</option>
-                    </select>
-                </div>
-                <button class="m-btn m-btn-primary" type="submit">Vytvořit dodatek</button>
+                <button class="m-btn" type="submit">Vytvořit dodatek (zrušení)</button>
             </div>
         </form>
+        @endif
+        @if(empty($availablePlaces) && empty($assignablePlaces))
+        <div style="color:#9ca3af;font-size:14px;margin-bottom:12px">
+            Člen nemá žádné přípojné místo s vlastní rychlostí. Nastav mu rychlost v <a href="{{ route('allowed_subnets.by_member', $member->id) }}">povolených podsítích člena</a>.
+        </div>
+        @endif
         <script>
-        function cpSyncAddress() {
-            var sel = document.getElementById('cp_id');
-            var addr = document.getElementById('cp_address');
+        function cpSyncAddress(selId, addrId) {
+            var sel = document.getElementById(selId);
+            var addr = document.getElementById(addrId);
             if (!sel || !addr) return;
             var opt = sel.options[sel.selectedIndex];
             addr.value = opt ? (opt.getAttribute('data-address') || '') : '';
         }
         </script>
-        @else
-        <div style="color:#9ca3af;font-size:14px;margin-bottom:12px">
-            Člen nemá žádné placené přípojné místo. Nejprve ho označ jako placené v <a href="{{ route('allowed_subnets.by_member', $member->id) }}">povolených podsítích člena</a>.
-        </div>
-        @endif
     @endif
     @if(session('connection_point_addon_link'))
     <div class="m-alert" style="background:#fef3c7;border:1px solid #fcd34d;padding:10px;border-radius:6px;margin-bottom:12px">
