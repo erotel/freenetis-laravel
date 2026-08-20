@@ -221,10 +221,9 @@ class PaymentBackchargeService
             // Audit trail: souhrn dobírky člena (prepaid backcharge). Systémový
             // proces (user_id=NULL), auditujeme jen pokud se reálně něco dohnalo.
             if ($chargedCount > 0) {
-                \App\Services\AuditLogger::log('backcharge', 'transfers', $memberId, null, [
-                    'member_id' => $memberId,
-                    'charged'   => $chargedCount,
-                    'unblocked' => $unblocked,
+                \App\Services\AuditLogger::log('backcharge', 'members', $memberId, null, [
+                    'charged_count' => $chargedCount,
+                    'unblocked'     => $unblocked,
                 ]);
             }
 
