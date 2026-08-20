@@ -29,6 +29,21 @@
     };
 @endphp
 
+@once
+<style>
+.m-audit-clip.is-collapsed { max-height: 3em; overflow: hidden; }
+.m-audit-toggle { margin-top: 2px; background: none; border: 0; padding: 0; color: #1f5fbf; cursor: pointer; font-size: 12px; }
+.m-audit-toggle:hover { text-decoration: underline; }
+</style>
+<script>
+function auditToggle(btn) {
+    var clip = btn.previousElementSibling;
+    var collapsed = clip.classList.toggle('is-collapsed');
+    btn.textContent = collapsed ? 'Rozbalit ▾' : 'Sbalit ▴';
+}
+</script>
+@endonce
+
 @php $collapsible = $collapsible ?? false; @endphp
 @if($collapsible)
 <details style="margin-bottom:16px">
@@ -63,6 +78,14 @@
                         $old = $e->old_values ? json_decode($e->old_values, true) : [];
                         $new = $e->new_values ? json_decode($e->new_values, true) : [];
                         $keys = array_keys(($old ?? []) + ($new ?? []));
+                        // Sbalit, když je polí víc nebo je text dlouhý (práh laditelný).
+                        $changeLen = 0;
+                        foreach ($keys as $ck) {
+                            $changeLen += mb_strlen((string) $ck)
+                                + (is_array($old) && array_key_exists($ck, $old) ? mb_strlen($fmtVal($old[$ck])) : 0)
+                                + (is_array($new) && array_key_exists($ck, $new) ? mb_strlen($fmtVal($new[$ck])) : 0);
+                        }
+                        $collapseChanges = count($keys) > 2 || $changeLen > 90;
                         [$fg, $bg] = $auditColors[$e->action] ?? $auditNeutral;
                         $label = $auditLabels[$e->action] ?? $e->action;
                         $actor = trim($e->actor_name ?? '') !== ''
@@ -95,6 +118,7 @@
                             @if(empty($keys))
                                 <span style="color:#aaa">—</span>
                             @else
+                                <div class="m-audit-clip @if($collapseChanges)is-collapsed @endif">
                                 @foreach($keys as $k)
                                     @php
                                         $hasOld = is_array($old) && array_key_exists($k, $old);
@@ -113,6 +137,10 @@
                                         @endif
                                     </div>
                                 @endforeach
+                                </div>
+                                @if($collapseChanges)
+                                    <button type="button" class="m-audit-toggle" onclick="auditToggle(this)">Rozbalit ▾</button>
+                                @endif
                             @endif
                         </td>
                     </tr>
