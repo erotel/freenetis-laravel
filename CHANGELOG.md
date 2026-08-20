@@ -6,6 +6,29 @@ formát podle [Keep a Changelog](https://keepachangelog.com/cs/1.1.0/).
 Verzi v souboru `config/version.php` bumpni samostatným commitem `chore: bump version to X.Y.Z`,
 ať lze changelog snadno regenerovat přes `git log vX..vY --oneline`.
 
+## [2.22.0] — 2026-08-20
+
+Šifrovací klíč WPA2 u zařízení typu AP.
+
+### Added
+- **Šifrovací klíč WPA2** — u zařízení **typu AP** (`Device::AP_TYPE_ID = 66`) lze
+  zadat sdílený klíč pro WPA2-PSK (`devices.wpa_key`, uložený **šifrovaně**
+  at-rest přes `EncryptsSensitiveAttributes`, stejně jako heslo zařízení).
+  Formuláře založení/editace zobrazí pole jen u AP; tlačítko **Generovat**
+  vytvoří náhodný 20znakový klíč (abeceda bez záměnných 0/O/1/l/I), **Zobrazit**
+  odkryje hodnotu. Na detailu se klíč zobrazuje maskovaně s odkrytím.
+- Validace **16–63 znaků** (WPA2-PSK povoluje 8–63; min 16 = doporučení pro
+  entropii sdíleného klíče, NIS2/ZKB nepředepisuje konkrétní formát). Pole vidí
+  a mění jen uživatel s právem na heslo zařízení (`Devices_Controller#password`);
+  bez práva se klíč z requestu zahodí (serverové vynucení). U ne-AP typu se klíč
+  neukládá.
+
+Testy: `tests/Feature/Devices/DeviceWpaKeyTest`.
+
+### Poznámka k nasazení
+Migrace `2026_08_19_190000_add_wpa_key_to_devices` (default connection `mysql`) —
+spustit `php artisan migrate` i na produkci.
+
 ## [2.21.0] — 2026-08-19
 
 Dodatky ke smlouvě „apply-on-sign": změna se aplikuje AŽ po podpisu dodatku.
