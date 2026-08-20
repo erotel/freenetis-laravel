@@ -196,6 +196,22 @@ class AuditLoggerTest extends DatabaseTestCase
         $this->assertArrayHasKey('note', json_decode($upd->new_values, true));
     }
 
+    public function test_financni_modely_audituji_jen_lidske_zasahy(): void
+    {
+        $models = [\App\Models\Invoice::class, \App\Models\InvoiceItem::class, \App\Models\BankTransfer::class];
+
+        // Bez přihlášeného uživatele (cron/import) → přeskočit.
+        foreach ($models as $cls) {
+            $this->assertTrue((new $cls)->auditShouldSkip('created'), $cls . ': cron zápis se nemá auditovat');
+        }
+
+        // Přihlášený uživatel (lidský zásah) → auditovat.
+        $this->actingAs(\App\Models\User::query()->firstOrFail());
+        foreach ($models as $cls) {
+            $this->assertFalse((new $cls)->auditShouldSkip('created'), $cls . ': lidský zásah se má auditovat');
+        }
+    }
+
     public function test_udrzba_partitions_dry_run_probehne(): void
     {
         $code = Artisan::call('audit:maintain-partitions', ['--dry-run' => true]);

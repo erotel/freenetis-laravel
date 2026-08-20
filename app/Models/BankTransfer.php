@@ -8,6 +8,9 @@ use Illuminate\Database\Eloquent\SoftDeletes;
 class BankTransfer extends Model
 {
     use \App\Models\Concerns\Auditable;
+    // bank_transfers vznikají hromadně automatickým importem výpisů (systém) —
+    // ty se neaudituji per-řádek (import má souhrnný audit); lidský zásah ano.
+    use \App\Models\Concerns\AuditsHumanActionsOnly;
 
     use SoftDeletes;
 

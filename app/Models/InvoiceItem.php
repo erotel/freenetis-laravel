@@ -7,15 +7,8 @@ use Illuminate\Database\Eloquent\Model;
 class InvoiceItem extends Model
 {
     use \App\Models\Concerns\Auditable;
-
-    /**
-     * Audit jen lidských zásahů — položky faktury vytvářené cronem (systém, bez
-     * přihlášeného uživatele) se do audit logu nepíšou (viz {@see Invoice::auditShouldSkip}).
-     */
-    public function auditShouldSkip(string $action): bool
-    {
-        return !auth()->check();
-    }
+    // Položky faktur vytvářené cronem se neauditují; lidská úprava ano.
+    use \App\Models\Concerns\AuditsHumanActionsOnly;
 
     public $timestamps = false;
     protected $table = 'invoice_items';
