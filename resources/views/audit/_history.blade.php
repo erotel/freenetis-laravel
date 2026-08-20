@@ -91,7 +91,7 @@
                                 {{ $label }}
                             </span>
                         </td>
-                        <td style="padding:6px 8px">
+                        <td style="padding:6px 8px;overflow-wrap:anywhere;word-break:break-word">
                             @if(empty($keys))
                                 <span style="color:#aaa">—</span>
                             @else
