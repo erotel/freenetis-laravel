@@ -156,6 +156,46 @@ class AuditLoggerTest extends DatabaseTestCase
         $this->assertGreaterThan($before, $count(), 'změna běžného nastavení se měla zalogovat');
     }
 
+    public function test_faktury_cronem_se_neauditji_lidsky_zasah_ano(): void
+    {
+        $member = (int) DB::table('members')->where('id', '>', 1)->orderBy('id')->value('id');
+
+        // CRON kontext (bez přihlášeného uživatele) → vystavení se NEaudituje.
+        $invoice = \App\Models\Invoice::create([
+            'member_id'    => $member,
+            'invoice_nr'   => random_int(900000000, 999999999),
+            'invoice_type' => \App\Models\Invoice::TYPE_ISSUED,
+            'var_sym'      => 773219,
+            'date_inv'     => '2026-08-20',
+            'date_due'     => '2026-09-03',
+            'date_vat'     => '2026-08-20',
+            'vat'          => 1,
+            'currency'     => 'CZK',
+        ]);
+        $this->assertNull($this->lastFor('invoices', $invoice->id), 'cron vystavení faktury se nemá auditovat');
+
+        $item = \App\Models\InvoiceItem::create([
+            'invoice_id'           => $invoice->id,
+            'name'                 => 'Platba za připojení k síti Internet',
+            'code'                 => 'BANK-2026-08',
+            'quantity'             => 1,
+            'price'                => 264.46,
+            'vat'                  => 0.21,
+            'author_fee'           => 0,
+            'contractual_increase' => 0,
+            'service'              => 1,
+        ]);
+        $this->assertNull($this->lastFor('invoice_items', $item->id), 'cron položka faktury se nemá auditovat');
+
+        // Lidský zásah (přihlášený uživatel) → úprava vystavené faktury se audituje.
+        $this->actingAs(\App\Models\User::query()->firstOrFail());
+        $invoice->update(['note' => 'Ručně upraveno adminem']);
+        $upd = $this->lastFor('invoices', $invoice->id);
+        $this->assertNotNull($upd, 'lidská úprava vystavené faktury se má auditovat');
+        $this->assertSame('updated', $upd->action);
+        $this->assertArrayHasKey('note', json_decode($upd->new_values, true));
+    }
+
     public function test_udrzba_partitions_dry_run_probehne(): void
     {
         $code = Artisan::call('audit:maintain-partitions', ['--dry-run' => true]);

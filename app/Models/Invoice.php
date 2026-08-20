@@ -8,6 +8,18 @@ class Invoice extends Model
 {
     use \App\Models\Concerns\Auditable;
 
+    /**
+     * Audit jen lidských zásahů. Automatické vystavení faktur cronem (systém,
+     * bez přihlášeného uživatele) do audit logu nepíšeme — faktura sama je
+     * účetní záznam (tabulka + PDF, archivace dle z. o účetnictví) a hromadné
+     * cron řádky by jen zahltily audit_logs. Lidská úprava/smazání vystavené
+     * faktury (tamper/fraud) se loguje dál.
+     */
+    public function auditShouldSkip(string $action): bool
+    {
+        return !auth()->check();
+    }
+
     public $timestamps = false;
     protected $table = 'invoices';
     protected $fillable = [
