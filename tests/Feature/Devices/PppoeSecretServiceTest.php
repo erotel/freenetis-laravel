@@ -22,6 +22,18 @@ class PppoeSecretServiceTest extends DatabaseTestCase
         return app(PppoeSecretService::class);
     }
 
+    protected function setUp(): void
+    {
+        parent::setUp();
+        // Hromadný pppoe:generate mohl VS už obsadit → uvolníme namespace pro test
+        // (v transakci, po testu rollback), ať username=VS testy sedí.
+        $row = $this->ifaceWithVs();
+        if ($row) {
+            DB::table('pppoe_secrets')->where('username', $row->vs)
+                ->orWhere('username', 'like', $row->vs . '-%')->delete();
+        }
+    }
+
     /** Iface, jehož člen má variabilní symbol → vrací [iface_id, vs]. */
     private function ifaceWithVs(): ?object
     {

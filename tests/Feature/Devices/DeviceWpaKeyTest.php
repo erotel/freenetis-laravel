@@ -12,7 +12,7 @@ use Tests\DatabaseTestCase;
  * Šifrovací klíč WPA2 (devices.wpa_key) pro přístupové body (type = AP, id 66):
  *  - ukládá se šifrovaně, jen s právem na heslo zařízení (Devices_Controller#password),
  *  - jen u typu AP (u ostatních typů se zahodí),
- *  - vyžaduje délku 16–63 (doporučení NIS2 pro sdílený klíč).
+ *  - vyžaduje délku 22–63 (doporučení NIS2 pro sdílený klíč).
  */
 class DeviceWpaKeyTest extends DatabaseTestCase
 {
@@ -20,7 +20,7 @@ class DeviceWpaKeyTest extends DatabaseTestCase
     private int $memberId = 1;
     private const AP = Device::AP_TYPE_ID; // 66
     private const PC = 7;
-    private const KEY = 'Wpa2SilnyKlic123456'; // 19 znaků
+    private const KEY = 'SilneWpa2HesloProNIS2abc'; // 24 znaků
 
     private function grantAcl(bool $allowCreds): void
     {
@@ -78,7 +78,8 @@ class DeviceWpaKeyTest extends DatabaseTestCase
         $this->grantAcl(true);
         $name = 'WPATEST-' . uniqid();
 
-        $this->store(['name' => $name, 'type' => self::AP, 'wpa_key' => 'kratke'])
+        // 21 znaků = těsně pod hranicí min:22 → musí neprojít.
+        $this->store(['name' => $name, 'type' => self::AP, 'wpa_key' => 'Jenom21ZnakuNeprojde1'])
             ->assertSessionHasErrors('wpa_key');
 
         $this->assertNull(

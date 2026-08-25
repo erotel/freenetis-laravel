@@ -115,7 +115,8 @@ class MemberController extends Controller
             $query->where(function ($q) use ($search, $like, $tokens, $multi) {
                 $q->where('members.name', 'like', $like)
                   ->orWhere('members.organization_identifier', 'like', $like)
-                  ->orWhere('members.vat_organization_identifier', 'like', $like);
+                  ->orWhere('members.vat_organization_identifier', 'like', $like)
+                  ->orWhere('members.comment', 'like', $like);
 
                 if (is_numeric($search)) {
                     $q->orWhere('members.id', (int) $search);

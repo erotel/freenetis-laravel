@@ -821,7 +821,7 @@ class DeviceController extends Controller
             $rules['password'] = 'nullable|string|max:30';
             // WPA2 klíč AP: stejné jemné právo jako heslo. Délka dle WPA2 (8–63),
             // min 16 pro dostatečnou entropii (doporučení NIS2/ZKB pro sdílený klíč).
-            $rules['wpa_key']  = 'nullable|string|min:16|max:63';
+            $rules['wpa_key']  = 'nullable|string|min:22|max:63';
         }
 
         $data = $request->validate($rules);
@@ -928,7 +928,7 @@ class DeviceController extends Controller
 
         if ($this->can('view_all', 'password')) {
             $rules['password'] = 'nullable|string|max:30';
-            $rules['wpa_key']  = 'nullable|string|min:16|max:63';
+            $rules['wpa_key']  = 'nullable|string|min:22|max:63';
         }
 
         $data = $request->validate($rules);

@@ -124,7 +124,7 @@
         <label class="m-form-label" for="wpa_key">Šifrovací klíč (WPA2)</label>
         <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
             <input class="m-form-input" type="password" id="wpa_key" name="wpa_key"
-                   value="{{ old('wpa_key') }}" minlength="16" maxlength="63"
+                   value="{{ old('wpa_key') }}" minlength="22" maxlength="63"
                    autocomplete="new-password" style="flex:1;min-width:220px">
             <button type="button" class="m-btn" onclick="wpaToggle()">Zobrazit</button>
             <button type="button" class="m-btn" onclick="wpaGenerate()">Generovat</button>
@@ -252,7 +252,7 @@ function wpaToggle() {
 }
 function wpaGenerate() {
     var abc = 'abcdefghijkmnpqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789';
-    var out = '', a = new Uint32Array(20);
+    var out = '', a = new Uint32Array(24);
     (window.crypto || window.msCrypto).getRandomValues(a);
     for (var k = 0; k < a.length; k++) out += abc[a[k] % abc.length];
     var i = document.getElementById('wpa_key');

@@ -34,6 +34,11 @@ class PppoeCaptiveOnboardingTest extends DatabaseTestCase
         }
         $this->memberId = (int) $row->member_id;
         $this->vs       = (string) $row->vs;
+
+        // Hromadný pppoe:generate mohl VS už obsadit → uvolníme namespace pro test
+        // (v transakci, po testu rollback).
+        DB::table('pppoe_secrets')->where('username', $this->vs)
+            ->orWhere('username', 'like', $this->vs . '-%')->delete();
     }
 
     private function svc(): PppoeSecretService

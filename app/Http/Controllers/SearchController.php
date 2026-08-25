@@ -70,6 +70,7 @@ class SearchController extends Controller
                       ->orWhere('vs.variable_symbol', 'LIKE', $like)
                       ->orWhere('m.organization_identifier', 'LIKE', $like)
                       ->orWhere('m.vat_organization_identifier', 'LIKE', $like)
+                      ->orWhere('m.comment', 'LIKE', $like)
                       ->orWhere('t.town', 'LIKE', $like)
                       ->orWhere('s.street', 'LIKE', $like)
                       ->orWhere('ap.street_number', 'LIKE', $like);
