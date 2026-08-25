@@ -289,6 +289,14 @@ class DeviceController extends Controller
                 ->get(['id', 'login', 'name', 'surname'])
             : collect();
 
+        // PPPoE přístupy (per iface) — jen když je modul zapnutý a uživatel smí
+        // vidět hesla. Klíčováno iface_id pro snadné dohledání v šabloně.
+        $pppoeEnabled = (bool) Setting::get('pppoe_enabled', 0);
+        $pppoeSecrets = ($pppoeEnabled && $this->can('view_all', 'password'))
+            ? \App\Models\PppoeSecret::whereIn('iface_id', $device->ifaces->pluck('id'))
+                ->get()->keyBy('iface_id')
+            : collect();
+
         return view('devices.show', [
             'device'             => $device,
             'canEdit'            => $this->can('edit_all'),
@@ -296,12 +304,65 @@ class DeviceController extends Controller
             'canEditDevice'      => $this->can('edit_all'),
             'canViewLogin'       => $this->can('view_all', 'login'),
             'canViewPassword'    => $this->can('view_all', 'password'),
+            'pppoeEnabled'       => $pppoeEnabled,
+            'pppoeSecrets'       => $pppoeSecrets,
             'canManageEngineers' => $canManageEngineers,
             'canDeleteEngineer'  => $canDeleteEngineer,
             'engineerUsers'      => $engineerUsers,
             'canViewAll'         => $this->can('view_all'),
             'canViewUser'        => $this->aclCheck('view_all', 'Users_Controller', 'users'),
         ]);
+    }
+
+    // ── PPPoE přístupy (per iface) ──────────────────────────────────────────────
+
+    /**
+     * Vygeneruje (nebo dorovná) PPPoE credential pro rozhraní. Idempotentní —
+     * existující heslo nemění. Vyžaduje právo editovat + vidět hesla; modul
+     * musí být zapnutý (Setting pppoe_enabled). Viz onboarding návrh.
+     */
+    public function pppoeGenerate(int $ifaceId, \App\Services\PppoeSecretService $svc)
+    {
+        abort_unless((bool) Setting::get('pppoe_enabled', 0), 403, 'PPPoE modul není zapnutý.');
+        abort_unless($this->can('edit_all') && $this->can('view_all', 'password'), 403);
+
+        $iface  = $this->pppoeIface($ifaceId);
+        $secret = $svc->ensureForIface($iface);
+
+        return redirect()->route('devices.show', $iface->device_id)->with(
+            $secret ? 'success' : 'error',
+            $secret
+                ? "PPPoE přístup vytvořen: {$secret->username}"
+                : 'PPPoE přístup nelze vytvořit — rozhraní nemá přiřazeného člena.'
+        );
+    }
+
+    /** Přegeneruje heslo (rotace) — username zůstává. Stejná autorizace jako generate. */
+    public function pppoeRotate(int $ifaceId, \App\Services\PppoeSecretService $svc)
+    {
+        abort_unless((bool) Setting::get('pppoe_enabled', 0), 403, 'PPPoE modul není zapnutý.');
+        abort_unless($this->can('edit_all') && $this->can('view_all', 'password'), 403);
+
+        $iface  = $this->pppoeIface($ifaceId);
+        $secret = $svc->rotateSecret($iface);
+
+        return redirect()->route('devices.show', $iface->device_id)->with(
+            $secret ? 'success' : 'error',
+            $secret ? 'Heslo PPPoE bylo přegenerováno.' : 'Rotaci nelze provést.'
+        );
+    }
+
+    /**
+     * Dohledá iface pro PPPoE akci a ověří vlastnictví zařízení (uživatel ho smí
+     * editovat). Autorizaci modulu + práva řeší volající metoda (kvůli statickému
+     * ACL guardu musí být markery přímo v těle akce).
+     */
+    private function pppoeIface(int $ifaceId): Iface
+    {
+        $iface = Iface::with('device.user')->findOrFail($ifaceId);
+        abort_if(!$iface->device, 404);
+        abort_unless($this->can('view_all') || $this->isOwnUser($iface->device->user_id), 403);
+        return $iface;
     }
 
     // ── Engineers ─────────────────────────────────────────────────────────────
@@ -650,6 +711,27 @@ class DeviceController extends Controller
                 $this->sendMessageToMember(13, $cr->member_id, [
                     'member_name' => $cr->member?->name ?? '',
                     'comment'     => $cr->comment ?? '',
+                ]);
+            }
+        }
+
+        // PPPoE onboarding: u zákaznické registrace (z connection requestu) vygeneruj
+        // PPPoE credential pro přípojné rozhraní (to, které dostalo statickou IP,
+        // gateway=0). Jen když je modul zapnutý — během přechodu MAC/IP zůstává
+        // výchozí. Nikdy nesmí shodit vytvoření zařízení (try/catch).
+        if ($crId && Setting::get('pppoe_enabled', 0)) {
+            try {
+                $svc = app(\App\Services\PppoeSecretService::class);
+                $connIfaces = Iface::with('device.user')
+                    ->where('device_id', $deviceId)
+                    ->whereHas('ipAddresses', fn ($q) => $q->where('gateway', 0))
+                    ->get();
+                foreach ($connIfaces as $connIface) {
+                    $svc->ensureForIface($connIface);
+                }
+            } catch (\Throwable $e) {
+                \Log::warning('PPPoE credential při registraci selhal', [
+                    'device' => $deviceId, 'error' => $e->getMessage(),
                 ]);
             }
         }
@@ -1116,8 +1198,26 @@ class DeviceController extends Controller
                 $cidrBits  = 32 - (int) log(~$mask & 0xFFFFFFFF, 2) - 1;
                 // fix: count bits properly
                 $cidrBits  = substr_count(sprintf('%032b', $mask & 0xFFFFFFFF), '1');
-                $rangeStart = long2ip(ip2long($ip->ip_address) + 1);
-                $rangeEnd   = long2ip(ip2long($broadcast) - 1);
+                // Fragmentovaný pool = univerzum (gateway+1 .. broadcast-1) MÍNUS
+                // všechny FreenetIS-alokované IP (iface_id) v subnetu. Důvod: PPPoE
+                // `/ip pool` nezná statické DHCP leasy ani RADIUS Framed-IP → kdyby
+                // registrovaná statika zůstala v ranges, PPPoE bootstrap (admin) by
+                // ji přidělil znovu = adresní/routing konflikt na BRASu. Pro DHCP je
+                // fragmentace ekvivalentní (statiku i tak chrání MAC lease), takže
+                // jeden sdílený pool obslouží DHCP i PPPoE. Viz onboarding návrh.
+                $poolStart = ip2long($ip->ip_address) + 1;
+                $poolEnd   = ip2long($broadcast) - 1;
+                $excluded  = [];
+                foreach ($subnet->ipAddresses as $alloc) {
+                    if (!$alloc->iface_id) continue;
+                    $l = ip2long($alloc->ip_address);
+                    if ($l !== false && $l >= $poolStart && $l <= $poolEnd) {
+                        $excluded[$l] = true;
+                    }
+                }
+                $ranges     = $this->fragmentPoolRanges($poolStart, $poolEnd, array_keys($excluded));
+                $rangeStart = long2ip($poolStart);
+                $rangeEnd   = long2ip($poolEnd);
 
                 $dnsList = $dnsServers;
                 if ($subnet->dns ?? false) {
@@ -1150,6 +1250,7 @@ class DeviceController extends Controller
                     'interface'   => $iface->name,
                     'range_start' => $rangeStart,
                     'range_end'   => $rangeEnd,
+                    'ranges'      => $ranges,
                     'dns_servers' => $dnsList,
                     'hosts'       => array_values($hosts),
                 ];
@@ -1166,6 +1267,35 @@ class DeviceController extends Controller
      *                                  vlastní pool); 'static' = druhý server v páru
      *                                  (authoritative=after-10sec-delay, static-only).
      */
+    /**
+     * Poskládá pool ranges z intervalu [$startLong, $endLong] s vyříznutými
+     * adresami $excludedLongs (fragmentovaný pool = subnet minus registrované
+     * statiky). Vrací pole "start-end" řetězců — pro RouterOS `ranges=a-b,c-d`.
+     * Prázdné pole = celý interval je alokovaný (žádná volná adresa).
+     */
+    private function fragmentPoolRanges(int $startLong, int $endLong, array $excludedLongs): array
+    {
+        if ($startLong > $endLong) {
+            return [];
+        }
+        $ex = array_filter($excludedLongs, fn ($l) => $l >= $startLong && $l <= $endLong);
+        $ex = array_values(array_unique($ex));
+        sort($ex);
+
+        $ranges = [];
+        $cur = $startLong;
+        foreach ($ex as $e) {
+            if ($e > $cur) {
+                $ranges[] = long2ip($cur) . '-' . long2ip($e - 1);
+            }
+            $cur = $e + 1;
+        }
+        if ($cur <= $endLong) {
+            $ranges[] = long2ip($cur) . '-' . long2ip($endLong);
+        }
+        return $ranges;
+    }
+
     private function renderMikrotikFull(array $servers, ?string $relayInterface = null, string $role = 'primary'): string
     {
         // Setting::get vrací uloženou hodnotu — když admin v UI uloží prázdné
@@ -1180,7 +1310,13 @@ class DeviceController extends Controller
         $out = '';
         $out .= "/ip pool\r\nremove [find]\r\n";
         foreach ($servers as $s) {
-            $out .= "add name=\"{$s['name']}\" ranges={$s['range_start']}-{$s['range_end']}\r\n";
+            // Fragmentovaný pool (víc rozsahů s dírami po registrovaných statikách).
+            // Fallback na souvislý rozsah jen když je pool celý zaplněný (prázdné
+            // $ranges) — to udrží DHCP funkční (statiku i tak chrání MAC lease).
+            $rangesStr = !empty($s['ranges'])
+                ? implode(',', $s['ranges'])
+                : "{$s['range_start']}-{$s['range_end']}";
+            $out .= "add name=\"{$s['name']}\" ranges={$rangesStr}\r\n";
         }
         $out .= "/ip dhcp-server\r\nremove [find]\r\n";
         foreach ($servers as $s) {

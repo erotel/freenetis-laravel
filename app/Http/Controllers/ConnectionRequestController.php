@@ -321,8 +321,34 @@ class ConnectionRequestController extends Controller
         return [
             'subnet_id' => $subnetId,
             'ip'        => $ip,
-            'mac'       => app(SnmpMacDetector::class)->detectForSubnet($subnetId, $ip),
+            'mac'       => $this->detectMac($subnetId, $ip),
         ];
+    }
+
+    /**
+     * MAC pro (subnet, ip). Se zapnutým PPPoE modulem nejdřív zkusí RADIUS
+     * accounting (radacct — aktivní PPPoE session podle přidělené pool IP →
+     * Calling-Station-Id), pak fallback na SNMP (starý MAC/IP režim). Během
+     * přechodu běží oba: PPPoE klient přes radacct, DHCP klient přes SNMP.
+     */
+    private function detectMac(int $subnetId, string $ip): ?string
+    {
+        if (Setting::get('pppoe_enabled', 0)) {
+            try {
+                $raw = DB::table('radacct')
+                    ->where('framedipaddress', $ip)
+                    ->whereNull('acctstoptime')
+                    ->orderByDesc('acctstarttime')
+                    ->value('callingstationid');
+                $mac = $raw ? strtoupper(str_replace('-', ':', trim($raw))) : null;
+                if ($mac && preg_match('/^([0-9A-F]{2}:){5}[0-9A-F]{2}$/', $mac)) {
+                    return $mac;
+                }
+            } catch (\Throwable $e) {
+                \Log::warning('radacct MAC lookup selhal', ['ip' => $ip, 'error' => $e->getMessage()]);
+            }
+        }
+        return app(SnmpMacDetector::class)->detectForSubnet($subnetId, $ip);
     }
 
     public function create(Request $request, int $subnetId, string $ipAddress = '')
@@ -352,8 +378,8 @@ class ConnectionRequestController extends Controller
         $canEditDevices = $canNewAll && $this->aclCheck('new_all', 'Devices_Controller', 'devices');
         $authMemberId   = auth()->user()?->member_id;
 
-        // Auto-detect MAC via SNMP on subnet gateway
-        $detectedMac = app(SnmpMacDetector::class)->detectForSubnet($subnetId, $ipAddress);
+        // Auto-detect MAC — radacct (PPPoE) primárně, jinak SNMP (viz detectMac).
+        $detectedMac = $this->detectMac($subnetId, $ipAddress);
 
         return view('connection_requests.create', compact(
             'subnet', 'ipAddress', 'members', 'deviceTypes', 'templates',

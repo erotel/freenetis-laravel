@@ -61,7 +61,7 @@ class SettingController extends Controller
         'redirection_enabled', 'networks_enabled', 'address_ranges', 'dns_servers',
         'ipv6_prefix', 'ipv6_mask', 'connection_request_notify_email',
         'dhcp_lease_time', 'allowed_subnets_default_count', 'dhcp_relay_map',
-        'web_interface_require_token',
+        'web_interface_require_token', 'pppoe_enabled',
     ];
 
     public const GPON_KEYS = [
@@ -440,6 +440,7 @@ class SettingController extends Controller
         Setting::set('redirection_enabled', $request->boolean('redirection_enabled') ? 1 : 0);
         Setting::set('networks_enabled',    $request->boolean('networks_enabled') ? 1 : 0);
         Setting::set('web_interface_require_token', $request->boolean('web_interface_require_token') ? 1 : 0);
+        Setting::set('pppoe_enabled',       $request->boolean('pppoe_enabled') ? 1 : 0);
         Setting::set('address_ranges',      $request->input('address_ranges', ''));
         Setting::set('dns_servers',         $request->input('dns_servers', ''));
         Setting::set('ipv6_prefix',                    $request->input('ipv6_prefix', ''));

@@ -535,6 +535,11 @@ function addBccRow() {
                 {{ ($networkSettings['networks_enabled'] ?? '') == '1' ? 'checked' : '' }}>
             Síťový modul povolen
         </label>
+        <label style="display:flex;align-items:center;gap:6px;font-size:16px;cursor:pointer">
+            <input type="checkbox" name="pppoe_enabled" value="1"
+                {{ ($networkSettings['pppoe_enabled'] ?? '') == '1' ? 'checked' : '' }}>
+            PPPoE přístup (NIS2)
+        </label>
     </div>
     <div class="m-form-group">
         <label class="m-form-label">Rozsahy IP adres</label>

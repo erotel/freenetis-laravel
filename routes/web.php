@@ -364,6 +364,8 @@ Route::middleware('auth')->group(function () {
     Route::get('devices/add/{userId?}', [DeviceController::class, 'createWithTemplate'])->name('devices.add');
     Route::post('devices/add', [DeviceController::class, 'storeWithTemplate'])->name('devices.store_template');
     Route::get('devices/create-from-cr/{crId}', [DeviceController::class, 'createFromConnectionRequest'])->name('devices.create_from_cr');
+    Route::post('ifaces/{ifaceId}/pppoe/generate', [DeviceController::class, 'pppoeGenerate'])->name('devices.pppoe.generate');
+    Route::post('ifaces/{ifaceId}/pppoe/rotate',   [DeviceController::class, 'pppoeRotate'])->name('devices.pppoe.rotate');
     Route::resource('devices', DeviceController::class);
     Route::resource('device-templates', DeviceTemplateController::class)
         ->parameters(['device-templates' => 'id'])

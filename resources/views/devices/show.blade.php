@@ -215,5 +215,47 @@
 </div>
 @endif
 
+{{-- PPPoE přístup (per rozhraní) — jen se zapnutým modulem a právem na heslo --}}
+@if($pppoeEnabled && $canViewPassword)
+@php $pppoeIfaces = $device->ifaces->filter(fn($i) => $i->ipAddresses->isNotEmpty() || $pppoeSecrets->has($i->id)); @endphp
+@if($pppoeIfaces->isNotEmpty())
+<div class="m-section">PPPoE přístup</div>
+<div class="m-card" style="padding:0;overflow-x:auto;margin-bottom:16px">
+<table class="m-table" style="margin-bottom:0">
+    <thead>
+        <tr><th>Rozhraní</th><th>Uživatel</th><th>Heslo</th>@if($canEditDevice)<th style="width:150px">Akce</th>@endif</tr>
+    </thead>
+    <tbody>
+        @foreach($pppoeIfaces as $iface)
+        @php $sec = $pppoeSecrets->get($iface->id); @endphp
+        <tr>
+            <td>{{ $iface->name ?? '—' }}</td>
+            <td style="font-family:monospace;font-size:14px">{{ $sec->username ?? '—' }}</td>
+            <td style="font-family:monospace;font-size:14px">
+                @if($sec)
+                    <span id="ppp_{{ $iface->id }}" data-k="{{ $sec->secret }}">••••••••</span>
+                    <button type="button" style="background:none;border:0;color:#2563eb;cursor:pointer;padding:0 0 0 8px"
+                        onclick="var e=document.getElementById('ppp_{{ $iface->id }}');var k=e.getAttribute('data-k');if(e.textContent===k){e.textContent='••••••••';this.textContent='zobrazit';}else{e.textContent=k;this.textContent='skrýt';}">zobrazit</button>
+                @else
+                    —
+                @endif
+            </td>
+            @if($canEditDevice)
+            <td>
+                <form method="POST" action="{{ $sec ? route('devices.pppoe.rotate', $iface->id) : route('devices.pppoe.generate', $iface->id) }}" style="display:inline"
+                      @if($sec) onsubmit="return confirm('Přegenerovat heslo? Zákazník ho bude muset v CPE zadat znovu.')" @endif>
+                    @csrf
+                    <button type="submit" style="background:none;border:none;cursor:pointer;padding:0;font-size:14px;color:#2563eb">{{ $sec ? 'Rotovat heslo' : 'Vygenerovat' }}</button>
+                </form>
+            </td>
+            @endif
+        </tr>
+        @endforeach
+    </tbody>
+</table>
+</div>
+@endif
+@endif
+
 </div>
 @endsection
