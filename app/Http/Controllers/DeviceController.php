@@ -722,12 +722,22 @@ class DeviceController extends Controller
         if ($crId && Setting::get('pppoe_enabled', 0)) {
             try {
                 $svc = app(\App\Services\PppoeSecretService::class);
+                $cr  = ConnectionRequest::find($crId);
                 $connIfaces = Iface::with('device.user')
                     ->where('device_id', $deviceId)
                     ->whereHas('ipAddresses', fn ($q) => $q->where('gateway', 0))
                     ->get();
+                // První přípojné rozhraní zdědí credential z žádosti (instalátor ho
+                // už zadal do CPE) — zachovat username/heslo. Další (kdyby jich bylo
+                // víc) se dogenerují.
+                $adopted = false;
                 foreach ($connIfaces as $connIface) {
-                    $svc->ensureForIface($connIface);
+                    if (!$adopted && $cr && $cr->pppoe_username && $cr->pppoe_secret) {
+                        $svc->adoptFromRequest($connIface, $cr->pppoe_username, $cr->pppoe_secret);
+                        $adopted = true;
+                    } else {
+                        $svc->ensureForIface($connIface);
+                    }
                 }
             } catch (\Throwable $e) {
                 \Log::warning('PPPoE credential při registraci selhal', [
@@ -1180,6 +1190,20 @@ class DeviceController extends Controller
 
         $servers = [];
 
+        // IP čekajících žádostí o připojení (state=UNDECIDED) — se zapnutým PPPoE
+        // je RADIUS servíruje jako Framed-IP z žádosti UŽ PŘED schválením, takže
+        // je musí pool vyříznout stejně jako registrované statiky (jinak by je
+        // přidělil dalšímu bootstrap klientovi = konflikt). long2ip klíče.
+        $pendingReqLongs = Setting::get('pppoe_enabled', 0)
+            ? DB::table('connection_requests')
+                ->where('state', ConnectionRequest::STATE_UNDECIDED)
+                ->whereNotNull('ip_address')
+                ->pluck('ip_address')
+                ->map(fn ($ip) => ip2long($ip))
+                ->filter(fn ($l) => $l !== false)
+                ->all()
+            : [];
+
         foreach ($device->ifaces as $iface) {
             foreach ($iface->ipAddresses as $ip) {
                 \Log::debug('DHCP export ip check', [
@@ -1212,6 +1236,12 @@ class DeviceController extends Controller
                     if (!$alloc->iface_id) continue;
                     $l = ip2long($alloc->ip_address);
                     if ($l !== false && $l >= $poolStart && $l <= $poolEnd) {
+                        $excluded[$l] = true;
+                    }
+                }
+                // + IP čekajících žádostí spadající do tohoto poolu (viz výše).
+                foreach ($pendingReqLongs as $l) {
+                    if ($l >= $poolStart && $l <= $poolEnd) {
                         $excluded[$l] = true;
                     }
                 }

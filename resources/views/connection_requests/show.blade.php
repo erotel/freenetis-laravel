@@ -25,6 +25,24 @@
     <a class="m-btn" href="{{ route('connection_requests.index') }}">&laquo; Zpět na seznam</a>
 </div>
 
+@if($pppoeEnabled && $cr->pppoe_username)
+<div class="m-card" style="max-width:480px;border:2px solid #2563eb">
+    <div class="m-card-title">PPPoE přístup — zadejte do zařízení</div>
+    <div class="m-field"><span class="m-field-label">Uživatel</span><span class="m-field-value" style="font-family:monospace">{{ $cr->pppoe_username }}</span></div>
+    <div class="m-field">
+        <span class="m-field-label">Heslo</span>
+        <span class="m-field-value" style="font-family:monospace">
+            <span id="crppp" data-k="{{ $cr->pppoe_secret }}">••••••••</span>
+            <button type="button" style="background:none;border:0;color:#2563eb;cursor:pointer;padding:0 0 0 8px"
+                onclick="var e=document.getElementById('crppp');var k=e.getAttribute('data-k');if(e.textContent===k){e.textContent='••••••••';this.textContent='zobrazit';}else{e.textContent=k;this.textContent='skrýt';}">zobrazit</button>
+        </span>
+    </div>
+    <div class="m-form-hint" style="padding:8px 12px 4px">
+        Zadejte tyto údaje do PPPoE klienta zařízení. Provoz do internetu se pustí až po <strong>schválení</strong> žádosti.
+    </div>
+</div>
+@endif
+
 @php
     $stateClass = match($cr->state) {
         \App\Models\ConnectionRequest::STATE_UNDECIDED => 'm-tag-amber',

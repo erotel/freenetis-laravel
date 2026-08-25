@@ -10,6 +10,7 @@ use App\Models\Member;
 use App\Models\Setting;
 use App\Models\Subnet;
 use App\Models\User;
+use App\Services\PppoeSecretService;
 use App\Services\SnmpMacDetector;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -148,9 +149,10 @@ class ConnectionRequestController extends Controller
         }
 
         return view('connection_requests.show', [
-            'cr'      => $cr,
-            'canEdit' => $this->aclCheck('edit_all', self::ACL_SECTION, self::ACL_KEY)
+            'cr'           => $cr,
+            'canEdit'      => $this->aclCheck('edit_all', self::ACL_SECTION, self::ACL_KEY)
                          && $cr->state === ConnectionRequest::STATE_UNDECIDED,
+            'pppoeEnabled' => (bool) Setting::get('pppoe_enabled', 0),
         ]);
     }
 
@@ -271,6 +273,7 @@ class ConnectionRequestController extends Controller
             'device_template_id' => $data['device_template_id'] ?? null,
             'comment'            => $data['comment'] ?? null,
             'comments_thread_id' => null,
+            ...$this->pppoeCredentialFor($memberId),
         ]);
 
         // Notifikace administrátora
@@ -349,6 +352,22 @@ class ConnectionRequestController extends Controller
             }
         }
         return app(SnmpMacDetector::class)->detectForSubnet($subnetId, $ip);
+    }
+
+    /**
+     * PPPoE credential pro novou žádost — vygeneruje se jen se zapnutým modulem.
+     * Uloží se na žádost, instalátor ho opíše do CPE; při schválení se překlopí
+     * do pppoe_secrets. Vrací pole klíčů rovnou pro ConnectionRequest::create.
+     *
+     * @return array{pppoe_username: ?string, pppoe_secret: ?string}
+     */
+    private function pppoeCredentialFor(int $memberId): array
+    {
+        if (!Setting::get('pppoe_enabled', 0)) {
+            return ['pppoe_username' => null, 'pppoe_secret' => null];
+        }
+        $c = app(PppoeSecretService::class)->buildCredential($memberId);
+        return ['pppoe_username' => $c['username'], 'pppoe_secret' => $c['secret']];
     }
 
     public function create(Request $request, int $subnetId, string $ipAddress = '')
@@ -441,6 +460,7 @@ class ConnectionRequestController extends Controller
             'device_template_id' => $data['device_template_id'],
             'comment'            => $data['comment'] ?? null,
             'comments_thread_id' => null,
+            ...$this->pppoeCredentialFor($memberId),
         ]);
 
         // Notify admin email

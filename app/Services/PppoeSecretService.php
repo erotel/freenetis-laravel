@@ -2,9 +2,11 @@
 
 namespace App\Services;
 
+use App\Models\ConnectionRequest;
 use App\Models\Iface;
 use App\Models\Member;
 use App\Models\PppoeSecret;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 
 /**
@@ -56,6 +58,34 @@ class PppoeSecretService
         ]);
     }
 
+    /**
+     * Sestaví (username, secret) pro člena BEZ persistence — použije se při
+     * vytvoření žádosti o připojení (uloží se na connection_request a při
+     * schválení překlopí do pppoe_secrets přes {@see adoptFromRequest}).
+     * username = variabilní symbol, u kolize suffix -2, -3 …
+     *
+     * @return array{username: string, secret: string}
+     */
+    public function buildCredential(int $memberId): array
+    {
+        return [
+            'username' => $this->uniqueUsername($this->variableSymbol($memberId)),
+            'secret'   => $this->randomSecret(),
+        ];
+    }
+
+    /**
+     * Překlopí credential z žádosti na vzniklý iface (při schválení). Zachová
+     * username/heslo, které instalátor už zadal do CPE. Idempotentní přes iface_id.
+     */
+    public function adoptFromRequest(Iface $iface, string $username, string $secret): PppoeSecret
+    {
+        return PppoeSecret::updateOrCreate(
+            ['iface_id' => $iface->id],
+            ['username' => $username, 'secret' => $secret, 'enabled' => true]
+        );
+    }
+
     /** Přegeneruje jen heslo (rotace) — username zůstává. Vrací nový secret. */
     public function rotateSecret(Iface $iface): ?PppoeSecret
     {
@@ -91,19 +121,33 @@ class PppoeSecretService
 
     /**
      * Vrátí unikátní username: `$base`, nebo `$base-2`, `-3` … když je základ
-     * obsazený JINOU iface. Když ho drží tatáž iface, vrátí základ (idempotence).
+     * obsazený jinde. Kontroluje pppoe_secrets I čekající žádosti (credential
+     * vygenerovaný, zatím nepřeklopený). `$exceptIfaceId` = vlastní iface (kvůli
+     * idempotenci při dorovnání username existujícího záznamu).
      */
-    private function uniqueUsername(string $base, int $ifaceId): string
+    private function uniqueUsername(string $base, ?int $exceptIfaceId = null): string
     {
         $candidate = $base;
         $n = 1;
-        while (PppoeSecret::where('username', $candidate)
-            ->where('iface_id', '!=', $ifaceId)
-            ->exists()) {
+        while ($this->usernameTaken($candidate, $exceptIfaceId)) {
             $n++;
             $candidate = $base . '-' . $n;
         }
         return $candidate;
+    }
+
+    private function usernameTaken(string $username, ?int $exceptIfaceId): bool
+    {
+        $inSecrets = PppoeSecret::where('username', $username)
+            ->when($exceptIfaceId !== null, fn ($q) => $q->where('iface_id', '!=', $exceptIfaceId))
+            ->exists();
+        if ($inSecrets) {
+            return true;
+        }
+        return DB::table('connection_requests')
+            ->where('pppoe_username', $username)
+            ->where('state', ConnectionRequest::STATE_UNDECIDED)
+            ->exists();
     }
 
     private function randomSecret(): string

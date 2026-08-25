@@ -14,8 +14,11 @@ class ConnectionRequest extends Model
         'member_id', 'added_user_id', 'decided_user_id', 'state',
         'created_at', 'decided_at', 'ip_address', 'subnet_id',
         'mac_address', 'device_id', 'device_type_id', 'device_template_id',
-        'comment', 'comments_thread_id',
+        'comment', 'comments_thread_id', 'pppoe_username', 'pppoe_secret',
     ];
+
+    /** PPPoE heslo se v audit logu redakce na '***' (cleartext kvůli RADIUS). */
+    protected array $auditRedact = ['pppoe_secret'];
 
     const STATE_UNDECIDED = 0;
     const STATE_REJECTED  = 1;
