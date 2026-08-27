@@ -1436,7 +1436,13 @@ class DeviceController extends Controller
         $isStatic = $relayInterface !== null && $role === 'static';
 
         $out = '';
-        $out .= "/ip pool\r\nremove [find]\r\n";
+        // Pool NEmazat přes `remove [find]` — smazal by i pool, na který se PPP
+        // profil váže interním ID (remote-address=*5E). Po remove+add dostane
+        // pool nové ID → PPP profil ztratí pool (sdílený DHCP+PPPoE pool). Upsert
+        // podle JMÉNA: existující přepíšeme v místě (`set` → ID zůstane → PPP
+        // binding drží), chybějící přidáme. DHCP-server pool referuje jménem,
+        // tomu ID nevadí. Trade-off: pooly zrušených subnetů se už neuklidí
+        // hromadně (osiřelý pool bez referujícího dhcp-serveru/profilu je inertní).
         foreach ($servers as $s) {
             // Fragmentovaný pool (víc rozsahů s dírami po registrovaných statikách).
             // Fallback na souvislý rozsah jen když je pool celý zaplněný (prázdné
@@ -1444,7 +1450,10 @@ class DeviceController extends Controller
             $rangesStr = !empty($s['ranges'])
                 ? implode(',', $s['ranges'])
                 : "{$s['range_start']}-{$s['range_end']}";
-            $out .= "add name=\"{$s['name']}\" ranges={$rangesStr}\r\n";
+            $nm = $s['name'];
+            $out .= ":if ([:len [/ip pool find name=\"{$nm}\"]]=0)"
+                  . " do={/ip pool add name=\"{$nm}\" ranges={$rangesStr}}"
+                  . " else={/ip pool set [/ip pool find name=\"{$nm}\"] ranges={$rangesStr}}\r\n";
         }
         $out .= "/ip dhcp-server\r\nremove [find]\r\n";
         foreach ($servers as $s) {
@@ -1472,6 +1481,35 @@ class DeviceController extends Controller
                 $out .= "add address={$h['ip_address']} disabled=no mac-address={$h['mac']} server=\"{$h['server']}\" comment=\"{$h['comment']}\"\r\n";
             }
         }
+
+        // PPP profil + pppoe-server (jen se zapnutým PPPoE, ne v relay režimu —
+        // relay MK není zákaznická brána). Add-if-missing: existující (ručně
+        // laděné) profily/servery NEpřepisujeme, jen doplníme chybějící →
+        // žádné mazání, žádné clobbernutí. RADIUS klient + `/ppp aaa use-radius`
+        // zůstávají ruční infra per-MK (mimo rozsah exportu); registrovaným
+        // zákazníkům dává IP RADIUS Framed-IP, remote-address=pool je jen
+        // bootstrap fallback (admin/admin → captive). Profil: name/remote-address
+        // = název subnetu (=sdílený pool), local-address = brána, dns z nastavení,
+        // change-tcp-mss=yes (PPPoE 1492 → MSS clamp).
+        if (Setting::get('pppoe_enabled', 0) && $relayInterface === null) {
+            $serviceName = $this->ascii((string) Setting::get('pppoe_service_name', 'service1'));
+            $seenIfaces  = [];
+            foreach ($servers as $s) {
+                $nm  = $s['name'];
+                $dns = implode(',', $s['dns_servers']);
+                $out .= ":if ([:len [/ppp profile find name=\"{$nm}\"]]=0)"
+                      . " do={/ppp profile add name=\"{$nm}\" local-address={$s['gateway']} remote-address=\"{$nm}\" dns-server={$dns} use-ipv6=yes change-tcp-mss=yes}\r\n";
+
+                // pppoe-server: max 1 na rozhraní (víc subnetů na jednom iface →
+                // první profil jako default; RADIUS stejně přepíše IP per-user).
+                $iface = $s['interface'];
+                if (isset($seenIfaces[$iface])) continue;
+                $seenIfaces[$iface] = true;
+                $out .= ":if ([:len [/interface pppoe-server server find interface=\"{$iface}\"]]=0)"
+                      . " do={/interface pppoe-server server add service-name=\"{$serviceName}\" interface=\"{$iface}\" default-profile=\"{$nm}\" disabled=no one-session-per-host=yes authentication=pap,chap,mschap2}\r\n";
+            }
+        }
+
         return $out;
     }
 
