@@ -6,6 +6,27 @@ formát podle [Keep a Changelog](https://keepachangelog.com/cs/1.1.0/).
 Verzi v souboru `config/version.php` bumpni samostatným commitem `chore: bump version to X.Y.Z`,
 ať lze changelog snadno regenerovat přes `git log vX..vY --oneline`.
 
+## [2.22.1] — 2026-08-28
+
+Oprava: ukončení členství s budoucím datem už zákazníkovi nesmaže rychlost hned.
+
+### Fixed
+- **Ukončení členství s budoucím `leaving_date`** (dohrání internetu do data
+  odjezdu) dřív vynulovalo `speed_class_id` **okamžitě** — zákazník přišel
+  o rychlost, přestože členství ještě běželo. Nesymetrie: `locked` se u budoucího
+  data správně odkládal na den D (`RedirectFormerMembers`), ale rychlost se
+  nulovala natvrdo v `MemberController::endMembership`, a cron ji nedorovnal,
+  protože Step 1 už-FORMER členy přeskakuje.
+- Oprava symetrická s `locked`: `endMembership` nuluje rychlost jen když
+  `leaving_date <= dnes`; u budoucího data tarif zůstává a `RedirectFormerMembers`
+  ho v den D vynuluje v bloku „locked dorovnání" (spolu se zámkem).
+
+Testy: `tests/Feature/Members/EndMembershipFutureSpeedTest`.
+
+### Poznámka k nasazení
+Bez migrace. Jednorázově zkontrolovat/obnovit rychlost u členů budoucně ukončených
+před nasazením (postižen byl jen 1 člen, rychlost obnovena ze snímku smlouvy).
+
 ## [2.22.0] — 2026-08-20
 
 Šifrovací klíč WPA2 u zařízení typu AP.

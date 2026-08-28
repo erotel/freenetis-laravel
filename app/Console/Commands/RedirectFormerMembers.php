@@ -59,7 +59,10 @@ class RedirectFormerMembers extends Command
 
         // Zamknout členy, kteří byli ukončeni s budoucím datem (type už je
         // FORMER, ale locked=0, protože endMembership zamyká jen pokud datum
-        // už nastalo). V den D je tady dorovnáme.
+        // už nastalo). V den D je tady dorovnáme — a se zámkem i vynulujeme
+        // rychlost, protože endMembership ji u budoucího data nechal být, aby
+        // člen internet dohrál do odjezdu. Step 1 výše je nechytne (jsou už
+        // FORMER), takže je to jediné místo, kde jim tarif v den D „dojede".
         $locked = DB::table('members')
             ->whereIn('type', self::FORMER_TYPES)
             ->where('locked', 0)
@@ -67,10 +70,10 @@ class RedirectFormerMembers extends Command
             ->where('leaving_date', '!=', '9999-12-31')
             ->where('leaving_date', '!=', '0000-00-00')
             ->where('leaving_date', '<=', $today)
-            ->update(['locked' => 1]);
+            ->update(['locked' => 1, 'speed_class_id' => null]);
 
         if ($locked > 0) {
-            $this->info("Locked {$locked} former members whose leaving_date arrived.");
+            $this->info("Locked {$locked} former members whose leaving_date arrived (speed cleared).");
         }
 
         // Step 2: Auto-remove zařízení u členů, jejichž leaving_date právě uplynul.

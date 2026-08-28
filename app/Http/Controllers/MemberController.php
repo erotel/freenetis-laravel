@@ -1040,7 +1040,13 @@ class MemberController extends Controller
         // members.php:4076 (if leaving_date <= today { locked = 1 }).
         $lockNow = $validated['leaving_date'] <= now()->format('Y-m-d') ? 1 : 0;
 
-        DB::transaction(function () use ($id, $member, $newType, $validated, $endMode, $lockNow) {
+        // Rychlost vynulovat stejně jako locked — jen když datum už nastalo.
+        // U budoucího data si člen internet DOhrává do odjezdu, takže tarif
+        // musí zůstat; cron RedirectFormerMembers ho vynuluje v den D (blok
+        // „locked dorovnání"). Bez téhle podmínky přišel člen o rychlost hned.
+        $speedNow = $lockNow ? null : $member->speed_class_id;
+
+        DB::transaction(function () use ($id, $member, $newType, $validated, $endMode, $lockNow, $speedNow) {
             // Při ukončení reset prepaid flagů — bývalý člen už není kandidát
             // na ukončení (vzhledem k tomu, že právě byl ukončen) ani na
             // redirect pro nedostatek kreditu. Bez resetu zůstanou v menu/UI
@@ -1052,7 +1058,7 @@ class MemberController extends Controller
                 'payment_blocked'       => 0,
                 'payment_blocked_since' => null,
                 'pending_termination'   => 0,
-                'speed_class_id'        => null, // bývalý člen → rychlost „žádná"
+                'speed_class_id'        => $speedNow, // null až v den odchodu (viz $speedNow)
             ]);
             \App\Services\AuditLogger::log('updated', 'members', $id, [
                 'type'         => $member->type,
