@@ -15,17 +15,30 @@ class SmsMessageController extends Controller
     {
         abort_unless($this->aclCheck('view_all', self::ACL_SECTION, self::ACL_KEY), 403);
 
-        $last200 = SmsMessage::select('id')->orderByDesc('id')->limit(200);
-        $query = SmsMessage::with('user')
-            ->joinSub($last200, 'last200', fn($j) => $j->on('sms_messages.id', '=', 'last200.id'))
-            ->orderByDesc('sms_messages.id')
-            ->select('sms_messages.*');
+        // Hledání dle tel. čísla: normalizuj na číslice (uživatel může zadat +420…, mezery…)
+        $phone = preg_replace('/[^0-9]/', '', (string) $request->input('phone', ''));
+
+        $query = SmsMessage::with('user')->select('sms_messages.*');
+
+        if ($phone !== '') {
+            // Prohledej CELOU historii (ne jen posledních 200) v odesílateli i příjemci.
+            $query->where(function ($q) use ($phone) {
+                $q->where('sms_messages.receiver', 'like', "%{$phone}%")
+                  ->orWhere('sms_messages.sender', 'like', "%{$phone}%");
+            });
+        } else {
+            // Výchozí výpis: jen posledních 200 zpráv.
+            $last200 = SmsMessage::select('id')->orderByDesc('id')->limit(200);
+            $query->joinSub($last200, 'last200', fn($j) => $j->on('sms_messages.id', '=', 'last200.id'));
+        }
+
+        $query->orderByDesc('sms_messages.id');
 
         if ($request->filled('type') && $request->type !== '') {
-            $query->where('type', (int) $request->type);
+            $query->where('sms_messages.type', (int) $request->type);
         }
         if ($request->filled('state') && $request->state !== '') {
-            $query->where('state', (int) $request->state);
+            $query->where('sms_messages.state', (int) $request->state);
         }
 
         $items = $query->paginate(50)->withQueryString();
@@ -34,6 +47,7 @@ class SmsMessageController extends Controller
             'items'       => $items,
             'filterType'  => $request->input('type', ''),
             'filterState' => $request->input('state', ''),
+            'filterPhone' => $phone,
             'canSend'     => $this->aclCheck('new_all', self::ACL_SECTION, self::ACL_KEY),
             'canDelete'   => $this->aclCheck('delete_all', self::ACL_SECTION, self::ACL_KEY),
         ]);

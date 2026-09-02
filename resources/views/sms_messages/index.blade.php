@@ -39,7 +39,15 @@
                 <option value="2" @selected($filterState === '2')>Chyba</option>
             </select>
         </div>
-        @if($filterType !== '' || $filterState !== '')
+        <div>
+            <div class="m-form-label">Telefon</div>
+            <input class="m-form-input" style="width:180px" type="text" name="phone" inputmode="tel"
+                   value="{{ $filterPhone }}" placeholder="číslo příjemce/odesílatele">
+        </div>
+        <div style="padding-bottom:1px">
+            <button class="m-btn m-btn-primary" type="submit">Hledat</button>
+        </div>
+        @if($filterType !== '' || $filterState !== '' || $filterPhone !== '')
         <div style="padding-bottom:1px">
             <a class="m-btn" href="{{ route('sms_messages.index') }}">Zrušit filtr</a>
         </div>
