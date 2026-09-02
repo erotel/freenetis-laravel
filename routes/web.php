@@ -23,6 +23,7 @@ use App\Http\Controllers\DeviceTemplateController;
 use App\Http\Controllers\IpAddressController;
 use App\Http\Controllers\MemberController;
 use App\Http\Controllers\SubnetController;
+use App\Http\Controllers\LineIdAnomalyController;
 use App\Http\Controllers\VlanController;
 use App\Http\Controllers\StreetController;
 use App\Http\Controllers\TownController;
@@ -450,6 +451,9 @@ Route::middleware('auth')->group(function () {
     Route::get('subnets', [SubnetController::class, 'index'])->name('subnets.index')
         ->middleware('acl:view_all,Subnets_Controller,subnet');
     Route::resource('subnets', SubnetController::class)->except(['index']);
+    // IPoE line-id MAC-anomálie (přehození portů apod.)
+    Route::get('line-id-anomalies', [LineIdAnomalyController::class, 'index'])->name('line_id_anomalies.index');
+    Route::post('line-id-anomalies/{id}/resolve', [LineIdAnomalyController::class, 'resolve'])->name('line_id_anomalies.resolve');
     Route::get('vlans', [VlanController::class, 'index'])->name('vlans.index')
         ->middleware('acl:view_all,Vlans_Controller,vlan');
     Route::resource('vlans', VlanController::class)->except(['index']);

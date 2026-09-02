@@ -268,6 +268,7 @@ class DeviceController extends Controller
             'addressPoint.town',
             'ifaces.ipAddresses.subnet',
             'ifaces.ip6Addresses',
+            'ifaces.lineId',
             'deviceEngineers.user',
         ])->find($id);
 

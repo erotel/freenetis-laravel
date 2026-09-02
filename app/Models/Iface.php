@@ -43,6 +43,11 @@ class Iface extends Model
         return $this->belongsTo(Device::class);
     }
 
+    public function lineId()
+    {
+        return $this->hasOne(LineId::class, 'iface_id');
+    }
+
     public function ipAddresses()
     {
         return $this->hasMany(IpAddress::class);

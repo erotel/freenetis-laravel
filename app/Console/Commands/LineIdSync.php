@@ -20,7 +20,11 @@ class LineIdSync extends Command
     public function handle(LineIdSyncService $svc): int
     {
         $r = $svc->reconcileFromSeen();
-        $this->info("line-id sync: {$r['reconciled']} spárováno, {$r['unmatched']} nespárováno (onboarding kandidáti).");
+        $a = $svc->detectAnomalies();
+        $this->info(
+            "line-id sync: {$r['reconciled']} spárováno, {$r['unmatched']} nespárováno (onboarding), "
+            . "{$r['conflicts']} konfliktů; anomálií: {$a['anomalies']}."
+        );
         return self::SUCCESS;
     }
 }

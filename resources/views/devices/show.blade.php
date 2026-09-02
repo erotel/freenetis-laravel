@@ -158,6 +158,7 @@
             <th>Jméno</th>
             <th>MAC</th>
             <th>IP adresy</th>
+            <th>Line-ID (port)</th>
             @if($canEditDevice)<th style="width:80px">Akce</th>@endif
         </tr>
     </thead>
@@ -174,6 +175,14 @@
                 @empty —
                 @endforelse
             </td>
+            <td style="font-size:13px">
+                @php $li = $iface->lineId; @endphp
+                @if($li)
+                    <span style="font-family:monospace">{{ $li->device_ident ? $li->device_ident . ' / ' . $li->port : \Illuminate\Support\Str::limit($li->circuit_id, 30) }}</span>
+                    @if($li->vendor)<span class="m-tag m-tag-gray" style="font-size:11px;margin-left:4px">{{ $li->vendor }}</span>@endif
+                @else <span style="color:#bbb">—</span>
+                @endif
+            </td>
             @if($canEditDevice)
             <td>
                 <div style="display:flex;gap:6px">
@@ -188,7 +197,7 @@
             @endif
         </tr>
         @empty
-        <tr><td colspan="{{ $canEditDevice ? 5 : 4 }}" style="text-align:center;color:#aaa;padding:1.5rem">Žádná rozhraní.</td></tr>
+        <tr><td colspan="{{ $canEditDevice ? 6 : 5 }}" style="text-align:center;color:#aaa;padding:1.5rem">Žádná rozhraní.</td></tr>
         @endforelse
     </tbody>
 </table>
