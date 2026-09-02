@@ -16,7 +16,7 @@ class Subnet extends Model
     protected $dateFormat = 'Y-m-d H:i:s.u';
     protected $fillable = [
         'name', 'network_address', 'netmask',
-        'redirect', 'dhcp', 'dhcp_expired', 'dhcp_changed_at', 'dns', 'qos', 'OSPF_area_id',
+        'redirect', 'dhcp', 'dhcp_expired', 'dhcp_changed_at', 'dns', 'qos', 'ipoe', 'OSPF_area_id',
     ];
     protected $casts = [
         'redirect'        => 'boolean',
@@ -25,6 +25,7 @@ class Subnet extends Model
         'dhcp_changed_at' => 'datetime',
         'dns'             => 'boolean',
         'qos'             => 'boolean',
+        'ipoe'            => 'boolean',
     ];
 
     public function setExpired(): void

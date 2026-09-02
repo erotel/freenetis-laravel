@@ -215,6 +215,7 @@ class SubnetController extends Controller
             'dhcp'         => 'nullable|boolean',
             'dns'          => 'nullable|boolean',
             'qos'          => 'nullable|boolean',
+            'ipoe'         => 'nullable|boolean',
             'redirect'     => 'nullable|boolean',
         ], [
             'network_address.regex'  => 'Neplatný formát síťové adresy.',
@@ -240,6 +241,10 @@ class SubnetController extends Controller
             if (!$this->can($action, $flag)) {
                 unset($data[$flag]);
             }
+        }
+        // IPoE (line-id mód) se řídí stejným právem jako DHCP.
+        if (array_key_exists('ipoe', $data) && !$this->can($action, 'dhcp')) {
+            unset($data['ipoe']);
         }
 
         return $data;

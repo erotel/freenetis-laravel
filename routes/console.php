@@ -50,6 +50,10 @@ Schedule::command('members:redirect-pending-customers')->hourly();
 // po dorovnání kreditu (PaymentBackchargeService). Toggleable via payment_blocked_redirect_enabled.
 Schedule::command('members:redirect-blocked')->hourly();
 
+// Fáze B (IPoE): překlop self-learning line-id z RADIUS accountingu (line_id_seen)
+// do line_ids (MAC→iface). No-op když nic nepřibylo.
+Schedule::command('lineid:sync')->everyFiveMinutes();
+
 // Mark members with unpaid fee from previous month or older as pending_termination=1
 // (per VOP — 1 měsíc neplacení = automatický konec smlouvy). Cron běží denně, ale
 // work se provede jen v Setting('pending_termination_day', 14). Admin pak schvaluje

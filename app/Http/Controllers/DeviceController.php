@@ -1381,6 +1381,10 @@ class DeviceController extends Controller
                     'ranges'      => $ranges,
                     'dns_servers' => $dnsList,
                     'hosts'       => array_values($hosts),
+                    // IPoE (line-id) subnet: MK se ptá RADIUSu (use-radius) a
+                    // statické leasy se NEgenerují → IP jede z RADIUS Framed-IP
+                    // podle option82 circuit-id. Viz fáze B.
+                    'ipoe'        => (bool) $subnet->ipoe,
                 ];
             }
         }
@@ -1457,17 +1461,19 @@ class DeviceController extends Controller
         }
         $out .= "/ip dhcp-server\r\nremove [find]\r\n";
         foreach ($servers as $s) {
+            // IPoE subnet: MK se ptá RADIUSu na Framed-IP podle line-id (option82).
+            $useRadius = !empty($s['ipoe']) ? ' use-radius=yes' : '';
             if ($relayInterface !== null) {
                 // Relay režim: matchujeme podle relay=<gateway> (giaddr), interface
                 // je společné relay rozhraní (např. vlan1010), ne lokální iface.
                 $iface = $this->ascii($relayInterface);
                 if ($isStatic) {
-                    $out .= "add name=\"{$s['name']}\" authoritative=after-10sec-delay bootp-support=static disabled=no interface=\"{$iface}\" relay={$s['gateway']} lease-time={$leaseTime} address-pool=static-only\r\n";
+                    $out .= "add name=\"{$s['name']}\" authoritative=after-10sec-delay bootp-support=static disabled=no interface=\"{$iface}\" relay={$s['gateway']} lease-time={$leaseTime} address-pool=static-only{$useRadius}\r\n";
                 } else {
-                    $out .= "add name=\"{$s['name']}\" address-pool=\"{$s['name']}\" authoritative=yes bootp-support=static disabled=no interface=\"{$iface}\" relay={$s['gateway']} lease-time={$leaseTime}\r\n";
+                    $out .= "add name=\"{$s['name']}\" address-pool=\"{$s['name']}\" authoritative=yes bootp-support=static disabled=no interface=\"{$iface}\" relay={$s['gateway']} lease-time={$leaseTime}{$useRadius}\r\n";
                 }
             } else {
-                $out .= "add name=\"{$s['name']}\" address-pool=\"{$s['name']}\" authoritative=after-2sec-delay bootp-support=static disabled=no interface=\"{$s['interface']}\" lease-time={$leaseTime}\r\n";
+                $out .= "add name=\"{$s['name']}\" address-pool=\"{$s['name']}\" authoritative=after-2sec-delay bootp-support=static disabled=no interface=\"{$s['interface']}\" lease-time={$leaseTime}{$useRadius}\r\n";
             }
         }
         $out .= "/ip dhcp-server network\r\nremove [find]\r\n";
@@ -1477,6 +1483,10 @@ class DeviceController extends Controller
         }
         $out .= "/ip dhcp-server lease\r\nremove [find]\r\n";
         foreach ($servers as $s) {
+            // IPoE subnet: statické leasy NEgenerujeme — se statickým leasem by se
+            // MK RADIUSu neptal (použil by lokální IP), takže IP přiděluje RADIUS
+            // podle line-id. Viz fáze B.
+            if (!empty($s['ipoe'])) continue;
             foreach ($s['hosts'] as $h) {
                 $out .= "add address={$h['ip_address']} disabled=no mac-address={$h['mac']} server=\"{$h['server']}\" comment=\"{$h['comment']}\"\r\n";
             }
@@ -1518,6 +1528,8 @@ class DeviceController extends Controller
         $out = "/ip dhcp-server lease\r\n";
         foreach ($servers as $s) {
             $out .= "remove [find server=\"{$s['name']}\"]\r\n";
+            // IPoE subnet: bez statických leasů (IP z RADIUSu podle line-id).
+            if (!empty($s['ipoe'])) continue;
             foreach ($s['hosts'] as $h) {
                 $out .= "add address={$h['ip_address']} disabled=no mac-address={$h['mac']} server=\"{$h['server']}\" comment=\"{$h['comment']}\"\r\n";
             }

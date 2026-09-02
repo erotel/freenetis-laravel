@@ -61,6 +61,13 @@
             QoS
         </label>
         @endif
+        @if($canSetDhcp)
+        <label style="display:flex;align-items:center;gap:6px;font-size:16px;cursor:pointer" title="Přidělování IP podle line-id (option82) přes RADIUS místo statických MAC leasů. Zapínej jen na subnetech, kde jsou zákazníci přímo na managed switchi s option82.">
+            <input type="hidden" name="ipoe" value="0">
+            <input type="checkbox" id="ipoe" name="ipoe" value="1" @checked(old('ipoe', $subnet->ipoe))>
+            IPoE (line-id)
+        </label>
+        @endif
     </div>
 </div>
 <div class="m-actions">
