@@ -17,6 +17,11 @@ class MemberFilter
             ['key' => 'id',              'label' => 'ID',                 'type' => 'number'],
             ['key' => 'type',            'label' => 'Typ',                'type' => 'select', 'values' => MemberType::labels()],
             ['key' => 'balance',         'label' => 'Kredit (Kč)',        'type' => 'number'],
+            ['key' => 'payment_blocked', 'label' => 'Blokace platby',     'type' => 'select', 'values' => [
+                ''  => '— vše —',
+                '1' => 'Blokovaní',
+                '0' => 'Neblokovaní',
+            ]],
             ['key' => 'variable_symbol', 'label' => 'Variabilní symbol',  'type' => 'text'],
             ['key' => 'entrance_date',   'label' => 'Datum vstupu',       'type' => 'date'],
             ['key' => 'leaving_date',    'label' => 'Datum odchodu',      'type' => 'date'],
@@ -118,6 +123,14 @@ class MemberFilter
                     "(SELECT a.balance FROM accounts a WHERE a.member_id = members.id AND a.account_attribute_id = 221100 LIMIT 1) $sqlOp ?",
                     [(float) $value]
                 );
+                break;
+
+            case 'payment_blocked':
+                // Blokace kvůli nedostatku kreditu (members.payment_blocked).
+                // Hodnota je explicitní 0/1, operátor ignorujeme.
+                if ($value === '0' || $value === '1') {
+                    $query->where('members.payment_blocked', (int) $value);
+                }
                 break;
 
             case 'variable_symbol':
