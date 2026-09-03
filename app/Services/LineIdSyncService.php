@@ -34,6 +34,9 @@ class LineIdSyncService
         // Self-healing: dorovnej parse u existujících záznamů s prázdným parsem
         // (např. po vylepšení parseru) — nezávisle na reconciled flagu.
         $this->backfillParse();
+        // Self-healing: vyházej sdílené (VLAN/relay) záznamy, které do line_ids nepatří
+        // (uložené dřív, nebo se staly sdílené až 2. MACem po uložení).
+        $this->pruneSharedLineIds();
 
         $rows = DB::table('line_id_seen')->where('reconciled', 0)->get();
         foreach ($rows as $row) {
@@ -115,6 +118,24 @@ class LineIdSyncService
             }
         }
         return false;
+    }
+
+    /**
+     * Odstraní z line_ids sdílené (VLAN/relay) záznamy, které tam nepatří — uložené
+     * dřív (před klasifikací) nebo když se circuit-id stal sdíleným až 2. MACem po
+     * uložení. Idempotentní. @return int počet odstraněných
+     */
+    public function pruneSharedLineIds(): int
+    {
+        $n = 0;
+        foreach (DB::table('line_ids')->get(['id', 'circuit_id']) as $l) {
+            $hex = '0x' . bin2hex($l->circuit_id);
+            if ($this->isSharedCircuit($l->circuit_id, $hex)) {
+                DB::table('line_ids')->where('id', $l->id)->delete();
+                $n++;
+            }
+        }
+        return $n;
     }
 
     /**
