@@ -30,6 +30,10 @@ class LineIdSyncService
         $unmatched  = 0;
         $conflicts  = 0;
 
+        // Self-healing: dorovnej parse u existujících záznamů s prázdným parsem
+        // (např. po vylepšení parseru) — nezávisle na reconciled flagu.
+        $this->backfillParse();
+
         $rows = DB::table('line_id_seen')->where('reconciled', 0)->get();
         foreach ($rows as $row) {
             $circuit = $this->decodeHex($row->circuit_id_hex);
@@ -80,6 +84,31 @@ class LineIdSyncService
         }
 
         return ['reconciled' => $reconciled, 'unmatched' => $unmatched, 'conflicts' => $conflicts];
+    }
+
+    /**
+     * Dorovná parse (vendor/device_ident/port) u záznamů line_ids, které ho mají
+     * prázdný — typicky po vylepšení parseru o nový formát. Idempotentní.
+     * @return int počet dorovnaných záznamů
+     */
+    public function backfillParse(): int
+    {
+        $n = 0;
+        $rows = DB::table('line_ids')
+            ->whereNull('vendor')->whereNull('device_ident')->whereNull('port')
+            ->get(['id', 'circuit_id']);
+        foreach ($rows as $r) {
+            $p = $this->parseCircuitId($r->circuit_id);
+            if ($p['vendor'] !== null || $p['device_ident'] !== null || $p['port'] !== null) {
+                DB::table('line_ids')->where('id', $r->id)->update([
+                    'vendor'       => $p['vendor'],
+                    'device_ident' => $p['device_ident'],
+                    'port'         => $p['port'],
+                ]);
+                $n++;
+            }
+        }
+        return $n;
     }
 
     /**
