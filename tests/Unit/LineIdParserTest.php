@@ -75,6 +75,19 @@ class LineIdParserTest extends TestCase
         $this->assertNull($p['port']);
     }
 
+    public function test_shared_circuit_vlanif(): void
+    {
+        // relay/VLAN circuit-id (Vlanif) = sdílené celou VLAN → shared (bez DB)
+        $this->assertTrue($this->svc->isSharedCircuit('0142.0000.b4fb-f980-14b0:Vlanif142'));
+    }
+
+    public function test_port_level_circuit_not_shared(): void
+    {
+        // port-level (snooping / MikroTik) bez circuitHex = není shared
+        $this->assertFalse($this->svc->isSharedCircuit('GigabitEthernet0/0/12:339.0 K364/0/0/0/0/0'));
+        $this->assertFalse($this->svc->isSharedCircuit('Smer9 eth 0/4'));
+    }
+
     public function test_decode_hex(): void
     {
         // 'A/1' = 0x412f31

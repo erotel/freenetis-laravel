@@ -29,6 +29,7 @@ class LineIdSyncService
         $reconciled = 0;
         $unmatched  = 0;
         $conflicts  = 0;
+        $shared     = 0;
 
         // Self-healing: dorovnej parse u existujících záznamů s prázdným parsem
         // (např. po vylepšení parseru) — nezávisle na reconciled flagu.
@@ -44,6 +45,16 @@ class LineIdSyncService
             $macIfaceId = $this->ifaceIdByMac($row->mac);
             if (!$macIfaceId) {
                 $unmatched++; // neznámá MAC = onboarding kandidát, necháme reconciled=0
+                continue;
+            }
+
+            // Sdílený relay/VLAN circuit-id (Vlanif = SVI L3 relaye, sdílí celá VLAN,
+            // nebo circuit-id s víc MACy) NENÍ per-zákazník identita → neukládat do
+            // line_ids; uklidit případný dřívější omyl. Bez toho falešné identity_cross.
+            if ($this->isSharedCircuit($circuit, $row->circuit_id_hex)) {
+                DB::table('line_ids')->where('circuit_id', $circuit)->delete();
+                DB::table('line_id_seen')->where('id', $row->id)->update(['reconciled' => 1]);
+                $shared++;
                 continue;
             }
 
@@ -83,7 +94,27 @@ class LineIdSyncService
             }
         }
 
-        return ['reconciled' => $reconciled, 'unmatched' => $unmatched, 'conflicts' => $conflicts];
+        return ['reconciled' => $reconciled, 'unmatched' => $unmatched, 'conflicts' => $conflicts, 'shared' => $shared];
+    }
+
+    /**
+     * Sdílený line-id = NENÍ per-zákazník identita: relay/VLAN circuit-id (Vlanif<N>
+     * = SVI L3 relaye, sdílí ho celá VLAN) nebo circuit-id pozorovaný s víc MACy.
+     * Takové ID se nesmí ukládat jako per-port mapování ani flagovat jako anomálie.
+     */
+    public function isSharedCircuit(string $circuit, ?string $circuitHex = null): bool
+    {
+        $p = $this->parseCircuitId($circuit);
+        if ($p['port'] !== null && stripos($p['port'], 'Vlanif') === 0) {
+            return true;
+        }
+        if ($circuitHex !== null) {
+            $macs = DB::table('line_id_seen')->where('circuit_id_hex', $circuitHex)->distinct()->count('mac');
+            if ($macs > 1) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /**
@@ -125,6 +156,12 @@ class LineIdSyncService
         foreach ($rows as $row) {
             $circuit = $this->decodeHex($row->circuit_id_hex);
             if ($circuit === null || $circuit === '') {
+                continue;
+            }
+
+            // Sdílený relay/VLAN circuit-id (Vlanif / víc MACů) není per-zákazník
+            // identita → víc MACů je tam normální, NEflagovat jako anomálii.
+            if ($this->isSharedCircuit($circuit, $row->circuit_id_hex)) {
                 continue;
             }
 

@@ -23,7 +23,7 @@ class LineIdSync extends Command
         $a = $svc->detectAnomalies();
         $this->info(
             "line-id sync: {$r['reconciled']} spárováno, {$r['unmatched']} nespárováno (onboarding), "
-            . "{$r['conflicts']} konfliktů; anomálií: {$a['anomalies']}."
+            . "{$r['conflicts']} konfliktů, {$r['shared']} sdílených (VLAN/relay); anomálií: {$a['anomalies']}."
         );
         return self::SUCCESS;
     }
