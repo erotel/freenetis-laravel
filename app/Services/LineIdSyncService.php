@@ -60,8 +60,16 @@ class LineIdSyncService
                 DB::table('line_id_seen')->where('id', $row->id)->update(['reconciled' => 1]);
                 $reconciled++;
             } elseif ((int) $existing->iface_id === $macIfaceId) {
-                // Stejný zákazník na svém portu → jen refresh.
-                DB::table('line_ids')->where('id', $existing->id)->update(['last_seen' => $row->last_seen ?? now()]);
+                // Stejný zákazník na svém portu → refresh. Self-healing: když dřívější
+                // (starší) parser nechal parse prázdný, teď ho doplň.
+                $upd = ['last_seen' => $row->last_seen ?? now()];
+                if ($existing->vendor === null && $existing->device_ident === null && $existing->port === null) {
+                    $p = $this->parseCircuitId($circuit);
+                    $upd['vendor']       = $p['vendor'];
+                    $upd['device_ident'] = $p['device_ident'];
+                    $upd['port']         = $p['port'];
+                }
+                DB::table('line_ids')->where('id', $existing->id)->update($upd);
                 DB::table('line_id_seen')->where('id', $row->id)->update(['reconciled' => 1]);
                 $reconciled++;
             } else {
@@ -179,9 +187,11 @@ class LineIdSyncService
      * audit a čitelnost; RADIUS lookup jede na SYROVÉM circuit_id, takže na
      * přesnosti parseru přidělení IP nezávisí. 4 formáty:
      *   Huawei   `GigabitEthernet0/0/12:339.0 K364/0/0/0/0/0`
+     *   Huawei   `0180.0000.c88d-833a-7770:Vlanif180` (VLAN-if identita, ne fyz. port)
      *   DCN      `Vlan325+Ethernet1/0/13`
      *   GPON     `... xpon 0/2/0/8 ...`
      *   MikroTik `Smer9 eth 0/4`
+     * Neznámý formát → vendor 'unknown', celý řetězec do device_ident (nikdy vše NULL).
      * @return array{vendor:?string, device_ident:?string, port:?string}
      */
     public function parseCircuitId(string $c): array
@@ -198,6 +208,12 @@ class LineIdSyncService
             return ['vendor' => 'huawei', 'device_ident' => $m[3], 'port' => $m[1]];
         }
 
+        // Huawei (VLAN-if): "<switch-ident>:Vlanif<id>"  – port je VLAN interface,
+        // ne fyzický port (hrubší granularita: swap se detekuje na úrovni VLANu).
+        if (preg_match('~^(.+):(Vlanif\d+)$~i', $c, $m)) {
+            return ['vendor' => 'huawei', 'device_ident' => $m[1], 'port' => $m[2]];
+        }
+
         // DCN: "Vlan<id>+<port>"  (device_ident = remote-id switch MAC, sem nedáme)
         if (preg_match('~^Vlan(\d+)\+(.+)$~i', $c, $m)) {
             return ['vendor' => 'dcn', 'device_ident' => null, 'port' => $m[2]];
@@ -208,6 +224,11 @@ class LineIdSyncService
             return ['vendor' => 'mikrotik', 'device_ident' => $m[1], 'port' => $m[2]];
         }
 
-        return ['vendor' => null, 'device_ident' => null, 'port' => null];
+        // Neznámý formát: best-effort split, ať UI ukáže něco čitelného (ne vše NULL).
+        // Rozdělíme na posledním ":" (identita:port); jinak celý řetězec = device_ident.
+        if (preg_match('~^(.+):([^:]+)$~', $c, $m)) {
+            return ['vendor' => 'unknown', 'device_ident' => trim($m[1]), 'port' => trim($m[2])];
+        }
+        return ['vendor' => 'unknown', 'device_ident' => $c !== '' ? $c : null, 'port' => null];
     }
 }

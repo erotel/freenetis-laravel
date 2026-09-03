@@ -49,10 +49,29 @@ class LineIdParserTest extends TestCase
         $this->assertSame('eth 0/4', $p['port']);
     }
 
-    public function test_unknown_returns_nulls(): void
+    public function test_parses_huawei_vlanif(): void
     {
+        $p = $this->svc->parseCircuitId('0180.0000.c88d-833a-7770:Vlanif180');
+        $this->assertSame('huawei', $p['vendor']);
+        $this->assertSame('0180.0000.c88d-833a-7770', $p['device_ident']);
+        $this->assertSame('Vlanif180', $p['port']);
+    }
+
+    public function test_unknown_with_colon_splits_best_effort(): void
+    {
+        // neznámý formát s ":" → vendor 'unknown', rozdělí na identitu:port
+        $p = $this->svc->parseCircuitId('nejakySwitch:port42');
+        $this->assertSame('unknown', $p['vendor']);
+        $this->assertSame('nejakySwitch', $p['device_ident']);
+        $this->assertSame('port42', $p['port']);
+    }
+
+    public function test_unknown_without_colon_keeps_raw(): void
+    {
+        // neznámý bez ":" → celý řetězec do device_ident, nikdy vše NULL
         $p = $this->svc->parseCircuitId('naprosto neznámý formát');
-        $this->assertNull($p['vendor']);
+        $this->assertSame('unknown', $p['vendor']);
+        $this->assertSame('naprosto neznámý formát', $p['device_ident']);
         $this->assertNull($p['port']);
     }
 
