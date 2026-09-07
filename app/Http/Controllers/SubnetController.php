@@ -80,6 +80,7 @@ class SubnetController extends Controller
             'ipAddresses' => fn($q) => $q->orderByRaw('INET_ATON(ip_address)'),
             'ipAddresses.member',
             'ipAddresses.iface.device',
+            'ipAddresses.iface.lineId',
         ])->find($id);
         if (!$subnet) {
             abort(404);

@@ -62,6 +62,7 @@
             <th>IP adresa</th>
             <th>Člen</th>
             <th>Zařízení</th>
+            <th>Line-ID</th>
             <th style="width:60px">DHCP</th>
             <th style="width:70px">Gateway</th>
             <th style="width:60px">Akce</th>
@@ -78,6 +79,17 @@
             <td>
                 @if($ip->iface?->device) <a class="m-link" href="{{ route('devices.show', $ip->iface->device_id) }}">{{ $ip->iface->device->name }}</a>
                 @else — @endif
+            </td>
+            <td>
+                @if($ip->iface?->lineId)
+                    @php $lid = $ip->iface->lineId; @endphp
+                    <span class="m-tag m-tag-green" title="{{ $lid->circuit_id }}">{{ $lid->port ?: $lid->circuit_id }}</span>
+                    @if($lid->vendor)<small style="color:#888">{{ $lid->vendor }}</small>@endif
+                @elseif($ip->iface)
+                    <span class="m-tag m-tag-red">chybí</span>
+                @else
+                    —
+                @endif
             </td>
             <td>@if($ip->dhcp)<span class="m-tag m-tag-green">Ano</span>@else —@endif</td>
             <td>@if($ip->gateway)<span class="m-tag m-tag-blue">Ano</span>@else —@endif</td>
