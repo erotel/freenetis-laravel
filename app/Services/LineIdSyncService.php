@@ -276,7 +276,7 @@ class LineIdSyncService
      *   Huawei   `GigabitEthernet0/0/12:339.0 K364/0/0/0/0/0`
      *   Huawei   `0180.0000.c88d-833a-7770:Vlanif180` (VLAN-if identita, ne fyz. port)
      *   DCN      `Vlan325+Ethernet1/0/13`
-     *   GPON     `... xpon 0/2/0/8 ...`
+     *   GPON     `F47960E73E46 xpon 0/2/0/8:38.1.1` (ident OLT + xpon cesta vč. ONT)
      *   MikroTik `Smer9 eth 0/4`
      * Neznámý formát → vendor 'unknown', celý řetězec do device_ident (nikdy vše NULL).
      * @return array{vendor:?string, device_ident:?string, port:?string}
@@ -285,9 +285,14 @@ class LineIdSyncService
     {
         $c = trim($c);
 
-        // GPON: obsahuje "xpon <frame/slot/pon/ont>"
-        if (preg_match('~xpon\s+([\d/]+)~i', $c, $m)) {
-            return ['vendor' => 'gpon', 'device_ident' => null, 'port' => 'xpon ' . $m[1]];
+        // GPON (Huawei xpon): "<OLT-ident> xpon <frame/slot/port[/ont]>:<ont.gem.vlan>"
+        // device_ident = ident OLT (prefix před "xpon") → odliší víc OLT za stejným
+        // DHCP serverem (10.133.0.16); port = celá xpon cesta vč. ONT → unikátní per
+        // přípojka i na stejném PON portu. Matching stejně jede na SYROVÉM circuit_id,
+        // tohle je jen pro čitelnost UI, takže granularitu můžeme brát maximální.
+        if (preg_match('~^(.*?)\s*\bxpon\s+(\S+)~i', $c, $m)) {
+            $ident = trim($m[1]);
+            return ['vendor' => 'gpon', 'device_ident' => $ident !== '' ? $ident : null, 'port' => 'xpon ' . $m[2]];
         }
 
         // Huawei: "<port>:<vlan>.<x> <hostname>[/...]"

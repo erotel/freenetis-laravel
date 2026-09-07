@@ -38,7 +38,29 @@ class LineIdParserTest extends TestCase
     {
         $p = $this->svc->parseCircuitId('F47960E73E46 xpon 0/2/0/8:38.1.1');
         $this->assertSame('gpon', $p['vendor']);
-        $this->assertSame('xpon 0/2/0/8', $p['port']);
+        // ident OLT do device_ident, celá xpon cesta (vč. ONT) do port
+        $this->assertSame('F47960E73E46', $p['device_ident']);
+        $this->assertSame('xpon 0/2/0/8:38.1.1', $p['port']);
+    }
+
+    public function test_gpon_two_olts_same_port_distinguished_by_ident(): void
+    {
+        // 2 OLT za stejným DHCP serverem (10.133.0.16), stejné číslo PON portu →
+        // odliší je ident OLT (device_ident); port sám o sobě by kolidoval.
+        $a = $this->svc->parseCircuitId('F47960E73E46 xpon 0/2/0/10:11.1.1');
+        $b = $this->svc->parseCircuitId('AABBCCDDEEFF xpon 0/2/0/10:11.1.1');
+        $this->assertSame('F47960E73E46', $a['device_ident']);
+        $this->assertSame('AABBCCDDEEFF', $b['device_ident']);
+        $this->assertNotSame($a['device_ident'], $b['device_ident']);
+        $this->assertSame($a['port'], $b['port']); // stejný port, rozliší jen ident
+    }
+
+    public function test_gpon_two_onts_same_pon_port_distinguished_by_port(): void
+    {
+        // 2 ONT na stejném PON portu téhož OLT → odliší celá xpon cesta (ONT část)
+        $a = $this->svc->parseCircuitId('F47960E73E46 xpon 0/2/0/10:11.1.1');
+        $b = $this->svc->parseCircuitId('F47960E73E46 xpon 0/2/0/10:12.1.1');
+        $this->assertNotSame($a['port'], $b['port']);
     }
 
     public function test_parses_mikrotik(): void

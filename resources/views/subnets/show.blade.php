@@ -84,7 +84,7 @@
                 @if($ip->iface?->lineId)
                     @php $lid = $ip->iface->lineId; @endphp
                     <span class="m-tag m-tag-green" title="{{ $lid->circuit_id }}">{{ $lid->port ?: $lid->circuit_id }}</span>
-                    @if($lid->vendor)<small style="color:#888">{{ $lid->vendor }}</small>@endif
+                    <small style="color:#888">@if($lid->device_ident){{ $lid->device_ident }} · @endif{{ $lid->vendor }}</small>
                 @elseif($ip->iface)
                     <span class="m-tag m-tag-red">chybí</span>
                 @else
