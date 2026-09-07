@@ -1144,9 +1144,11 @@ class DeviceController extends Controller
         // druhý (static-only) server v páru; jinak primary.
         $relayInterface = $this->relayInterfaceForDevice($id);
         $role           = $request->input('role') === 'static' ? 'static' : 'primary';
+        $forceRadius    = $this->deviceInDhcpList($id, 'dhcp_force_radius');
+        $forceTr101     = $this->deviceInDhcpList($id, 'dhcp_force_tr101');
 
         $text = $format === 'mikrotik-ip-dhcp-server'
-            ? $this->renderMikrotikFull($dhcpServers, $relayInterface, $role)
+            ? $this->renderMikrotikFull($dhcpServers, $relayInterface, $role, $forceRadius, $forceTr101)
             : $this->renderMikrotikLeaseOnly($dhcpServers);
 
         // Zapiš, že tento konzument je aktuální. Per-client posune jen jeho
@@ -1429,7 +1431,7 @@ class DeviceController extends Controller
         return $ranges;
     }
 
-    private function renderMikrotikFull(array $servers, ?string $relayInterface = null, string $role = 'primary'): string
+    private function renderMikrotikFull(array $servers, ?string $relayInterface = null, string $role = 'primary', bool $forceRadius = false, bool $forceTr101 = false): string
     {
         // Setting::get vrací uloženou hodnotu — když admin v UI uloží prázdné
         // pole, vrátí '' a default '10800' v get() se neuplatní. Cast na int
@@ -1462,19 +1464,25 @@ class DeviceController extends Controller
         }
         $out .= "/ip dhcp-server\r\nremove [find]\r\n";
         foreach ($servers as $s) {
-            // IPoE subnet: MK se ptá RADIUSu na Framed-IP podle line-id (option82).
-            $useRadius = !empty($s['ipoe']) ? ' use-radius=yes' : '';
+            // use-radius: ipoe subnet (RADIUS Framed-IP podle line-id) NEBO MK trvale
+            // vynucený v dhcp_force_radius (optické brány jedou přes RADIUS i než se
+            // subnet přepne na ipoe). tr101: jen MK v dhcp_force_tr101 (bridge/direct
+            // režim jinak nepředá option82 circuit-id do RADIUSu; v relay režimu netřeba).
+            // Bez tohoto by remove[find]+re-add při načtení configu ruční nastavení smazal.
+            // Viz [[project_lineid_tr101_gotcha]].
+            $useRadius = (!empty($s['ipoe']) || $forceRadius) ? ' use-radius=yes' : '';
+            $tr101     = $forceTr101 ? ' support-broadband-tr101=yes' : '';
             if ($relayInterface !== null) {
                 // Relay režim: matchujeme podle relay=<gateway> (giaddr), interface
                 // je společné relay rozhraní (např. vlan1010), ne lokální iface.
                 $iface = $this->ascii($relayInterface);
                 if ($isStatic) {
-                    $out .= "add name=\"{$s['name']}\" authoritative=after-10sec-delay bootp-support=static disabled=no interface=\"{$iface}\" relay={$s['gateway']} lease-time={$leaseTime} address-pool=static-only{$useRadius}\r\n";
+                    $out .= "add name=\"{$s['name']}\" authoritative=after-10sec-delay bootp-support=static disabled=no interface=\"{$iface}\" relay={$s['gateway']} lease-time={$leaseTime} address-pool=static-only{$useRadius}{$tr101}\r\n";
                 } else {
-                    $out .= "add name=\"{$s['name']}\" address-pool=\"{$s['name']}\" authoritative=yes bootp-support=static disabled=no interface=\"{$iface}\" relay={$s['gateway']} lease-time={$leaseTime}{$useRadius}\r\n";
+                    $out .= "add name=\"{$s['name']}\" address-pool=\"{$s['name']}\" authoritative=yes bootp-support=static disabled=no interface=\"{$iface}\" relay={$s['gateway']} lease-time={$leaseTime}{$useRadius}{$tr101}\r\n";
                 }
             } else {
-                $out .= "add name=\"{$s['name']}\" address-pool=\"{$s['name']}\" authoritative=after-2sec-delay bootp-support=static disabled=no interface=\"{$s['interface']}\" lease-time={$leaseTime}{$useRadius}\r\n";
+                $out .= "add name=\"{$s['name']}\" address-pool=\"{$s['name']}\" authoritative=after-2sec-delay bootp-support=static disabled=no interface=\"{$s['interface']}\" lease-time={$leaseTime}{$useRadius}{$tr101}\r\n";
             }
         }
         $out .= "/ip dhcp-server network\r\nremove [find]\r\n";
@@ -1541,6 +1549,27 @@ class DeviceController extends Controller
     private function ascii(string $s): string
     {
         return iconv('UTF-8', 'ASCII//TRANSLIT//IGNORE', $s) ?: $s;
+    }
+
+    /**
+     * Je zařízení uvedené v daném DHCP nastavení (dhcp_force_radius / dhcp_force_tr101)?
+     * Formát: device ID oddělené novým řádkem nebo čárkou. Trvale vynutí
+     * use-radius=yes / support-broadband-tr101=yes v exportu DHCP configu pro
+     * konkrétní MK (optické brány) nezávisle na ipoe flagu subnetu — aby načtení
+     * konfigurace ruční nastavení nepřepsalo. Viz [[project_lineid_tr101_gotcha]].
+     */
+    private function deviceInDhcpList(int $deviceId, string $settingKey): bool
+    {
+        $raw = (string) Setting::get($settingKey, '');
+        if ($raw === '') {
+            return false;
+        }
+        foreach (preg_split('/\r\n|\r|\n|,/', $raw) as $token) {
+            if (trim($token) === (string) $deviceId) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /**
