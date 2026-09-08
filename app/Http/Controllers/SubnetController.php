@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Http\Filters\SubnetFilter;
 use App\Models\Subnet;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
 
 class SubnetController extends Controller
@@ -86,14 +87,63 @@ class SubnetController extends Controller
             abort(404);
         }
 
+        // Sdílené line-idy: iface bez per-port mapování (line_ids), jehož MAC je
+        // v line_id_seen na circuit-id, který vidí víc MAC → sdílený (typicky
+        // bytovka za jedním ONT bez L2 switche s option82). Odlišíme ve výpisu
+        // žlutě „sdílený" od červené „chybí" (fakt nenaučeno). Viz LineIdSyncService.
+        $macs = $subnet->ipAddresses
+            ->map(fn($ip) => $ip->iface?->mac)
+            ->filter()
+            ->map(fn($m) => strtoupper($m))
+            ->unique()
+            ->values()
+            ->all();
+
         return view('subnets.show', [
-            'subnet'    => $subnet,
-            'canEdit'   => $this->can('edit_all'),
-            'canDelete' => $this->can('delete_all'),
-            'showDhcp'  => $this->can('view_all', 'dhcp'),
-            'showDns'   => $this->can('view_all', 'dns'),
-            'showQos'   => $this->can('view_all', 'qos'),
+            'subnet'        => $subnet,
+            'sharedLineIds' => $this->sharedCircuitByMac($macs),
+            'canEdit'       => $this->can('edit_all'),
+            'canDelete'     => $this->can('delete_all'),
+            'showDhcp'      => $this->can('view_all', 'dhcp'),
+            'showDns'       => $this->can('view_all', 'dns'),
+            'showQos'       => $this->can('view_all', 'qos'),
         ]);
+    }
+
+    /**
+     * Pro dané MAC vrátí mapu MAC(upper) → čitelný circuit-id u těch, jejichž
+     * line_id_seen záznam je na SDÍLENÉM circuit-id (týž circuit-id hex vidí víc
+     * MAC → per-zákazník neidentifikuje, typicky bytovka). Dvě agregační query,
+     * žádný N+1. Mimo tuto množinu = buď má vlastní line-id, nebo se nenaučil.
+     */
+    private function sharedCircuitByMac(array $macs): array
+    {
+        if (empty($macs)) {
+            return [];
+        }
+        $rows = DB::table('line_id_seen')->whereIn('mac', $macs)
+            ->get(['mac', 'circuit_id_hex']);
+        if ($rows->isEmpty()) {
+            return [];
+        }
+        // Circuit-idy sdílené víc MAC (přes CELOU tabulku, ne jen tento subnet).
+        $sharedHexes = DB::table('line_id_seen')
+            ->whereIn('circuit_id_hex', $rows->pluck('circuit_id_hex')->unique()->all())
+            ->groupBy('circuit_id_hex')
+            ->havingRaw('COUNT(DISTINCT mac) > 1')
+            ->pluck('circuit_id_hex')
+            ->flip();
+
+        $out = [];
+        foreach ($rows as $r) {
+            if (!isset($sharedHexes[$r->circuit_id_hex])) {
+                continue;
+            }
+            $hex = preg_replace('/^0x/i', '', (string) $r->circuit_id_hex);
+            $circuit = (ctype_xdigit($hex) && strlen($hex) % 2 === 0) ? @hex2bin($hex) : false;
+            $out[strtoupper($r->mac)] = $circuit !== false ? $circuit : $r->circuit_id_hex;
+        }
+        return $out;
     }
 
     public function create()
