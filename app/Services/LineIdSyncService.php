@@ -283,6 +283,18 @@ class LineIdSyncService
      */
     public function parseCircuitId(string $c): array
     {
+        // Binární option82 circuit-id (TP-Link SG2008 apod. per-port default:
+        // 0x0004 <slot16> <port16>) detekuj PŘED trim() — trim by sežral vedoucí
+        // \x00. Poznáme podle ŘÍDICÍCH/null bajtů (ne podle vysokých — akcentovaný
+        // UTF-8 text je legitimní). Matching jede na SYROVÉM circuit_id, tohle je
+        // jen čitelný extrakt do UI. Viz [[project_lineid_tr101_gotcha]].
+        if (preg_match('/[\x00-\x08\x0b\x0c\x0e-\x1f]/', $c)) {
+            $hex = strtoupper(bin2hex($c));
+            if (strlen($c) === 6 && substr($hex, 0, 4) === '0004') {
+                return ['vendor' => 'tplink', 'device_ident' => '0x' . $hex, 'port' => 'port ' . hexdec(substr($hex, 8, 4))];
+            }
+            return ['vendor' => 'unknown', 'device_ident' => '0x' . $hex, 'port' => null];
+        }
         $c = trim($c);
 
         // GPON (Huawei xpon): "<OLT-ident> xpon <frame/slot/port[/ont]>:<ont.gem.vlan>"

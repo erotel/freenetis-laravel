@@ -63,6 +63,28 @@ class LineIdParserTest extends TestCase
         $this->assertNotSame($a['port'], $b['port']);
     }
 
+    public function test_parses_tplink_binary_option82(): void
+    {
+        // TP-Link SG2008 per-port binární circuit-id (0x0004 <slot16> <port16>)
+        $p = $this->svc->parseCircuitId(hex2bin('000400010003'));
+        $this->assertSame('tplink', $p['vendor']);
+        $this->assertSame('port 3', $p['port']);
+        $this->assertSame('0x000400010003', $p['device_ident']);
+        // per-port rozlišené (port 1 vs port 3)
+        $a = $this->svc->parseCircuitId(hex2bin('000400010001'));
+        $this->assertSame('port 1', $a['port']);
+        $this->assertNotSame($a['device_ident'], $p['device_ident']);
+    }
+
+    public function test_generic_binary_shows_hex_not_garbage(): void
+    {
+        // jiná binárka (ne 0004, jiná délka) → unknown, ale device_ident čitelný hex
+        $p = $this->svc->parseCircuitId(hex2bin('0A0B0C'));
+        $this->assertSame('unknown', $p['vendor']);
+        $this->assertSame('0x0A0B0C', $p['device_ident']);
+        $this->assertNull($p['port']);
+    }
+
     public function test_parses_mikrotik(): void
     {
         $p = $this->svc->parseCircuitId('Smer9 eth 0/4');
