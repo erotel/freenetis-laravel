@@ -571,13 +571,14 @@ class MemberController extends Controller
         $speedClasses      = \App\Models\SpeedClass::orderBy('name')->get();
         $defaultSpeedClass = \App\Models\SpeedClass::where('regular_member_default', true)->first();
         $canEditQos        = $this->aclCheck('edit_all', 'Members_Controller', 'qos_ceil');
+        $canEditVoting     = $this->aclCheck('edit_all', 'Meetings_Controller', 'meeting');
 
         // Má-li člen podepsanou smlouvu, tarif se mění POUZE dodatkem (apply-on-sign),
         // ne přímou editací — jinak by dostal novou rychlost/cenu bez podpisu.
         $signed            = app(ContractService::class)->getByMemberId($id);
         $hasSignedContract = $signed && $signed->status === 'signed';
 
-        return view('members.edit', compact('member', 'types', 'towns', 'streets', 'speedClasses', 'defaultSpeedClass', 'canEditQos', 'hasSignedContract'));
+        return view('members.edit', compact('member', 'types', 'towns', 'streets', 'speedClasses', 'defaultSpeedClass', 'canEditQos', 'canEditVoting', 'hasSignedContract'));
     }
 
     public function update(Request $request, int $id)
@@ -605,6 +606,10 @@ class MemberController extends Controller
             $canEditQos = false;
         }
 
+        // Hlasovací právo (senior) spravuje kdo má právo na modul Schůzí.
+        $canEditVoting = $this->aclCheck('edit_all', 'Meetings_Controller', 'meeting');
+        $oldCanVote    = (bool) $member->can_vote;
+
         $data = $request->validate([
             'name'           => 'required|string|max:100',
             'type'           => 'required|integer|in:' . implode(',', array_keys(MemberType::labels())),
@@ -622,6 +627,12 @@ class MemberController extends Controller
             'vat_organization_identifier.regex' => 'DIČ nesmí obsahovat email ani mezery — zadejte pouze DIČ (např. CZ12345678).',
         ]);
 
+        // Senior (can_vote) je jen pro řadové členy (typ 90). U jiného typu vynutit 0
+        // (i kdyby se can_vote=1 podvrhlo POSTem). Bez práva → ponechat beze změny.
+        $newCanVote = $canEditVoting
+            ? ((int) $data['type'] === 90 && $request->boolean('can_vote'))
+            : (bool) $member->can_vote;
+
         $member->update([
             'name'                        => $data['name'],
             'type'                        => $data['type'],
@@ -633,10 +644,24 @@ class MemberController extends Controller
             'locked'                      => $request->boolean('locked'),
             'registration'                => $request->boolean('registration'),
             'speed_class_id'              => $canEditQos ? ($data['speed_class_id'] ?? null) : $member->speed_class_id,
+            'can_vote'                    => $newCanVote,
             'notification_by_redirection' => $request->boolean('notification_by_redirection'),
             'notification_by_email'       => $request->boolean('notification_by_email'),
             'notification_by_sms'         => $request->boolean('notification_by_sms'),
         ]);
+
+        // Audit ruční změny hlasovacího práva.
+        if ($canEditVoting && $newCanVote !== $oldCanVote) {
+            \App\Models\MemberVotingLog::create([
+                'member_id'  => $member->id,
+                'action'     => $newCanVote
+                    ? \App\Models\MemberVotingLog::ACTION_GRANTED
+                    : \App\Models\MemberVotingLog::ACTION_DEGRADED,
+                'reason'     => 'Ruční změna v editaci člena',
+                'user_id'    => auth()->id(),
+                'created_at' => now(),
+            ]);
+        }
 
         // Update or create address point
         if ($request->filled('town_id')) {

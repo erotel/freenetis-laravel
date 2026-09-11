@@ -22,6 +22,7 @@ use App\Http\Controllers\DeviceController;
 use App\Http\Controllers\DeviceTemplateController;
 use App\Http\Controllers\IpAddressController;
 use App\Http\Controllers\MemberController;
+use App\Http\Controllers\MeetingController;
 use App\Http\Controllers\SubnetController;
 use App\Http\Controllers\LineIdAnomalyController;
 use App\Http\Controllers\VlanController;
@@ -289,6 +290,19 @@ Route::middleware('auth')->group(function () {
     Route::get('members', [MemberController::class, 'index'])->name('members.index')
         ->middleware('acl:view_all,Members_Controller,members');
     Route::resource('members', MemberController::class)->except(['index']);
+
+    // Schůze členů + prezence (usnášeníschopnost). ACL: Meetings_Controller#meeting.
+    Route::get ('meetings',                    [MeetingController::class, 'index'])->name('meetings.index');
+    Route::get ('meetings/create',             [MeetingController::class, 'create'])->name('meetings.create');
+    Route::post('meetings',                    [MeetingController::class, 'store'])->name('meetings.store');
+    Route::get ('meetings/{id}',               [MeetingController::class, 'show'])->whereNumber('id')->name('meetings.show');
+    Route::post('meetings/{id}/open',          [MeetingController::class, 'open'])->whereNumber('id')->name('meetings.open');
+    Route::post('meetings/{id}/close',         [MeetingController::class, 'close'])->whereNumber('id')->name('meetings.close');
+    Route::post('meetings/{id}/checkin/{member}', [MeetingController::class, 'checkIn'])->whereNumber('id')->whereNumber('member')->name('meetings.checkin');
+    Route::post('meetings/{id}/proxy/{member}',   [MeetingController::class, 'setProxy'])->whereNumber('id')->whereNumber('member')->name('meetings.proxy');
+    Route::post('meetings/{id}/degrade',       [MeetingController::class, 'degrade'])->whereNumber('id')->name('meetings.degrade');
+    Route::get ('meetings/{id}/presence-export', [MeetingController::class, 'presenceExport'])->whereNumber('id')->name('meetings.presence-export');
+
     Route::get('ares/lookup/{ico}', function (string $ico) {
         $ico = preg_replace('/\D/', '', $ico);
         if (strlen($ico) !== 8) {

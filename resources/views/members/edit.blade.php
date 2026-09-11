@@ -151,6 +151,40 @@
             @error('registration') <div class="m-form-hint" style="color:#c0392b">{{ $message }}</div> @enderror
         </div>
     </div>
+    @if($canEditVoting)
+    {{-- Hlasovací právo (senior) jen u řadových členů (typ 90). Skrývá/odkrývá se
+         podle zvoleného typu; při zapnutí potvrzovací dialog. --}}
+    <div class="m-form-group" id="senior-field" style="{{ (int) old('type', $member->type) === 90 ? '' : 'display:none' }}">
+        <label class="m-form-label" for="can_vote">Hlasovací právo (senior)</label>
+        <input type="hidden" name="can_vote" value="0">
+        <select class="m-form-select" id="can_vote" name="can_vote" onchange="confirmSenior(this)">
+            <option value="0" @selected(!old('can_vote', $member->can_vote))>Ne (řadový člen)</option>
+            <option value="1" @selected(old('can_vote', $member->can_vote))>Ano — senior</option>
+        </select>
+        <div class="m-form-hint">Jen pro řadové členy (typ 90). Senior může hlasovat na členské schůzi. Změna se zapíše do auditu.</div>
+    </div>
+    <script>
+    (function () {
+        var typeSel  = document.getElementById('type');
+        var field    = document.getElementById('senior-field');
+        var canVote  = document.getElementById('can_vote');
+        if (!typeSel || !field) return;
+        function sync() {
+            var is90 = parseInt(typeSel.value, 10) === 90;
+            field.style.display = is90 ? '' : 'none';
+            if (!is90 && canVote) canVote.value = '0'; // ne-90 nemůže být senior
+        }
+        typeSel.addEventListener('change', sync);
+        sync();
+        window.confirmSenior = function (sel) {
+            if (sel.value === '1' &&
+                !confirm('Opravdu označit tohoto člena jako SENIORA s hlasovacím právem na schůzi?')) {
+                sel.value = '0';
+            }
+        };
+    })();
+    </script>
+    @endif
     <div class="m-form-group">
         <label class="m-form-label">Příjem oznámení</label>
         <div class="m-form-hint" style="margin-bottom:6px">Pokud člen nechce dostávat upozornění daným kanálem, odškrtni.</div>

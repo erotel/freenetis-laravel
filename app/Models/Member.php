@@ -17,6 +17,7 @@ class Member extends Model
         'user_id',
         'address_point_id',
         'type',
+        'can_vote',
         'registration',
         'organization_identifier',
         'vat_organization_identifier',
@@ -37,6 +38,7 @@ class Member extends Model
 
     protected $casts = [
         'type'                        => 'integer',
+        'can_vote'                    => 'boolean',
         'registration'                => 'boolean',
         'locked'                      => 'boolean',
         'notification_by_redirection' => 'boolean',

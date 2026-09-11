@@ -85,6 +85,7 @@ class FreenetisMenu extends Component
                 ['url' => route('members.index', ['types' => '2,18']), 'path' => 'members', 'label' => 'Seznam zákazníků', 'acl' => ['view_all', 'Members_Controller', 'members'], 'count' => $countCustomers],
                 ['url' => route('members.index', ['types' => '1,17,18']), 'path' => 'members/applicants', 'label' => 'Čekatelé', 'acl' => ['view_all', 'Members_Controller', 'members'], 'count' => $countApplicants],
                 ['url' => route('members.pending-termination'), 'path' => 'members/pending-termination', 'label' => 'Kandidáti na ukončení', 'acl' => ['view_all', 'Members_Controller', 'members'], 'count' => $countPendingTermination],
+                ['url' => route('meetings.index'), 'path' => 'meetings', 'label' => 'Schůze členů', 'acl' => ['view_all', 'Meetings_Controller', 'meeting']],
                 ['url' => route('users.index'), 'path' => 'users', 'label' => 'Uživatelé', 'acl' => ['view_all', 'Users_Controller', 'users']],
             ]],
             ['name' => 'network', 'label' => 'Síť', 'items' => array_filter([
