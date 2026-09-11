@@ -16,6 +16,13 @@
 </div>
 @endif
 
+@if(!empty($suggestedIp) && !old('ip_address'))
+<div class="m-alert m-alert-info" style="max-width:480px">
+    Port už drží <strong style="font-family:monospace">{{ $suggestedIp }}</strong> z DHCP poolu.
+    Předvyplněno jako fixní IP — po uložení zákazníkovi <strong>zůstane</strong> (nezmění se).
+</div>
+@endif
+
 <form method="POST" action="{{ route('ip_addresses.store') }}">
 @csrf
 <div class="m-card" style="margin-bottom:16px;max-width:480px">
@@ -23,7 +30,7 @@
         <div class="m-form-group">
             <label class="m-form-label" for="ip_address">IP adresa <span style="color:#c0392b">*</span></label>
             <input class="m-form-input" type="text" id="ip_address" name="ip_address"
-                   value="{{ old('ip_address') }}" maxlength="15" placeholder="192.168.1.x" style="font-family:monospace">
+                   value="{{ old('ip_address', $suggestedIp ?? '') }}" maxlength="15" placeholder="192.168.1.x" style="font-family:monospace">
             @error('ip_address') <div class="m-form-hint" style="color:#c0392b">{{ $message }}</div> @enderror
         </div>
         <div class="m-form-group">
@@ -31,7 +38,7 @@
             <select class="m-form-select" id="subnet_id" name="subnet_id">
                 <option value="">— vyberte subnet —</option>
                 @foreach($subnets as $subnet)
-                    <option value="{{ $subnet->id }}" @selected(old('subnet_id') == $subnet->id)>{{ $subnet->label }}</option>
+                    <option value="{{ $subnet->id }}" @selected(old('subnet_id', $suggestedSubnetId ?? null) == $subnet->id)>{{ $subnet->label }}</option>
                 @endforeach
             </select>
             @error('subnet_id') <div class="m-form-hint" style="color:#c0392b">{{ $message }}</div> @enderror

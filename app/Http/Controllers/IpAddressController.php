@@ -90,8 +90,24 @@ class IpAddressController extends Controller
         [$ifaces, $subnets, $members, $preselectedIfaceId, $preselectedMemberId] =
             $this->formData($deviceId, $ifaceId);
 
+        // IPoE optika: když port zákazníka už drží IP z poolu (čerstvé zapojení),
+        // navrhni tuhle IP jako fixní — po registraci mu tak zůstane a nezmění se.
+        // Viz LineIdSyncService::currentLeaseIp / [[project_lineid_tr101_gotcha]].
+        $suggestedIp = $suggestedSubnetId = null;
+        if ($preselectedIfaceId) {
+            $mac = $ifaces->firstWhere('id', $preselectedIfaceId)?->mac;
+            if ($mac && ($lease = app(\App\Services\LineIdSyncService::class)->currentLeaseIp($mac))) {
+                $sid = $this->subnetIdForIp($subnets, $lease);
+                if ($sid !== null) { // jen IPoE subnet (dhcp+ipoe) → jinak nenavrhovat
+                    $suggestedIp = $lease;
+                    $suggestedSubnetId = $sid;
+                }
+            }
+        }
+
         return view('ip_addresses.create', compact(
-            'ifaces', 'subnets', 'members', 'preselectedIfaceId', 'preselectedMemberId'
+            'ifaces', 'subnets', 'members', 'preselectedIfaceId', 'preselectedMemberId',
+            'suggestedIp', 'suggestedSubnetId'
         ));
     }
 
@@ -113,6 +129,13 @@ class IpAddressController extends Controller
         $this->syncIp6Add($ip->iface_id, $ip->ip_address);
         $ip->subnet?->setExpired();
         $this->syncAllowedSubnetOnAdd($ip);
+
+        // IPoE optika: nová fixní rezervace → pročisti Kea host-cache, jinak Kea drží
+        // dřív zacachovaný pool/negative verdikt a rezervace se neprojeví (reboot/renew
+        // to nespraví). Best-effort. Viz [[project_lineid_tr101_gotcha]].
+        if ($ip->iface_id && $ip->subnet && $ip->subnet->dhcp && $ip->subnet->ipoe) {
+            app(\App\Services\LineIdSyncService::class)->flushKeaHostCache();
+        }
 
         // Pokud IP patří čekajícímu zákazníkovi (type=18), okamžitě aktivovat
         // přesměrování — admin nemusí čekat na hodinový cron.
@@ -303,6 +326,33 @@ class IpAddressController extends Controller
         }
 
         return $query->exists();
+    }
+
+    /**
+     * ID IPoE subnetu (dhcp=1 AND ipoe=1), do kterého spadá daná IP — nebo null.
+     * Jen IPoE subnety, aby se návrh „převzít lease IP" nenabízel mimo optiku.
+     * @param \Illuminate\Support\Collection<int,Subnet> $subnets
+     */
+    private function subnetIdForIp($subnets, string $ip): ?int
+    {
+        $ipL = ip2long($ip);
+        if ($ipL === false) {
+            return null;
+        }
+        foreach ($subnets as $s) {
+            if (!$s->dhcp || !$s->ipoe || !$s->network_address || !$s->netmask) {
+                continue;
+            }
+            $net  = ip2long($s->network_address);
+            $mask = ip2long($s->netmask);
+            if ($net === false || $mask === false) {
+                continue;
+            }
+            if (($ipL & $mask) === ($net & $mask)) {
+                return (int) $s->id;
+            }
+        }
+        return null;
     }
 
 }
