@@ -36,7 +36,10 @@ class LineIdSyncService
         $this->backfillParse();
         // Self-healing: vyházej sdílené (VLAN/relay) záznamy, které do line_ids nepatří
         // (uložené dřív, nebo se staly sdílené až 2. MACem po uložení).
-        $this->pruneSharedLineIds();
+        // Změnu rezervací (vznik/smazání line_id nebo prune) si pamatujeme, ať na
+        // konci pošleme Kee cache-clear (jinak špatný negative-cache verdikt přežije
+        // reboot/renew). Viz flushKeaHostCache() a [[project_lineid_tr101_gotcha]].
+        $changed = $this->pruneSharedLineIds() > 0;
 
         $rows = DB::table('line_id_seen')->where('reconciled', 0)->get();
         foreach ($rows as $row) {
@@ -60,8 +63,9 @@ class LineIdSyncService
             // nebo circuit-id s víc MACy) NENÍ per-zákazník identita → neukládat do
             // line_ids; uklidit případný dřívější omyl. Bez toho falešné identity_cross.
             if ($this->isSharedCircuit($circuit, $row->circuit_id_hex, $row->remote_id_hex)) {
-                DB::table('line_ids')->where('circuit_id', $circuit)->where('remote_id', $remote)->delete();
+                $del = DB::table('line_ids')->where('circuit_id', $circuit)->where('remote_id', $remote)->delete();
                 DB::table('line_id_seen')->where('id', $row->id)->update(['reconciled' => 1]);
+                $changed = $changed || $del > 0; // smazaná rezervace → flush
                 $shared++;
                 continue;
             }
@@ -89,6 +93,7 @@ class LineIdSyncService
                 ]);
                 DB::table('line_id_seen')->where('id', $row->id)->update(['reconciled' => 1]);
                 $reconciled++;
+                $changed = true; // nová rezervace → flush
             } elseif ((int) $existing->iface_id === $macIfaceId) {
                 // Stejný zákazník na svém portu → refresh. Self-healing: když dřívější
                 // (starší) parser nechal parse prázdný, teď ho doplň.
@@ -109,7 +114,19 @@ class LineIdSyncService
             }
         }
 
-        return ['reconciled' => $reconciled, 'unmatched' => $unmatched, 'conflicts' => $conflicts, 'shared' => $shared];
+        // Rezervace se změnily → pročisti Kea host-cache na všech uzlech, ať se
+        // oprava projeví bez čekání na ruční zásah (jinak negative-cache verdikt
+        // přežije reboot/renew zákazníka). Best-effort, nikdy neshodí sync.
+        $flushed = null;
+        if ($changed) {
+            $flushed = $this->flushKeaHostCache();
+        }
+
+        return [
+            'reconciled' => $reconciled, 'unmatched' => $unmatched,
+            'conflicts' => $conflicts, 'shared' => $shared,
+            'cache_flushed' => $flushed, // null = nebylo třeba, true/false = výsledek flushe
+        ];
     }
 
     /**
@@ -273,6 +290,81 @@ class LineIdSyncService
             ->whereRaw("UPPER(REPLACE(mac,'-',':')) = UPPER(?)", [$mac])
             ->value('id');
         return $id ? (int) $id : null;
+    }
+
+    /**
+     * Plošný `cache-clear` host-cache na všech Kea uzlech (best-effort). Nutné po
+     * změně rezervací: Kea si cachuje výsledek RADIUS lookupu a špatný/negativní
+     * verdikt z okna cutoveru jinak přežije reboot i renew zákazníka (reboot ani
+     * renew to neopraví, dokud se cache nevyčistí). Viz [[project_lineid_tr101_gotcha]].
+     *
+     * Produkce (Kea na samostatných uzlech): HTTP control API (basic auth) na každý
+     * endpoint z `kea.control_nodes`. PoC/dev (Kea lokálně): fallback na unix socket
+     * `kea.control_socket`. Nikdy nehodí výjimku (sync nesmí spadnout kvůli nedostupné
+     * Kee). Vrací true jen když VŠECHNY oslovené uzly potvrdily „result: 0".
+     * POZN.: cache-clear je plošný (donutí re-query všech rezervací) — přijatelné,
+     * běží jen při reálné změně rezervací, ne na každý paket.
+     */
+    public function flushKeaHostCache(): bool
+    {
+        $nodes = (array) config('kea.control_nodes', []);
+        if ($nodes !== []) {
+            $ok = true;
+            foreach ($nodes as $base) {
+                $ok = $this->flushViaHttp((string) $base) && $ok;
+            }
+            return $ok;
+        }
+
+        // Fallback: lokální unix socket (Kea na stejném hostu jako FreenetIS).
+        $sock = (string) config('kea.control_socket', '');
+        if ($sock === '' || !@file_exists($sock)) {
+            return false;
+        }
+        try {
+            $client = @stream_socket_client('unix://' . $sock, $errno, $errstr, 2);
+            if (!$client) {
+                return false;
+            }
+            @fwrite($client, json_encode(['command' => 'cache-clear']));
+            @stream_socket_shutdown($client, STREAM_SHUT_WR); // EOF → Kea zpracuje příkaz
+            $resp = (string) @stream_get_contents($client, 4096);
+            @fclose($client);
+            return str_contains($resp, '"result": 0');
+        } catch (\Throwable $e) {
+            return false;
+        }
+    }
+
+    /** Pošle `cache-clear` na jeden Kea HTTP control endpoint (basic auth). Best-effort. */
+    private function flushViaHttp(string $base): bool
+    {
+        $base = rtrim($base, '/');
+        if ($base === '') {
+            return false;
+        }
+        $user = (string) config('kea.control_user', '');
+        $pass = (string) config('kea.control_password', '');
+        $timeout = max(1, (int) config('kea.control_timeout', 3));
+        try {
+            $ch = curl_init($base . '/');
+            curl_setopt_array($ch, [
+                CURLOPT_POST           => true,
+                CURLOPT_RETURNTRANSFER => true,
+                CURLOPT_CONNECTTIMEOUT => $timeout,
+                CURLOPT_TIMEOUT        => $timeout,
+                CURLOPT_HTTPHEADER     => ['Content-Type: application/json'],
+                CURLOPT_POSTFIELDS     => json_encode(['command' => 'cache-clear']),
+                CURLOPT_HTTPAUTH       => CURLAUTH_BASIC,
+                CURLOPT_USERPWD        => $user . ':' . $pass,
+            ]);
+            $resp = (string) curl_exec($ch);
+            $code = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE);
+            curl_close($ch);
+            return $code === 200 && str_contains($resp, '"result": 0');
+        } catch (\Throwable $e) {
+            return false;
+        }
     }
 
     /** '0x4769..' / '4769..' → ASCII řetězec, nebo null. */

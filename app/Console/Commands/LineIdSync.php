@@ -21,10 +21,17 @@ class LineIdSync extends Command
     {
         $r = $svc->reconcileFromSeen();
         $a = $svc->detectAnomalies();
+        $cache = $r['cache_flushed'] === null
+            ? 'beze změny rezervací'
+            : ($r['cache_flushed'] ? 'Kea host-cache pročištěna' : 'POZOR: flush Kea cache selhal');
         $this->info(
             "line-id sync: {$r['reconciled']} spárováno, {$r['unmatched']} nespárováno (onboarding), "
-            . "{$r['conflicts']} konfliktů, {$r['shared']} sdílených (VLAN/relay); anomálií: {$a['anomalies']}."
+            . "{$r['conflicts']} konfliktů, {$r['shared']} sdílených (VLAN/relay); anomálií: {$a['anomalies']}; {$cache}."
         );
+        if ($r['cache_flushed'] === false) {
+            $this->warn('Kea host-cache se nepodařilo pročistit — zkontroluj kea.control_nodes / creds; '
+                . 'jinak nová rezervace nenaskočí, dokud cache nevyčistíš ručně.');
+        }
         return self::SUCCESS;
     }
 }
