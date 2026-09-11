@@ -44,6 +44,11 @@ class LineIdSyncService
             if ($circuit === null || $circuit === '') {
                 continue;
             }
+            // remote-id (ident switche/OLT) doplňuje identitu tam, kde circuit-id
+            // sám nestačí (DCN na sdílené VLAN, TP-Link VLAN 1). Prázdný u Huawei
+            // GPON/Vlanif/mikrotik → klíč = jen circuit-id (beze změny). Viz
+            // [[project_lineid_tr101_gotcha]].
+            $remote = $this->decodeHex($row->remote_id_hex) ?? '';
 
             $macIfaceId = $this->ifaceIdByMac($row->mac);
             if (!$macIfaceId) {
@@ -54,23 +59,30 @@ class LineIdSyncService
             // Sdílený relay/VLAN circuit-id (Vlanif = SVI L3 relaye, sdílí celá VLAN,
             // nebo circuit-id s víc MACy) NENÍ per-zákazník identita → neukládat do
             // line_ids; uklidit případný dřívější omyl. Bez toho falešné identity_cross.
-            if ($this->isSharedCircuit($circuit, $row->circuit_id_hex)) {
-                DB::table('line_ids')->where('circuit_id', $circuit)->delete();
+            if ($this->isSharedCircuit($circuit, $row->circuit_id_hex, $row->remote_id_hex)) {
+                DB::table('line_ids')->where('circuit_id', $circuit)->where('remote_id', $remote)->delete();
                 DB::table('line_id_seen')->where('id', $row->id)->update(['reconciled' => 1]);
                 $shared++;
                 continue;
             }
 
-            $existing = DB::table('line_ids')->where('circuit_id', $circuit)->first();
+            $existing = DB::table('line_ids')->where('circuit_id', $circuit)->where('remote_id', $remote)->first();
 
             if ($existing === null) {
                 // Nový port → vytvoř mapování.
                 $p = $this->parseCircuitId($circuit);
+                // device_ident: parser (Huawei „K364" apod.); u DCN/TP-Link, kde
+                // parser dá null / jen hex, vezmi identitu switche z remote-id.
+                $deviceIdent = $p['device_ident'];
+                if ($remote !== '' && ($deviceIdent === null || str_starts_with((string) $deviceIdent, '0x'))) {
+                    $deviceIdent = '0x' . strtoupper(bin2hex($remote));
+                }
                 LineId::create([
                     'circuit_id'   => $circuit,
+                    'remote_id'    => $remote,
                     'iface_id'     => $macIfaceId,
                     'vendor'       => $p['vendor'],
-                    'device_ident' => $p['device_ident'],
+                    'device_ident' => $deviceIdent,
                     'port'         => $p['port'],
                     'source'       => 'accounting',
                     'last_seen'    => $row->last_seen ?? now(),
@@ -105,14 +117,20 @@ class LineIdSyncService
      * = SVI L3 relaye, sdílí ho celá VLAN) nebo circuit-id pozorovaný s víc MACy.
      * Takové ID se nesmí ukládat jako per-port mapování ani flagovat jako anomálie.
      */
-    public function isSharedCircuit(string $circuit, ?string $circuitHex = null): bool
+    public function isSharedCircuit(string $circuit, ?string $circuitHex = null, ?string $remoteHex = null): bool
     {
         $p = $this->parseCircuitId($circuit);
         if ($p['port'] !== null && stripos($p['port'], 'Vlanif') === 0) {
             return true;
         }
         if ($circuitHex !== null) {
-            $macs = DB::table('line_id_seen')->where('circuit_id_hex', $circuitHex)->distinct()->count('mac');
+            // Počítej MAC per DVOJICE (circuit, remote) — dva switche se stejným
+            // circuit-id ale jiným remote-id (DCN na sdílené VLAN, TP-Link) tak
+            // NEjsou „shared"; víc MAC na téže dvojici = fakt sdílený port (bytovka).
+            $macs = DB::table('line_id_seen')
+                ->where('circuit_id_hex', $circuitHex)
+                ->whereRaw('COALESCE(remote_id_hex, "") = COALESCE(?, "")', [$remoteHex])
+                ->distinct()->count('mac');
             if ($macs > 1) {
                 return true;
             }
@@ -128,9 +146,10 @@ class LineIdSyncService
     public function pruneSharedLineIds(): int
     {
         $n = 0;
-        foreach (DB::table('line_ids')->get(['id', 'circuit_id']) as $l) {
+        foreach (DB::table('line_ids')->get(['id', 'circuit_id', 'remote_id']) as $l) {
             $hex = '0x' . bin2hex($l->circuit_id);
-            if ($this->isSharedCircuit($l->circuit_id, $hex)) {
+            $remoteHex = ($l->remote_id ?? '') !== '' ? '0x' . bin2hex($l->remote_id) : null;
+            if ($this->isSharedCircuit($l->circuit_id, $hex, $remoteHex)) {
                 DB::table('line_ids')->where('id', $l->id)->delete();
                 $n++;
             }
@@ -179,15 +198,16 @@ class LineIdSyncService
             if ($circuit === null || $circuit === '') {
                 continue;
             }
+            $remote = $this->decodeHex($row->remote_id_hex) ?? '';
 
-            // Sdílený relay/VLAN circuit-id (Vlanif / víc MACů) není per-zákazník
-            // identita → víc MACů je tam normální, NEflagovat jako anomálii.
-            if ($this->isSharedCircuit($circuit, $row->circuit_id_hex)) {
+            // Sdílený relay/VLAN circuit-id (Vlanif / víc MACů na téže dvojici) není
+            // per-zákazník identita → víc MACů je tam normální, NEflagovat.
+            if ($this->isSharedCircuit($circuit, $row->circuit_id_hex, $row->remote_id_hex)) {
                 continue;
             }
 
             $seenIfaceId     = $this->ifaceIdByMac($row->mac);
-            $line            = DB::table('line_ids')->where('circuit_id', $circuit)->first();
+            $line            = DB::table('line_ids')->where('circuit_id', $circuit)->where('remote_id', $remote)->first();
             $expectedIfaceId = $line ? (int) $line->iface_id : null;
 
             $type = null;
