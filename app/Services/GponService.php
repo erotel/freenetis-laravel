@@ -187,11 +187,20 @@ class GponService
     /**
      * Výpočet ont_id, service_port a vlan pro daný port.
      */
-    public function computeOntIdServicePortVlan(int $portNum, int $lastOntId, GponOlt $olt): array
+    public function computeOntIdServicePortVlan(int $portNum, int $portIndex, GponOlt $olt): array
     {
-        $ontId       = $lastOntId + 1;
+        // ont_id = nejnižší VOLNÉ id na fyzickém portu. Klíčujeme podle STABILNÍHO
+        // port_index, ne podle ifName stringu (ten se u firmware liší: "0/2/10" vs
+        // "GPON 0/2/10" → dřív to resetovalo číslování na 1 a koliduje s existující
+        // ONT → createAndGo genErr). Reuse mezer po odebraných ONT, nikdy nekoliduje.
+        $used  = Ont::where('port_index', $portIndex)->pluck('ont_id')
+            ->map(fn ($v) => (int) $v)->all();
+        $ontId = 1;
+        while (in_array($ontId, $used, true)) {
+            $ontId++;
+        }
         $vlan        = $olt->getVlan($portNum);
-        $servicePort = $lastOntId + ($portNum * 1000) + 1;
+        $servicePort = $portNum * 1000 + $ontId; // schéma portNum*1000 + ont_id
 
         return [$ontId, $servicePort, $vlan];
     }
@@ -366,11 +375,13 @@ class GponService
             $ifName   = $this->getIfNameByIndexOnOlt($portIndex, $olt);
             $gponPort = (str_contains($ifName, 'No Such') || str_contains($ifName, 'error') || strlen($ifName) > 64)
                 ? 'unknown'
-                : $ifName;
+                // normalizuj "GPON 0/2/10" → "0/2/10" (firmware vrací různě), ať je
+                // gpon_port konzistentní se staršími záznamy.
+                : trim(preg_replace('/^\s*GPON\s+/i', '', $ifName));
 
-            $portNum   = $this->extractPortNum($gponPort);
-            $lastOntId = Ont::where('gpon_port', $gponPort)->max('ont_id') ?? 0;
-            [$ontId, $servicePort, $vlan] = $this->computeOntIdServicePortVlan($portNum, (int) $lastOntId, $olt);
+            $portNum = $this->extractPortNum($gponPort);
+            // ont_id/service_port podle stabilního port_index (viz computeOntIdServicePortVlan)
+            [$ontId, $servicePort, $vlan] = $this->computeOntIdServicePortVlan($portNum, (int) $portIndex, $olt);
 
             Log::debug('GPON scan', ['serial' => $serial, 'olt' => $olt->ip, 'port' => $gponPort]);
 
