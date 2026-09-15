@@ -121,25 +121,21 @@ class GponService
 
         $city = $olt->geocode_city ?? '';
         if ($houseNo !== '' && !empty($city)) {
-            $url  = 'https://nominatim.openstreetmap.org/search?q=' . urlencode($city . ' ' . $houseNo . ', Czech Republic') . '&format=json&limit=1&countrycodes=cz';
-            $ctx  = stream_context_create(['http' => ['header' => "User-Agent: freenetis-laravel/1.0\r\n", 'timeout' => 5]]);
+            $url = 'https://nominatim.openstreetmap.org/search?q=' . urlencode($city . ' ' . $houseNo . ', Czech Republic') . '&format=json&limit=1&countrycodes=cz';
             Log::debug('GPON geocode request', ['url' => $url]);
-            try {
-                $raw = file_get_contents($url, false, $ctx);
-                if ($raw === false) {
-                    Log::warning('GPON geocode failed: file_get_contents returned false', ['url' => $url]);
-                }
-                $geo = $raw !== false ? json_decode($raw, true) : null;
-            } catch (\Exception $e) {
-                Log::warning('GPON geocode failed: ' . $e->getMessage());
-                $geo = null;
-            }
+            // Přes curl, ne file_get_contents — DNS Nominatimu (fastly) vrací jen IPv6
+            // a PHP stream wrapper na tom HTTPS spojení na tomto hostu padá (false),
+            // kdežto curl projde. Bez toho zůstala nová ONT bez GPS na mapě.
+            $raw = $this->httpGet($url);
+            $geo = $raw !== null ? json_decode($raw, true) : null;
             $lat = isset($geo[0]['lat']) ? (float) $geo[0]['lat'] : null;
             $lng = isset($geo[0]['lon']) ? (float) $geo[0]['lon'] : null;
-            Log::debug('GPON geocode result', ['lat' => $lat, 'lng' => $lng, 'raw' => $raw ?? null]);
+            Log::debug('GPON geocode result', ['lat' => $lat, 'lng' => $lng]);
             if ($lat !== null && $lat >= -90 && $lat <= 90 && $lng !== null && $lng >= -180 && $lng <= 180) {
                 $updateData['gps_lat'] = $lat;
                 $updateData['gps_lng'] = $lng;
+            } else {
+                Log::warning('GPON geocode: bez výsledku', ['url' => $url]);
             }
         } else {
             Log::debug('GPON geocode skipped', ['houseNo' => $houseNo, 'city' => $city]);
@@ -506,6 +502,32 @@ class GponService
             return (int) $m[1];
         }
         return 0;
+    }
+
+    /**
+     * Jednoduchý HTTP GET přes curl. file_get_contents na tomto hostu padá na
+     * IPv6/HTTPS streamu (Nominatim za fastly má jen AAAA záznam), curl projde.
+     * Vrací tělo odpovědi při HTTP 200, jinak null.
+     */
+    private function httpGet(string $url): ?string
+    {
+        try {
+            $ch = curl_init($url);
+            curl_setopt_array($ch, [
+                CURLOPT_RETURNTRANSFER => true,
+                CURLOPT_CONNECTTIMEOUT => 8,
+                CURLOPT_TIMEOUT        => 12,
+                CURLOPT_USERAGENT      => 'freenetis-laravel/1.0 (GPON)',
+                CURLOPT_FOLLOWLOCATION => true,
+            ]);
+            $res  = curl_exec($ch);
+            $code = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE);
+            curl_close($ch);
+            return ($res !== false && $code === 200) ? (string) $res : null;
+        } catch (\Throwable $e) {
+            Log::warning('GPON httpGet failed: ' . $e->getMessage());
+            return null;
+        }
     }
 
     private function snmpOptForOlt(GponOlt $olt, string $extra = ''): string
