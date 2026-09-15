@@ -189,7 +189,10 @@ class GponService
         // port_index, ne podle ifName stringu (ten se u firmware liší: "0/2/10" vs
         // "GPON 0/2/10" → dřív to resetovalo číslování na 1 a koliduje s existující
         // ONT → createAndGo genErr). Reuse mezer po odebraných ONT, nikdy nekoliduje.
-        $used  = Ont::where('port_index', $portIndex)->pluck('ont_id')
+        // Klíč MUSÍ zahrnovat olt_ip: dva stejné Huawei OLT mají pro týž port
+        // identický port_index (ifIndex), takže bez olt_ip by se ONT z různých
+        // OLT míchaly → špatné volné id / kolize na druhém OLT.
+        $used  = Ont::where('olt_ip', $olt->ip)->where('port_index', $portIndex)->pluck('ont_id')
             ->map(fn ($v) => (int) $v)->all();
         $ontId = 1;
         while (in_array($ontId, $used, true)) {
