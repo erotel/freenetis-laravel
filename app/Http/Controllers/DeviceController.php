@@ -953,7 +953,31 @@ class DeviceController extends Controller
             );
         unset($data['town_id'], $data['street_id'], $data['street_number']);
 
+        // Přesun na jiného majitele: zachyť starého člena + subnety IP zařízení
+        // JEŠTĚ PŘED změnou user_id (allowed_subnets je per member_id a při přesunu
+        // se sám nepřepíše — IP se nemění, jen vlastník). Viz AllowedSubnetSyncService.
+        $oldMemberId = $device->user?->member_id;
+        $newMemberId = User::find($data['user_id'])?->member_id;
+        $subnetIds   = IpAddress::join('ifaces', 'ifaces.id', '=', 'ip_addresses.iface_id')
+            ->where('ifaces.device_id', $device->id)
+            ->whereNotNull('ip_addresses.subnet_id')
+            ->distinct()->pluck('ip_addresses.subnet_id')->all();
+
         $device->update($data);
+
+        // Změnil se člen → přepiš allowed_subnets: nový majitel subnety získá
+        // (v rámci svého limitu), starý je ztratí, pokud v nich už nemá jinou IP.
+        if ($newMemberId && $oldMemberId !== $newMemberId && $subnetIds) {
+            $sync = app(AllowedSubnetSyncService::class);
+            foreach ($subnetIds as $sid) {
+                $sync->onIpAdded($newMemberId, (int) $sid);
+            }
+            if ($oldMemberId) {
+                foreach ($subnetIds as $sid) {
+                    $sync->onIpRemoved($oldMemberId, (int) $sid);
+                }
+            }
+        }
 
         session()->flash('success', 'Zařízení bylo úspěšně upraveno.');
         return redirect()->route('devices.show', $id);
