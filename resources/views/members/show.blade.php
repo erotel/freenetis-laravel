@@ -98,14 +98,15 @@
             <option value="">— Export PDF —</option>
             @if($member->type == 90)
                 <option value="registration">Přihláška</option>
-                <option value="end">Ukončení členství</option>
+                @if($canExportFull ?? false)<option value="end">Ukončení členství</option>@endif
             @elseif($member->type == 17)
                 <option value="registration">Přihláška</option>
             @elseif($member->type == 2)
-                <option value="contract_end">Výpověď smlouvy</option>
+                @if($canExportFull ?? false)<option value="contract_end">Výpověď smlouvy</option>@endif
             @endif
         </select>
     </form>
+    @if($canExportFull ?? false)
     @php
         $mainEmail = optional($contacts->firstWhere('type', \App\Models\Contact::TYPE_EMAIL))->value;
     @endphp
@@ -143,6 +144,7 @@
             form.submit();
         }
     </script>
+    @endif {{-- canExportFull (e-mail odeslání jen staff) --}}
     @endif
     @if($canEdit && in_array($member->type, [17, 18]) && $member->registration)
     <form method="POST" action="{{ route('members.approve', $member->id) }}" style="display:inline">

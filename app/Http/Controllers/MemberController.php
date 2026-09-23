@@ -370,7 +370,11 @@ class MemberController extends Controller
             'canViewAllowedSubnets'=> $isOwnProfile || $this->aclCheck('view_all', 'Allowed_subnets_Controller', 'allowed_subnet'),
             'canViewInvoices'      => $isOwnProfile || $this->aclCheck('view_all', 'Accounts_Controller', 'invoices'),
             'canNotify'            => $this->aclCheck('new_all', 'Notifications_Controller', 'member'),
-            'canExportRegistration'=> $this->aclCheck('view_all', 'Members_Controller', 'registration_export'),
+            'canExportRegistration'=> $this->aclCheck('view_all', 'Members_Controller', 'registration_export')
+                || ($isOwnProfile && $this->aclCheck('view_own', 'Members_Controller', 'registration_export')),
+            // Plný export (ukončení/výpověď + odeslání e-mailem) jen staff (view_all);
+            // řádný člen na svém profilu (view_own) smí jen stáhnout vlastní přihlášku.
+            'canExportFull'        => $this->aclCheck('view_all', 'Members_Controller', 'registration_export'),
             'canViewComment'       => $this->aclCheck('view_all',   'Members_Controller', 'comment'),
             'canComment'           => $this->aclCheck('new_all',    'Members_Controller', 'comment'),
             'canEditComment'       => $this->aclCheck('edit_all',   'Members_Controller', 'comment'),
@@ -1681,8 +1685,14 @@ class MemberController extends Controller
      */
     public function registrationExport(int $id, string $type)
     {
-        abort_unless($this->aclCheck('view_all', 'Members_Controller', 'registration_export'), 403);
         abort_unless(in_array($type, ['registration', 'end', 'contract_end']), 404);
+        // Staff (view_all) → jakýkoli člen i typ. Řádný člen (view_own) → jen SVOJI
+        // přihlášku (own + type=registration); ukončení/výpověď zůstává staff-only.
+        $isOwn  = ($id === (int) (auth()->user()?->member_id ?? 0));
+        $allowed = $this->aclCheck('view_all', 'Members_Controller', 'registration_export')
+            || ($isOwn && $type === 'registration'
+                && $this->aclCheck('view_own', 'Members_Controller', 'registration_export'));
+        abort_unless($allowed, 403);
 
         [$pdfString, $filename] = $this->buildRegistrationPdf($id, $type);
 
