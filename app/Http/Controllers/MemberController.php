@@ -511,11 +511,14 @@ class MemberController extends Controller
                 'variable_symbol' => $vs,
             ]);
 
-            // 6. Výchozí třída rychlosti (regular_member_default)
-            $defaultSpeedClassId = \App\Models\SpeedClass::where('regular_member_default', 1)->value('id') ?? 1;
-            DB::table('members')->where('id', $memberId)->update([
-                'speed_class_id' => $defaultSpeedClassId,
-            ]);
+            // 6. Výchozí třída rychlosti (regular_member_default) — NE pro řádné členy
+            //    (typ 90): ti rychlost/tarif mít nesmí, platí členský základ.
+            if ((int) $request->type !== 90) {
+                $defaultSpeedClassId = \App\Models\SpeedClass::where('regular_member_default', 1)->value('id') ?? 1;
+                DB::table('members')->where('id', $memberId)->update([
+                    'speed_class_id' => $defaultSpeedClassId,
+                ]);
+            }
 
             // 7. Kontakty — email (typ 20)
             if ($request->filled('email')) {
@@ -647,7 +650,11 @@ class MemberController extends Controller
             'vat_organization_identifier' => $data['vat_organization_identifier'] ?? null,
             'locked'                      => $request->boolean('locked'),
             'registration'                => $request->boolean('registration'),
-            'speed_class_id'              => $canEditQos ? ($data['speed_class_id'] ?? null) : $member->speed_class_id,
+            // Řádný člen (typ 90) rychlost/tarif mít nesmí → vždy null (i kdyby se
+            // speed_class_id podvrhlo POSTem). Jinak stávající logika (qos_ceil právo).
+            'speed_class_id'              => ((int) $data['type'] === 90)
+                ? null
+                : ($canEditQos ? ($data['speed_class_id'] ?? null) : $member->speed_class_id),
             'can_vote'                    => $newCanVote,
             'notification_by_redirection' => $request->boolean('notification_by_redirection'),
             'notification_by_email'       => $request->boolean('notification_by_email'),

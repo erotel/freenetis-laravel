@@ -222,7 +222,8 @@
         </div>
     </div>
     @elseif($canEditQos && $speedClasses->count() > 0)
-    <div class="m-form-group">
+    {{-- Řádný člen (typ 90) rychlost/tarif mít nesmí → pole skryté, server ho stejně vynutí na null. --}}
+    <div class="m-form-group" id="speed-field" style="{{ (int) old('type', $member->type) === 90 ? 'display:none' : '' }}">
         <label class="m-form-label" for="speed_class_id">Třída rychlosti (QoS)</label>
         <select class="m-form-select" id="speed_class_id" name="speed_class_id" style="max-width:420px">
             <option value="">— žádná —</option>
@@ -240,6 +241,21 @@
         @endif
         @error('speed_class_id') <div class="m-form-hint" style="color:#c0392b">{{ $message }}</div> @enderror
     </div>
+    <script>
+    (function () {
+        var t = document.getElementById('type'),
+            f = document.getElementById('speed-field'),
+            s = document.getElementById('speed_class_id');
+        if (!t || !f) return;
+        function sync() {
+            var is90 = parseInt(t.value, 10) === 90;
+            f.style.display = is90 ? 'none' : '';
+            if (is90 && s) s.value = ''; // typ 90 nemá rychlost
+        }
+        t.addEventListener('change', sync);
+        sync();
+    })();
+    </script>
     @endif
 </div>
 
