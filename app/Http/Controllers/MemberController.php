@@ -640,10 +640,21 @@ class MemberController extends Controller
             ? ((int) $data['type'] === 90 && $request->boolean('can_vote'))
             : (bool) $member->can_vote;
 
+        // Datum vstupu = den schválení. Při přechodu z čekajícího (17/18) na aktivní
+        // typ (řádný člen/zákazník/…) se doplní dnešek — ne datum registrace. Pokud
+        // admin ve formuláři datum ručně změnil (liší se od uloženého), respektuje se.
+        $isApproval = in_array((int) $member->type, [MemberType::PENDING_MEMBER, MemberType::PENDING_CUSTOMER], true)
+            && MemberType::isActive((int) $data['type']);
+        $submittedEntrance = ($data['entrance_date'] ?? null) ?: null;
+        $entranceUnchanged = (string) $submittedEntrance === (string) ($member->entrance_date ?: null);
+        $entranceDate = ($isApproval && $entranceUnchanged)
+            ? now()->format('Y-m-d')
+            : $submittedEntrance;
+
         $member->update([
             'name'                        => $data['name'],
             'type'                        => $data['type'],
-            'entrance_date'               => $data['entrance_date'] ?? null,
+            'entrance_date'               => $entranceDate,
             'leaving_date'                => $request->leaving_date ?: '9999-12-31',
             'comment'                     => $data['comment'] ?? null,
             'organization_identifier'     => $data['organization_identifier'] ?? null,

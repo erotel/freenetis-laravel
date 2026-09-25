@@ -77,10 +77,15 @@ class RegistrationController extends Controller
             );
 
             // 3. Člen — typ 3 (org.), 17 (čekající člen) nebo 18 (čekající zákazník)
+            //    Datum vstupu se čekajícím (17/18) NEnastavuje — členem/zákazníkem
+            //    se stávají až schválením přihlášky (přechod na aktivní typ), teprve
+            //    tehdy se doplní den schválení (viz MemberController::update).
+            $regType = (int) $validated['registration_type'];
+            $isPending = in_array($regType, [17, 18], true);
             $memberId = DB::table('members')->insertGetId([
                 'name'                        => $fullName,
-                'type'                        => (int) $validated['registration_type'],
-                'entrance_date'               => now()->format('Y-m-d'),
+                'type'                        => $regType,
+                'entrance_date'               => $isPending ? null : now()->format('Y-m-d'),
                 'leaving_date'                => '9999-12-31',
                 'comment'                     => $validated['comment'] ?? '',
                 'organization_identifier'     => $validated['organization_identifier'] ?? '',
