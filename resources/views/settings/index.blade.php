@@ -607,6 +607,39 @@ function addBccRow() {
             Statický (druhý) server v páru tahá stejnou URL s <code>&amp;role=static</code>.
         </div>
     </div>
+
+    <div class="m-card-title" style="margin-top:20px">Izolace klientů od vnitřní sítě</div>
+    <div class="m-form-hint" style="margin-bottom:10px">
+        Zákazníci na DHCP/PPPoE segmentech zapnutých routerů smí do vnitřní sítě jen na veřejné služby
+        a na cíle povolené u člena (<em>Profil člena → Přístup do vnitřní sítě</em>). Zbytek včetně provozu
+        klient↔klient se zahodí. Router pravidla převezme z DHCP exportu (každých 5 min).
+    </div>
+    <div class="m-form-group">
+        <label class="m-form-label">Zapnuto na zařízeních (ID)</label>
+        <textarea class="m-form-input" name="lan_isolation_devices" rows="2" placeholder="200"
+            style="font-family:monospace">{{ old('lan_isolation_devices', $networkSettings['lan_isolation_devices'] ?? '') }}</textarea>
+        <div class="m-form-hint">ID routerů (DHCP exportu), jeden na řádek. Z ostatních se konfigurace izolace při dalším exportu odstraní. Relay DHCP servery se neřeší (neroutují).</div>
+        @error('lan_isolation_devices')<div style="color:#c00;font-size:14px">{{ $message }}</div>@enderror
+    </div>
+    <div class="m-form-group">
+        <label class="m-form-label">Vnitřní síť</label>
+        <input class="m-form-input" type="text" name="lan_isolation_network" style="max-width:220px;font-family:monospace"
+            value="{{ old('lan_isolation_network', ($networkSettings['lan_isolation_network'] ?? '') ?: \App\Services\LanIsolationService::DEFAULT_NETWORK) }}">
+        @error('lan_isolation_network')<div style="color:#c00;font-size:14px">{{ $message }}</div>@enderror
+    </div>
+    <div class="m-form-group">
+        <label class="m-form-label">Veřejné služby (povolené všem)</label>
+        <textarea class="m-form-input" name="lan_isolation_public" rows="4" style="font-family:monospace">{{ old('lan_isolation_public', ($networkSettings['lan_isolation_public'] ?? '') ?: \App\Services\LanIsolationService::DEFAULT_PUBLIC) }}</textarea>
+        <div class="m-form-hint">IP nebo rozsahy (CIDR), jeden na řádek — typicky DNS, FreenetIS, web.</div>
+        @error('lan_isolation_public')<div style="color:#c00;font-size:14px">{{ $message }}</div>@enderror
+    </div>
+    <div class="m-form-group">
+        <label class="m-form-label">Infrastrukturní členové (ID)</label>
+        <textarea class="m-form-input" name="lan_isolation_infra_members" rows="2" placeholder="2748"
+            style="font-family:monospace">{{ old('lan_isolation_infra_members', $networkSettings['lan_isolation_infra_members'] ?? '') }}</textarea>
+        <div class="m-form-hint">Zařízení těchto členů (AP, switche…) smí do celé vnitřní sítě (SNMP, syslog, NTP, RADIUS).</div>
+        @error('lan_isolation_infra_members')<div style="color:#c00;font-size:14px">{{ $message }}</div>@enderror
+    </div>
 </div>
 
 <div class="m-actions">

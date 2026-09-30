@@ -62,6 +62,7 @@ class SettingController extends Controller
         'ipv6_prefix', 'ipv6_mask', 'connection_request_notify_email',
         'dhcp_lease_time', 'allowed_subnets_default_count', 'dhcp_relay_map',
         'web_interface_require_token', 'pppoe_enabled',
+        'lan_isolation_devices', 'lan_isolation_network', 'lan_isolation_public', 'lan_isolation_infra_members',
     ];
 
     public const GPON_KEYS = [
@@ -437,6 +438,51 @@ class SettingController extends Controller
     public function updateNetwork(Request $request)
     {
         abort_unless($this->can('edit_all'), 403);
+
+        // Izolace klientů — validace dřív, než se cokoliv uloží.
+        $lan = app(\App\Services\LanIsolationService::class);
+        $lanErrors = [];
+        try {
+            $lanNetwork = $lan->normalizeDestination(
+                trim((string) $request->input('lan_isolation_network', '')) ?: \App\Services\LanIsolationService::DEFAULT_NETWORK,
+                false
+            );
+        } catch (\InvalidArgumentException $e) {
+            $lanErrors['lan_isolation_network'] = $e->getMessage();
+        }
+        // Veřejné služby: libovolné IPv4/CIDR (mimo síť izolace jsou jen neškodně navíc).
+        [$lanPublic, $pubErrors] = $lan->parseList((string) $request->input('lan_isolation_public', ''), false);
+        if ($pubErrors) {
+            $lanErrors['lan_isolation_public'] = implode(' ', $pubErrors);
+        }
+        foreach (['lan_isolation_devices', 'lan_isolation_infra_members'] as $key) {
+            if (preg_match('/[^\d\s,;]/', (string) $request->input($key, ''))) {
+                $lanErrors[$key] = 'Zadej jen číselná ID oddělená čárkou nebo novým řádkem.';
+            }
+        }
+        if ($lanErrors) {
+            return redirect()->route('settings.index', ['tab' => 'network'])->withInput()->withErrors($lanErrors);
+        }
+        $idLines = fn (string $key) => implode("\n", array_values(array_unique(array_filter(
+            array_map('intval', preg_split('/[\s,;]+/', (string) $request->input($key, ''), -1, PREG_SPLIT_NO_EMPTY))
+        ))));
+        $lanNew = [
+            'lan_isolation_devices'       => $idLines('lan_isolation_devices'),
+            'lan_isolation_network'       => $lanNetwork,
+            'lan_isolation_public'        => implode("\n", $lanPublic),
+            'lan_isolation_infra_members' => $idLines('lan_isolation_infra_members'),
+        ];
+        $lanChanged = false;
+        foreach ($lanNew as $key => $value) {
+            if ((string) Setting::get($key, '') !== $value) {
+                Setting::set($key, $value);
+                $lanChanged = true;
+            }
+        }
+        if ($lanChanged) {
+            // Routery si při dalším stažení vezmou novou konfiguraci izolace.
+            $lan->expireAllDhcpSubnets();
+        }
         Setting::set('redirection_enabled', $request->boolean('redirection_enabled') ? 1 : 0);
         Setting::set('networks_enabled',    $request->boolean('networks_enabled') ? 1 : 0);
         Setting::set('web_interface_require_token', $request->boolean('web_interface_require_token') ? 1 : 0);

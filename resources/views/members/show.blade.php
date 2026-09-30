@@ -677,6 +677,48 @@
 
 {{-- Dodatky ke smlouvě jsou nově celé pod detailem smlouvy (contracts.show). --}}
 
+{{-- Přístup do vnitřní sítě (výjimky z izolace klientů, viz LanIsolationService) --}}
+@if($canViewLanAccess && ($lanIsInfra || $lanAccess->isNotEmpty() || $canEditLanAccess))
+<div class="m-section">Přístup do vnitřní sítě</div>
+<div class="m-card" style="margin-bottom:16px">
+    @if($lanIsInfra)
+    <div style="font-size:14px;color:#555;margin-bottom:8px;">
+        Infrastrukturní člen — ze zákaznických segmentů smí do celé vnitřní sítě <code>{{ $lanNetwork }}</code>.
+    </div>
+    @endif
+    @forelse($lanAccess as $la)
+    <div class="m-ip-row">
+        <span class="m-ip-addr">{{ $la->destination }}</span>
+        <span style="font-size:14px;color:#888;">{{ $la->comment }}</span>
+        @if($canEditLanAccess)
+        <form method="POST" action="{{ route('member_lan_access.destroy', $la->id) }}" style="display:inline">
+            @csrf @method('DELETE')
+            <button type="submit" style="background:none;border:none;padding:0;color:#c00;cursor:pointer;font-size:14px;"
+                    onclick="return confirm('Odebrat přístup do {{ $la->destination }}?')">Odebrat</button>
+        </form>
+        @endif
+    </div>
+    @empty
+    @unless($lanIsInfra)
+    <div style="font-size:14px;color:#888;">Jen veřejné služby (DNS, FreenetIS, web) — do zbytku {{ $lanNetwork }} je člen izolovaný.</div>
+    @endunless
+    @endforelse
+    @if($canEditLanAccess)
+    <form method="POST" action="{{ route('member_lan_access.store', $member->id) }}" style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap;align-items:flex-start;">
+        @csrf
+        <input class="m-form-input" type="text" name="destinations" value="{{ old('destinations') }}" required
+               placeholder="10.133.139.65, 10.133.230.0/24" style="flex:2 1 220px;font-family:monospace">
+        <input class="m-form-input" type="text" name="comment" value="{{ old('comment') }}" maxlength="255"
+               placeholder="poznámka (nepovinné)" style="flex:1 1 160px">
+        <button type="submit" class="m-btn">Povolit</button>
+    </form>
+    @error('destinations')
+    <div style="color:#c00;font-size:14px;margin-top:4px;">{{ $message }}</div>
+    @enderror
+    @endif
+</div>
+@endif
+
 @if($canViewIpAddresses && $member->ipAddresses->count() > 0)
 <div class="m-section">IP adresy</div>
 <div class="m-card" style="margin-bottom:16px">

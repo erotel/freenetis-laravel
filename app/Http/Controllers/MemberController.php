@@ -408,6 +408,11 @@ class MemberController extends Controller
                 ->orderBy('mf.activation_date')
                 ->get(),
             'canViewWhitelists'    => $this->aclCheck('view_all', 'Members_whitelists_Controller', 'whitelist'),
+            'canViewLanAccess'     => $this->aclCheck('view_all', 'Members_Controller', 'lan_access'),
+            'canEditLanAccess'     => $this->aclCheck('edit_all', 'Members_Controller', 'lan_access'),
+            'lanAccess'            => \App\Models\MemberLanAccess::where('member_id', $id)->orderBy('destination')->get(),
+            'lanIsInfra'           => app(\App\Services\LanIsolationService::class)->isInfraMember($id),
+            'lanNetwork'           => app(\App\Services\LanIsolationService::class)->networkCidr(),
             'canViewRedirect'      => $this->aclCheck('view_all',   'Redirect_Controller', 'redirect'),
             'canEditRedirect'      => $this->aclCheck('edit_all',   'Redirect_Controller', 'redirect'),
             'canDeleteRedirect'    => $this->aclCheck('delete_all', 'Redirect_Controller', 'redirect'),

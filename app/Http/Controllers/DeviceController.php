@@ -1175,6 +1175,13 @@ class DeviceController extends Controller
             ? $this->renderMikrotikFull($dhcpServers, $relayInterface, $role, $forceRadius, $forceTr101)
             : $this->renderMikrotikLeaseOnly($dhcpServers);
 
+        // Izolace klientů od vnitřní sítě — až na konec: RouterOS import se při
+        // chybě na řádku zastaví, DHCP konfigurace tak projde vždy.
+        if ($format === 'mikrotik-ip-dhcp-server') {
+            $text .= app(\App\Services\LanIsolationService::class)
+                ->renderMikrotik($device->id, $dhcpServers, $relayInterface);
+        }
+
         // Zapiš, že tento konzument je aktuální. Per-client posune jen jeho
         // high-water-mark (ostatní DHCP servery změnu pořád uvidí); legacy shodí
         // sdílený flag jako dosud.
@@ -1397,6 +1404,7 @@ class DeviceController extends Controller
                 ksort($hosts);
 
                 $servers[] = [
+                    'subnet_id'   => (int) $subnet->id,
                     'name'        => $this->ascii($subnet->name),
                     'cidr'        => $subnet->network_address . '/' . $cidrBits,
                     'network'     => $subnet->network_address,
