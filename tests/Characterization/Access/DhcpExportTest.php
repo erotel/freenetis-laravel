@@ -10,7 +10,7 @@ use Tests\DatabaseTestCase;
 
 /**
  * Charakterizace GET devices/{id}/export/{format} — DHCP konfigurace pro MikroTik
- * (DeviceController::export + buildDhcpServers + render*). Stahují ji DHCP
+ * (původně DeviceController::export + buildDhcpServers + render*). Stahují ji DHCP
  * servery (MK) každých 5 min přes dhcp_api_token.
  *
  * Zachycuje SOUČASNÉ chování před přesunem do App\Domains\Access — celý text

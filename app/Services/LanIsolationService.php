@@ -20,7 +20,7 @@ use InvalidArgumentException;
  * Vše ostatní ze zákaznických subnetů do vnitřní sítě se zahodí — tj. i provoz
  * klient↔klient (client isolation na AP řeší jen L2, router by jinak routoval).
  *
- * Enforcement generuje router sám z DHCP exportu (DeviceController::export),
+ * Enforcement generuje router sám z DHCP exportu (Access\Actions\ExportDhcpConfigAction),
  * jen pro zařízení v lan_isolation_devices. Router ho stahuje každých 5 min,
  * takže změna se projeví po označení dotčených subnetů jako změněných
  * (dhcp_expired / dhcp_changed_at).
@@ -170,7 +170,7 @@ class LanIsolationService
     /**
      * RouterOS sekce izolace pro DHCP export.
      *
-     * @param array $servers  výstup DeviceController::buildDhcpServers (cidr, subnet_id)
+     * @param array $servers  výstup Access\Dhcp\DhcpServerBuilder::build (cidr, subnet_id)
      * @return string '' v relay režimu (relay MK neroutuje zákazníky), úklid
      *                „fn-lan" konfigurace pro zařízení bez zapnuté izolace,
      *                jinak plná konfigurace

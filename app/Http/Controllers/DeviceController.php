@@ -3,6 +3,9 @@
 namespace App\Http\Controllers;
 
 use Carbon\Carbon;
+use App\Domains\Access\Actions\ExportDhcpConfigAction;
+use App\Domains\Access\Repositories\DhcpExportRepository;
+use App\Domains\Access\Support\DhcpClientId;
 use App\Http\Controllers\Concerns\SyncsIp6Address;
 use App\Http\Filters\DeviceFilter;
 use App\Models\ConnectionRequest;
@@ -1079,28 +1082,24 @@ class DeviceController extends Controller
 
     // ── DHCP Export ───────────────────────────────────────────────────────────
 
-    public function export(Request $request, int $id, string $format)
+    public function export(Request $request, int $id, string $format, DhcpExportRepository $repo, ExportDhcpConfigAction $action)
     {
-        $allowed = ['mikrotik-ip-dhcp-server', 'mikrotik-ip-dhcp-server-lease'];
-        if (!in_array($format, $allowed)) {
+        if (!in_array($format, ExportDhcpConfigAction::FORMATS)) {
             abort(404);
         }
 
-        // Čas zachytíme PŘED načtením stavu subnetů. Jako high-water-mark klienta
-        // pak uložíme právě tenhle okamžik — kdyby změna přišla během exportu
-        // (po tomto čtení), bude mít dhcp_changed_at > exportStartedAt a příští
-        // fetch ji spolehlivě chytí (žádná ztracená změna).
+        // Čas zachytíme PŘED načtením stavu subnetů (viz ExportDhcpConfigAction).
         $exportStartedAt = now();
 
-        $device = Device::with(['ifaces.ipAddresses.subnet'])->find($id);
+        $device = $repo->deviceWithSubnets($id);
         if (!$device) {
-            abort(request()->ip() ? 404 : 404);
+            abort(404);
         }
 
         // Auth: DHCP servery se ověřují dhcp_api_tokenem, jinak přihlášený uživatel
         // s ACL view_all#export. Legacy „volání z vlastní IP zařízení" (fromDevice)
         // bylo odstraněno (audit 2026-08-18): DHCP servery už jezdí přes token a
-        // IP-based větev jen otevírala cross-member únik (buildDhcpServers vydává
+        // IP-based větev jen otevírala cross-member únik (export vydává
         // MAC + jméno člena sousedů na subnetu komukoliv, kdo zavolá z IP zařízení).
         $token      = $request->input('token') ?? $request->bearerToken();
         $validToken = Setting::get('dhcp_api_token');
@@ -1113,96 +1112,18 @@ class DeviceController extends Controller
             abort_unless($this->aclCheck('view_all', 'Devices_Controller', 'export'), 403);
         }
 
-        // Update access_time on every authorized call
-        if ($tokenValid) {
-            $device->update(['access_time' => now()]);
-        }
+        $text = $action->handle(
+            $device,
+            $format,
+            fromDhcpServer: (bool) $tokenValid,
+            forced: $request->boolean('forced'),
+            client: DhcpClientId::normalize($request->input('client')),
+            role: (string) $request->input('role'),
+            startedAt: $exportStartedAt,
+        );
 
-        // DHCP change detection — skip if forced. Dva režimy:
-        //  - ?client=... : per-konzument (timestamp vs high-water-mark) → víc DHCP
-        //    serverů čte stejné subnety a každý vidí každou změnu právě jednou.
-        //  - bez client   : legacy sdílený boolean dhcp_expired (jeden konzument).
-        $forced = $request->boolean('forced');
-        $client = $this->normalizeDhcpClient($request->input('client'));
-
-        if (!$forced && $tokenValid) {
-            if ($client !== null) {
-                $latestChange = null;
-                foreach ($device->ifaces as $iface) {
-                    foreach ($iface->ipAddresses as $ip) {
-                        if ($ip->subnet && $ip->subnet->dhcp && $ip->subnet->dhcp_changed_at) {
-                            $ts = $ip->subnet->dhcp_changed_at;
-                            if ($latestChange === null || $ts->gt($latestChange)) {
-                                $latestChange = $ts;
-                            }
-                        }
-                    }
-                }
-                $seenRaw = DB::table('dhcp_export_state')->where('client', $client)->value('exported_at');
-                $seen    = $seenRaw ? \Carbon\Carbon::parse($seenRaw) : null;
-                // 204 jen když klient už stáhl a od té doby se nic nezměnilo.
-                // Striktní `<` (ne `<=`): při shodě raději re-export — import je
-                // idempotentní, kdežto vynechání by znamenalo ztracenou změnu.
-                if ($seen !== null && ($latestChange === null || $latestChange->lt($seen))) {
-                    return response('', 204);
-                }
-            } else {
-                $hasExpired = false;
-                foreach ($device->ifaces as $iface) {
-                    foreach ($iface->ipAddresses as $ip) {
-                        if ($ip->subnet && $ip->subnet->dhcp && $ip->subnet->dhcp_expired) {
-                            $hasExpired = true;
-                            break 2;
-                        }
-                    }
-                }
-                if (!$hasExpired) {
-                    return response('', 204);
-                }
-            }
-        }
-
-        // Build DHCP server data
-        $dhcpServers = $this->buildDhcpServers($device);
-
-        // Relay režim se zapne, když je zařízení v dhcp_relay_map. role=static →
-        // druhý (static-only) server v páru; jinak primary.
-        $relayInterface = $this->relayInterfaceForDevice($id);
-        $role           = $request->input('role') === 'static' ? 'static' : 'primary';
-        $forceRadius    = $this->deviceInDhcpList($id, 'dhcp_force_radius');
-        $forceTr101     = $this->deviceInDhcpList($id, 'dhcp_force_tr101');
-
-        $text = $format === 'mikrotik-ip-dhcp-server'
-            ? $this->renderMikrotikFull($dhcpServers, $relayInterface, $role, $forceRadius, $forceTr101)
-            : $this->renderMikrotikLeaseOnly($dhcpServers);
-
-        // Izolace klientů od vnitřní sítě — až na konec: RouterOS import se při
-        // chybě na řádku zastaví, DHCP konfigurace tak projde vždy.
-        if ($format === 'mikrotik-ip-dhcp-server') {
-            $text .= app(\App\Services\LanIsolationService::class)
-                ->renderMikrotik($device->id, $dhcpServers, $relayInterface);
-        }
-
-        // Zapiš, že tento konzument je aktuální. Per-client posune jen jeho
-        // high-water-mark (ostatní DHCP servery změnu pořád uvidí); legacy shodí
-        // sdílený flag jako dosud.
-        if ($tokenValid) {
-            if ($client !== null) {
-                DB::table('dhcp_export_state')->updateOrInsert(
-                    ['client' => $client],
-                    // formát s .u — query builder jinak Carbon uloží jen s vteřinovou
-                    // přesností a mikrosekundová detekce by ztratila smysl.
-                    ['exported_at' => $exportStartedAt->format('Y-m-d H:i:s.u')]
-                );
-            } else {
-                foreach ($device->ifaces as $iface) {
-                    foreach ($iface->ipAddresses as $ip) {
-                        if ($ip->subnet && $ip->subnet->dhcp) {
-                            $ip->subnet->setNotExpired();
-                        }
-                    }
-                }
-            }
+        if ($text === null) {
+            return response('', 204);
         }
 
         return response($text, 200)->header('Content-Type', 'text/plain; charset=utf-8');
@@ -1304,340 +1225,5 @@ class DeviceController extends Controller
             });
             fclose($out);
         }, $filename, ['Content-Type' => 'text/csv; charset=UTF-8']);
-    }
-
-    private function buildDhcpServers(Device $device): array
-    {
-        // Admin v UI typicky odděluje DNS servery Enterem (LF/CRLF), ale legacy
-        // data z Kohana migrace občas obsahují literální `\n` (backslash-n).
-        // Sjednotíme separátor a po splitu validujeme IPv4 — kdyby v hodnotě
-        // bylo cokoliv jiného, do Mikrotik exportu prosakovala garbage jako
-        // `dns-server=10.133.37.3710.133.37.38` (chybějící čárka, nebo dvojice
-        // IP slepená do sebe).
-        $dnsRaw     = (string) Setting::get('dns_servers', '');
-        $dnsRaw     = str_replace('\\n', "\n", $dnsRaw);
-        $dnsServers = array_values(array_filter(
-            array_map('trim', preg_split('/[,;\s|]+/', $dnsRaw)),
-            fn($v) => $v !== '' && filter_var($v, FILTER_VALIDATE_IP, FILTER_FLAG_IPV4)
-        ));
-
-        $servers = [];
-
-        // IP čekajících žádostí o připojení (state=UNDECIDED) — se zapnutým PPPoE
-        // je RADIUS servíruje jako Framed-IP z žádosti UŽ PŘED schválením, takže
-        // je musí pool vyříznout stejně jako registrované statiky (jinak by je
-        // přidělil dalšímu bootstrap klientovi = konflikt). long2ip klíče.
-        $pendingReqLongs = Setting::get('pppoe_enabled', 0)
-            ? DB::table('connection_requests')
-                ->where('state', ConnectionRequest::STATE_UNDECIDED)
-                ->whereNotNull('ip_address')
-                ->pluck('ip_address')
-                ->map(fn ($ip) => ip2long($ip))
-                ->filter(fn ($l) => $l !== false)
-                ->all()
-            : [];
-
-        foreach ($device->ifaces as $iface) {
-            foreach ($iface->ipAddresses as $ip) {
-                \Log::debug('DHCP export ip check', [
-                    'ip'      => $ip->ip_address,
-                    'gateway' => $ip->gateway,
-                    'subnet'  => $ip->subnet?->network_address,
-                    'dhcp'    => $ip->subnet?->dhcp,
-                ]);
-                if (!$ip->gateway || !$ip->subnet) continue;
-                $subnet = $ip->subnet;
-                if (!$subnet->dhcp) continue;
-
-                $network   = ip2long($subnet->network_address);
-                $mask      = ip2long($subnet->netmask);
-                $broadcast = long2ip($network | (~$mask & 0xFFFFFFFF));
-                $cidrBits  = 32 - (int) log(~$mask & 0xFFFFFFFF, 2) - 1;
-                // fix: count bits properly
-                $cidrBits  = substr_count(sprintf('%032b', $mask & 0xFFFFFFFF), '1');
-                // Fragmentovaný pool = univerzum (gateway+1 .. broadcast-1) MÍNUS
-                // všechny FreenetIS-alokované IP (iface_id) v subnetu. Důvod: PPPoE
-                // `/ip pool` nezná statické DHCP leasy ani RADIUS Framed-IP → kdyby
-                // registrovaná statika zůstala v ranges, PPPoE bootstrap (admin) by
-                // ji přidělil znovu = adresní/routing konflikt na BRASu. Pro DHCP je
-                // fragmentace ekvivalentní (statiku i tak chrání MAC lease), takže
-                // jeden sdílený pool obslouží DHCP i PPPoE. Viz onboarding návrh.
-                $poolStart = ip2long($ip->ip_address) + 1;
-                $poolEnd   = ip2long($broadcast) - 1;
-                $excluded  = [];
-                foreach ($subnet->ipAddresses as $alloc) {
-                    if (!$alloc->iface_id) continue;
-                    $l = ip2long($alloc->ip_address);
-                    if ($l !== false && $l >= $poolStart && $l <= $poolEnd) {
-                        $excluded[$l] = true;
-                    }
-                }
-                // + IP čekajících žádostí spadající do tohoto poolu (viz výše).
-                foreach ($pendingReqLongs as $l) {
-                    if ($l >= $poolStart && $l <= $poolEnd) {
-                        $excluded[$l] = true;
-                    }
-                }
-                $ranges     = $this->fragmentPoolRanges($poolStart, $poolEnd, array_keys($excluded));
-                $rangeStart = long2ip($poolStart);
-                $rangeEnd   = long2ip($poolEnd);
-
-                $dnsList = $dnsServers;
-                if ($subnet->dns ?? false) {
-                    array_unshift($dnsList, $ip->ip_address);
-                }
-
-                $hosts = [];
-                foreach ($subnet->ipAddresses as $hostIp) {
-                    if ($hostIp->ip_address === $ip->ip_address || !$hostIp->iface_id) continue;
-                    $mac = $hostIp->iface?->mac ?? '';
-                    if (!$mac || !preg_match('/^([0-9a-fA-F]{2}:){5}[0-9a-fA-F]{2}$/', $mac)) continue;
-                    $deviceName  = $hostIp->iface?->device?->name ?? '';
-                    $memberId    = $hostIp->iface?->device?->user?->member_id ?? '';
-                    $memberName  = $hostIp->iface?->device?->user?->member?->name ?? '';
-                    $hosts[$mac] = [
-                        'ip_address' => $hostIp->ip_address,
-                        'mac'        => $mac,
-                        'server'     => $this->ascii($subnet->name),
-                        'comment'    => "ID {$memberId} - {$memberName} - {$deviceName}",
-                    ];
-                }
-                ksort($hosts);
-
-                $servers[] = [
-                    'subnet_id'   => (int) $subnet->id,
-                    'name'        => $this->ascii($subnet->name),
-                    'cidr'        => $subnet->network_address . '/' . $cidrBits,
-                    'network'     => $subnet->network_address,
-                    'netmask'     => $subnet->netmask,
-                    'gateway'     => $ip->ip_address,
-                    'interface'   => $iface->name,
-                    'range_start' => $rangeStart,
-                    'range_end'   => $rangeEnd,
-                    'ranges'      => $ranges,
-                    'dns_servers' => $dnsList,
-                    'hosts'       => array_values($hosts),
-                    // IPoE (line-id) subnet: MK se ptá RADIUSu (use-radius) a
-                    // statické leasy se NEgenerují → IP jede z RADIUS Framed-IP
-                    // podle option82 circuit-id. Viz fáze B.
-                    'ipoe'        => (bool) $subnet->ipoe,
-                ];
-            }
-        }
-        return $servers;
-    }
-
-    /**
-     * @param ?string $relayInterface  Když je zadané (zařízení je v dhcp_relay_map),
-     *                                  export běží v relay režimu: interface=<toto>
-     *                                  + relay=<gateway subnetu> místo lokálního iface.
-     * @param string  $role            'primary' = plný server (authoritative=yes,
-     *                                  vlastní pool); 'static' = druhý server v páru
-     *                                  (authoritative=after-10sec-delay, static-only).
-     */
-    /**
-     * Poskládá pool ranges z intervalu [$startLong, $endLong] s vyříznutými
-     * adresami $excludedLongs (fragmentovaný pool = subnet minus registrované
-     * statiky). Vrací pole "start-end" řetězců — pro RouterOS `ranges=a-b,c-d`.
-     * Prázdné pole = celý interval je alokovaný (žádná volná adresa).
-     */
-    private function fragmentPoolRanges(int $startLong, int $endLong, array $excludedLongs): array
-    {
-        if ($startLong > $endLong) {
-            return [];
-        }
-        $ex = array_filter($excludedLongs, fn ($l) => $l >= $startLong && $l <= $endLong);
-        $ex = array_values(array_unique($ex));
-        sort($ex);
-
-        $ranges = [];
-        $cur = $startLong;
-        foreach ($ex as $e) {
-            if ($e > $cur) {
-                $ranges[] = long2ip($cur) . '-' . long2ip($e - 1);
-            }
-            $cur = $e + 1;
-        }
-        if ($cur <= $endLong) {
-            $ranges[] = long2ip($cur) . '-' . long2ip($endLong);
-        }
-        return $ranges;
-    }
-
-    private function renderMikrotikFull(array $servers, ?string $relayInterface = null, string $role = 'primary', bool $forceRadius = false, bool $forceTr101 = false): string
-    {
-        // Setting::get vrací uloženou hodnotu — když admin v UI uloží prázdné
-        // pole, vrátí '' a default '10800' v get() se neuplatní. Cast na int
-        // pak udělá 0 → lease-time=00:00:00. 3 h fallback bereme i pro 0.
-        $leaseSeconds = (int) Setting::get('dhcp_lease_time', '10800');
-        if ($leaseSeconds <= 0) $leaseSeconds = 10800;
-        $leaseTime    = sprintf('%02d:%02d:%02d', intdiv($leaseSeconds, 3600), intdiv($leaseSeconds % 3600, 60), $leaseSeconds % 60);
-
-        $isStatic = $relayInterface !== null && $role === 'static';
-
-        $out = '';
-        // Pool NEmazat přes `remove [find]` — smazal by i pool, na který se PPP
-        // profil váže interním ID (remote-address=*5E). Po remove+add dostane
-        // pool nové ID → PPP profil ztratí pool (sdílený DHCP+PPPoE pool). Upsert
-        // podle JMÉNA: existující přepíšeme v místě (`set` → ID zůstane → PPP
-        // binding drží), chybějící přidáme. DHCP-server pool referuje jménem,
-        // tomu ID nevadí. Trade-off: pooly zrušených subnetů se už neuklidí
-        // hromadně (osiřelý pool bez referujícího dhcp-serveru/profilu je inertní).
-        foreach ($servers as $s) {
-            // Fragmentovaný pool (víc rozsahů s dírami po registrovaných statikách).
-            // Fallback na souvislý rozsah jen když je pool celý zaplněný (prázdné
-            // $ranges) — to udrží DHCP funkční (statiku i tak chrání MAC lease).
-            $rangesStr = !empty($s['ranges'])
-                ? implode(',', $s['ranges'])
-                : "{$s['range_start']}-{$s['range_end']}";
-            $nm = $s['name'];
-            $out .= ":if ([:len [/ip pool find name=\"{$nm}\"]]=0)"
-                  . " do={/ip pool add name=\"{$nm}\" ranges={$rangesStr}}"
-                  . " else={/ip pool set [/ip pool find name=\"{$nm}\"] ranges={$rangesStr}}\r\n";
-        }
-        $out .= "/ip dhcp-server\r\nremove [find]\r\n";
-        foreach ($servers as $s) {
-            // use-radius: ipoe subnet (RADIUS Framed-IP podle line-id) NEBO MK trvale
-            // vynucený v dhcp_force_radius (optické brány jedou přes RADIUS i než se
-            // subnet přepne na ipoe). tr101: jen MK v dhcp_force_tr101 (bridge/direct
-            // režim jinak nepředá option82 circuit-id do RADIUSu; v relay režimu netřeba).
-            // Bez tohoto by remove[find]+re-add při načtení configu ruční nastavení smazal.
-            // Viz [[project_lineid_tr101_gotcha]].
-            $useRadius = (!empty($s['ipoe']) || $forceRadius) ? ' use-radius=yes' : '';
-            $tr101     = $forceTr101 ? ' support-broadband-tr101=yes' : '';
-            if ($relayInterface !== null) {
-                // Relay režim: matchujeme podle relay=<gateway> (giaddr), interface
-                // je společné relay rozhraní (např. vlan1010), ne lokální iface.
-                $iface = $this->ascii($relayInterface);
-                if ($isStatic) {
-                    $out .= "add name=\"{$s['name']}\" authoritative=after-10sec-delay bootp-support=static disabled=no interface=\"{$iface}\" relay={$s['gateway']} lease-time={$leaseTime} address-pool=static-only{$useRadius}{$tr101}\r\n";
-                } else {
-                    $out .= "add name=\"{$s['name']}\" address-pool=\"{$s['name']}\" authoritative=yes bootp-support=static disabled=no interface=\"{$iface}\" relay={$s['gateway']} lease-time={$leaseTime}{$useRadius}{$tr101}\r\n";
-                }
-            } else {
-                $out .= "add name=\"{$s['name']}\" address-pool=\"{$s['name']}\" authoritative=after-2sec-delay bootp-support=static disabled=no interface=\"{$s['interface']}\" lease-time={$leaseTime}{$useRadius}{$tr101}\r\n";
-            }
-        }
-        $out .= "/ip dhcp-server network\r\nremove [find]\r\n";
-        foreach ($servers as $s) {
-            $dns = implode(',', $s['dns_servers']);
-            $out .= "add address={$s['cidr']} dhcp-option=\"\" dns-server={$dns} gateway={$s['gateway']} ntp-server=\"\" wins-server=\"\"\r\n";
-        }
-        $out .= "/ip dhcp-server lease\r\nremove [find]\r\n";
-        foreach ($servers as $s) {
-            // IPoE subnet: statické leasy NEgenerujeme — se statickým leasem by se
-            // MK RADIUSu neptal (použil by lokální IP), takže IP přiděluje RADIUS
-            // podle line-id. Viz fáze B.
-            if (!empty($s['ipoe'])) continue;
-            foreach ($s['hosts'] as $h) {
-                $out .= "add address={$h['ip_address']} disabled=no mac-address={$h['mac']} server=\"{$h['server']}\" comment=\"{$h['comment']}\"\r\n";
-            }
-        }
-
-        // PPP profil + pppoe-server (jen se zapnutým PPPoE, ne v relay režimu —
-        // relay MK není zákaznická brána). Add-if-missing: existující (ručně
-        // laděné) profily/servery NEpřepisujeme, jen doplníme chybějící →
-        // žádné mazání, žádné clobbernutí. RADIUS klient + `/ppp aaa use-radius`
-        // zůstávají ruční infra per-MK (mimo rozsah exportu); registrovaným
-        // zákazníkům dává IP RADIUS Framed-IP, remote-address=pool je jen
-        // bootstrap fallback (admin/admin → captive). Profil: name/remote-address
-        // = název subnetu (=sdílený pool), local-address = brána, dns z nastavení,
-        // change-tcp-mss=yes (PPPoE 1492 → MSS clamp).
-        if (Setting::get('pppoe_enabled', 0) && $relayInterface === null) {
-            $serviceName = $this->ascii((string) Setting::get('pppoe_service_name', 'service1'));
-            $seenIfaces  = [];
-            foreach ($servers as $s) {
-                $nm  = $s['name'];
-                $dns = implode(',', $s['dns_servers']);
-                $out .= ":if ([:len [/ppp profile find name=\"{$nm}\"]]=0)"
-                      . " do={/ppp profile add name=\"{$nm}\" local-address={$s['gateway']} remote-address=\"{$nm}\" dns-server={$dns} use-ipv6=yes change-tcp-mss=yes}\r\n";
-
-                // pppoe-server: max 1 na rozhraní (víc subnetů na jednom iface →
-                // první profil jako default; RADIUS stejně přepíše IP per-user).
-                $iface = $s['interface'];
-                if (isset($seenIfaces[$iface])) continue;
-                $seenIfaces[$iface] = true;
-                $out .= ":if ([:len [/interface pppoe-server server find interface=\"{$iface}\"]]=0)"
-                      . " do={/interface pppoe-server server add service-name=\"{$serviceName}\" interface=\"{$iface}\" default-profile=\"{$nm}\" disabled=no one-session-per-host=yes authentication=pap,chap,mschap2}\r\n";
-            }
-        }
-
-        return $out;
-    }
-
-    private function renderMikrotikLeaseOnly(array $servers): string
-    {
-        $out = "/ip dhcp-server lease\r\n";
-        foreach ($servers as $s) {
-            $out .= "remove [find server=\"{$s['name']}\"]\r\n";
-            // IPoE subnet: bez statických leasů (IP z RADIUSu podle line-id).
-            if (!empty($s['ipoe'])) continue;
-            foreach ($s['hosts'] as $h) {
-                $out .= "add address={$h['ip_address']} disabled=no mac-address={$h['mac']} server=\"{$h['server']}\" comment=\"{$h['comment']}\"\r\n";
-            }
-        }
-        return $out;
-    }
-
-    private function ascii(string $s): string
-    {
-        return iconv('UTF-8', 'ASCII//TRANSLIT//IGNORE', $s) ?: $s;
-    }
-
-    /**
-     * Je zařízení uvedené v daném DHCP nastavení (dhcp_force_radius / dhcp_force_tr101)?
-     * Formát: device ID oddělené novým řádkem nebo čárkou. Trvale vynutí
-     * use-radius=yes / support-broadband-tr101=yes v exportu DHCP configu pro
-     * konkrétní MK (optické brány) nezávisle na ipoe flagu subnetu — aby načtení
-     * konfigurace ruční nastavení nepřepsalo. Viz [[project_lineid_tr101_gotcha]].
-     */
-    private function deviceInDhcpList(int $deviceId, string $settingKey): bool
-    {
-        $raw = (string) Setting::get($settingKey, '');
-        if ($raw === '') {
-            return false;
-        }
-        foreach (preg_split('/\r\n|\r|\n|,/', $raw) as $token) {
-            if (trim($token) === (string) $deviceId) {
-                return true;
-            }
-        }
-        return false;
-    }
-
-    /**
-     * Relay rozhraní pro dané DHCP zařízení z nastavení dhcp_relay_map (řádky
-     * `ID=rozhraní`). Null = zařízení v mapě není → klasický interface-based export.
-     */
-    private function relayInterfaceForDevice(int $deviceId): ?string
-    {
-        $raw = (string) Setting::get('dhcp_relay_map', '');
-        if ($raw === '') {
-            return null;
-        }
-        foreach (preg_split('/\r\n|\r|\n/', $raw) as $line) {
-            $line = trim($line);
-            if ($line === '' || !str_contains($line, '=')) {
-                continue;
-            }
-            [$id, $iface] = array_map('trim', explode('=', $line, 2));
-            if ($id === (string) $deviceId && $iface !== '') {
-                return $iface;
-            }
-        }
-        return null;
-    }
-
-    /**
-     * Sanitizace identifikátoru konzumenta z ?client=... — omezíme na bezpečné
-     * znaky a délku, ať se hodnota bezpečně použije jako klíč v dhcp_export_state.
-     */
-    private function normalizeDhcpClient($raw): ?string
-    {
-        if (!is_string($raw)) {
-            return null;
-        }
-        $raw = preg_replace('/[^A-Za-z0-9_.\-]/', '', trim($raw));
-        return ($raw === null || $raw === '') ? null : substr($raw, 0, 64);
     }
 }

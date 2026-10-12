@@ -2,13 +2,13 @@
 
 namespace Tests\Feature\Devices;
 
-use App\Http\Controllers\DeviceController;
+use App\Domains\Access\Dhcp\MikrotikDhcpRenderer;
 use App\Models\Setting;
 use Closure;
 use Tests\DatabaseTestCase;
 
 /**
- * Export MikroTik konfigurace (`renderMikrotikFull`):
+ * Export MikroTik konfigurace (`MikrotikDhcpRenderer::renderFull`):
  *  - pool se NEmaže přes `remove [find]`, ale upsertuje podle jména (`set`),
  *    aby PPP profil vázaný na pool interním ID přežil regeneraci;
  *  - se zapnutým `pppoe_enabled` se add-if-missing generuje PPP profil
@@ -25,12 +25,7 @@ class PppoeProfileExportTest extends DatabaseTestCase
     protected function setUp(): void
     {
         parent::setUp();
-        $ctrl = (new \ReflectionClass(DeviceController::class))->newInstanceWithoutConstructor();
-        $this->render = Closure::bind(
-            fn (array $servers, ?string $relay, string $role) => $this->renderMikrotikFull($servers, $relay, $role),
-            $ctrl,
-            DeviceController::class
-        );
+        $this->render = (new MikrotikDhcpRenderer())->renderFull(...);
     }
 
     private function servers(): array

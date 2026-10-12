@@ -2,14 +2,15 @@
 
 namespace Tests\Unit;
 
-use App\Http\Controllers\DeviceController;
+use App\Domains\Access\Dhcp\DhcpServerBuilder;
+use App\Domains\Access\Repositories\DhcpExportRepository;
 use Closure;
 use Tests\TestCase;
 
 /**
- * Fragmentovaný DHCP/PPPoE pool: `DeviceController::fragmentPoolRanges()` poskládá
+ * Fragmentovaný DHCP/PPPoE pool: `DhcpServerBuilder::fragmentPoolRanges()` poskládá
  * ranges z intervalu s vyříznutými registrovanými statikami (subnet minus
- * alokované IP). Čistá logika bez DB — private metoda přes Closure::bind.
+ * alokované IP). Čistá logika bez DB.
  *
  * Motivace: PPPoE `/ip pool` nezná statické leasy ani RADIUS Framed-IP → registrovaná
  * IP musí fyzicky chybět v ranges, jinak by ji PPPoE bootstrap přidělil znovu (konflikt).
@@ -21,12 +22,7 @@ class DhcpPoolFragmentationTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
-        $ctrl = (new \ReflectionClass(DeviceController::class))->newInstanceWithoutConstructor();
-        $this->fragment = Closure::bind(
-            fn (int $s, int $e, array $ex) => $this->fragmentPoolRanges($s, $e, $ex),
-            $ctrl,
-            DeviceController::class
-        );
+        $this->fragment = (new DhcpServerBuilder(new DhcpExportRepository()))->fragmentPoolRanges(...);
     }
 
     /** @param string[] $excluded @return string[] */

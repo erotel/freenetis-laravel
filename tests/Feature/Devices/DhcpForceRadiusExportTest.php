@@ -2,7 +2,8 @@
 
 namespace Tests\Feature\Devices;
 
-use App\Http\Controllers\DeviceController;
+use App\Domains\Access\Dhcp\DhcpDeviceSettings;
+use App\Domains\Access\Dhcp\MikrotikDhcpRenderer;
 use App\Models\Setting;
 use Closure;
 use Tests\DatabaseTestCase;
@@ -22,18 +23,8 @@ class DhcpForceRadiusExportTest extends DatabaseTestCase
     protected function setUp(): void
     {
         parent::setUp();
-        $ctrl = (new \ReflectionClass(DeviceController::class))->newInstanceWithoutConstructor();
-        $this->render = Closure::bind(
-            fn (array $servers, ?string $relay, string $role, bool $fr, bool $ft)
-                => $this->renderMikrotikFull($servers, $relay, $role, $fr, $ft),
-            $ctrl,
-            DeviceController::class
-        );
-        $this->inList = Closure::bind(
-            fn (int $id, string $key) => $this->deviceInDhcpList($id, $key),
-            $ctrl,
-            DeviceController::class
-        );
+        $this->render = (new MikrotikDhcpRenderer())->renderFull(...);
+        $this->inList = (new DhcpDeviceSettings())->inList(...);
     }
 
     private function servers(bool $ipoe = false): array

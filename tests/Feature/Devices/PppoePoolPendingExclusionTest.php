@@ -2,7 +2,7 @@
 
 namespace Tests\Feature\Devices;
 
-use App\Http\Controllers\DeviceController;
+use App\Domains\Access\Dhcp\DhcpServerBuilder;
 use App\Models\ConnectionRequest;
 use App\Models\Device;
 use App\Models\Setting;
@@ -13,7 +13,7 @@ use Tests\DatabaseTestCase;
 /**
  * Pojistka proti konfliktu: se zapnutým PPPoE modulem RADIUS servíruje IP z
  * čekající žádosti jako statickou Framed-IP UŽ PŘED schválením. DHCP/PPPoE pool
- * (buildDhcpServers) proto musí tuhle IP vyříznout z ranges — jinak by ji přidělil
+ * (DhcpServerBuilder) proto musí tuhle IP vyříznout z ranges — jinak by ji přidělil
  * dalšímu bootstrap klientovi = adresní konflikt.
  */
 class PppoePoolPendingExclusionTest extends DatabaseTestCase
@@ -23,12 +23,7 @@ class PppoePoolPendingExclusionTest extends DatabaseTestCase
     protected function setUp(): void
     {
         parent::setUp();
-        $ctrl = (new \ReflectionClass(DeviceController::class))->newInstanceWithoutConstructor();
-        $this->build = Closure::bind(
-            fn (Device $d) => $this->buildDhcpServers($d),
-            $ctrl,
-            DeviceController::class
-        );
+        $this->build = app(DhcpServerBuilder::class)->build(...);
     }
 
     /** Najde DHCP-serverové zařízení (iface s gateway IP v dhcp subnetu). */
