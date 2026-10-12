@@ -40,6 +40,8 @@
             Host DB nastav v .env (na tomhle serveru testovací data).
         -->
         <env name="DB_CONNECTION" value="mysql"/>
+        <!-- testy nikdy na živou DB: připraví php artisan testing:refresh-db -->
+        <env name="DB_DATABASE" value="freenetis_test"/>
         <env name="MAIL_MAILER" value="array"/>
         <env name="QUEUE_CONNECTION" value="sync"/>
         <env name="SESSION_DRIVER" value="array"/>
