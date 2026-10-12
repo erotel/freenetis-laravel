@@ -17,6 +17,21 @@ class MemberRepository
         return Member::findOrFail($id);
     }
 
+    public function find(int $id): ?Member
+    {
+        return Member::find($id);
+    }
+
+    /** Podepsaná přihláška/smlouva (registration=1), případně se změnou typu. */
+    public function markRegistered(Member $member, int $type): void
+    {
+        $updates = ['registration' => 1];
+        if ($type !== (int) $member->type) {
+            $updates['type'] = $type;
+        }
+        $member->update($updates);
+    }
+
     /** Uloží schválení: nový typ, datum přijetí přihlášky a datum vstupu (= den schválení). */
     public function markApproved(Member $member, int $newType, string $approvedOn): void
     {

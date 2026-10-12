@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Contracts;
 
+use App\Domains\Members\Actions\ActivateMemberAfterContractSignAction;
 use App\Http\Controllers\Controller;
 use App\Models\Contract;
 use App\Models\ContractAddon;
@@ -9,7 +10,6 @@ use App\Models\ContractEvent;
 use App\Models\ContractParty;
 use App\Models\EmailQueue;
 use App\Models\EmailQueueAttachment;
-use App\Models\Member;
 use App\Models\Message;
 use App\Models\Setting;
 use App\Services\Contracts\OtpService;
@@ -173,29 +173,15 @@ class PublicSignController extends Controller
         }
 
         // Synchronizace s FreenetIS — aktivace člena po podpisu smlouvy.
-        // Typ 17 (čekající člen) má vlastní ruční workflow s přihláškou — ten neměníme.
-        $member = Member::find($contract->member_id);
-        if ($member) {
-            $oldType = $member->type;
-            $updates = ['registration' => 1];
-            if (in_array($member->type, [1, 18], true)) {
-                $updates['type'] = 2;
-            }
-            $member->update($updates);
-
-            // Po přechodu type 18 → 2 okamžitě uvolnit IP z přesměrování
-            // (jinak by zákazník čekal až na další běh cronu, max 1 h).
-            if ($oldType !== ($updates['type'] ?? $oldType)) {
-                app(\App\Services\PendingCustomerRedirectService::class)->refreshForMember($member->id);
-            }
-
+        $activation = app(ActivateMemberAfterContractSignAction::class)->handle((int) $contract->member_id);
+        if ($activation) {
             DB::connection('contracts')->table('contract_events')->insert([
                 'contract_id' => $contract->id,
                 'event'       => 'member_activated',
                 'meta_json'   => json_encode([
-                    'member_id'    => $member->id,
-                    'old_type'     => $oldType,
-                    'new_type'     => $updates['type'] ?? $oldType,
+                    'member_id'    => (int) $contract->member_id,
+                    'old_type'     => $activation['old_type'],
+                    'new_type'     => $activation['new_type'],
                     'registration' => 1,
                 ], JSON_UNESCAPED_UNICODE),
                 'created_at'  => now(),
