@@ -215,7 +215,13 @@ class SubnetController extends Controller
             $data['dhcp_expired'] = 0;
         }
 
+        $wasIpoe = $subnet->dhcp && $subnet->ipoe;
         $subnet->update($data);
+
+        // Zapnutí/vypnutí IPoE (dhcp+ipoe) mění, co RADIUS vrací → Kea host-cache.
+        if ($wasIpoe !== ($subnet->dhcp && $subnet->ipoe)) {
+            \App\Domains\Access\Events\IpoeReservationsChanged::dispatch("subnet:{$subnet->id}", true);
+        }
 
         session()->flash('success', 'Subnet byl úspěšně upraven.');
         return redirect()->route('subnets.show', $id);

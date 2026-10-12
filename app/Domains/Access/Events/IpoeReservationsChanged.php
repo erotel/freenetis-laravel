@@ -20,8 +20,14 @@ class IpoeReservationsChanged
      */
     public ?bool $cacheFlushed = null;
 
-    /** @param string $source odkud změna přišla (lineid:sync, ip_address.store…) — pro log */
-    public function __construct(public readonly string $source)
-    {
+    /**
+     * @param string $source   odkud změna přišla (lineid:sync, subnet:123…) — pro log
+     * @param bool   $deferred flush až na konci requestu, jednou (KeaFlushScheduler);
+     *                         false = hned a výsledek do $cacheFlushed
+     */
+    public function __construct(
+        public readonly string $source,
+        public readonly bool $deferred = false,
+    ) {
     }
 }

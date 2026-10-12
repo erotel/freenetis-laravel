@@ -46,5 +46,8 @@
         <env name="PULSE_ENABLED" value="false"/>
         <env name="TELESCOPE_ENABLED" value="false"/>
         <env name="NIGHTWATCH_ENABLED" value="false"/>
+        <!-- testy nikdy nesahají na živou Kea (flush host-cache) -->
+        <env name="KEA_CONTROL_NODES" value=""/>
+        <env name="KEA_CONTROL_SOCKET" value=""/>
     </php>
 </phpunit>
