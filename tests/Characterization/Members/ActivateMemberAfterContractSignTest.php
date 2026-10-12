@@ -84,6 +84,30 @@ class ActivateMemberAfterContractSignTest extends DatabaseTestCase
         $this->assertSame(1, (int) $this->row($id)->registration);
     }
 
+    public function test_aktivace_zapise_approved_do_auditu_bez_emailu(): void
+    {
+        $id = $this->member(MemberType::PENDING_CUSTOMER);
+        $this->redirects->shouldReceive('refreshForMember');
+        $before = DB::table('email_queues')->count();
+
+        $this->activate($id);
+
+        $log = DB::table('audit_logs')->where('auditable_type', 'members')
+            ->where('auditable_id', $id)->where('action', 'approved')->first();
+        $this->assertNotNull($log);
+        $this->assertNull($log->user_id);   // online podpis = bez přihlášeného uživatele
+        $this->assertSame(['type' => 2], json_decode($log->new_values, true));
+        $this->assertSame($before, DB::table('email_queues')->count());
+    }
+
+    public function test_bez_zmeny_typu_zadny_approved(): void
+    {
+        $id = $this->member(MemberType::PENDING_MEMBER);
+        $this->activate($id);
+        $this->assertFalse(DB::table('audit_logs')->where('auditable_type', 'members')
+            ->where('auditable_id', $id)->where('action', 'approved')->exists());
+    }
+
     public function test_neexistujici_clen_null(): void
     {
         $this->redirects->shouldNotReceive('refreshForMember');

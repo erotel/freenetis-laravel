@@ -2,6 +2,7 @@
 
 namespace App\Domains\Members\Actions;
 
+use App\Domains\Members\Events\MemberApproved;
 use App\Domains\Members\Repositories\MemberRepository;
 use App\Helpers\MemberType;
 use App\Services\PendingCustomerRedirectService;
@@ -9,7 +10,8 @@ use App\Services\PendingCustomerRedirectService;
 /**
  * Synchronizace člena po online podpisu smlouvy: vždy registration=1, žadatel (1)
  * a čekající zákazník (18) → zákazník (2). Čekající člen (17) má vlastní ruční
- * workflow s přihláškou — typ se mu nemění.
+ * workflow s přihláškou — typ se mu nemění. Aktivace = schválení
+ * ({@see MemberApproved}: audit 'approved'; e-mail zákazníkovi listener neposílá).
  */
 class ActivateMemberAfterContractSignAction
 {
@@ -39,6 +41,7 @@ class ActivateMemberAfterContractSignAction
         // zákazník čekal až na další běh cronu, max 1 h).
         if ($oldType !== $newType) {
             $this->pendingRedirects->refreshForMember($member->id);
+            MemberApproved::dispatch($member->id, $oldType, $newType);
         }
 
         return ['old_type' => $oldType, 'new_type' => $newType];

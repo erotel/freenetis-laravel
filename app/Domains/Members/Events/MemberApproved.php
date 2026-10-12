@@ -4,7 +4,10 @@ namespace App\Domains\Members\Events;
 
 use Illuminate\Foundation\Events\Dispatchable;
 
-/** Čekatel (17/18) byl schválen na aktivního člena/zákazníka. */
+/**
+ * Člen byl schválen/aktivován: čekatel (17/18) tlačítkem nebo editací, nebo
+ * žadatel/čekající zákazník (1/18 → 2) online podpisem smlouvy.
+ */
 class MemberApproved
 {
     use Dispatchable;
