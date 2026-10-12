@@ -17,11 +17,12 @@ class MemberRepository
         return Member::findOrFail($id);
     }
 
-    /** Uloží schválení: nový typ + datum přijetí přihlášky. */
-    public function markApproved(Member $member, int $newType, string $acceptedOn): void
+    /** Uloží schválení: nový typ, datum přijetí přihlášky a datum vstupu (= den schválení). */
+    public function markApproved(Member $member, int $newType, string $approvedOn): void
     {
         $member->type                   = $newType;
-        $member->entrance_form_accepted = $acceptedOn;
+        $member->entrance_form_accepted = $approvedOn;
+        $member->entrance_date          = $approvedOn;
         $member->save();
     }
 

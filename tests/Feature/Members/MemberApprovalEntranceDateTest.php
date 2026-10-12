@@ -68,6 +68,21 @@ class MemberApprovalEntranceDateTest extends DatabaseTestCase
         $this->assertSame(now()->format('Y-m-d'), $this->entrance($id));
     }
 
+    public function test_schvaleni_editaci_doplni_datum_prijeti_prihlasky(): void
+    {
+        $id = $this->pendingMember(null);
+        $this->putMember($id, MemberType::REGULAR, null);
+        $this->assertSame(now()->format('Y-m-d'),
+            (string) DB::table('members')->where('id', $id)->value('entrance_form_accepted'));
+    }
+
+    public function test_bezna_editace_nenastavi_datum_prijeti_prihlasky(): void
+    {
+        $id = $this->pendingMember(null);
+        $this->putMember($id, MemberType::PENDING_MEMBER, null);
+        $this->assertNull(DB::table('members')->where('id', $id)->value('entrance_form_accepted'));
+    }
+
     public function test_rucni_datum_pri_schvaleni_se_respektuje(): void
     {
         $id = $this->pendingMember(null);

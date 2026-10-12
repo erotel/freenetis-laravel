@@ -182,16 +182,12 @@ class ApproveMemberTest extends DatabaseTestCase
             ->exists());
     }
 
-    /**
-     * QUIRK: tlačítko Schválit NEnastaví entrance_date (to dělá jen schválení
-     * přes editaci — MemberController::update). Viz roadmapa; oprava = změna
-     * chování v samostatném commitu.
-     */
-    public function test_schvaleni_tlacitkem_nenastavi_datum_vstupu_quirk(): void
+    /** Datum vstupu = den schválení (stejně jako schválení přes editaci). */
+    public function test_schvaleni_tlacitkem_nastavi_datum_vstupu(): void
     {
         $id = $this->member(MemberType::PENDING_MEMBER, true);
         $this->approve($id);
-        $this->assertNull($this->row($id)->entrance_date);
+        $this->assertSame(now()->toDateString(), (string) $this->row($id)->entrance_date);
     }
 
     /** Hláška neslibuje e-mail, který se nemusel poslat (bez kontaktu / zákazník). */

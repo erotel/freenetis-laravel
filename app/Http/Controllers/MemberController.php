@@ -660,6 +660,11 @@ class MemberController extends Controller
             ? now()->format('Y-m-d')
             : $submittedEntrance;
 
+        // Schválení = i datum přijetí přihlášky (stejně jako tlačítko Schválit).
+        if ($isApproval) {
+            $member->entrance_form_accepted = now()->toDateString();
+        }
+
         $member->update([
             'name'                        => $data['name'],
             'type'                        => $data['type'],
