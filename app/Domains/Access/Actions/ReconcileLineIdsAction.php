@@ -2,7 +2,7 @@
 
 namespace App\Domains\Access\Actions;
 
-use App\Domains\Access\Kea\KeaControlClient;
+use App\Domains\Access\Events\IpoeReservationsChanged;
 use App\Domains\Access\Repositories\LineIdRepository;
 use App\Domains\Access\Support\CircuitIdParser;
 use App\Domains\Access\Support\SharedCircuitDetector;
@@ -11,7 +11,8 @@ use App\Domains\Access\Support\SharedCircuitDetector;
  * Self-learning IPoE line-id: KONZERVATIVNÍ překlopení `line_id_seen` → `line_ids`
  * (nový port / stejný zákazník). Když by přemapovalo existující port na JINÉHO
  * zákazníka, NEUDĚLÁ to (konflikt řeší {@see DetectLineIdAnomaliesAction}).
- * Při změně rezervací pročistí Kea host-cache. Voláno z `lineid:sync` (cron).
+ * Při změně rezervací dispatchne IpoeReservationsChanged (→ flush Kea host-cache).
+ * Voláno z `lineid:sync` (cron).
  */
 class ReconcileLineIdsAction
 {
@@ -19,7 +20,6 @@ class ReconcileLineIdsAction
         private LineIdRepository $lines = new LineIdRepository(),
         private CircuitIdParser $parser = new CircuitIdParser(),
         private SharedCircuitDetector $shared = new SharedCircuitDetector(),
-        private KeaControlClient $kea = new KeaControlClient(),
     ) {
     }
 
@@ -111,11 +111,14 @@ class ReconcileLineIdsAction
             }
         }
 
-        // Rezervace se změnily → pročisti Kea host-cache na všech uzlech, ať se
-        // oprava projeví bez čekání na ruční zásah. Best-effort, nikdy neshodí sync.
+        // Rezervace se změnily → event (listener pročistí Kea host-cache na všech
+        // uzlech), ať se oprava projeví bez ručního zásahu. Best-effort, nikdy
+        // neshodí sync. Výsledek flushe nese event (pro výpis lineid:sync).
         $flushed = null;
         if ($changed) {
-            $flushed = $this->kea->flushHostCache();
+            $event = new IpoeReservationsChanged('lineid:sync');
+            event($event);
+            $flushed = $event->cacheFlushed;
         }
 
         return [

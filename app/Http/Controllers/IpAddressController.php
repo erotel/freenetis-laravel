@@ -134,7 +134,7 @@ class IpAddressController extends Controller
         // dřív zacachovaný pool/negative verdikt a rezervace se neprojeví (reboot/renew
         // to nespraví). Best-effort. Viz [[project_lineid_tr101_gotcha]].
         if ($ip->iface_id && $ip->subnet && $ip->subnet->dhcp && $ip->subnet->ipoe) {
-            app(\App\Domains\Access\Kea\KeaControlClient::class)->flushHostCache();
+            \App\Domains\Access\Events\IpoeReservationsChanged::dispatch('ip_address.store');
         }
 
         // Pokud IP patří čekajícímu zákazníkovi (type=18), okamžitě aktivovat

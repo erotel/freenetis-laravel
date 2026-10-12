@@ -38,6 +38,9 @@ listenery, ne kód v akci. Nová featura = nový listener, ne zásah do core.
 - Listenery běží **synchronně** (dokud vědomě nerozhodneme o frontě) — pořadí
   registrace v ServiceProvideru = pořadí provedení.
 - Registrace explicitně v `<Doména>ServiceProvider`, žádný auto-discovery.
+- Potřebuje-li volající výsledek listeneru, nese ho event v jednom zdokumentovaném
+  poli (`IpoeReservationsChanged::$cacheFlushed`) — ne návratová hodnota
+  (`false` z listeneru Laravel bere jako stop propagace).
 
 **Controller** — tenký: ACL → validace (Form Request) → akce → redirect/flash.
 
