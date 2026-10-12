@@ -9,7 +9,8 @@ use App\Services\PendingCustomerRedirectService;
 
 /**
  * Synchronizace člena po online podpisu smlouvy: vždy registration=1, žadatel (1)
- * a čekající zákazník (18) → zákazník (2). Čekající člen (17) má vlastní ruční
+ * a čekající zákazník (18) → zákazník (2) s datem vstupu = den podpisu (bez něj
+ * by ho DeductFees přeskakoval). Čekající člen (17) má vlastní ruční
  * workflow s přihláškou — typ se mu nemění. Aktivace = schválení
  * ({@see MemberApproved}: audit 'approved'; e-mail zákazníkovi listener neposílá).
  */
@@ -35,7 +36,7 @@ class ActivateMemberAfterContractSignAction
 
         $oldType = $member->type;
         $newType = in_array($oldType, self::ACTIVATED_BY_SIGN, true) ? MemberType::CUSTOMER : $oldType;
-        $this->members->markRegistered($member, $newType);
+        $this->members->markRegistered($member, $newType, now()->toDateString());
 
         // Po přechodu 18 → 2 okamžitě uvolnit IP z přesměrování (jinak by
         // zákazník čekal až na další běh cronu, max 1 h).

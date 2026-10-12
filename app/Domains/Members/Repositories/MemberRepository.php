@@ -22,12 +22,17 @@ class MemberRepository
         return Member::find($id);
     }
 
-    /** Podepsaná přihláška/smlouva (registration=1), případně se změnou typu. */
-    public function markRegistered(Member $member, int $type): void
+    /**
+     * Podepsaná přihláška/smlouva (registration=1), případně se změnou typu.
+     * Změna typu = schválení → datum vstupu i přijetí přihlášky = $approvedOn.
+     */
+    public function markRegistered(Member $member, int $type, string $approvedOn): void
     {
         $updates = ['registration' => 1];
         if ($type !== (int) $member->type) {
-            $updates['type'] = $type;
+            $updates['type']          = $type;
+            $updates['entrance_date'] = $approvedOn;
+            $member->entrance_form_accepted = $approvedOn;   // není fillable
         }
         $member->update($updates);
     }

@@ -54,6 +54,8 @@ class ActivateMemberAfterContractSignTest extends DatabaseTestCase
         $this->assertSame(['old_type' => 18, 'new_type' => 2], $this->activate($id));
         $this->assertSame(MemberType::CUSTOMER, (int) $this->row($id)->type);
         $this->assertSame(1, (int) $this->row($id)->registration);
+        $this->assertSame(now()->toDateString(), (string) $this->row($id)->entrance_date);
+        $this->assertSame(now()->toDateString(), (string) $this->row($id)->entrance_form_accepted);
     }
 
     public function test_zadatel_se_aktivuje_na_zakaznika(): void
@@ -73,6 +75,7 @@ class ActivateMemberAfterContractSignTest extends DatabaseTestCase
         $this->assertSame(['old_type' => 17, 'new_type' => 17], $this->activate($id));
         $this->assertSame(MemberType::PENDING_MEMBER, (int) $this->row($id)->type);
         $this->assertSame(1, (int) $this->row($id)->registration);
+        $this->assertNull($this->row($id)->entrance_date);   // 17 čeká na ruční schválení
     }
 
     public function test_aktivni_zakaznik_jen_registration(): void
@@ -80,8 +83,11 @@ class ActivateMemberAfterContractSignTest extends DatabaseTestCase
         $id = $this->member(MemberType::CUSTOMER);
         $this->redirects->shouldNotReceive('refreshForMember');
 
+        DB::table('members')->where('id', $id)->update(['entrance_date' => '2024-03-01']);
+
         $this->assertSame(['old_type' => 2, 'new_type' => 2], $this->activate($id));
         $this->assertSame(1, (int) $this->row($id)->registration);
+        $this->assertSame('2024-03-01', (string) $this->row($id)->entrance_date);   // bez změny typu nesahat
     }
 
     public function test_aktivace_zapise_approved_do_auditu_bez_emailu(): void
