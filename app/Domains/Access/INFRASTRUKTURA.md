@@ -56,6 +56,11 @@ username je **binární** (surové bajty option82), proto:
   s `line_id_seen`. Do té doby: pod migraci (create if not exists), **nemazat**.
 - `radacct` — accounting, píše `sql_acct` (.54 i Kea uzly).
 
+Views jsou pod migracemi (`2026_09_02_110000` lineid, `2026_10_12_130000` MAC-PD
++ Kea; pppoe v dřívější migraci) — definice = .54. `*_kea6mac_v` neprojde s
+`ONLY_FULL_GROUP_BY`, který zapíná Laravel (strict) — aplikace ho nečte; dotaz v
+testu jde se `sql_mode` serveru jako FreeRADIUS.
+
 ## Práva — co hlídat při migracích
 
 - Granty `radius_ro` jsou **per view jménem** a na replikách se **nereplikují**
