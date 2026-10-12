@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Domains\Members\Actions\ApproveMemberAction;
+use App\Domains\Members\Events\MemberApproved;
 use App\Domains\Members\Exceptions\MemberNotApprovable;
 use App\Helpers\MemberType;
 use App\Models\AccountAttribute;
@@ -654,6 +655,7 @@ class MemberController extends Controller
             && MemberType::isActive((int) $data['type']);
         $submittedEntrance = ($data['entrance_date'] ?? null) ?: null;
         $entranceUnchanged = (string) $submittedEntrance === (string) ($member->entrance_date ?: null);
+        $oldType      = (int) $member->type;
         $entranceDate = ($isApproval && $entranceUnchanged)
             ? now()->format('Y-m-d')
             : $submittedEntrance;
@@ -713,6 +715,12 @@ class MemberController extends Controller
             ->with('subnet')
             ->get()
             ->each(fn($ip) => $ip->subnet?->setExpired());
+
+        // Schválení přes editaci (čekatel → aktivní typ) = stejné vedlejší efekty
+        // jako tlačítko Schválit (uvítací e-mail, …).
+        if ($isApproval) {
+            MemberApproved::dispatch($member->id, $oldType, (int) $data['type']);
+        }
 
         session()->flash('success', 'Člen byl úspěšně upraven.');
 
