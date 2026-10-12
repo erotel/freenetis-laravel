@@ -11,6 +11,11 @@
         <testsuite name="Feature">
             <directory>tests/Feature</directory>
         </testsuite>
+        <!-- Charakterizační testy: zachycují SOUČASNÉ chování před refaktorem
+             (viz app/Domains/README.md). Aserce se při refaktoru nemění. -->
+        <testsuite name="Characterization">
+            <directory>tests/Characterization</directory>
+        </testsuite>
     </testsuites>
     <source>
         <include>

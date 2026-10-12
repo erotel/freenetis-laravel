@@ -2,6 +2,8 @@
 
 namespace App\Http\Controllers;
 
+use App\Domains\Members\Actions\ApproveMemberAction;
+use App\Domains\Members\Exceptions\MemberNotApprovable;
 use App\Helpers\MemberType;
 use App\Models\AccountAttribute;
 use App\Models\AddressPoint;
@@ -1649,53 +1651,14 @@ class MemberController extends Controller
         return 'charged';
     }
 
-    public function approve(int $id)
+    public function approve(int $id, ApproveMemberAction $approve)
     {
         abort_unless($this->aclCheck('edit_all', 'Members_Controller', 'members'), 403);
 
-        $member = Member::findOrFail($id);
-
-        if (!in_array($member->type, [MemberType::PENDING_MEMBER, MemberType::PENDING_CUSTOMER])) {
-            return back()->with('error', 'Člen není čekatel.');
-        }
-
-        if (!$member->registration) {
-            return back()->with('error', 'Přihláška/smlouva není podepsána.');
-        }
-
-        $messageId = ($member->type == MemberType::PENDING_MEMBER) ? 10 : 116;
-
-        $member->type = ($member->type == MemberType::PENDING_MEMBER)
-            ? MemberType::REGULAR
-            : MemberType::CUSTOMER;
-        $member->entrance_form_accepted = now()->toDateString();
-        $member->save();
-
-        $message = \App\Models\Message::where('id', $messageId)->first();
-        if ($message && $message->email_text) {
-            $userId = DB::table('users')->where('member_id', $id)->value('id');
-            if ($userId) {
-                $email = DB::table('contacts as c')
-                    ->join('users_contacts as uc', 'uc.contact_id', '=', 'c.id')
-                    ->where('uc.user_id', $userId)
-                    ->where('c.type', 20)
-                    ->value('c.value');
-
-                if ($email) {
-                    $body = \App\Models\Message::substitute(
-                        $message->email_text,
-                        \App\Models\Message::buildPlaceholders($id)
-                    );
-                    $prefix = \App\Models\Setting::get('email_subject_prefix', '');
-                    DB::table('email_queues')->insert([
-                        'from'    => \App\Models\Setting::get('email_default_email', 'noreply@pvfree.net'),
-                        'to'      => $email,
-                        'subject' => ($prefix ? $prefix . ' :: ' : '') . $message->name,
-                        'body'    => $body,
-                        'state'   => 0,
-                    ]);
-                }
-            }
+        try {
+            $approve->handle($id);
+        } catch (MemberNotApprovable $e) {
+            return back()->with('error', $e->getMessage());
         }
 
         return redirect()->route('members.show', $id)
