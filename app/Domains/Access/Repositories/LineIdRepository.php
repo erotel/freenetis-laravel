@@ -13,7 +13,9 @@ use Illuminate\Support\Facades\DB;
  *
  * KONTRAKT: nad `line_ids` stojí RADIUS views (radcheck/radreply_lineid_v,
  * *_kea4_v klíčují CONCAT(remote_id, circuit_id)) → identita řádku je dvojice
- * (circuit_id, remote_id), prázdný remote = ''. Schéma neměnit bez úpravy views.
+ * (circuit_id, remote_id), prázdný remote = ''. Sloupce jsou na produkci
+ * VARBINARY (surové bajty option82, RADIUS hledá přes HEX(username)).
+ * Schéma neměnit bez úpravy views. Celá topologie: ../INFRASTRUKTURA.md.
  */
 class LineIdRepository
 {
