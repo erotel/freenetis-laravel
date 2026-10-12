@@ -1,0 +1,2631 @@
+{
+    "tables": {
+        "accounts": {
+            "engine": "InnoDB",
+            "collation": "utf8mb3_czech_ci",
+            "columns": {
+                "id": "int(11) | not null | default ∅ | auto_increment | -",
+                "member_id": "int(11) | null | default NULL | - | -",
+                "name": "varchar(100) | null | default NULL | - | utf8mb3_czech_ci",
+                "account_attribute_id": "int(11) | not null | default ∅ | - | -",
+                "balance": "double | null | default 0 | - | -",
+                "comment": "varchar(254) | null | default NULL | - | utf8mb3_czech_ci",
+                "comments_thread_id": "int(11) | null | default NULL | - | -"
+            },
+            "indexes": {
+                "account_attribute_id": "index (account_attribute_id)",
+                "balance": "index (balance)",
+                "comments_thread_id": "index (comments_thread_id)",
+                "is_owned_by": "index (member_id)",
+                "PRIMARY": "unique (id)"
+            }
+        },
+        "accounts_bank_accounts": {
+            "engine": "InnoDB",
+            "collation": "utf8mb3_czech_ci",
+            "columns": {
+                "account_id": "int(11) | not null | default ∅ | - | -",
+                "bank_account_id": "int(11) | not null | default ∅ | - | -"
+            },
+            "indexes": {
+                "bank_account_id": "index (bank_account_id)",
+                "PRIMARY": "unique (account_id,bank_account_id)"
+            }
+        },
+        "account_attributes": {
+            "engine": "InnoDB",
+            "collation": "utf8mb3_czech_ci",
+            "columns": {
+                "id": "int(11) | not null | default 0 | - | -",
+                "name": "varchar(230) | null | default NULL | - | utf8mb3_czech_ci",
+                "type": "tinyint(4) | null | default NULL | - | -",
+                "kind": "tinyint(4) | null | default NULL | - | -",
+                "activity": "tinyint(4) | null | default NULL | - | -",
+                "track_balance": "tinyint(4) | null | default NULL | - | -",
+                "line": "tinyint(4) | null | default NULL | - | -",
+                "line_short": "tinyint(4) | null | default NULL | - | -",
+                "line_credits": "tinyint(4) | null | default NULL | - | -",
+                "line_credits_short": "tinyint(4) | null | default NULL | - | -",
+                "comment": "varchar(255) | null | default NULL | - | utf8mb3_czech_ci"
+            },
+            "indexes": {
+                "PRIMARY": "unique (id)"
+            }
+        },
+        "acl": {
+            "engine": "InnoDB",
+            "collation": "utf8mb3_czech_ci",
+            "columns": {
+                "id": "int(11) | not null | default ∅ | auto_increment | -",
+                "note": "text | null | default NULL | - | utf8mb3_czech_ci"
+            },
+            "indexes": {
+                "PRIMARY": "unique (id)"
+            }
+        },
+        "aco": {
+            "engine": "InnoDB",
+            "collation": "utf8mb3_czech_ci",
+            "columns": {
+                "id": "int(11) | not null | default 0 | - | -",
+                "value": "varchar(240) | not null | default ∅ | - | utf8mb3_czech_ci",
+                "name": "varchar(255) | not null | default ∅ | - | utf8mb3_czech_ci"
+            },
+            "indexes": {
+                "PRIMARY": "unique (id)",
+                "section_value_value_aco": "unique (value)"
+            }
+        },
+        "aco_map": {
+            "engine": "InnoDB",
+            "collation": "utf8mb3_czech_ci",
+            "columns": {
+                "acl_id": "int(11) | not null | default 0 | - | -",
+                "value": "varchar(230) | not null | default ∅ | - | utf8mb3_czech_ci"
+            },
+            "indexes": {
+                "PRIMARY": "unique (acl_id,value)"
+            }
+        },
+        "address_points": {
+            "engine": "InnoDB",
+            "collation": "utf8mb3_czech_ci",
+            "columns": {
+                "id": "int(11) | not null | default ∅ | auto_increment | -",
+                "name": "varchar(255) | null | default NULL | - | utf8mb3_czech_ci",
+                "country_id": "smallint(6) | not null | default ∅ | - | -",
+                "town_id": "int(11) | not null | default ∅ | - | -",
+                "street_id": "int(11) | null | default NULL | - | -",
+                "street_number": "varchar(50) | null | default NULL | - | utf8mb3_czech_ci",
+                "gps": "point | null | default NULL | - | -"
+            },
+            "indexes": {
+                "country_id": "index (country_id)",
+                "PRIMARY": "unique (id)",
+                "street_id": "index (street_id)",
+                "town_id": "index (town_id)"
+            }
+        },
+        "allowed_subnets": {
+            "engine": "InnoDB",
+            "collation": "utf8mb3_czech_ci",
+            "columns": {
+                "id": "int(11) | not null | default ∅ | auto_increment | -",
+                "member_id": "int(11) | not null | default ∅ | - | -",
+                "subnet_id": "int(11) | not null | default ∅ | - | -",
+                "speed_class_id": "int(10) unsigned | null | default NULL | - | -",
+                "charged": "tinyint(1) | not null | default 0 | - | -",
+                "enabled": "tinyint(1) | not null | default 1 | - | -",
+                "last_update": "timestamp | not null | default current_timestamp() | on update current_timestamp() | -"
+            },
+            "indexes": {
+                "member_id": "index (member_id)",
+                "PRIMARY": "unique (id)",
+                "subnet_id": "index (subnet_id)"
+            }
+        },
+        "allowed_subnets_counts": {
+            "engine": "InnoDB",
+            "collation": "utf8mb3_czech_ci",
+            "columns": {
+                "id": "int(11) | not null | default ∅ | auto_increment | -",
+                "member_id": "int(11) | not null | default ∅ | - | -",
+                "count": "int(11) | not null | default ∅ | - | -"
+            },
+            "indexes": {
+                "member_id": "index (member_id)",
+                "PRIMARY": "unique (id)"
+            }
+        },
+        "approval_templates": {
+            "engine": "InnoDB",
+            "collation": "utf8mb3_czech_ci",
+            "columns": {
+                "id": "int(11) | not null | default ∅ | auto_increment | -",
+                "name": "varchar(100) | not null | default ∅ | - | utf8mb3_czech_ci",
+                "comment": "mediumtext | not null | default ∅ | - | utf8mb3_czech_ci",
+                "state": "int(11) | not null | default ∅ | - | -"
+            },
+            "indexes": {
+                "PRIMARY": "unique (id)"
+            }
+        },
+        "approval_template_items": {
+            "engine": "InnoDB",
+            "collation": "utf8mb3_czech_ci",
+            "columns": {
+                "id": "int(11) | not null | default ∅ | auto_increment | -",
+                "approval_template_id": "int(11) | null | default NULL | - | -",
+                "approval_type_id": "int(11) | not null | default ∅ | - | -",
+                "priority": "int(11) | not null | default ∅ | - | -"
+            },
+            "indexes": {
+                "approval_template_id": "index (approval_template_id)",
+                "approval_type_id": "index (approval_type_id)",
+                "PRIMARY": "unique (id)"
+            }
+        },
+        "approval_types": {
+            "engine": "InnoDB",
+            "collation": "utf8mb3_czech_ci",
+            "columns": {
+                "id": "int(11) | not null | default ∅ | auto_increment | -",
+                "name": "varchar(100) | not null | default ∅ | - | utf8mb3_czech_ci",
+                "comment": "mediumtext | not null | default ∅ | - | utf8mb3_czech_ci",
+                "type": "int(11) | not null | default ∅ | - | -",
+                "majority_percent": "int(11) | not null | default ∅ | - | -",
+                "aro_group_id": "int(11) | not null | default ∅ | - | -",
+                "interval": "datetime | not null | default ∅ | - | -",
+                "default_vote": "tinyint(1) | null | default NULL | - | -",
+                "min_suggest_amount": "int(11) | not null | default ∅ | - | -",
+                "one_vote": "tinyint(4) | not null | default 0 | - | -"
+            },
+            "indexes": {
+                "PRIMARY": "unique (id)"
+            }
+        },
+        "aro_groups": {
+            "engine": "InnoDB",
+            "collation": "utf8mb3_czech_ci",
+            "columns": {
+                "id": "int(11) | not null | default ∅ | auto_increment | -",
+                "parent_id": "int(11) | not null | default 0 | - | -",
+                "lft": "int(11) | not null | default 0 | - | -",
+                "rgt": "int(11) | not null | default 0 | - | -",
+                "name": "varchar(255) | not null | default ∅ | - | utf8mb3_czech_ci",
+                "value": "varchar(255) | not null | default ∅ | - | utf8mb3_czech_ci"
+            },
+            "indexes": {
+                "lft_rgt_aro_groups": "index (lft,rgt)",
+                "parent_id_aro_groups": "index (parent_id)",
+                "PRIMARY": "unique (id,value)",
+                "value_aro_groups": "unique (value)"
+            }
+        },
+        "aro_groups_map": {
+            "engine": "InnoDB",
+            "collation": "utf8mb3_czech_ci",
+            "columns": {
+                "acl_id": "int(11) | not null | default 0 | - | -",
+                "group_id": "int(11) | not null | default 0 | - | -"
+            },
+            "indexes": {
+                "group_id": "index (group_id)",
+                "PRIMARY": "unique (acl_id,group_id)"
+            }
+        },
+        "audit_logs": {
+            "engine": "InnoDB",
+            "collation": "utf8mb4_uca1400_ai_ci",
+            "columns": {
+                "id": "bigint(20) unsigned | not null | default ∅ | auto_increment | -",
+                "occurred_at": "datetime | not null | default ∅ | - | -",
+                "user_id": "int(11) | null | default NULL | - | -",
+                "ip_address": "varchar(45) | null | default NULL | - | utf8mb4_uca1400_ai_ci",
+                "action": "varchar(30) | not null | default ∅ | - | utf8mb4_uca1400_ai_ci",
+                "auditable_type": "varchar(100) | not null | default ∅ | - | utf8mb4_uca1400_ai_ci",
+                "auditable_id": "bigint(20) | null | default NULL | - | -",
+                "old_values": "longtext | null | default NULL | - | utf8mb4_bin",
+                "new_values": "longtext | null | default NULL | - | utf8mb4_bin"
+            },
+            "indexes": {
+                "id": "index (id)",
+                "idx_auditable": "index (auditable_type,auditable_id)",
+                "idx_occurred": "index (occurred_at)",
+                "idx_user": "index (user_id)"
+            }
+        },
+        "axo": {
+            "engine": "InnoDB",
+            "collation": "utf8mb3_czech_ci",
+            "columns": {
+                "id": "int(11) | not null | default 0 | - | -",
+                "section_value": "varchar(240) | not null | default '0' | - | utf8mb3_czech_ci",
+                "value": "varchar(240) | not null | default ∅ | - | utf8mb3_czech_ci",
+                "name": "varchar(255) | not null | default ∅ | - | utf8mb3_czech_ci"
+            },
+            "indexes": {
+                "PRIMARY": "unique (id)",
+                "section_value_value_axo": "unique (section_value,value)",
+                "value": "index (value)"
+            }
+        },
+        "axo_map": {
+            "engine": "InnoDB",
+            "collation": "utf8mb3_czech_ci",
+            "columns": {
+                "acl_id": "int(11) | not null | default 0 | - | -",
+                "section_value": "varchar(230) | not null | default '0' | - | utf8mb3_czech_ci",
+                "value": "varchar(230) | not null | default ∅ | - | utf8mb3_czech_ci"
+            },
+            "indexes": {
+                "PRIMARY": "unique (acl_id,section_value,value)"
+            }
+        },
+        "axo_sections": {
+            "engine": "InnoDB",
+            "collation": "utf8mb3_czech_ci",
+            "columns": {
+                "id": "int(11) | not null | default 0 | - | -",
+                "value": "varchar(230) | not null | default ∅ | - | utf8mb3_czech_ci",
+                "name": "varchar(230) | not null | default ∅ | - | utf8mb3_czech_ci"
+            },
+            "indexes": {
+                "PRIMARY": "unique (id)",
+                "value_axo_sections": "unique (value)"
+            }
+        },
+        "bank_accounts": {
+            "engine": "InnoDB",
+            "collation": "utf8mb3_czech_ci",
+            "columns": {
+                "id": "int(11) | not null | default ∅ | auto_increment | -",
+                "name": "varchar(254) | not null | default ∅ | - | utf8mb3_czech_ci",
+                "member_id": "int(11) | null | default NULL | - | -",
+                "account_nr": "varchar(254) | null | default NULL | - | utf8mb3_czech_ci",
+                "bank_nr": "varchar(20) | null | default NULL | - | utf8mb3_czech_ci",
+                "type": "int(11) | not null | default 0 | - | -",
+                "settings": "text | null | default NULL | - | utf8mb3_czech_ci",
+                "IBAN": "varchar(254) | null | default NULL | - | utf8mb3_czech_ci",
+                "SWIFT": "varchar(254) | null | default NULL | - | utf8mb3_czech_ci",
+                "payment_purpose": "tinyint(1) | not null | default 0 | - | -"
+            },
+            "indexes": {
+                "member_id": "index (member_id)",
+                "PRIMARY": "unique (id)"
+            }
+        },
+        "bank_accounts_automatical_downloads": {
+            "engine": "InnoDB",
+            "collation": "utf8mb3_czech_ci",
+            "columns": {
+                "id": "int(11) | not null | default ∅ | auto_increment | -",
+                "bank_account_id": "int(11) | not null | default ∅ | - | -",
+                "type": "smallint(6) | not null | default ∅ | - | -",
+                "attribute": "varchar(255) | null | default NULL | - | utf8mb3_czech_ci",
+                "email_enabled": "tinyint(1) | not null | default 0 | - | -",
+                "sms_enabled": "tinyint(1) | not null | default 0 | - | -"
+            },
+            "indexes": {
+                "bank_account_id_fk": "index (bank_account_id)",
+                "PRIMARY": "unique (id)"
+            }
+        },
+        "bank_statements": {
+            "engine": "InnoDB",
+            "collation": "utf8mb3_czech_ci",
+            "columns": {
+                "id": "int(11) | not null | default ∅ | auto_increment | -",
+                "bank_account_id": "int(11) | not null | default ∅ | - | -",
+                "user_id": "int(11) | null | default NULL | - | -",
+                "statement_number": "int(11) | null | default NULL | - | -",
+                "type": "varchar(40) | null | default NULL | - | utf8mb3_czech_ci",
+                "from": "datetime | null | default NULL | - | -",
+                "to": "datetime | null | default NULL | - | -",
+                "opening_balance": "double | null | default NULL | - | -",
+                "closing_balance": "double | null | default NULL | - | -"
+            },
+            "indexes": {
+                "bank_account_id": "index (bank_account_id)",
+                "PRIMARY": "unique (id)",
+                "user_id": "index (user_id)"
+            }
+        },
+        "bank_transfers": {
+            "engine": "InnoDB",
+            "collation": "utf8mb3_czech_ci",
+            "columns": {
+                "id": "int(11) | not null | default ∅ | auto_increment | -",
+                "origin_id": "int(11) | null | default NULL | - | -",
+                "destination_id": "int(11) | null | default NULL | - | -",
+                "transfer_id": "int(11) | null | default NULL | - | -",
+                "bank_statement_id": "int(11) | null | default NULL | - | -",
+                "transaction_code": "bigint(20) | null | default NULL | - | -",
+                "number": "int(11) | null | default NULL | - | -",
+                "variable_symbol": "bigint(20) | null | default NULL | - | -",
+                "constant_symbol": "bigint(20) | null | default NULL | - | -",
+                "specific_symbol": "bigint(20) | null | default NULL | - | -",
+                "comment": "varchar(255) | null | default NULL | - | utf8mb3_czech_ci",
+                "deleted_at": "datetime | null | default NULL | - | -"
+            },
+            "indexes": {
+                "bank_statement_id": "index (bank_statement_id)",
+                "destination_id": "index (destination_id)",
+                "number": "index (number,variable_symbol)",
+                "origin_id": "index (origin_id)",
+                "PRIMARY": "unique (id)",
+                "transfer_id": "index (transfer_id)"
+            }
+        },
+        "cache": {
+            "engine": "InnoDB",
+            "collation": "utf8mb4_unicode_ci",
+            "columns": {
+                "key": "varchar(255) | not null | default ∅ | - | utf8mb4_unicode_ci",
+                "value": "mediumtext | not null | default ∅ | - | utf8mb4_unicode_ci",
+                "expiration": "bigint(20) | not null | default ∅ | - | -"
+            },
+            "indexes": {
+                "cache_expiration_index": "index (expiration)",
+                "PRIMARY": "unique (key)"
+            }
+        },
+        "cache_locks": {
+            "engine": "InnoDB",
+            "collation": "utf8mb4_unicode_ci",
+            "columns": {
+                "key": "varchar(255) | not null | default ∅ | - | utf8mb4_unicode_ci",
+                "owner": "varchar(255) | not null | default ∅ | - | utf8mb4_unicode_ci",
+                "expiration": "bigint(20) | not null | default ∅ | - | -"
+            },
+            "indexes": {
+                "cache_locks_expiration_index": "index (expiration)",
+                "PRIMARY": "unique (key)"
+            }
+        },
+        "cash": {
+            "engine": "InnoDB",
+            "collation": "utf8mb3_czech_ci",
+            "columns": {
+                "id": "int(11) | not null | default ∅ | auto_increment | -",
+                "member_id": "int(11) | not null | default ∅ | - | -",
+                "transfer_id": "int(11) | not null | default ∅ | - | -"
+            },
+            "indexes": {
+                "member_id": "index (member_id)",
+                "PRIMARY": "unique (id)",
+                "transfer_id": "index (transfer_id)"
+            }
+        },
+        "clouds": {
+            "engine": "InnoDB",
+            "collation": "utf8mb3_general_ci",
+            "columns": {
+                "id": "int(11) | not null | default ∅ | auto_increment | -",
+                "name": "varchar(50) | not null | default ∅ | - | utf8mb3_general_ci"
+            },
+            "indexes": {
+                "PRIMARY": "unique (id)"
+            }
+        },
+        "clouds_subnets": {
+            "engine": "InnoDB",
+            "collation": "utf8mb3_czech_ci",
+            "columns": {
+                "cloud_id": "int(11) | not null | default ∅ | - | -",
+                "subnet_id": "int(11) | not null | default ∅ | - | -"
+            },
+            "indexes": {
+                "PRIMARY": "unique (cloud_id,subnet_id)",
+                "subnet_id": "index (subnet_id)"
+            }
+        },
+        "clouds_users": {
+            "engine": "InnoDB",
+            "collation": "utf8mb3_czech_ci",
+            "columns": {
+                "cloud_id": "int(11) | not null | default ∅ | - | -",
+                "user_id": "int(11) | not null | default ∅ | - | -"
+            },
+            "indexes": {
+                "PRIMARY": "unique (cloud_id,user_id)",
+                "user_id": "index (user_id)"
+            }
+        },
+        "comments": {
+            "engine": "InnoDB",
+            "collation": "utf8mb3_czech_ci",
+            "columns": {
+                "id": "int(11) | not null | default ∅ | auto_increment | -",
+                "comments_thread_id": "int(11) | not null | default ∅ | - | -",
+                "user_id": "int(11) | not null | default ∅ | - | -",
+                "text": "text | not null | default ∅ | - | utf8mb3_czech_ci",
+                "datetime": "datetime | not null | default ∅ | - | -"
+            },
+            "indexes": {
+                "comments_thread_id": "index (comments_thread_id)",
+                "PRIMARY": "unique (id)",
+                "user_id": "index (user_id)"
+            }
+        },
+        "comments_threads": {
+            "engine": "InnoDB",
+            "collation": "utf8mb3_czech_ci",
+            "columns": {
+                "id": "int(11) | not null | default ∅ | auto_increment | -",
+                "type": "varchar(255) | not null | default ∅ | - | utf8mb3_czech_ci"
+            },
+            "indexes": {
+                "PRIMARY": "unique (id)"
+            }
+        },
+        "config": {
+            "engine": "InnoDB",
+            "collation": "utf8mb3_czech_ci",
+            "columns": {
+                "name": "varchar(100) | not null | default ∅ | - | utf8mb3_czech_ci",
+                "value": "text | not null | default ∅ | - | utf8mb3_czech_ci"
+            },
+            "indexes": {
+                "PRIMARY": "unique (name)"
+            }
+        },
+        "connection_requests": {
+            "engine": "InnoDB",
+            "collation": "utf8mb3_czech_ci",
+            "columns": {
+                "id": "int(11) | not null | default ∅ | auto_increment | -",
+                "member_id": "int(11) | not null | default ∅ | - | -",
+                "added_user_id": "int(11) | null | default NULL | - | -",
+                "decided_user_id": "int(11) | null | default NULL | - | -",
+                "state": "int(11) | null | default 0 | - | -",
+                "created_at": "datetime | not null | default ∅ | - | -",
+                "decided_at": "datetime | null | default NULL | - | -",
+                "ip_address": "varchar(39) | null | default NULL | - | utf8mb3_czech_ci",
+                "subnet_id": "int(11) | null | default NULL | - | -",
+                "mac_address": "varchar(17) | null | default NULL | - | utf8mb3_czech_ci",
+                "pppoe_username": "varchar(64) | null | default NULL | - | utf8mb3_czech_ci",
+                "pppoe_secret": "varchar(64) | null | default NULL | - | utf8mb3_czech_ci",
+                "device_id": "int(11) | null | default NULL | - | -",
+                "device_type_id": "int(11) | null | default NULL | - | -",
+                "device_template_id": "int(11) | null | default NULL | - | -",
+                "comment": "text | null | default NULL | - | utf8mb3_czech_ci",
+                "comments_thread_id": "int(11) | null | default NULL | - | -"
+            },
+            "indexes": {
+                "added_user_id_fk": "index (added_user_id)",
+                "comments_thread_id_fk": "index (comments_thread_id)",
+                "decided_user_id_fk": "index (decided_user_id)",
+                "device_id_fk": "index (device_id)",
+                "device_template_id_fk": "index (device_template_id)",
+                "device_type_id_fk": "index (device_type_id)",
+                "member_id_fk": "index (member_id)",
+                "PRIMARY": "unique (id)",
+                "subnet_id_fk": "index (subnet_id)"
+            }
+        },
+        "contacts": {
+            "engine": "InnoDB",
+            "collation": "utf8mb3_czech_ci",
+            "columns": {
+                "id": "int(11) | not null | default ∅ | auto_increment | -",
+                "type": "int(11) | not null | default ∅ | - | -",
+                "value": "varchar(255) | null | default NULL | - | utf8mb3_czech_ci"
+            },
+            "indexes": {
+                "PRIMARY": "unique (id)",
+                "type": "index (type)",
+                "value": "index (value)"
+            }
+        },
+        "contacts_countries": {
+            "engine": "InnoDB",
+            "collation": "utf8mb3_czech_ci",
+            "columns": {
+                "contact_id": "int(11) | not null | default ∅ | - | -",
+                "country_id": "smallint(6) | not null | default ∅ | - | -"
+            },
+            "indexes": {
+                "country_id": "index (country_id)",
+                "PRIMARY": "unique (contact_id,country_id)"
+            }
+        },
+        "countries": {
+            "engine": "InnoDB",
+            "collation": "utf8mb3_czech_ci",
+            "columns": {
+                "id": "smallint(6) | not null | default ∅ | auto_increment | -",
+                "country_name": "varchar(100) | not null | default ∅ | - | utf8mb3_czech_ci",
+                "country_iso": "char(3) | not null | default ∅ | - | utf8mb3_czech_ci",
+                "country_code": "varchar(4) | not null | default ∅ | - | utf8mb3_czech_ci",
+                "enabled": "tinyint(4) | not null | default 1 | - | -"
+            },
+            "indexes": {
+                "PRIMARY": "unique (id)"
+            }
+        },
+        "devices": {
+            "engine": "InnoDB",
+            "collation": "utf8mb3_czech_ci",
+            "columns": {
+                "id": "int(11) | not null | default ∅ | auto_increment | -",
+                "user_id": "int(11) | null | default NULL | - | -",
+                "address_point_id": "int(11) | null | default NULL | - | -",
+                "name": "varchar(255) | null | default NULL | - | utf8mb3_czech_ci",
+                "type": "int(11) | not null | default ∅ | - | -",
+                "trade_name": "varchar(50) | null | default NULL | - | utf8mb3_czech_ci",
+                "operating_system": "tinyint(4) | null | default NULL | - | -",
+                "PPPoE_logging_in": "tinyint(4) | null | default NULL | - | -",
+                "login": "varchar(30) | null | default NULL | - | utf8mb3_czech_ci",
+                "password": "text | null | default NULL | - | utf8mb3_czech_ci",
+                "wpa_key": "text | null | default NULL | - | utf8mb3_czech_ci",
+                "access_time": "datetime | null | default NULL | - | -",
+                "price": "double | null | default NULL | - | -",
+                "payment_rate": "double | null | default NULL | - | -",
+                "buy_date": "date | null | default NULL | - | -",
+                "comment": "varchar(254) | null | default NULL | - | utf8mb3_czech_ci"
+            },
+            "indexes": {
+                "address_point_id": "index (address_point_id)",
+                "PRIMARY": "unique (id)",
+                "user_id": "index (user_id)"
+            }
+        },
+        "device_active_links": {
+            "engine": "InnoDB",
+            "collation": "utf8mb3_czech_ci",
+            "columns": {
+                "id": "int(11) | not null | default ∅ | auto_increment | -",
+                "url_pattern": "varchar(255) | not null | default ∅ | - | utf8mb3_czech_ci",
+                "name": "varchar(50) | not null | default ∅ | - | utf8mb3_czech_ci",
+                "title": "varchar(50) | not null | default ∅ | - | utf8mb3_czech_ci",
+                "show_in_user_grid": "tinyint(4) | not null | default ∅ | - | -",
+                "show_in_grid": "tinyint(4) | not null | default ∅ | - | -",
+                "as_form": "tinyint(4) | not null | default ∅ | - | -"
+            },
+            "indexes": {
+                "PRIMARY": "unique (id)"
+            }
+        },
+        "device_active_links_map": {
+            "engine": "InnoDB",
+            "collation": "utf8mb3_czech_ci",
+            "columns": {
+                "device_active_link_id": "int(11) | not null | default ∅ | - | -",
+                "device_id": "int(11) | not null | default ∅ | - | -",
+                "type": "smallint(6) | not null | default ∅ | - | -"
+            },
+            "indexes": {
+                "device_active_link_id": "index (device_active_link_id,device_id)"
+            }
+        },
+        "device_admins": {
+            "engine": "InnoDB",
+            "collation": "utf8mb3_czech_ci",
+            "columns": {
+                "id": "int(11) | not null | default ∅ | auto_increment | -",
+                "device_id": "int(11) | null | default NULL | - | -",
+                "user_id": "int(11) | null | default NULL | - | -"
+            },
+            "indexes": {
+                "device_id": "index (device_id)",
+                "PRIMARY": "unique (id)",
+                "user_id": "index (user_id)"
+            }
+        },
+        "device_engineers": {
+            "engine": "InnoDB",
+            "collation": "utf8mb3_czech_ci",
+            "columns": {
+                "id": "int(10) | not null | default ∅ | auto_increment | -",
+                "device_id": "int(11) | not null | default ∅ | - | -",
+                "user_id": "int(11) | not null | default ∅ | - | -"
+            },
+            "indexes": {
+                "device_id": "index (device_id)",
+                "PRIMARY": "unique (id)",
+                "user_id": "index (user_id)"
+            }
+        },
+        "device_templates": {
+            "engine": "InnoDB",
+            "collation": "utf8mb3_czech_ci",
+            "columns": {
+                "id": "int(11) | not null | default ∅ | auto_increment | -",
+                "enum_type_id": "int(11) | not null | default ∅ | - | -",
+                "name": "varchar(80) | not null | default ∅ | - | utf8mb3_czech_ci",
+                "values": "text | not null | default ∅ | - | utf8mb3_czech_ci",
+                "default": "tinyint(4) | not null | default 0 | - | -"
+            },
+            "indexes": {
+                "device_templates_category_id": "index (enum_type_id)",
+                "PRIMARY": "unique (id)"
+            }
+        },
+        "dhcp_export_state": {
+            "engine": "InnoDB",
+            "collation": "utf8mb4_unicode_ci",
+            "columns": {
+                "client": "varchar(64) | not null | default ∅ | - | utf8mb4_unicode_ci",
+                "exported_at": "datetime(6) | null | default NULL | - | -"
+            },
+            "indexes": {
+                "PRIMARY": "unique (client)"
+            }
+        },
+        "email_queues": {
+            "engine": "InnoDB",
+            "collation": "utf8mb3_czech_ci",
+            "columns": {
+                "id": "int(11) | not null | default ∅ | auto_increment | -",
+                "from": "varchar(255) | not null | default ∅ | - | utf8mb3_czech_ci",
+                "to": "varchar(255) | not null | default ∅ | - | utf8mb3_czech_ci",
+                "subject": "varchar(255) | not null | default ∅ | - | utf8mb3_czech_ci",
+                "body": "text | not null | default ∅ | - | utf8mb3_czech_ci",
+                "state": "tinyint(4) | not null | default ∅ | - | -",
+                "access_time": "timestamp | not null | default current_timestamp() | on update current_timestamp() | -"
+            },
+            "indexes": {
+                "from": "index (from,to)",
+                "idx_state": "index (state)",
+                "PRIMARY": "unique (id)"
+            }
+        },
+        "email_queue_attachments": {
+            "engine": "InnoDB",
+            "collation": "utf8mb3_general_ci",
+            "columns": {
+                "id": "int(11) | not null | default ∅ | auto_increment | -",
+                "email_queue_id": "int(11) | not null | default ∅ | - | -",
+                "path": "varchar(1024) | not null | default ∅ | - | utf8mb3_general_ci",
+                "name": "varchar(255) | null | default NULL | - | utf8mb3_general_ci",
+                "mime": "char(100) | null | default NULL | - | utf8mb3_general_ci",
+                "inline": "tinyint(1) | not null | default 0 | - | -",
+                "created_at": "datetime | not null | default ∅ | - | -"
+            },
+            "indexes": {
+                "email_queue_id": "index (email_queue_id)",
+                "PRIMARY": "unique (id)"
+            }
+        },
+        "enum_types": {
+            "engine": "InnoDB",
+            "collation": "utf8mb3_czech_ci",
+            "columns": {
+                "id": "int(11) | not null | default ∅ | auto_increment | -",
+                "type_id": "int(11) | not null | default ∅ | - | -",
+                "value": "varchar(254) | null | default NULL | - | utf8mb3_czech_ci",
+                "read_only": "tinyint(1) | null | default 0 | - | -",
+                "deprecated": "tinyint(1) | not null | default 0 | - | -"
+            },
+            "indexes": {
+                "PRIMARY": "unique (id)",
+                "type_id": "index (type_id)"
+            }
+        },
+        "enum_type_names": {
+            "engine": "InnoDB",
+            "collation": "utf8mb3_czech_ci",
+            "columns": {
+                "id": "int(11) | not null | default ∅ | auto_increment | -",
+                "type_name": "varchar(255) | not null | default ∅ | - | utf8mb3_czech_ci"
+            },
+            "indexes": {
+                "PRIMARY": "unique (id)"
+            }
+        },
+        "fees": {
+            "engine": "InnoDB",
+            "collation": "utf8mb3_czech_ci",
+            "columns": {
+                "id": "int(11) | not null | default ∅ | auto_increment | -",
+                "readonly": "tinyint(1) | not null | default ∅ | - | -",
+                "archived": "tinyint(1) | not null | default 0 | - | -",
+                "fee": "double | not null | default ∅ | - | -",
+                "from": "date | not null | default ∅ | - | -",
+                "to": "date | not null | default ∅ | - | -",
+                "type_id": "int(11) | not null | default ∅ | - | -",
+                "name": "varchar(100) | null | default NULL | - | utf8mb3_czech_ci",
+                "special_type_id": "int(11) | null | default NULL | - | -"
+            },
+            "indexes": {
+                "PRIMARY": "unique (id)",
+                "type_id": "index (type_id)"
+            }
+        },
+        "filter_queries": {
+            "engine": "InnoDB",
+            "collation": "utf8mb3_czech_ci",
+            "columns": {
+                "id": "int(11) | not null | default ∅ | auto_increment | -",
+                "name": "varchar(255) | not null | default ∅ | - | utf8mb3_czech_ci",
+                "url": "varchar(255) | not null | default ∅ | - | utf8mb3_czech_ci",
+                "values": "text | not null | default ∅ | - | utf8mb3_czech_ci",
+                "default": "tinyint(1) | not null | default 0 | - | -"
+            },
+            "indexes": {
+                "PRIMARY": "unique (id)"
+            }
+        },
+        "gpon_olts": {
+            "engine": "InnoDB",
+            "collation": "utf8mb4_unicode_ci",
+            "columns": {
+                "id": "bigint(20) unsigned | not null | default ∅ | auto_increment | -",
+                "name": "varchar(100) | not null | default ∅ | - | utf8mb4_unicode_ci",
+                "ip": "varchar(45) | not null | default ∅ | - | utf8mb4_unicode_ci",
+                "snmp_user": "varchar(100) | not null | default 'admin' | - | utf8mb4_unicode_ci",
+                "snmp_auth_pass": "text | null | default NULL | - | utf8mb4_unicode_ci",
+                "snmp_priv_pass": "text | null | default NULL | - | utf8mb4_unicode_ci",
+                "snmp_auth_proto": "varchar(10) | not null | default 'SHA' | - | utf8mb4_unicode_ci",
+                "snmp_priv_proto": "varchar(10) | not null | default 'AES' | - | utf8mb4_unicode_ci",
+                "line_prof": "varchar(100) | not null | default 'line-profile_default_0' | - | utf8mb4_unicode_ci",
+                "service_prof": "varchar(100) | not null | default 'sfu-aio-dmc' | - | utf8mb4_unicode_ci",
+                "traffic_table": "varchar(100) | not null | default 'int' | - | utf8mb4_unicode_ci",
+                "gpon_port": "varchar(20) | not null | default '0/1/0' | - | utf8mb4_unicode_ci",
+                "base_vlan": "int(11) | null | default NULL | - | -",
+                "port_count": "int(11) | null | default NULL | - | -",
+                "geocode_city": "varchar(100) | null | default NULL | - | utf8mb4_unicode_ci",
+                "vlan_map": "longtext | null | default NULL | - | utf8mb4_bin",
+                "created_at": "timestamp | null | default NULL | - | -",
+                "updated_at": "timestamp | null | default NULL | - | -"
+            },
+            "indexes": {
+                "gpon_olts_ip_unique": "unique (ip)",
+                "PRIMARY": "unique (id)"
+            }
+        },
+        "groups_aro_map": {
+            "engine": "InnoDB",
+            "collation": "utf8mb3_czech_ci",
+            "columns": {
+                "group_id": "int(11) | not null | default 0 | - | -",
+                "aro_id": "int(11) | not null | default 0 | - | -"
+            },
+            "indexes": {
+                "aro_id": "index (aro_id)",
+                "PRIMARY": "unique (group_id,aro_id)"
+            }
+        },
+        "ifaces": {
+            "engine": "InnoDB",
+            "collation": "utf8mb3_czech_ci",
+            "columns": {
+                "id": "int(11) | not null | default ∅ | auto_increment | -",
+                "type": "int(11) | not null | default ∅ | - | -",
+                "device_id": "int(11) | not null | default ∅ | - | -",
+                "link_id": "int(11) | null | default NULL | - | -",
+                "mac": "varchar(20) | null | default NULL | - | utf8mb3_czech_ci",
+                "name": "varchar(254) | null | default NULL | - | utf8mb3_czech_ci",
+                "number": "int(11) | null | default NULL | - | -",
+                "wireless_mode": "int(11) | null | default NULL | - | -",
+                "wireless_antenna": "int(11) | null | default NULL | - | -",
+                "port_mode": "int(11) | null | default NULL | - | -",
+                "comment": "varchar(254) | null | default NULL | - | utf8mb3_czech_ci"
+            },
+            "indexes": {
+                "device_iface": "index (device_id)",
+                "PRIMARY": "unique (id)",
+                "segment_iface": "index (link_id)",
+                "type": "index (type)"
+            }
+        },
+        "ifaces_relationships": {
+            "engine": "InnoDB",
+            "collation": "utf8mb3_czech_ci",
+            "columns": {
+                "id": "int(11) | not null | default ∅ | auto_increment | -",
+                "parent_iface_id": "int(11) | not null | default ∅ | - | -",
+                "iface_id": "int(11) | not null | default ∅ | - | -"
+            },
+            "indexes": {
+                "iface_id": "index (iface_id)",
+                "parent_iface_id": "index (iface_id)",
+                "parent_iface_id_2": "index (parent_iface_id)",
+                "PRIMARY": "unique (id)"
+            }
+        },
+        "ifaces_vlans": {
+            "engine": "InnoDB",
+            "collation": "utf8mb3_czech_ci",
+            "columns": {
+                "id": "int(11) | not null | default ∅ | auto_increment | -",
+                "iface_id": "int(11) | not null | default ∅ | - | -",
+                "vlan_id": "int(11) | not null | default ∅ | - | -",
+                "tagged": "tinyint(1) | null | default NULL | - | -",
+                "port_vlan": "tinyint(1) | null | default NULL | - | -"
+            },
+            "indexes": {
+                "iface_id": "index (iface_id)",
+                "PRIMARY": "unique (id)",
+                "vlan_id": "index (vlan_id)"
+            }
+        },
+        "invoices": {
+            "engine": "InnoDB",
+            "collation": "utf8mb3_czech_ci",
+            "columns": {
+                "id": "int(11) | not null | default ∅ | auto_increment | -",
+                "member_id": "int(11) | null | default NULL | - | -",
+                "partner_company": "varchar(100) | null | default NULL | - | utf8mb3_czech_ci",
+                "partner_name": "varchar(100) | null | default NULL | - | utf8mb3_czech_ci",
+                "partner_street": "varchar(30) | null | default NULL | - | utf8mb3_czech_ci",
+                "partner_street_number": "varchar(50) | null | default NULL | - | utf8mb3_czech_ci",
+                "partner_town": "varchar(50) | null | default NULL | - | utf8mb3_czech_ci",
+                "partner_zip_code": "varchar(10) | null | default NULL | - | utf8mb3_czech_ci",
+                "partner_country": "varchar(100) | null | default NULL | - | utf8mb3_czech_ci",
+                "organization_identifier": "varchar(20) | null | default NULL | - | utf8mb3_czech_ci",
+                "vat_organization_identifier": "varchar(30) | null | default NULL | - | utf8mb3_czech_ci",
+                "phone_number": "varchar(15) | null | default NULL | - | utf8mb3_czech_ci",
+                "email": "varchar(255) | null | default NULL | - | utf8mb3_czech_ci",
+                "invoice_nr": "bigint(20) unsigned | not null | default ∅ | - | -",
+                "invoice_type": "tinyint(1) | not null | default ∅ | - | -",
+                "account_nr": "varchar(254) | null | default NULL | - | utf8mb3_czech_ci",
+                "var_sym": "double | not null | default ∅ | - | -",
+                "con_sym": "double | null | default NULL | - | -",
+                "date_inv": "date | not null | default ∅ | - | -",
+                "date_due": "date | not null | default ∅ | - | -",
+                "date_vat": "date | not null | default ∅ | - | -",
+                "vat": "tinyint(1) | not null | default ∅ | - | -",
+                "order_nr": "double | null | default NULL | - | -",
+                "currency": "varchar(3) | not null | default ∅ | - | utf8mb3_czech_ci",
+                "note": "varchar(240) | null | default NULL | - | utf8mb3_czech_ci",
+                "pohoda_status": "varchar(16) | not null | default 'new' | - | utf8mb3_czech_ci",
+                "pohoda_exported_at": "datetime | null | default NULL | - | -",
+                "pdf_filename": "varchar(255) | null | default NULL | - | utf8mb3_czech_ci"
+            },
+            "indexes": {
+                "idx_pohoda_status": "index (pohoda_status)",
+                "member_id": "index (member_id)",
+                "PRIMARY": "unique (id)",
+                "uniq_invoice_nr": "unique (invoice_nr)"
+            }
+        },
+        "invoice_items": {
+            "engine": "InnoDB",
+            "collation": "utf8mb3_czech_ci",
+            "columns": {
+                "id": "int(11) | not null | default ∅ | auto_increment | -",
+                "invoice_id": "int(11) | not null | default ∅ | - | -",
+                "name": "varchar(255) | not null | default ∅ | - | utf8mb3_czech_ci",
+                "code": "varchar(100) | not null | default ∅ | - | utf8mb3_czech_ci",
+                "quantity": "double | not null | default ∅ | - | -",
+                "author_fee": "double | not null | default ∅ | - | -",
+                "contractual_increase": "double | not null | default ∅ | - | -",
+                "service": "tinyint(1) | not null | default ∅ | - | -",
+                "price": "double | not null | default ∅ | - | -",
+                "vat": "double | not null | default ∅ | - | -"
+            },
+            "indexes": {
+                "invoice_id": "index (invoice_id)",
+                "PRIMARY": "unique (id)"
+            }
+        },
+        "invoice_templates": {
+            "engine": "InnoDB",
+            "collation": "utf8mb3_czech_ci",
+            "columns": {
+                "id": "int(11) | not null | default ∅ | auto_increment | -",
+                "name": "varchar(200) | not null | default ∅ | - | utf8mb3_czech_ci",
+                "invoices": "varchar(255) | null | default NULL | - | utf8mb3_czech_ci",
+                "sup_company": "text | null | default NULL | - | utf8mb3_czech_ci",
+                "sup_name": "text | null | default NULL | - | utf8mb3_czech_ci",
+                "sup_street": "varchar(255) | null | default NULL | - | utf8mb3_czech_ci",
+                "sup_street_number": "varchar(255) | null | default NULL | - | utf8mb3_czech_ci",
+                "sup_town": "varchar(255) | null | default NULL | - | utf8mb3_czech_ci",
+                "sup_zip_code": "varchar(255) | null | default NULL | - | utf8mb3_czech_ci",
+                "sup_country": "varchar(255) | null | default NULL | - | utf8mb3_czech_ci",
+                "sup_organization_identifier": "varchar(255) | null | default NULL | - | utf8mb3_czech_ci",
+                "sup_vat_organization_identifier": "varchar(255) | null | default NULL | - | utf8mb3_czech_ci",
+                "sup_phone_number": "varchar(255) | null | default NULL | - | utf8mb3_czech_ci",
+                "sup_email": "varchar(255) | null | default NULL | - | utf8mb3_czech_ci",
+                "cus_company": "text | null | default NULL | - | utf8mb3_czech_ci",
+                "cus_name": "text | null | default NULL | - | utf8mb3_czech_ci",
+                "cus_street": "varchar(255) | null | default NULL | - | utf8mb3_czech_ci",
+                "cus_street_number": "varchar(255) | null | default NULL | - | utf8mb3_czech_ci",
+                "cus_town": "varchar(255) | null | default NULL | - | utf8mb3_czech_ci",
+                "cus_zip_code": "varchar(255) | null | default NULL | - | utf8mb3_czech_ci",
+                "cus_country": "varchar(255) | null | default NULL | - | utf8mb3_czech_ci",
+                "cus_organization_identifier": "varchar(255) | null | default NULL | - | utf8mb3_czech_ci",
+                "cus_phone_number": "varchar(255) | null | default NULL | - | utf8mb3_czech_ci",
+                "cus_email": "varchar(255) | null | default NULL | - | utf8mb3_czech_ci",
+                "org_id": "varchar(255) | null | default NULL | - | utf8mb3_czech_ci",
+                "invoice_nr": "varchar(255) | null | default NULL | - | utf8mb3_czech_ci",
+                "invoice_type": "varchar(255) | null | default NULL | - | utf8mb3_czech_ci",
+                "invoice_type_issued": "varchar(255) | null | default NULL | - | utf8mb3_czech_ci",
+                "account_nr": "text | null | default NULL | - | utf8mb3_czech_ci",
+                "var_sym": "varchar(255) | null | default NULL | - | utf8mb3_czech_ci",
+                "con_sym": "varchar(255) | null | default NULL | - | utf8mb3_czech_ci",
+                "date_inv": "varchar(255) | null | default NULL | - | utf8mb3_czech_ci",
+                "date_due": "varchar(255) | null | default NULL | - | utf8mb3_czech_ci",
+                "date_vat": "varchar(255) | null | default NULL | - | utf8mb3_czech_ci",
+                "vat": "varchar(255) | null | default NULL | - | utf8mb3_czech_ci",
+                "order_nr": "varchar(255) | null | default NULL | - | utf8mb3_czech_ci",
+                "price": "text | null | default NULL | - | utf8mb3_czech_ci",
+                "price_vat": "text | null | default NULL | - | utf8mb3_czech_ci",
+                "currency": "varchar(255) | null | default NULL | - | utf8mb3_czech_ci",
+                "note": "varchar(255) | null | default NULL | - | utf8mb3_czech_ci",
+                "items": "varchar(255) | null | default NULL | - | utf8mb3_czech_ci",
+                "item_name": "varchar(255) | null | default NULL | - | utf8mb3_czech_ci",
+                "item_code": "varchar(255) | null | default NULL | - | utf8mb3_czech_ci",
+                "item_quantity": "varchar(255) | null | default NULL | - | utf8mb3_czech_ci",
+                "item_price": "varchar(255) | null | default NULL | - | utf8mb3_czech_ci",
+                "item_vat": "varchar(255) | null | default NULL | - | utf8mb3_czech_ci",
+                "charset": "varchar(100) | null | default NULL | - | utf8mb3_czech_ci",
+                "namespace": "text | null | default NULL | - | utf8mb3_czech_ci",
+                "vat_variables": "text | null | default NULL | - | utf8mb3_czech_ci",
+                "type": "tinyint(1) | not null | default ∅ | - | -",
+                "begin_tag": "varchar(100) | null | default NULL | - | utf8mb3_czech_ci",
+                "end_tag": "varchar(100) | null | default NULL | - | utf8mb3_czech_ci"
+            },
+            "indexes": {
+                "PRIMARY": "unique (id)"
+            }
+        },
+        "ip6_addresses": {
+            "engine": "InnoDB",
+            "collation": "utf8mb3_czech_ci",
+            "columns": {
+                "iface_id": "int(11) | null | default NULL | - | -",
+                "subnet_id": "int(11) | null | default NULL | - | -",
+                "member_id": "int(11) | null | default NULL | - | -",
+                "ip_address": "varchar(45) | null | default NULL | - | utf8mb3_czech_ci",
+                "dhcp": "tinyint(4) | null | default NULL | - | -",
+                "gateway": "tinyint(4) | null | default NULL | - | -",
+                "service": "tinyint(4) | not null | default 0 | - | -",
+                "id": "int(11) | not null | default ∅ | auto_increment | -"
+            },
+            "indexes": {
+                "ip_address": "index (ip_address)",
+                "ip_addresses_key_iface_id": "index (iface_id)",
+                "ip_addresses_key_subnet_id": "index (subnet_id)",
+                "member_id": "index (member_id)",
+                "PRIMARY": "unique (id)"
+            }
+        },
+        "ip_addresses": {
+            "engine": "InnoDB",
+            "collation": "utf8mb3_czech_ci",
+            "columns": {
+                "iface_id": "int(11) | null | default NULL | - | -",
+                "subnet_id": "int(11) | null | default NULL | - | -",
+                "member_id": "int(11) | null | default NULL | - | -",
+                "ip_address": "varchar(15) | null | default NULL | - | utf8mb3_czech_ci",
+                "dhcp": "tinyint(4) | null | default NULL | - | -",
+                "gateway": "tinyint(4) | null | default NULL | - | -",
+                "service": "tinyint(4) | not null | default 0 | - | -",
+                "id": "int(11) | not null | default ∅ | auto_increment | -"
+            },
+            "indexes": {
+                "ip_address": "index (ip_address)",
+                "ip_addresses_key_iface_id": "index (iface_id)",
+                "ip_addresses_key_subnet_id": "index (subnet_id)",
+                "member_id": "index (member_id)",
+                "PRIMARY": "unique (id)"
+            }
+        },
+        "ip_addresses_traffics": {
+            "engine": "InnoDB",
+            "collation": "utf8mb3_czech_ci",
+            "columns": {
+                "ip_address": "varchar(15) | not null | default ∅ | - | utf8mb3_czech_ci",
+                "upload": "int(11) unsigned | not null | default ∅ | - | -",
+                "download": "int(11) unsigned | not null | default ∅ | - | -",
+                "local_upload": "int(11) | not null | default ∅ | - | -",
+                "local_download": "int(11) | not null | default ∅ | - | -",
+                "member_id": "int(11) | null | default NULL | - | -"
+            },
+            "indexes": {
+                "member_id": "index (member_id)",
+                "PRIMARY": "unique (ip_address)"
+            }
+        },
+        "jobs": {
+            "engine": "InnoDB",
+            "collation": "utf8mb3_czech_ci",
+            "columns": {
+                "id": "int(11) | not null | default ∅ | auto_increment | -",
+                "job_report_id": "int(11) | null | default NULL | - | -",
+                "user_id": "int(11) | not null | default ∅ | - | -",
+                "previous_rejected_work_id": "int(11) | null | default NULL | - | -",
+                "added_by_id": "int(11) | null | default NULL | - | -",
+                "approval_template_id": "int(11) | null | default NULL | - | -",
+                "description": "mediumtext | null | default NULL | - | utf8mb3_czech_ci",
+                "suggest_amount": "int(11) | not null | default ∅ | - | -",
+                "date": "date | not null | default ∅ | - | -",
+                "create_date": "datetime | not null | default ∅ | - | -",
+                "hours": "float | null | default NULL | - | -",
+                "km": "int(11) | not null | default ∅ | - | -",
+                "state": "tinyint(1) | not null | default ∅ | - | -",
+                "transfer_id": "int(11) | null | default NULL | - | -",
+                "comments_thread_id": "int(11) | null | default NULL | - | -"
+            },
+            "indexes": {
+                "added_by_id": "index (added_by_id)",
+                "approval_template_id": "index (approval_template_id)",
+                "comments_thread_id": "index (comments_thread_id)",
+                "commited_by": "index (user_id)",
+                "job_report_id": "index (job_report_id)",
+                "previous_rejected_work_id": "index (previous_rejected_work_id)",
+                "PRIMARY": "unique (id)",
+                "transfer_salary": "index (transfer_id)"
+            }
+        },
+        "job_reports": {
+            "engine": "InnoDB",
+            "collation": "utf8mb3_czech_ci",
+            "columns": {
+                "id": "int(11) | not null | default ∅ | auto_increment | -",
+                "user_id": "int(11) | not null | default ∅ | - | -",
+                "added_by_id": "int(11) | null | default NULL | - | -",
+                "transfer_id": "int(11) | null | default NULL | - | -",
+                "approval_template_id": "int(11) | not null | default ∅ | - | -",
+                "description": "text | not null | default ∅ | - | utf8mb3_czech_ci",
+                "type": "char(7) | null | default NULL | - | utf8mb3_czech_ci",
+                "price_per_hour": "double | not null | default ∅ | - | -",
+                "price_per_km": "double | not null | default ∅ | - | -",
+                "concept": "tinyint(1) | not null | default 0 | - | -",
+                "payment_type": "tinyint(4) | not null | default 0 | - | -"
+            },
+            "indexes": {
+                "added_by_id": "index (added_by_id)",
+                "approval_template_id": "index (approval_template_id)",
+                "PRIMARY": "unique (id)",
+                "transfer_id": "index (transfer_id)",
+                "user_id": "index (user_id)"
+            }
+        },
+        "line_ids": {
+            "engine": "InnoDB",
+            "collation": "utf8mb4_unicode_ci",
+            "columns": {
+                "id": "int(10) unsigned | not null | default ∅ | auto_increment | -",
+                "circuit_id": "varbinary(255) | not null | default ∅ | - | -",
+                "remote_id": "varbinary(255) | not null | default '' | - | -",
+                "iface_id": "int(10) unsigned | not null | default ∅ | - | -",
+                "vendor": "varchar(32) | null | default NULL | - | utf8mb4_unicode_ci",
+                "device_ident": "varchar(128) | null | default NULL | - | utf8mb4_unicode_ci",
+                "port": "varchar(64) | null | default NULL | - | utf8mb4_unicode_ci",
+                "source": "varchar(16) | not null | default 'manual' | - | utf8mb4_unicode_ci",
+                "last_seen": "timestamp | null | default NULL | - | -",
+                "created_at": "timestamp | null | default NULL | - | -",
+                "updated_at": "timestamp | null | default NULL | - | -"
+            },
+            "indexes": {
+                "line_ids_circuit_remote_unique": "unique (circuit_id,remote_id)",
+                "line_ids_iface_id_index": "index (iface_id)",
+                "PRIMARY": "unique (id)"
+            }
+        },
+        "line_id_anomalies": {
+            "engine": "InnoDB",
+            "collation": "utf8mb4_unicode_ci",
+            "columns": {
+                "id": "int(10) unsigned | not null | default ∅ | auto_increment | -",
+                "circuit_id": "varchar(255) | not null | default ∅ | - | utf8mb4_unicode_ci",
+                "expected_iface_id": "int(10) unsigned | null | default NULL | - | -",
+                "seen_mac": "varchar(32) | not null | default ∅ | - | utf8mb4_unicode_ci",
+                "seen_iface_id": "int(10) unsigned | null | default NULL | - | -",
+                "type": "varchar(32) | not null | default ∅ | - | utf8mb4_unicode_ci",
+                "severity": "varchar(16) | not null | default ∅ | - | utf8mb4_unicode_ci",
+                "seen_count": "int(10) unsigned | not null | default 1 | - | -",
+                "first_seen": "timestamp | null | default NULL | - | -",
+                "last_seen": "timestamp | null | default NULL | - | -",
+                "resolved_at": "timestamp | null | default NULL | - | -",
+                "created_at": "timestamp | null | default NULL | - | -",
+                "updated_at": "timestamp | null | default NULL | - | -"
+            },
+            "indexes": {
+                "line_id_anomalies_resolved_at_index": "index (resolved_at)",
+                "line_id_anomalies_severity_index": "index (severity)",
+                "PRIMARY": "unique (id)",
+                "uq_anom": "unique (circuit_id,seen_mac)"
+            }
+        },
+        "line_id_pending": {
+            "engine": "InnoDB",
+            "collation": "utf8mb4_unicode_ci",
+            "columns": {
+                "id": "int(10) unsigned | not null | default ∅ | auto_increment | -",
+                "circuit_id_hex": "varchar(255) | not null | default ∅ | - | utf8mb4_unicode_ci",
+                "circuit_id": "varchar(255) | null | default NULL | - | utf8mb4_unicode_ci",
+                "mac": "varchar(64) | null | default NULL | - | utf8mb4_unicode_ci",
+                "vendor": "varchar(32) | null | default NULL | - | utf8mb4_unicode_ci",
+                "device_ident": "varchar(128) | null | default NULL | - | utf8mb4_unicode_ci",
+                "port": "varchar(64) | null | default NULL | - | utf8mb4_unicode_ci",
+                "seen_count": "int(10) unsigned | not null | default 1 | - | -",
+                "first_seen": "timestamp | null | default NULL | - | -",
+                "last_seen": "timestamp | null | default NULL | - | -"
+            },
+            "indexes": {
+                "line_id_pending_last_seen_index": "index (last_seen)",
+                "PRIMARY": "unique (id)",
+                "uq_pending": "unique (circuit_id_hex)"
+            }
+        },
+        "line_id_seen": {
+            "engine": "InnoDB",
+            "collation": "utf8mb4_unicode_ci",
+            "columns": {
+                "id": "int(10) unsigned | not null | default ∅ | auto_increment | -",
+                "circuit_id_hex": "varchar(255) | not null | default ∅ | - | utf8mb4_unicode_ci",
+                "remote_id_hex": "varchar(255) | null | default NULL | - | utf8mb4_unicode_ci",
+                "mac": "varchar(32) | not null | default ∅ | - | utf8mb4_unicode_ci",
+                "seen_count": "int(10) unsigned | not null | default 1 | - | -",
+                "reconciled": "tinyint(1) | not null | default 0 | - | -",
+                "last_seen": "timestamp | null | default NULL | - | -"
+            },
+            "indexes": {
+                "line_id_seen_reconciled_index": "index (reconciled)",
+                "PRIMARY": "unique (id)",
+                "uq_seen": "unique (circuit_id_hex,mac)"
+            }
+        },
+        "links": {
+            "engine": "InnoDB",
+            "collation": "utf8mb3_czech_ci",
+            "columns": {
+                "id": "int(11) | not null | default ∅ | auto_increment | -",
+                "name": "varchar(100) | null | default NULL | - | utf8mb3_czech_ci",
+                "medium": "int(11) | not null | default ∅ | - | -",
+                "bitrate": "bigint(20) | null | default NULL | - | -",
+                "duplex": "tinyint(4) | null | default NULL | - | -",
+                "wireless_ssid": "varchar(255) | null | default NULL | - | utf8mb3_czech_ci",
+                "wireless_norm": "int(11) | null | default NULL | - | -",
+                "wireless_frequency": "int(11) | null | default NULL | - | -",
+                "wireless_channel": "int(11) | null | default NULL | - | -",
+                "wireless_channel_width": "int(11) | null | default NULL | - | -",
+                "wireless_polarization": "int(11) | null | default NULL | - | -",
+                "comment": "varchar(254) | null | default NULL | - | utf8mb3_czech_ci",
+                "gps": "linestring | null | default NULL | - | -"
+            },
+            "indexes": {
+                "name": "index (name)",
+                "PRIMARY": "unique (id)"
+            }
+        },
+        "local_subnets": {
+            "engine": "InnoDB",
+            "collation": "utf8mb3_czech_ci",
+            "columns": {
+                "id": "int(11) | not null | default ∅ | auto_increment | -",
+                "network_address": "varchar(15) | null | default NULL | - | utf8mb3_czech_ci",
+                "netmask": "varchar(15) | null | default NULL | - | utf8mb3_czech_ci"
+            },
+            "indexes": {
+                "netmask": "index (netmask)",
+                "network_address": "index (network_address)",
+                "network_address_2": "unique (network_address)",
+                "PRIMARY": "unique (id)"
+            }
+        },
+        "login_logs": {
+            "engine": "InnoDB",
+            "collation": "utf8mb3_czech_ci",
+            "columns": {
+                "id": "int(11) | not null | default ∅ | auto_increment | -",
+                "user_id": "int(11) | not null | default ∅ | - | -",
+                "time": "datetime | not null | default ∅ | - | -",
+                "IP_address": "varchar(45) | not null | default ∅ | - | utf8mb3_czech_ci"
+            },
+            "indexes": {
+                "PRIMARY": "unique (id)",
+                "time": "index (time)",
+                "user_id": "index (user_id)"
+            }
+        },
+        "logs": {
+            "engine": "InnoDB",
+            "collation": "utf8mb3_czech_ci",
+            "columns": {
+                "id": "int(11) | not null | default ∅ | auto_increment | -",
+                "table_name": "varchar(255) | not null | default ∅ | - | utf8mb3_czech_ci",
+                "values": "text | null | default NULL | - | utf8mb3_czech_ci",
+                "time": "datetime | not null | default ∅ | - | -",
+                "action": "tinyint(2) | not null | default 1 | - | -",
+                "object_id": "int(11) | not null | default ∅ | - | -",
+                "user_id": "int(11) | not null | default ∅ | - | -"
+            },
+            "indexes": {
+                "id": "index (id)"
+            }
+        },
+        "log_queues": {
+            "engine": "InnoDB",
+            "collation": "utf8mb3_czech_ci",
+            "columns": {
+                "id": "int(11) | not null | default ∅ | auto_increment | -",
+                "type": "smallint(6) | not null | default ∅ | - | -",
+                "state": "smallint(6) | not null | default ∅ | - | -",
+                "created_at": "datetime | not null | default ∅ | - | -",
+                "closed_by_user_id": "int(11) | null | default NULL | - | -",
+                "closed_at": "datetime | null | default NULL | - | -",
+                "description": "text | not null | default ∅ | - | utf8mb3_czech_ci",
+                "exception_backtrace": "text | null | default NULL | - | utf8mb3_czech_ci",
+                "comments_thread_id": "int(11) | null | default NULL | - | -"
+            },
+            "indexes": {
+                "closed_by_user_id_fk": "index (closed_by_user_id)",
+                "comments_thread_id_fk": "index (comments_thread_id)",
+                "PRIMARY": "unique (id)"
+            }
+        },
+        "mail_messages": {
+            "engine": "InnoDB",
+            "collation": "utf8mb3_czech_ci",
+            "columns": {
+                "id": "int(11) | not null | default ∅ | auto_increment | -",
+                "from_id": "int(11) | not null | default ∅ | - | -",
+                "to_id": "int(11) | not null | default ∅ | - | -",
+                "subject": "varchar(150) | not null | default ∅ | - | utf8mb3_czech_ci",
+                "body": "text | not null | default ∅ | - | utf8mb3_czech_ci",
+                "time": "datetime | not null | default ∅ | - | -",
+                "readed": "tinyint(1) | not null | default 0 | - | -",
+                "from_deleted": "tinyint(1) | not null | default 0 | - | -",
+                "to_deleted": "tinyint(1) | not null | default 0 | - | -"
+            },
+            "indexes": {
+                "from_id": "index (from_id)",
+                "PRIMARY": "unique (id)",
+                "to_id": "index (to_id)"
+            }
+        },
+        "meetings": {
+            "engine": "InnoDB",
+            "collation": "utf8mb4_unicode_ci",
+            "columns": {
+                "id": "int(10) unsigned | not null | default ∅ | auto_increment | -",
+                "title": "varchar(255) | not null | default ∅ | - | utf8mb4_unicode_ci",
+                "held_on": "date | not null | default ∅ | - | -",
+                "type": "varchar(40) | not null | default 'clenska_schuze' | - | utf8mb4_unicode_ci",
+                "quorum_percent": "tinyint(3) unsigned | not null | default 50 | - | -",
+                "status": "varchar(10) | not null | default 'planned' | - | utf8mb4_unicode_ci",
+                "comment": "varchar(500) | null | default NULL | - | utf8mb4_unicode_ci",
+                "created_at": "timestamp | null | default NULL | - | -",
+                "updated_at": "timestamp | null | default NULL | - | -"
+            },
+            "indexes": {
+                "meetings_type_held_on_index": "index (type,held_on)",
+                "PRIMARY": "unique (id)"
+            }
+        },
+        "meeting_attendances": {
+            "engine": "InnoDB",
+            "collation": "utf8mb4_unicode_ci",
+            "columns": {
+                "id": "int(10) unsigned | not null | default ∅ | auto_increment | -",
+                "meeting_id": "int(10) unsigned | not null | default ∅ | - | -",
+                "member_id": "int(10) unsigned | not null | default ∅ | - | -",
+                "checked_in_at": "timestamp | null | default NULL | - | -",
+                "proxy_holder_id": "int(10) unsigned | null | default NULL | - | -",
+                "note": "varchar(255) | null | default NULL | - | utf8mb4_unicode_ci",
+                "created_at": "timestamp | null | default NULL | - | -",
+                "updated_at": "timestamp | null | default NULL | - | -"
+            },
+            "indexes": {
+                "meeting_attendances_member_id_index": "index (member_id)",
+                "meeting_attendances_proxy_holder_id_index": "index (proxy_holder_id)",
+                "PRIMARY": "unique (id)",
+                "uq_attendance": "unique (meeting_id,member_id)"
+            }
+        },
+        "members": {
+            "engine": "InnoDB",
+            "collation": "utf8mb3_czech_ci",
+            "columns": {
+                "id": "int(11) | not null | default ∅ | auto_increment | -",
+                "user_id": "int(11) | null | default NULL | - | -",
+                "registration": "tinyint(1) | not null | default ∅ | - | -",
+                "registration_target_type": "tinyint(3) unsigned | null | default 2 | - | -",
+                "name": "varchar(255) | not null | default ∅ | - | utf8mb3_czech_ci",
+                "address_point_id": "int(11) | not null | default ∅ | - | -",
+                "type": "tinyint(4) | null | default NULL | - | -",
+                "can_vote": "tinyint(1) | not null | default 0 | - | -",
+                "external_type": "tinyint(4) | null | default NULL | - | -",
+                "organization_identifier": "varchar(20) | null | default NULL | - | utf8mb3_czech_ci",
+                "vat_organization_identifier": "varchar(30) | null | default NULL | - | utf8mb3_czech_ci",
+                "speed_class_id": "int(11) | null | default NULL | - | -",
+                "allowed_subnets_count": "int(10) unsigned | not null | default 0 | - | -",
+                "entrance_fee": "double | null | default NULL | - | -",
+                "debt_payment_rate": "double | null | default NULL | - | -",
+                "entrance_fee_left": "double | null | default NULL | - | -",
+                "entrance_fee_date": "date | null | default NULL | - | -",
+                "entrance_date": "date | null | default NULL | - | -",
+                "entrance_form_received": "date | null | default NULL | - | -",
+                "entrance_form_accepted": "date | null | default NULL | - | -",
+                "leaving_date": "date | not null | default ∅ | - | -",
+                "oku_code": "char(14) | null | default NULL | - | utf8mb3_czech_ci",
+                "applicant_registration_datetime": "datetime | null | default NULL | - | -",
+                "applicant_connected_from": "date | null | default NULL | - | -",
+                "locked": "tinyint(4) | not null | default 0 | - | -",
+                "voip_billing_limit": "int(11) | not null | default 0 | - | -",
+                "voip_billing_type": "varchar(10) | not null | default 'prepaid' | - | utf8mb3_czech_ci",
+                "comment": "varchar(250) | null | default NULL | - | utf8mb3_czech_ci",
+                "notification_by_redirection": "tinyint(4) | not null | default 1 | - | -",
+                "notification_by_email": "tinyint(4) | not null | default 1 | - | -",
+                "notification_by_sms": "tinyint(4) | not null | default 1 | - | -",
+                "tv_active": "tinyint(4) | not null | default 0 | - | -",
+                "tv_valid_until": "date | null | default NULL | - | -",
+                "tv_synced_at": "datetime | null | default NULL | - | -",
+                "payment_blocked": "tinyint(1) | not null | default 0 | - | -",
+                "payment_blocked_since": "date | null | default NULL | - | -",
+                "pending_termination": "tinyint(1) | not null | default 0 | - | -"
+            },
+            "indexes": {
+                "address_point_id": "index (address_point_id)",
+                "members_payment_blocked_index": "index (payment_blocked)",
+                "members_payment_blocked_since_index": "index (payment_blocked_since)",
+                "PRIMARY": "unique (id)",
+                "speed_class_id_fk": "index (speed_class_id)",
+                "uniq_oku_code": "unique (oku_code)",
+                "user_id": "index (user_id)"
+            }
+        },
+        "membership_interrupts": {
+            "engine": "InnoDB",
+            "collation": "utf8mb3_czech_ci",
+            "columns": {
+                "id": "int(11) | not null | default ∅ | auto_increment | -",
+                "member_id": "int(11) | not null | default ∅ | - | -",
+                "members_fee_id": "int(11) | null | default NULL | - | -",
+                "comment": "varchar(255) | null | default NULL | - | utf8mb3_czech_ci",
+                "end_after_interrupt_end": "smallint(6) | not null | default ∅ | - | -"
+            },
+            "indexes": {
+                "members_fee_id": "index (members_fee_id)",
+                "member_id": "index (member_id)",
+                "PRIMARY": "unique (id)"
+            }
+        },
+        "membership_transfers": {
+            "engine": "InnoDB",
+            "collation": "utf8mb3_czech_ci",
+            "columns": {
+                "id": "int(11) | not null | default ∅ | auto_increment | -",
+                "from_member_id": "int(11) | not null | default ∅ | - | -",
+                "to_member_id": "int(11) | not null | default ∅ | - | -"
+            },
+            "indexes": {
+                "from_member_id": "index (from_member_id)",
+                "PRIMARY": "unique (id)",
+                "to_member_id": "index (to_member_id)"
+            }
+        },
+        "members_domiciles": {
+            "engine": "InnoDB",
+            "collation": "utf8mb3_czech_ci",
+            "columns": {
+                "id": "int(11) | not null | default ∅ | auto_increment | -",
+                "member_id": "int(11) | not null | default ∅ | - | -",
+                "address_point_id": "int(11) | not null | default ∅ | - | -"
+            },
+            "indexes": {
+                "address_point_id": "index (address_point_id)",
+                "member_id": "index (member_id,address_point_id)",
+                "PRIMARY": "unique (id)"
+            }
+        },
+        "members_fees": {
+            "engine": "InnoDB",
+            "collation": "utf8mb3_general_ci",
+            "columns": {
+                "id": "int(11) | not null | default ∅ | auto_increment | -",
+                "fee_id": "int(11) | not null | default ∅ | - | -",
+                "member_id": "int(11) | not null | default ∅ | - | -",
+                "activation_date": "date | not null | default '0000-00-00' | - | -",
+                "deactivation_date": "date | null | default NULL | - | -",
+                "priority": "int(11) | not null | default 1 | - | -",
+                "comment": "text | not null | default ∅ | - | utf8mb3_general_ci"
+            },
+            "indexes": {
+                "activation_date": "index (activation_date,deactivation_date)",
+                "fee_id": "index (fee_id)",
+                "member_id": "index (member_id)",
+                "PRIMARY": "unique (id)"
+            }
+        },
+        "members_traffics_daily": {
+            "engine": "InnoDB",
+            "collation": "utf8mb3_czech_ci",
+            "columns": {
+                "member_id": "int(11) | not null | default ∅ | - | -",
+                "upload": "bigint(20) unsigned | not null | default ∅ | - | -",
+                "download": "bigint(20) unsigned | not null | default ∅ | - | -",
+                "local_upload": "bigint(20) unsigned | not null | default ∅ | - | -",
+                "local_download": "bigint(20) unsigned | not null | default ∅ | - | -",
+                "active": "tinyint(1) | not null | default 0 | - | -",
+                "date": "date | not null | default ∅ | - | -"
+            },
+            "indexes": {
+                "date": "index (date)",
+                "member_id": "index (member_id)",
+                "PRIMARY": "unique (member_id,date)"
+            }
+        },
+        "members_traffics_monthly": {
+            "engine": "InnoDB",
+            "collation": "utf8mb3_czech_ci",
+            "columns": {
+                "member_id": "int(11) | not null | default ∅ | - | -",
+                "upload": "bigint(20) unsigned | not null | default ∅ | - | -",
+                "download": "bigint(20) unsigned | not null | default ∅ | - | -",
+                "local_upload": "bigint(20) unsigned | not null | default ∅ | - | -",
+                "local_download": "bigint(20) unsigned | not null | default ∅ | - | -",
+                "date": "date | not null | default ∅ | - | -"
+            },
+            "indexes": {
+                "date": "index (date)",
+                "member_id": "index (member_id)",
+                "PRIMARY": "unique (member_id,date)"
+            }
+        },
+        "members_traffics_yearly": {
+            "engine": "InnoDB",
+            "collation": "utf8mb3_czech_ci",
+            "columns": {
+                "member_id": "int(11) | not null | default ∅ | - | -",
+                "upload": "bigint(20) unsigned | not null | default ∅ | - | -",
+                "download": "bigint(20) unsigned | not null | default ∅ | - | -",
+                "local_upload": "bigint(20) unsigned | not null | default ∅ | - | -",
+                "local_download": "bigint(20) unsigned | not null | default ∅ | - | -",
+                "date": "date | not null | default ∅ | - | -"
+            },
+            "indexes": {
+                "date": "index (date)",
+                "member_id": "index (member_id)",
+                "PRIMARY": "unique (member_id,date)"
+            }
+        },
+        "members_whitelists": {
+            "engine": "InnoDB",
+            "collation": "utf8mb3_czech_ci",
+            "columns": {
+                "id": "int(11) | not null | default ∅ | auto_increment | -",
+                "member_id": "int(11) | not null | default ∅ | - | -",
+                "permanent": "tinyint(1) | not null | default ∅ | - | -",
+                "since": "date | not null | default ∅ | - | -",
+                "until": "date | not null | default ∅ | - | -",
+                "comment": "text | null | default NULL | - | utf8mb3_czech_ci"
+            },
+            "indexes": {
+                "member_id_fk": "index (member_id)",
+                "PRIMARY": "unique (id)",
+                "since_index": "index (since)",
+                "until": "index (until)"
+            }
+        },
+        "member_lan_access": {
+            "engine": "InnoDB",
+            "collation": "utf8mb4_unicode_ci",
+            "columns": {
+                "id": "int(10) unsigned | not null | default ∅ | auto_increment | -",
+                "member_id": "int(11) | not null | default ∅ | - | -",
+                "destination": "varchar(18) | not null | default ∅ | - | utf8mb4_unicode_ci",
+                "comment": "varchar(255) | null | default NULL | - | utf8mb4_unicode_ci",
+                "created_by": "int(11) | null | default NULL | - | -",
+                "created_at": "timestamp | null | default NULL | - | -",
+                "updated_at": "timestamp | null | default NULL | - | -"
+            },
+            "indexes": {
+                "member_lan_access_member_id_destination_unique": "unique (member_id,destination)",
+                "member_lan_access_member_id_index": "index (member_id)",
+                "PRIMARY": "unique (id)"
+            }
+        },
+        "member_voting_logs": {
+            "engine": "InnoDB",
+            "collation": "utf8mb4_unicode_ci",
+            "columns": {
+                "id": "int(10) unsigned | not null | default ∅ | auto_increment | -",
+                "member_id": "int(10) unsigned | not null | default ∅ | - | -",
+                "action": "varchar(20) | not null | default ∅ | - | utf8mb4_unicode_ci",
+                "meeting_id": "int(10) unsigned | null | default NULL | - | -",
+                "reason": "varchar(255) | null | default NULL | - | utf8mb4_unicode_ci",
+                "user_id": "int(10) unsigned | null | default NULL | - | -",
+                "created_at": "timestamp | null | default NULL | - | -"
+            },
+            "indexes": {
+                "member_voting_logs_member_id_index": "index (member_id)",
+                "PRIMARY": "unique (id)"
+            }
+        },
+        "messages": {
+            "engine": "InnoDB",
+            "collation": "utf8mb3_czech_ci",
+            "columns": {
+                "id": "int(11) | not null | default ∅ | auto_increment | -",
+                "name": "varchar(100) | not null | default ∅ | - | utf8mb3_czech_ci",
+                "text": "text | null | default NULL | - | utf8mb3_czech_ci",
+                "email_text": "text | null | default NULL | - | utf8mb3_czech_ci",
+                "sms_text": "varchar(760) | null | default NULL | - | utf8mb3_czech_ci",
+                "type": "tinyint(4) | null | default NULL | - | -",
+                "self_cancel": "tinyint(4) | null | default NULL | - | -",
+                "ignore_whitelist": "tinyint(4) | null | default 0 | - | -"
+            },
+            "indexes": {
+                "PRIMARY": "unique (id)"
+            }
+        },
+        "messages_automatical_activations": {
+            "engine": "InnoDB",
+            "collation": "utf8mb3_czech_ci",
+            "columns": {
+                "id": "int(11) | not null | default ∅ | auto_increment | -",
+                "message_id": "int(11) | not null | default ∅ | - | -",
+                "type": "smallint(6) | not null | default ∅ | - | -",
+                "attribute": "varchar(255) | null | default NULL | - | utf8mb3_czech_ci",
+                "redirection_enabled": "tinyint(1) | not null | default 0 | - | -",
+                "email_enabled": "tinyint(1) | not null | default 0 | - | -",
+                "sms_enabled": "tinyint(1) | not null | default 0 | - | -",
+                "send_activation_to_email": "varchar(255) | null | default NULL | - | utf8mb3_czech_ci"
+            },
+            "indexes": {
+                "message_id_fk": "index (message_id)",
+                "PRIMARY": "unique (id)"
+            }
+        },
+        "messages_ip_addresses": {
+            "engine": "InnoDB",
+            "collation": "utf8mb3_czech_ci",
+            "columns": {
+                "message_id": "int(11) | not null | default ∅ | - | -",
+                "ip_address_id": "int(11) | not null | default ∅ | - | -",
+                "user_id": "int(11) | null | default NULL | - | -",
+                "comment": "text | null | default NULL | - | utf8mb3_czech_ci",
+                "datetime": "datetime | not null | default ∅ | - | -"
+            },
+            "indexes": {
+                "ip_address_id": "index (ip_address_id)",
+                "PRIMARY": "unique (message_id,ip_address_id)",
+                "user_id": "index (user_id)"
+            }
+        },
+        "mfa_recovery_codes": {
+            "engine": "InnoDB",
+            "collation": "utf8mb4_unicode_ci",
+            "columns": {
+                "id": "bigint(20) unsigned | not null | default ∅ | auto_increment | -",
+                "user_id": "int(11) | not null | default ∅ | - | -",
+                "code_hash": "varchar(255) | not null | default ∅ | - | utf8mb4_unicode_ci",
+                "used_at": "timestamp | null | default NULL | - | -",
+                "created_at": "timestamp | null | default NULL | - | -"
+            },
+            "indexes": {
+                "mfa_recovery_codes_user_id_index": "index (user_id)",
+                "PRIMARY": "unique (id)"
+            }
+        },
+        "mfa_required_groups": {
+            "engine": "InnoDB",
+            "collation": "utf8mb4_unicode_ci",
+            "columns": {
+                "id": "bigint(20) unsigned | not null | default ∅ | auto_increment | -",
+                "group_id": "int(11) | not null | default ∅ | - | -",
+                "created_at": "timestamp | null | default NULL | - | -"
+            },
+            "indexes": {
+                "mfa_required_groups_group_id_unique": "unique (group_id)",
+                "PRIMARY": "unique (id)"
+            }
+        },
+        "migrations": {
+            "engine": "InnoDB",
+            "collation": "utf8mb4_unicode_ci",
+            "columns": {
+                "id": "int(10) unsigned | not null | default ∅ | auto_increment | -",
+                "migration": "varchar(255) | not null | default ∅ | - | utf8mb4_unicode_ci",
+                "batch": "int(11) | not null | default ∅ | - | -"
+            },
+            "indexes": {
+                "PRIMARY": "unique (id)"
+            }
+        },
+        "monitor_hosts": {
+            "engine": "InnoDB",
+            "collation": "utf8mb3_czech_ci",
+            "columns": {
+                "id": "int(11) | not null | default ∅ | auto_increment | -",
+                "device_id": "int(11) | not null | default ∅ | - | -",
+                "state": "tinyint(1) | not null | default ∅ | - | -",
+                "state_changed": "tinyint(1) | not null | default ∅ | - | -",
+                "state_changed_date": "datetime | not null | default ∅ | - | -",
+                "last_attempt_date": "datetime | not null | default ∅ | - | -",
+                "last_notification_date": "datetime | null | default NULL | - | -",
+                "latency_current": "float | null | default NULL | - | -",
+                "latency_min": "float | null | default NULL | - | -",
+                "latency_max": "float | null | default NULL | - | -",
+                "latency_avg": "float | null | default NULL | - | -",
+                "polls_total": "bigint(11) | not null | default ∅ | - | -",
+                "polls_failed": "bigint(11) | not null | default ∅ | - | -",
+                "availability": "float | not null | default ∅ | - | -",
+                "priority": "tinyint(1) | not null | default ∅ | - | -"
+            },
+            "indexes": {
+                "device_id": "index (device_id)",
+                "PRIMARY": "unique (id)"
+            }
+        },
+        "onts": {
+            "engine": "InnoDB",
+            "collation": "utf8mb4_unicode_ci",
+            "columns": {
+                "id": "bigint(20) unsigned | not null | default ∅ | auto_increment | -",
+                "serial": "varchar(64) | not null | default ∅ | - | utf8mb4_unicode_ci",
+                "gpon_port": "varchar(64) | not null | default ∅ | - | utf8mb4_unicode_ci",
+                "port_num": "tinyint(3) unsigned | not null | default ∅ | - | -",
+                "port_index": "bigint(20) | null | default NULL | - | -",
+                "ont_id": "int(10) unsigned | not null | default ∅ | - | -",
+                "service_port": "int(10) unsigned | not null | default ∅ | - | -",
+                "vlan": "int(10) unsigned | not null | default ∅ | - | -",
+                "reg_status": "enum('new','registered','removed') | not null | default 'new' | - | utf8mb4_unicode_ci",
+                "house_no": "varchar(32) | null | default NULL | - | utf8mb4_unicode_ci",
+                "user_name": "varchar(128) | null | default NULL | - | utf8mb4_unicode_ci",
+                "olt_ip": "varchar(45) | null | default NULL | - | utf8mb4_unicode_ci",
+                "gps_lat": "decimal(10,7) | null | default NULL | - | -",
+                "gps_lng": "decimal(10,7) | null | default NULL | - | -",
+                "member_id": "int(11) | null | default NULL | - | -",
+                "device_id": "int(11) | null | default NULL | - | -",
+                "created_at": "timestamp | null | default NULL | - | -",
+                "updated_at": "timestamp | null | default NULL | - | -"
+            },
+            "indexes": {
+                "onts_device_id_foreign": "index (device_id)",
+                "onts_member_id_foreign": "index (member_id)",
+                "onts_olt_ip_index": "index (olt_ip)",
+                "onts_serial_index": "index (serial)",
+                "PRIMARY": "unique (id)"
+            }
+        },
+        "outgoing_payments": {
+            "engine": "InnoDB",
+            "collation": "utf8mb3_czech_ci",
+            "columns": {
+                "id": "int(11) unsigned | not null | default ∅ | auto_increment | -",
+                "bank_account_id": "int(11) unsigned | not null | default ∅ | - | -",
+                "transfer_id": "int(11) unsigned | null | default NULL | - | -",
+                "target_account": "varchar(34) | not null | default ∅ | - | utf8mb3_czech_ci",
+                "target_name": "varchar(128) | null | default NULL | - | utf8mb3_czech_ci",
+                "amount": "decimal(12,2) | not null | default ∅ | - | -",
+                "currency": "char(3) | not null | default 'CZK' | - | utf8mb3_czech_ci",
+                "variable_symbol": "varchar(20) | null | default NULL | - | utf8mb3_czech_ci",
+                "message": "varchar(140) | not null | default ∅ | - | utf8mb3_czech_ci",
+                "reason": "enum('unidentified_refund','termination_refund','other') | not null | default 'other' | - | utf8mb3_czech_ci",
+                "status": "enum('draft','approved','exported','paid','cancelled') | not null | default 'draft' | - | utf8mb3_czech_ci",
+                "created_by": "int(11) unsigned | not null | default ∅ | - | -",
+                "approved_by": "int(11) unsigned | null | default NULL | - | -",
+                "created_at": "datetime | not null | default ∅ | - | -",
+                "updated_at": "datetime | not null | default ∅ | - | -",
+                "export_ref": "varchar(64) | null | default NULL | - | utf8mb3_czech_ci",
+                "exported_at": "datetime | null | default NULL | - | -",
+                "export_filename": "varchar(255) | null | default NULL | - | utf8mb3_czech_ci",
+                "api_response": "text | null | default NULL | - | utf8mb3_czech_ci",
+                "paid_at": "datetime | null | default NULL | - | -",
+                "paid_transfer_id": "int(10) unsigned | null | default NULL | - | -",
+                "match_method": "varchar(32) | null | default NULL | - | utf8mb3_czech_ci"
+            },
+            "indexes": {
+                "idx_bank_account_id": "index (bank_account_id)",
+                "idx_reason": "index (reason)",
+                "idx_status": "index (status)",
+                "PRIMARY": "unique (id)",
+                "uq_transfer_refund": "unique (transfer_id)"
+            }
+        },
+        "password_reset_tokens": {
+            "engine": "InnoDB",
+            "collation": "utf8mb4_unicode_ci",
+            "columns": {
+                "email": "varchar(255) | not null | default ∅ | - | utf8mb4_unicode_ci",
+                "token": "varchar(255) | not null | default ∅ | - | utf8mb4_unicode_ci",
+                "created_at": "timestamp | null | default NULL | - | -"
+            },
+            "indexes": {
+                "PRIMARY": "unique (email)"
+            }
+        },
+        "phone_calls": {
+            "engine": "InnoDB",
+            "collation": "utf8mb3_czech_ci",
+            "columns": {
+                "phone_invoice_user_id": "int(11) | not null | default ∅ | - | -",
+                "id": "int(11) | not null | default ∅ | auto_increment | -",
+                "datetime": "datetime | not null | default ∅ | - | -",
+                "price": "float | not null | default ∅ | - | -",
+                "length": "time | not null | default ∅ | - | -",
+                "number": "varchar(15) | not null | default ∅ | - | utf8mb3_czech_ci",
+                "period": "varchar(100) | null | default NULL | - | utf8mb3_czech_ci",
+                "description": "text | null | default NULL | - | utf8mb3_czech_ci",
+                "private": "tinyint(1) | null | default 1 | - | -"
+            },
+            "indexes": {
+                "datetime": "index (datetime)",
+                "number": "index (number)",
+                "phone_invoice_users_id": "index (phone_invoice_user_id)",
+                "PRIMARY": "unique (id)"
+            }
+        },
+        "phone_connections": {
+            "engine": "InnoDB",
+            "collation": "utf8mb3_czech_ci",
+            "columns": {
+                "phone_invoice_user_id": "int(11) | not null | default ∅ | - | -",
+                "id": "int(11) | not null | default ∅ | auto_increment | -",
+                "datetime": "datetime | not null | default ∅ | - | -",
+                "price": "float | not null | default ∅ | - | -",
+                "transfered": "int(11) | not null | default ∅ | - | -",
+                "period": "varchar(100) | null | default NULL | - | utf8mb3_czech_ci",
+                "apn": "varchar(100) | null | default NULL | - | utf8mb3_czech_ci",
+                "private": "tinyint(1) | null | default 1 | - | -"
+            },
+            "indexes": {
+                "datetime": "index (datetime)",
+                "phone_invoice_users_id": "index (phone_invoice_user_id)",
+                "PRIMARY": "unique (id)"
+            }
+        },
+        "phone_fixed_calls": {
+            "engine": "InnoDB",
+            "collation": "utf8mb3_czech_ci",
+            "columns": {
+                "phone_invoice_user_id": "int(11) | not null | default ∅ | - | -",
+                "id": "int(11) | not null | default ∅ | auto_increment | -",
+                "datetime": "datetime | not null | default ∅ | - | -",
+                "price": "float | not null | default ∅ | - | -",
+                "length": "time | not null | default ∅ | - | -",
+                "number": "varchar(15) | not null | default ∅ | - | utf8mb3_czech_ci",
+                "period": "varchar(100) | null | default NULL | - | utf8mb3_czech_ci",
+                "destiny": "varchar(200) | null | default NULL | - | utf8mb3_czech_ci",
+                "private": "tinyint(1) | null | default 1 | - | -"
+            },
+            "indexes": {
+                "datetime": "index (datetime)",
+                "number": "index (number)",
+                "phone_invoice_users_id": "index (phone_invoice_user_id)",
+                "PRIMARY": "unique (id)"
+            }
+        },
+        "phone_invoices": {
+            "engine": "InnoDB",
+            "collation": "utf8mb3_czech_ci",
+            "columns": {
+                "id": "int(11) | not null | default ∅ | auto_increment | -",
+                "date_of_issuance": "date | not null | default ∅ | - | -",
+                "billing_period_from": "date | not null | default ∅ | - | -",
+                "billing_period_to": "date | not null | default ∅ | - | -",
+                "variable_symbol": "bigint(11) | not null | default ∅ | - | -",
+                "specific_symbol": "bigint(11) | not null | default ∅ | - | -",
+                "total_price": "float | not null | default ∅ | - | -",
+                "tax": "float | not null | default ∅ | - | -",
+                "tax_rate": "smallint(6) | not null | default ∅ | - | -",
+                "locked": "tinyint(1) | null | default 0 | - | -"
+            },
+            "indexes": {
+                "PRIMARY": "unique (id)"
+            }
+        },
+        "phone_invoice_users": {
+            "engine": "InnoDB",
+            "collation": "utf8mb3_czech_ci",
+            "columns": {
+                "user_id": "int(11) | null | default NULL | - | -",
+                "phone_invoice_id": "int(11) | not null | default ∅ | - | -",
+                "transfer_id": "int(11) | null | default NULL | - | -",
+                "id": "int(11) | not null | default ∅ | auto_increment | -",
+                "phone_number": "varchar(15) | not null | default ∅ | - | utf8mb3_czech_ci",
+                "locked": "tinyint(1) unsigned | not null | default ∅ | - | -"
+            },
+            "indexes": {
+                "phone_invoice_id": "index (phone_invoice_id)",
+                "phone_number": "index (phone_number)",
+                "PRIMARY": "unique (id)",
+                "transfer_id": "index (transfer_id)",
+                "user_id": "index (user_id,phone_invoice_id)"
+            }
+        },
+        "phone_operators": {
+            "engine": "InnoDB",
+            "collation": "utf8mb3_czech_ci",
+            "columns": {
+                "id": "int(11) | not null | default ∅ | auto_increment | -",
+                "country_id": "smallint(6) | not null | default ∅ | - | -",
+                "name": "varchar(255) | null | default NULL | - | utf8mb3_czech_ci",
+                "phone_number_length": "smallint(2) | null | default 6 | - | -",
+                "sms_enabled": "tinyint(1) | null | default 0 | - | -"
+            },
+            "indexes": {
+                "country_id": "index (country_id)",
+                "PRIMARY": "unique (id)"
+            }
+        },
+        "phone_operator_prefixes": {
+            "engine": "InnoDB",
+            "collation": "utf8mb3_czech_ci",
+            "columns": {
+                "id": "int(11) | not null | default ∅ | auto_increment | -",
+                "phone_operator_id": "int(11) | not null | default ∅ | - | -",
+                "prefix": "varchar(4) | not null | default ∅ | - | utf8mb3_czech_ci"
+            },
+            "indexes": {
+                "phone_operator_id": "index (phone_operator_id)",
+                "prefix": "unique (prefix)",
+                "PRIMARY": "unique (id)"
+            }
+        },
+        "phone_pays": {
+            "engine": "InnoDB",
+            "collation": "utf8mb3_czech_ci",
+            "columns": {
+                "phone_invoice_user_id": "int(11) | not null | default ∅ | - | -",
+                "id": "int(11) | not null | default ∅ | auto_increment | -",
+                "datetime": "datetime | not null | default ∅ | - | -",
+                "price": "float | not null | default ∅ | - | -",
+                "number": "varchar(15) | not null | default ∅ | - | utf8mb3_czech_ci",
+                "description": "varchar(200) | null | default NULL | - | utf8mb3_czech_ci",
+                "private": "tinyint(4) | null | default 1 | - | -"
+            },
+            "indexes": {
+                "datetime": "index (datetime)",
+                "number": "index (number)",
+                "phone_invoice_users_id": "index (phone_invoice_user_id)",
+                "PRIMARY": "unique (id)"
+            }
+        },
+        "phone_roaming_sms_messages": {
+            "engine": "InnoDB",
+            "collation": "utf8mb3_czech_ci",
+            "columns": {
+                "phone_invoice_user_id": "int(11) | not null | default ∅ | - | -",
+                "id": "int(11) | not null | default ∅ | auto_increment | -",
+                "datetime": "datetime | not null | default ∅ | - | -",
+                "price": "float | not null | default ∅ | - | -",
+                "roaming_zone": "varchar(200) | null | default NULL | - | utf8mb3_czech_ci",
+                "private": "tinyint(4) | null | default 1 | - | -"
+            },
+            "indexes": {
+                "datetime": "index (datetime)",
+                "phone_invoice_users_id": "index (phone_invoice_user_id)",
+                "PRIMARY": "unique (id)"
+            }
+        },
+        "phone_sms_messages": {
+            "engine": "InnoDB",
+            "collation": "utf8mb3_czech_ci",
+            "columns": {
+                "phone_invoice_user_id": "int(11) | not null | default ∅ | - | -",
+                "id": "int(11) | not null | default ∅ | auto_increment | -",
+                "datetime": "datetime | not null | default ∅ | - | -",
+                "price": "float | not null | default ∅ | - | -",
+                "number": "varchar(15) | not null | default ∅ | - | utf8mb3_czech_ci",
+                "period": "varchar(100) | null | default NULL | - | utf8mb3_czech_ci",
+                "description": "varchar(200) | null | default NULL | - | utf8mb3_czech_ci",
+                "private": "tinyint(4) | null | default 1 | - | -"
+            },
+            "indexes": {
+                "datetime": "index (datetime)",
+                "number": "index (number)",
+                "phone_invoice_users_id": "index (phone_invoice_user_id)",
+                "PRIMARY": "unique (id)"
+            }
+        },
+        "phone_vpn_calls": {
+            "engine": "InnoDB",
+            "collation": "utf8mb3_czech_ci",
+            "columns": {
+                "phone_invoice_user_id": "int(11) | not null | default ∅ | - | -",
+                "id": "int(11) | not null | default ∅ | auto_increment | -",
+                "datetime": "datetime | not null | default ∅ | - | -",
+                "price": "float | not null | default ∅ | - | -",
+                "length": "time | not null | default ∅ | - | -",
+                "number": "varchar(15) | not null | default ∅ | - | utf8mb3_czech_ci",
+                "period": "varchar(100) | null | default NULL | - | utf8mb3_czech_ci",
+                "group": "varchar(200) | null | default NULL | - | utf8mb3_czech_ci",
+                "private": "tinyint(1) | null | default 1 | - | -"
+            },
+            "indexes": {
+                "datetime": "index (datetime)",
+                "number": "index (number)",
+                "phone_invoice_users_id": "index (phone_invoice_user_id)",
+                "PRIMARY": "unique (id)"
+            }
+        },
+        "pohoda_refund_queue": {
+            "engine": "InnoDB",
+            "collation": "utf8mb3_czech_ci",
+            "columns": {
+                "id": "int(11) | not null | default ∅ | auto_increment | -",
+                "member_id": "int(11) | not null | default ∅ | - | -",
+                "member_type": "int(11) | not null | default ∅ | - | -",
+                "doc_number": "varchar(20) | not null | default ∅ | - | utf8mb3_czech_ci",
+                "outgoing_payment_id": "int(11) | null | default NULL | - | -",
+                "refund_account": "varchar(64) | not null | default ∅ | - | utf8mb3_czech_ci",
+                "amount": "decimal(12,2) | not null | default ∅ | - | -",
+                "currency": "char(3) | not null | default 'CZK' | - | utf8mb3_czech_ci",
+                "reason": "varchar(32) | not null | default 'termination_refund' | - | utf8mb3_czech_ci",
+                "note": "varchar(255) | null | default NULL | - | utf8mb3_czech_ci",
+                "created_at": "datetime | not null | default ∅ | - | -",
+                "exported_at": "datetime | null | default NULL | - | -",
+                "status": "varchar(16) | not null | default 'new' | - | utf8mb3_czech_ci"
+            },
+            "indexes": {
+                "member_id": "index (member_id)",
+                "PRIMARY": "unique (id)",
+                "status": "index (status)",
+                "uniq_doc_number": "unique (doc_number)"
+            }
+        },
+        "pppoe_secrets": {
+            "engine": "InnoDB",
+            "collation": "utf8mb4_unicode_ci",
+            "columns": {
+                "iface_id": "int(10) unsigned | not null | default ∅ | - | -",
+                "username": "varchar(64) | not null | default ∅ | - | utf8mb4_unicode_ci",
+                "secret": "varchar(64) | not null | default ∅ | - | utf8mb4_unicode_ci",
+                "enabled": "tinyint(1) | not null | default 1 | - | -"
+            },
+            "indexes": {
+                "pppoe_secrets_username_unique": "unique (username)",
+                "PRIMARY": "unique (iface_id)"
+            }
+        },
+        "private_users_contacts": {
+            "engine": "InnoDB",
+            "collation": "utf8mb3_czech_ci",
+            "columns": {
+                "id": "int(10) | not null | default ∅ | auto_increment | -",
+                "user_id": "int(10) | not null | default ∅ | - | -",
+                "contact_id": "int(10) | not null | default ∅ | - | -",
+                "description": "varchar(255) | null | default NULL | - | utf8mb3_czech_ci"
+            },
+            "indexes": {
+                "PRIMARY": "unique (id)",
+                "private_users_contacts_ibfk_2": "index (contact_id)",
+                "user_id": "index (user_id,contact_id)"
+            }
+        },
+        "public_ips": {
+            "engine": "InnoDB",
+            "collation": "utf8mb3_general_ci",
+            "columns": {
+                "id": "int(10) unsigned | not null | default ∅ | auto_increment | -",
+                "ip": "varchar(45) | not null | default ∅ | - | utf8mb3_general_ci",
+                "enabled": "tinyint(1) | not null | default 1 | - | -",
+                "note": "varchar(255) | null | default NULL | - | utf8mb3_general_ci",
+                "created": "datetime | not null | default current_timestamp() | - | -",
+                "modified": "datetime | null | default NULL | - | -",
+                "created_by": "int(10) unsigned | null | default NULL | - | -",
+                "modified_by": "int(10) unsigned | null | default NULL | - | -"
+            },
+            "indexes": {
+                "idx_enabled": "index (enabled)",
+                "PRIMARY": "unique (id)",
+                "uniq_ip": "unique (ip)"
+            }
+        },
+        "public_ip_nat_1to1": {
+            "engine": "InnoDB",
+            "collation": "utf8mb3_general_ci",
+            "columns": {
+                "id": "int(10) unsigned | not null | default ∅ | auto_increment | -",
+                "public_ip": "varchar(45) | not null | default ∅ | - | utf8mb3_general_ci",
+                "private_ip": "varchar(45) | null | default NULL | - | utf8mb3_general_ci",
+                "scope": "varchar(64) | null | default NULL | - | utf8mb3_general_ci",
+                "enabled": "tinyint(1) | not null | default 1 | - | -",
+                "comment": "varchar(255) | null | default NULL | - | utf8mb3_general_ci",
+                "created": "datetime | not null | default current_timestamp() | - | -",
+                "modified": "datetime | null | default NULL | - | -",
+                "created_by": "int(10) unsigned | null | default NULL | - | -",
+                "modified_by": "int(10) unsigned | null | default NULL | - | -"
+            },
+            "indexes": {
+                "idx_enabled": "index (enabled)",
+                "idx_scope": "index (scope)",
+                "PRIMARY": "unique (id)",
+                "uniq_public_scope": "unique (public_ip,scope)"
+            }
+        },
+        "public_port_forwards": {
+            "engine": "InnoDB",
+            "collation": "utf8mb3_general_ci",
+            "columns": {
+                "id": "int(10) unsigned | not null | default ∅ | auto_increment | -",
+                "public_ip": "varchar(45) | not null | default ∅ | - | utf8mb3_general_ci",
+                "public_port_from": "int(10) unsigned | not null | default ∅ | - | -",
+                "public_port_to": "int(10) unsigned | not null | default ∅ | - | -",
+                "private_ip": "varchar(45) | not null | default ∅ | - | utf8mb3_general_ci",
+                "private_port_from": "int(10) unsigned | not null | default ∅ | - | -",
+                "private_port_to": "int(10) unsigned | not null | default ∅ | - | -",
+                "protocol": "enum('tcp','udp') | not null | default ∅ | - | utf8mb3_general_ci",
+                "enabled": "tinyint(1) | not null | default 1 | - | -",
+                "created": "datetime | not null | default ∅ | - | -",
+                "modified": "datetime | null | default NULL | - | -",
+                "created_by": "int(10) unsigned | null | default NULL | - | -",
+                "modified_by": "int(10) unsigned | null | default NULL | - | -"
+            },
+            "indexes": {
+                "idx_enabled": "index (enabled)",
+                "idx_private": "index (private_ip)",
+                "idx_public": "index (public_ip,protocol,public_port_from)",
+                "PRIMARY": "unique (id)"
+            }
+        },
+        "radacct": {
+            "engine": "InnoDB",
+            "collation": "utf8mb4_unicode_ci",
+            "columns": {
+                "radacctid": "bigint(21) | not null | default ∅ | auto_increment | -",
+                "acctsessionid": "varchar(64) | not null | default '' | - | utf8mb4_unicode_ci",
+                "acctuniqueid": "varchar(32) | not null | default '' | - | utf8mb4_unicode_ci",
+                "username": "varchar(64) | not null | default '' | - | utf8mb4_unicode_ci",
+                "realm": "varchar(64) | null | default '' | - | utf8mb4_unicode_ci",
+                "nasipaddress": "varchar(15) | not null | default '' | - | utf8mb4_unicode_ci",
+                "nasportid": "varchar(32) | null | default NULL | - | utf8mb4_unicode_ci",
+                "nasporttype": "varchar(32) | null | default NULL | - | utf8mb4_unicode_ci",
+                "acctstarttime": "datetime | null | default NULL | - | -",
+                "acctupdatetime": "datetime | null | default NULL | - | -",
+                "acctstoptime": "datetime | null | default NULL | - | -",
+                "acctinterval": "int(12) | null | default NULL | - | -",
+                "acctsessiontime": "int(12) unsigned | null | default NULL | - | -",
+                "acctauthentic": "varchar(32) | null | default NULL | - | utf8mb4_unicode_ci",
+                "connectinfo_start": "varchar(128) | null | default NULL | - | utf8mb4_unicode_ci",
+                "connectinfo_stop": "varchar(128) | null | default NULL | - | utf8mb4_unicode_ci",
+                "acctinputoctets": "bigint(20) | null | default NULL | - | -",
+                "acctoutputoctets": "bigint(20) | null | default NULL | - | -",
+                "calledstationid": "varchar(255) | not null | default '' | - | utf8mb4_unicode_ci",
+                "callingstationid": "varchar(255) | not null | default '' | - | utf8mb4_unicode_ci",
+                "acctterminatecause": "varchar(32) | not null | default '' | - | utf8mb4_unicode_ci",
+                "servicetype": "varchar(32) | null | default NULL | - | utf8mb4_unicode_ci",
+                "framedprotocol": "varchar(32) | null | default NULL | - | utf8mb4_unicode_ci",
+                "framedipaddress": "varchar(15) | not null | default '' | - | utf8mb4_unicode_ci",
+                "framedipv6address": "varchar(45) | not null | default '' | - | utf8mb4_unicode_ci",
+                "framedipv6prefix": "varchar(45) | not null | default '' | - | utf8mb4_unicode_ci",
+                "framedinterfaceid": "varchar(44) | not null | default '' | - | utf8mb4_unicode_ci",
+                "delegatedipv6prefix": "varchar(45) | not null | default '' | - | utf8mb4_unicode_ci",
+                "class": "varchar(64) | null | default NULL | - | utf8mb4_unicode_ci"
+            },
+            "indexes": {
+                "acctinterval": "index (acctinterval)",
+                "acctsessionid": "index (acctsessionid)",
+                "acctsessiontime": "index (acctsessiontime)",
+                "acctstarttime": "index (acctstarttime)",
+                "acctstoptime": "index (acctstoptime)",
+                "acctuniqueid": "unique (acctuniqueid)",
+                "class": "index (class)",
+                "delegatedipv6prefix": "index (delegatedipv6prefix)",
+                "framedinterfaceid": "index (framedinterfaceid)",
+                "framedipaddress": "index (framedipaddress)",
+                "framedipv6address": "index (framedipv6address)",
+                "framedipv6prefix": "index (framedipv6prefix)",
+                "nasipaddress": "index (nasipaddress)",
+                "PRIMARY": "unique (radacctid)",
+                "username": "index (username)"
+            }
+        },
+        "requests": {
+            "engine": "InnoDB",
+            "collation": "utf8mb3_czech_ci",
+            "columns": {
+                "id": "int(11) | not null | default ∅ | auto_increment | -",
+                "user_id": "int(11) | not null | default ∅ | - | -",
+                "approval_template_id": "int(11) | null | default NULL | - | -",
+                "type": "smallint(6) | not null | default 0 | - | -",
+                "description": "mediumtext | null | default NULL | - | utf8mb3_czech_ci",
+                "suggest_amount": "int(11) | not null | default ∅ | - | -",
+                "date": "date | not null | default ∅ | - | -",
+                "state": "tinyint(1) | not null | default ∅ | - | -",
+                "comments_thread_id": "int(11) | null | default NULL | - | -"
+            },
+            "indexes": {
+                "approval_template_id": "index (approval_template_id)",
+                "comments_thread_id": "index (comments_thread_id)",
+                "PRIMARY": "unique (id)",
+                "user_id": "index (user_id)"
+            }
+        },
+        "saved_filters": {
+            "engine": "InnoDB",
+            "collation": "utf8mb4_unicode_ci",
+            "columns": {
+                "id": "bigint(20) unsigned | not null | default ∅ | auto_increment | -",
+                "user_id": "bigint(20) unsigned | not null | default ∅ | - | -",
+                "name": "varchar(100) | not null | default ∅ | - | utf8mb4_unicode_ci",
+                "page": "varchar(50) | not null | default ∅ | - | utf8mb4_unicode_ci",
+                "filters": "longtext | not null | default ∅ | - | utf8mb4_bin",
+                "created_at": "timestamp | null | default NULL | - | -",
+                "updated_at": "timestamp | null | default NULL | - | -"
+            },
+            "indexes": {
+                "PRIMARY": "unique (id)"
+            }
+        },
+        "sessions": {
+            "engine": "InnoDB",
+            "collation": "utf8mb4_unicode_ci",
+            "columns": {
+                "id": "varchar(255) | not null | default ∅ | - | utf8mb4_unicode_ci",
+                "user_id": "bigint(20) unsigned | null | default NULL | - | -",
+                "ip_address": "varchar(45) | null | default NULL | - | utf8mb4_unicode_ci",
+                "user_agent": "text | null | default NULL | - | utf8mb4_unicode_ci",
+                "payload": "longtext | not null | default ∅ | - | utf8mb4_unicode_ci",
+                "last_activity": "int(11) | not null | default ∅ | - | -"
+            },
+            "indexes": {
+                "PRIMARY": "unique (id)",
+                "sessions_last_activity_index": "index (last_activity)",
+                "sessions_user_id_index": "index (user_id)"
+            }
+        },
+        "sms_messages": {
+            "engine": "InnoDB",
+            "collation": "utf8mb3_czech_ci",
+            "columns": {
+                "id": "int(11) | not null | default ∅ | auto_increment | -",
+                "user_id": "int(11) | not null | default ∅ | - | -",
+                "sms_message_id": "int(11) | null | default NULL | - | -",
+                "stamp": "datetime | not null | default ∅ | - | -",
+                "send_date": "datetime | not null | default ∅ | - | -",
+                "text": "varchar(800) | not null | default ∅ | - | utf8mb3_czech_ci",
+                "sender": "varchar(14) | not null | default ∅ | - | utf8mb3_czech_ci",
+                "receiver": "varchar(14) | not null | default ∅ | - | utf8mb3_czech_ci",
+                "driver": "tinyint(4) | not null | default ∅ | - | -",
+                "type": "tinyint(4) | not null | default ∅ | - | -",
+                "state": "tinyint(4) | not null | default ∅ | - | -",
+                "message": "varchar(100) | null | default NULL | - | utf8mb3_czech_ci"
+            },
+            "indexes": {
+                "PRIMARY": "unique (id)",
+                "receiver": "index (receiver)",
+                "sender": "index (sender)",
+                "sms_message_id": "index (sms_message_id)",
+                "user_id": "index (user_id)"
+            }
+        },
+        "smtp_exceptions": {
+            "engine": "InnoDB",
+            "collation": "utf8mb4_unicode_ci",
+            "columns": {
+                "id": "bigint(20) unsigned | not null | default ∅ | auto_increment | -",
+                "intip": "text | not null | default ∅ | - | latin1_swedish_ci",
+                "user": "varchar(255) | not null | default ∅ | - | latin1_swedish_ci",
+                "datum": "date | not null | default ∅ | - | -"
+            },
+            "indexes": {
+                "PRIMARY": "unique (id)"
+            }
+        },
+        "speed_classes": {
+            "engine": "InnoDB",
+            "collation": "utf8mb3_czech_ci",
+            "columns": {
+                "id": "int(11) | not null | default ∅ | auto_increment | -",
+                "name": "varchar(50) | not null | default ∅ | - | utf8mb3_czech_ci",
+                "d_ceil": "bigint(11) | not null | default ∅ | - | -",
+                "d_rate": "bigint(11) | not null | default ∅ | - | -",
+                "u_ceil": "bigint(11) | not null | default ∅ | - | -",
+                "u_rate": "bigint(11) | not null | default ∅ | - | -",
+                "price": "decimal(10,2) | null | default NULL | - | -",
+                "regular_member_default": "tinyint(1) | not null | default 0 | - | -",
+                "applicant_default": "tinyint(1) | not null | default 0 | - | -"
+            },
+            "indexes": {
+                "PRIMARY": "unique (id)"
+            }
+        },
+        "streets": {
+            "engine": "InnoDB",
+            "collation": "utf8mb3_czech_ci",
+            "columns": {
+                "id": "int(11) | not null | default ∅ | auto_increment | -",
+                "town_id": "int(11) | null | default NULL | - | -",
+                "street": "varchar(30) | not null | default ∅ | - | utf8mb3_czech_ci",
+                "gps": "polygon | null | default NULL | - | -"
+            },
+            "indexes": {
+                "PRIMARY": "unique (id)",
+                "street": "index (street)",
+                "town_id": "index (town_id)"
+            }
+        },
+        "subnets": {
+            "engine": "InnoDB",
+            "collation": "utf8mb3_czech_ci",
+            "columns": {
+                "id": "int(11) | not null | default ∅ | auto_increment | -",
+                "OSPF_area_id": "int(11) | null | default NULL | - | -",
+                "name": "varchar(254) | null | default NULL | - | utf8mb3_czech_ci",
+                "network_address": "varchar(15) | null | default NULL | - | utf8mb3_czech_ci",
+                "netmask": "varchar(15) | null | default NULL | - | utf8mb3_czech_ci",
+                "redirect": "tinyint(4) | null | default NULL | - | -",
+                "dhcp": "tinyint(1) | not null | default 0 | - | -",
+                "dhcp_expired": "tinyint(1) | not null | default 0 | - | -",
+                "dhcp_changed_at": "datetime(6) | null | default NULL | - | -",
+                "dns": "tinyint(1) | not null | default 0 | - | -",
+                "ipoe": "tinyint(1) | not null | default 0 | - | -",
+                "qos": "tinyint(1) | not null | default 0 | - | -"
+            },
+            "indexes": {
+                "name": "index (name)",
+                "netmask": "index (netmask)",
+                "network_address": "index (network_address)",
+                "PRIMARY": "unique (id)"
+            }
+        },
+        "subnets_owners": {
+            "engine": "InnoDB",
+            "collation": "utf8mb3_czech_ci",
+            "columns": {
+                "id": "int(11) | not null | default ∅ | auto_increment | -",
+                "subnet_id": "int(11) | not null | default ∅ | - | -",
+                "member_id": "int(11) | not null | default ∅ | - | -",
+                "redirect": "tinyint(4) | not null | default 0 | - | -"
+            },
+            "indexes": {
+                "member_id": "index (member_id)",
+                "PRIMARY": "unique (id)",
+                "redirect": "index (redirect)",
+                "subnet_id": "index (subnet_id)"
+            }
+        },
+        "towns": {
+            "engine": "InnoDB",
+            "collation": "utf8mb3_czech_ci",
+            "columns": {
+                "id": "int(11) | not null | default ∅ | auto_increment | -",
+                "zip_code": "varchar(10) | not null | default ∅ | - | utf8mb3_czech_ci",
+                "town": "varchar(50) | not null | default ∅ | - | utf8mb3_czech_ci",
+                "quarter": "varchar(50) | null | default NULL | - | utf8mb3_czech_ci",
+                "gps": "polygon | null | default NULL | - | -"
+            },
+            "indexes": {
+                "PRIMARY": "unique (id)",
+                "town": "index (town)",
+                "zip_code": "index (zip_code)"
+            }
+        },
+        "transfers": {
+            "engine": "InnoDB",
+            "collation": "utf8mb3_czech_ci",
+            "columns": {
+                "id": "int(11) | not null | default ∅ | auto_increment | -",
+                "origin_id": "int(11) | null | default NULL | - | -",
+                "destination_id": "int(11) | null | default NULL | - | -",
+                "previous_transfer_id": "int(11) | null | default NULL | - | -",
+                "member_id": "int(11) | null | default NULL | - | -",
+                "user_id": "int(11) | null | default NULL | - | -",
+                "type": "tinyint(4) | null | default NULL | - | -",
+                "datetime": "datetime | not null | default ∅ | - | -",
+                "creation_datetime": "datetime | not null | default ∅ | - | -",
+                "text": "varchar(254) | null | default NULL | - | utf8mb3_czech_ci",
+                "amount": "double | not null | default ∅ | - | -"
+            },
+            "indexes": {
+                "datetime": "index (datetime,text)",
+                "destination_id": "index (destination_id)",
+                "member_id": "index (member_id)",
+                "origin_id": "index (origin_id)",
+                "PRIMARY": "unique (id)",
+                "user_id": "index (user_id)"
+            }
+        },
+        "translations": {
+            "engine": "InnoDB",
+            "collation": "utf8mb3_czech_ci",
+            "columns": {
+                "id": "int(11) | not null | default ∅ | auto_increment | -",
+                "original_term": "varchar(254) | not null | default ∅ | - | utf8mb3_czech_ci",
+                "translated_term": "varchar(254) | not null | default ∅ | - | utf8mb3_czech_ci",
+                "lang": "varchar(50) | not null | default ∅ | - | utf8mb3_czech_ci"
+            },
+            "indexes": {
+                "original_term": "index (original_term)",
+                "PRIMARY": "unique (id)"
+            }
+        },
+        "ulog2_ct": {
+            "engine": "MyISAM",
+            "collation": "latin1_swedish_ci",
+            "columns": {
+                "_ct_id": "tinyint(4) | null | default NULL | - | -",
+                "orig_ip_saddr": "int(10) unsigned | null | default NULL | - | -",
+                "orig_ip_daddr": "int(10) unsigned | null | default NULL | - | -",
+                "orig_ip_protocol": "tinyint(3) unsigned | null | default NULL | - | -",
+                "orig_l4_sport": "smallint(5) unsigned | null | default NULL | - | -",
+                "orig_l4_dport": "smallint(5) unsigned | null | default NULL | - | -",
+                "orig_raw_pktlen": "bigint(20) | null | default 0 | - | -",
+                "orig_raw_pktcount": "int(10) unsigned | null | default 0 | - | -",
+                "reply_ip_daddr": "int(10) unsigned | null | default NULL | - | -",
+                "reply_l4_dport": "smallint(5) unsigned | null | default NULL | - | -",
+                "reply_raw_pktlen": "bigint(20) | null | default 0 | - | -",
+                "reply_raw_pktcount": "int(10) unsigned | null | default 0 | - | -",
+                "icmp_code": "tinyint(3) | null | default NULL | - | -",
+                "icmp_type": "tinyint(3) | null | default NULL | - | -",
+                "flow_start_sec": "int(10) | null | default 0 | - | -",
+                "flow_end_sec": "int(10) | null | default 0 | - | -"
+            },
+            "indexes": {
+                "ct_tuple": "index (flow_start_sec,orig_ip_daddr,orig_l4_dport,reply_l4_dport)"
+            }
+        },
+        "users": {
+            "engine": "InnoDB",
+            "collation": "utf8mb3_czech_ci",
+            "columns": {
+                "member_id": "int(11) | not null | default ∅ | - | -",
+                "id": "int(11) | not null | default ∅ | auto_increment | -",
+                "login": "varchar(50) | null | default NULL | - | utf8mb3_czech_ci",
+                "password": "varchar(255) | not null | default ∅ | - | utf8mb3_czech_ci",
+                "password_request": "varchar(64) | null | default NULL | - | utf8mb3_czech_ci",
+                "password_request_expires_at": "datetime | null | default NULL | - | -",
+                "name": "varchar(60) | null | default NULL | - | utf8mb3_czech_ci",
+                "middle_name": "varchar(30) | null | default NULL | - | utf8mb3_czech_ci",
+                "surname": "varchar(60) | null | default NULL | - | utf8mb3_czech_ci",
+                "pre_title": "varchar(40) | null | default NULL | - | utf8mb3_czech_ci",
+                "post_title": "varchar(30) | null | default NULL | - | utf8mb3_czech_ci",
+                "birthday": "date | null | default NULL | - | -",
+                "type": "tinyint(4) | not null | default ∅ | - | -",
+                "comment": "varchar(250) | null | default NULL | - | utf8mb3_czech_ci",
+                "application_password": "text | not null | default ∅ | - | utf8mb3_czech_ci",
+                "settings": "text | not null | default ∅ | - | utf8mb3_czech_ci",
+                "dark_mode": "tinyint(4) | not null | default 0 | - | -"
+            },
+            "indexes": {
+                "login": "unique (login)",
+                "member_id": "index (member_id)",
+                "name": "index (name)",
+                "PRIMARY": "unique (id)",
+                "surname": "index (surname)"
+            }
+        },
+        "users_contacts": {
+            "engine": "InnoDB",
+            "collation": "utf8mb3_czech_ci",
+            "columns": {
+                "user_id": "int(10) | not null | default ∅ | - | -",
+                "contact_id": "int(10) | not null | default ∅ | - | -",
+                "mail_redirection": "tinyint(1) | not null | default 0 | - | -"
+            },
+            "indexes": {
+                "PRIMARY": "unique (user_id,contact_id)",
+                "users_contacts_ibfk_2": "index (contact_id)",
+                "user_id": "index (user_id)"
+            }
+        },
+        "users_keys": {
+            "engine": "InnoDB",
+            "collation": "utf8mb3_czech_ci",
+            "columns": {
+                "id": "int(11) | not null | default ∅ | auto_increment | -",
+                "user_id": "int(11) | not null | default ∅ | - | -",
+                "key": "text | not null | default ∅ | - | utf8mb3_czech_ci"
+            },
+            "indexes": {
+                "PRIMARY": "unique (id)",
+                "user_id": "index (user_id)"
+            }
+        },
+        "users_to_members": {
+            "engine": "InnoDB",
+            "collation": "utf8mb3_czech_ci",
+            "columns": {
+                "userid": "int(11) | not null | default ∅ | - | -",
+                "member_id": "int(11) | not null | default ∅ | - | -"
+            },
+            "indexes": {
+                "PRIMARY": "unique (userid,member_id)"
+            }
+        },
+        "user_favourite_pages": {
+            "engine": "InnoDB",
+            "collation": "utf8mb3_czech_ci",
+            "columns": {
+                "id": "int(11) | not null | default ∅ | auto_increment | -",
+                "user_id": "int(30) | not null | default ∅ | - | -",
+                "title": "varchar(50) | not null | default ∅ | - | utf8mb3_czech_ci",
+                "page": "varchar(255) | not null | default ∅ | - | utf8mb3_czech_ci",
+                "default_page": "tinyint(1) | null | default NULL | - | -"
+            },
+            "indexes": {
+                "PRIMARY": "unique (id)",
+                "user_id": "index (user_id)"
+            }
+        },
+        "user_login_locks": {
+            "engine": "InnoDB",
+            "collation": "utf8mb4_unicode_ci",
+            "columns": {
+                "id": "bigint(20) unsigned | not null | default ∅ | auto_increment | -",
+                "user_id": "int(11) | not null | default ∅ | - | -",
+                "failed_count": "int(10) unsigned | not null | default 0 | - | -",
+                "locked_until": "timestamp | null | default NULL | - | -",
+                "last_failed_at": "timestamp | null | default NULL | - | -",
+                "updated_at": "timestamp | null | default NULL | - | -"
+            },
+            "indexes": {
+                "PRIMARY": "unique (id)",
+                "user_login_locks_user_id_unique": "unique (user_id)"
+            }
+        },
+        "user_mfa": {
+            "engine": "InnoDB",
+            "collation": "utf8mb4_unicode_ci",
+            "columns": {
+                "id": "bigint(20) unsigned | not null | default ∅ | auto_increment | -",
+                "user_id": "int(11) | not null | default ∅ | - | -",
+                "totp_secret": "text | not null | default ∅ | - | utf8mb4_unicode_ci",
+                "confirmed_at": "timestamp | null | default NULL | - | -",
+                "created_at": "timestamp | null | default NULL | - | -",
+                "updated_at": "timestamp | null | default NULL | - | -"
+            },
+            "indexes": {
+                "PRIMARY": "unique (id)",
+                "user_mfa_user_id_unique": "unique (user_id)"
+            }
+        },
+        "variable_symbols": {
+            "engine": "InnoDB",
+            "collation": "utf8mb3_czech_ci",
+            "columns": {
+                "id": "int(11) | not null | default ∅ | auto_increment | -",
+                "account_id": "int(11) | not null | default ∅ | - | -",
+                "variable_symbol": "varchar(10) | not null | default ∅ | - | utf8mb3_czech_ci"
+            },
+            "indexes": {
+                "account_id": "index (account_id)",
+                "PRIMARY": "unique (id)",
+                "variable_symbol": "unique (variable_symbol)"
+            }
+        },
+        "vlans": {
+            "engine": "InnoDB",
+            "collation": "utf8mb3_czech_ci",
+            "columns": {
+                "id": "int(11) | not null | default ∅ | auto_increment | -",
+                "name": "varchar(254) | null | default NULL | - | utf8mb3_czech_ci",
+                "tag_802_1q": "int(11) | null | default NULL | - | -",
+                "comment": "varchar(254) | null | default NULL | - | utf8mb3_czech_ci"
+            },
+            "indexes": {
+                "name": "index (name)",
+                "PRIMARY": "unique (id)",
+                "tag_802_1q": "unique (tag_802_1q)"
+            }
+        },
+        "voip_sips": {
+            "engine": "InnoDB",
+            "collation": "utf8mb3_czech_ci",
+            "columns": {
+                "id": "int(11) | not null | default ∅ | auto_increment | -",
+                "user_id": "int(11) | not null | default ∅ | - | -",
+                "name": "varchar(80) | not null | default ∅ | - | utf8mb3_czech_ci",
+                "accountcode": "varchar(20) | null | default NULL | - | utf8mb3_czech_ci",
+                "amaflags": "varchar(13) | null | default NULL | - | utf8mb3_czech_ci",
+                "callgroup": "varchar(10) | null | default NULL | - | utf8mb3_czech_ci",
+                "callerid": "varchar(80) | not null | default ∅ | - | utf8mb3_czech_ci",
+                "canreinvite": "char(3) | null | default 'no' | - | utf8mb3_czech_ci",
+                "context": "varchar(80) | null | default 'internal' | - | utf8mb3_czech_ci",
+                "defaultip": "varchar(15) | null | default NULL | - | utf8mb3_czech_ci",
+                "dtmfmode": "varchar(7) | null | default NULL | - | utf8mb3_czech_ci",
+                "fromuser": "varchar(80) | null | default NULL | - | utf8mb3_czech_ci",
+                "fromdomain": "varchar(80) | null | default NULL | - | utf8mb3_czech_ci",
+                "fullcontact": "varchar(80) | null | default NULL | - | utf8mb3_czech_ci",
+                "host": "varchar(31) | not null | default 'dynamic' | - | utf8mb3_czech_ci",
+                "insecure": "varchar(4) | null | default NULL | - | utf8mb3_czech_ci",
+                "language": "char(2) | null | default 'cz' | - | utf8mb3_czech_ci",
+                "mailbox": "varchar(50) | not null | default ∅ | - | utf8mb3_czech_ci",
+                "md5secret": "varchar(80) | null | default NULL | - | utf8mb3_czech_ci",
+                "nat": "varchar(5) | not null | default 'yes' | - | utf8mb3_czech_ci",
+                "deny": "varchar(95) | null | default NULL | - | utf8mb3_czech_ci",
+                "permit": "varchar(95) | null | default NULL | - | utf8mb3_czech_ci",
+                "mask": "varchar(95) | null | default NULL | - | utf8mb3_czech_ci",
+                "pickupgroup": "varchar(10) | null | default NULL | - | utf8mb3_czech_ci",
+                "port": "varchar(5) | null | default NULL | - | utf8mb3_czech_ci",
+                "qualify": "char(3) | null | default NULL | - | utf8mb3_czech_ci",
+                "restrictcid": "char(1) | null | default NULL | - | utf8mb3_czech_ci",
+                "rtptimeout": "char(3) | null | default NULL | - | utf8mb3_czech_ci",
+                "rtpholdtimeout": "char(3) | null | default NULL | - | utf8mb3_czech_ci",
+                "secret": "varchar(80) | not null | default ∅ | - | utf8mb3_czech_ci",
+                "type": "varchar(6) | not null | default 'friend' | - | utf8mb3_czech_ci",
+                "username": "varchar(80) | not null | default ∅ | - | utf8mb3_czech_ci",
+                "disallow": "varchar(100) | null | default NULL | - | utf8mb3_czech_ci",
+                "allow": "varchar(100) | null | default NULL | - | utf8mb3_czech_ci",
+                "musiconhold": "varchar(100) | null | default NULL | - | utf8mb3_czech_ci",
+                "regseconds": "int(11) | not null | default 0 | - | -",
+                "ipaddr": "varchar(15) | not null | default ∅ | - | utf8mb3_czech_ci",
+                "regexten": "varchar(80) | not null | default ∅ | - | utf8mb3_czech_ci",
+                "cancallforward": "char(3) | null | default 'yes' | - | utf8mb3_czech_ci",
+                "setvar": "varchar(100) | not null | default ∅ | - | utf8mb3_czech_ci",
+                "auth": "varchar(10) | null | default NULL | - | utf8mb3_czech_ci"
+            },
+            "indexes": {
+                "name": "unique (name)",
+                "PRIMARY": "unique (id)",
+                "user_id": "index (user_id)"
+            }
+        },
+        "voip_voicemail_users": {
+            "engine": "InnoDB",
+            "collation": "utf8mb3_czech_ci",
+            "columns": {
+                "id": "int(11) | not null | default ∅ | auto_increment | -",
+                "customer_id": "int(11) | not null | default ∅ | - | -",
+                "active": "tinyint(4) | not null | default 1 | - | -",
+                "context": "varchar(50) | not null | default ∅ | - | utf8mb3_czech_ci",
+                "mailbox": "varchar(10) | not null | default '0' | - | utf8mb3_czech_ci",
+                "password": "varchar(4) | not null | default '0' | - | utf8mb3_czech_ci",
+                "fullname": "varchar(50) | not null | default ∅ | - | utf8mb3_czech_ci",
+                "email": "varchar(50) | not null | default ∅ | - | utf8mb3_czech_ci",
+                "pager": "varchar(50) | not null | default ∅ | - | utf8mb3_czech_ci",
+                "stamp": "timestamp | not null | default current_timestamp() | on update current_timestamp() | -"
+            },
+            "indexes": {
+                "customer_id": "unique (customer_id)",
+                "PRIMARY": "unique (id)"
+            }
+        },
+        "votes": {
+            "engine": "InnoDB",
+            "collation": "utf8mb3_czech_ci",
+            "columns": {
+                "id": "int(11) | not null | default ∅ | auto_increment | -",
+                "user_id": "int(11) | not null | default ∅ | - | -",
+                "type": "int(11) | not null | default ∅ | - | -",
+                "fk_id": "int(11) | not null | default ∅ | - | -",
+                "aro_group_id": "int(11) | not null | default ∅ | - | -",
+                "priority": "int(11) | not null | default ∅ | - | -",
+                "vote": "tinyint(1) | null | default NULL | - | -",
+                "time": "datetime | not null | default ∅ | - | -",
+                "comment": "mediumtext | not null | default ∅ | - | utf8mb3_czech_ci"
+            },
+            "indexes": {
+                "aro_group_id": "index (aro_group_id)",
+                "fk_id": "index (fk_id)",
+                "PRIMARY": "unique (id)",
+                "user_id": "index (user_id)"
+            }
+        },
+        "watchers": {
+            "engine": "InnoDB",
+            "collation": "utf8mb3_czech_ci",
+            "columns": {
+                "id": "int(11) | not null | default ∅ | auto_increment | -",
+                "user_id": "int(11) | not null | default ∅ | - | -",
+                "type": "int(11) | not null | default ∅ | - | -",
+                "fk_id": "int(11) | not null | default ∅ | - | -"
+            },
+            "indexes": {
+                "PRIMARY": "unique (id)",
+                "user_id": "index (user_id,type,fk_id)"
+            }
+        },
+        "webauthn_credentials": {
+            "engine": "InnoDB",
+            "collation": "utf8mb4_unicode_ci",
+            "columns": {
+                "id": "bigint(20) unsigned | not null | default ∅ | auto_increment | -",
+                "user_id": "int(11) | not null | default ∅ | - | -",
+                "credential_id": "varchar(255) | not null | default ∅ | - | utf8mb4_unicode_ci",
+                "public_key": "text | not null | default ∅ | - | utf8mb4_unicode_ci",
+                "sign_count": "bigint(20) unsigned | not null | default 0 | - | -",
+                "device_name": "varchar(100) | null | default NULL | - | utf8mb4_unicode_ci",
+                "created_at": "timestamp | null | default NULL | - | -",
+                "last_used_at": "timestamp | null | default NULL | - | -"
+            },
+            "indexes": {
+                "PRIMARY": "unique (id)",
+                "webauthn_credentials_credential_id_unique": "unique (credential_id)",
+                "webauthn_credentials_user_id_index": "index (user_id)"
+            }
+        }
+    },
+    "views": {
+        "radcheck_kea4_v": "select min(`l`.`id`) AS `id`,concat(`l`.`remote_id`,`l`.`circuit_id`) AS `username`,'Auth-Type' AS `attribute`,':=' AS `op`,'Accept' AS `value` from ((`line_ids` `l` join `ip_addresses` `ip` on(`ip`.`iface_id` = `l`.`iface_id` and `ip`.`gateway` = 0 and `ip`.`ip_address` like '10.%')) join `subnets` `s` on(`s`.`id` = `ip`.`subnet_id` and `s`.`dhcp` = 1 and `s`.`ipoe` = 1)) group by concat(`l`.`remote_id`,`l`.`circuit_id`)",
+        "radcheck_kea6mac_v": "select min(`ip6`.`id`) AS `id`,replace(ucase(`i`.`mac`),':','') AS `username`,'Auth-Type' AS `attribute`,':=' AS `op`,'Accept' AS `value` from (`ifaces` `i` join `ip6_addresses` `ip6` on(`ip6`.`iface_id` = `i`.`id`)) where `i`.`mac` is not null and `i`.`mac` <> '' group by replace(ucase(`i`.`mac`),':','') having count(distinct `ip6`.`ip_address`) = 1",
+        "radcheck_lineid_v": "select min(`l`.`id`) AS `id`,`l`.`circuit_id` AS `username`,'Auth-Type' AS `attribute`,':=' AS `op`,'Accept' AS `value` from ((`line_ids` `l` join `ip_addresses` `ip` on(`ip`.`iface_id` = `l`.`iface_id` and `ip`.`gateway` = 0 and `ip`.`ip_address` like '10.%')) join `subnets` `s` on(`s`.`id` = `ip`.`subnet_id` and `s`.`dhcp` = 1 and `s`.`ipoe` = 1)) group by `l`.`circuit_id`",
+        "radcheck_pppoe_v": "select `p`.`iface_id` AS `id`,`p`.`username` AS `username`,'Cleartext-Password' AS `attribute`,':=' AS `op`,`p`.`secret` AS `value` from `pppoe_secrets` `p` where `p`.`enabled` = 1 union all select -`cr`.`id` AS `id`,`cr`.`pppoe_username` AS `username`,'Cleartext-Password' AS `attribute`,':=' AS `op`,`cr`.`pppoe_secret` AS `value` from `connection_requests` `cr` where `cr`.`state` = 0 and `cr`.`pppoe_username` is not null and `cr`.`pppoe_secret` is not null",
+        "radcheck_v": "select min(`ip6`.`id`) AS `id`,ucase(`i`.`mac`) AS `username`,'Auth-Type' AS `attribute`,':=' AS `op`,'Accept' AS `value` from (`ifaces` `i` join `ip6_addresses` `ip6` on(`ip6`.`iface_id` = `i`.`id`)) where `i`.`mac` is not null group by ucase(`i`.`mac`)",
+        "radreply_kea4_v": "select `l`.`id` AS `id`,concat(`l`.`remote_id`,`l`.`circuit_id`) AS `username`,'Framed-IP-Address' AS `attribute`,'=' AS `op`,`ip`.`ip_address` AS `value` from ((`line_ids` `l` join `ip_addresses` `ip` on(`ip`.`iface_id` = `l`.`iface_id` and `ip`.`gateway` = 0 and `ip`.`ip_address` like '10.%')) join `subnets` `s` on(`s`.`id` = `ip`.`subnet_id` and `s`.`dhcp` = 1 and `s`.`ipoe` = 1))",
+        "radreply_kea6mac_v": "select min(`ip6`.`id`) AS `id`,replace(ucase(`i`.`mac`),':','') AS `username`,'Delegated-IPv6-Prefix' AS `attribute`,'=' AS `op`,min(`ip6`.`ip_address`) AS `value` from (`ifaces` `i` join `ip6_addresses` `ip6` on(`ip6`.`iface_id` = `i`.`id`)) where `i`.`mac` is not null and `i`.`mac` <> '' group by replace(ucase(`i`.`mac`),':','') having count(distinct `ip6`.`ip_address`) = 1",
+        "radreply_lineid_v": "select `l`.`id` AS `id`,`l`.`circuit_id` AS `username`,'Framed-IP-Address' AS `attribute`,'=' AS `op`,`ip`.`ip_address` AS `value` from ((`line_ids` `l` join `ip_addresses` `ip` on(`ip`.`iface_id` = `l`.`iface_id` and `ip`.`gateway` = 0 and `ip`.`ip_address` like '10.%')) join `subnets` `s` on(`s`.`id` = `ip`.`subnet_id` and `s`.`dhcp` = 1 and `s`.`ipoe` = 1))",
+        "radreply_pppoe_v": "select `p`.`iface_id` * 10 + 1 AS `id`,`p`.`username` AS `username`,'Framed-IP-Address' AS `attribute`,'=' AS `op`,`ip`.`ip_address` AS `value` from (`pppoe_secrets` `p` join `ip_addresses` `ip` on(`ip`.`iface_id` = `p`.`iface_id` and `ip`.`gateway` = 0 and `ip`.`ip_address` like '10.%')) where `p`.`enabled` = 1 union all select `p`.`iface_id` * 10 + 2 AS `id`,`p`.`username` AS `username`,'Delegated-IPv6-Prefix' AS `attribute`,'=' AS `op`,`ip6`.`ip_address` AS `value` from (`pppoe_secrets` `p` join `ip6_addresses` `ip6` on(`ip6`.`iface_id` = `p`.`iface_id` and `ip6`.`ip_address` like '%/%')) where `p`.`enabled` = 1 union all select -`cr`.`id` AS `id`,`cr`.`pppoe_username` AS `username`,'Framed-IP-Address' AS `attribute`,'=' AS `op`,`cr`.`ip_address` AS `value` from `connection_requests` `cr` where `cr`.`state` = 0 and `cr`.`pppoe_username` is not null and `cr`.`ip_address` is not null and `cr`.`ip_address` like '10.%'",
+        "radreply_v": "select `ip6`.`id` AS `id`,ucase(`i`.`mac`) AS `username`,'Delegated-IPv6-Prefix' AS `attribute`,'=' AS `op`,`ip6`.`ip_address` AS `value` from (`ifaces` `i` join `ip6_addresses` `ip6` on(`ip6`.`iface_id` = `i`.`id`)) where `i`.`mac` is not null"
+    }
+}

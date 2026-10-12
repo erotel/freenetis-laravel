@@ -24,3 +24,17 @@ ssh -p29 root@10.133.230.54 '
 `DEFINER` se odstraňuje, aby schéma šlo nahrát i neprivilegovaným uživatelem
 (views pak patří tomu, kdo je nahrál). Produkční views a jejich granty viz
 `app/Domains/Access/INFRASTRUKTURA.md`.
+
+## Otisk a hlídání driftu (`fingerprint.json`)
+
+`php artisan schema:check` porovná živou DB s `fingerprint.json` (tabulky,
+sloupce vč. typu/NULL/default/collation, indexy, definice views; bez DEFINER
+a AUTO_INCREMENT). Běží denně v 05:40 (drift → warning `schema.drift` v logu,
+exit 1) a ručně po nasazení.
+
+Po migraci, která mění schéma, otisk přegeneruj z DB postavené jen z repa:
+
+```bash
+php artisan testing:refresh-db
+php artisan schema:check --write --database=freenetis_test
+```

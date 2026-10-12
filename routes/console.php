@@ -54,6 +54,10 @@ Schedule::command('members:redirect-blocked')->hourly();
 // do line_ids (MAC→iface). No-op když nic nepřibylo.
 Schedule::command('lineid:sync')->everyFiveMinutes();
 
+// Drift schématu: živá DB vs otisk v repu (database/schema/fingerprint.json).
+// Ruční změna schématu na produkci → warning `schema.drift` do logu. Krok 4e.
+Schedule::command('schema:check')->dailyAt('05:40');
+
 // Mark members with unpaid fee from previous month or older as pending_termination=1
 // (per VOP — 1 měsíc neplacení = automatický konec smlouvy). Cron běží denně, ale
 // work se provede jen v Setting('pending_termination_day', 14). Admin pak schvaluje
