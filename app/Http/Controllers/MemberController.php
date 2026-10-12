@@ -1670,7 +1670,7 @@ class MemberController extends Controller
         }
 
         return redirect()->route('members.show', $id)
-            ->with('success', 'Člen byl schválen a byl mu odeslán email.');
+            ->with('success', 'Člen byl schválen.');
     }
 
     /**

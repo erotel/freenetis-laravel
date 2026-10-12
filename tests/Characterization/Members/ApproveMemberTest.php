@@ -90,7 +90,7 @@ class ApproveMemberTest extends DatabaseTestCase
 
         $this->approve($id)
             ->assertRedirect(route('members.show', $id))
-            ->assertSessionHas('success', 'Člen byl schválen a byl mu odeslán email.');
+            ->assertSessionHas('success', 'Člen byl schválen.');
 
         $m = $this->row($id);
         $this->assertSame(MemberType::REGULAR, (int) $m->type);
@@ -194,13 +194,10 @@ class ApproveMemberTest extends DatabaseTestCase
         $this->assertNull($this->row($id)->entrance_date);
     }
 
-    /**
-     * QUIRK: success hláška tvrdí „byl mu odeslán email“, i když se nic neposlalo
-     * (chybí kontakt / šablona).
-     */
-    public function test_hlaska_o_emailu_i_bez_emailu_quirk(): void
+    /** Hláška neslibuje e-mail, který se nemusel poslat (bez kontaktu / zákazník). */
+    public function test_hlaska_neslibuje_email(): void
     {
         $id = $this->member(MemberType::PENDING_MEMBER, true);
-        $this->approve($id)->assertSessionHas('success', 'Člen byl schválen a byl mu odeslán email.');
+        $this->approve($id)->assertSessionHas('success', 'Člen byl schválen.');
     }
 }
