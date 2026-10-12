@@ -10,6 +10,8 @@ app/Domains/<Doména>/
     Events/         co se stalo (MemberApproved) — minulý čas, neměnná data
     Listeners/      reakce na event (SendApprovalEmail, WriteAuditLog)
     Exceptions/     doménové chyby (MemberNotApprovable)
+    Support/        čisté pomocné třídy domény bez vlastního úložiště (CircuitIdParser)
+    <Technologie>/  klient externího systému / specifická logika (Access/Kea, Access/Pppoe)
     <Doména>ServiceProvider.php   registrace eventů/listenerů domény
 ```
 
@@ -52,4 +54,12 @@ QR). Existující `app/Services/*` se přesouvají do domén postupně.
    byznysu, ne do zásoby.
 4. Malé PR, každý řez samostatně revertovatelný.
 
-Vzorová implementace: `Members/` — schválení člena.
+**Fasáda při přesunu** — existující `app/Services/X` se nemaže naráz: zůstane
+jako tenká fasáda delegující do domény (stávající volající i testy fungují),
+volající se přepojují po jednom, fasáda nakonec zanikne.
+
+**Kontrakty s infrastrukturou** — tabulky, nad kterými stojí RADIUS views / Kea
+(`line_ids`, `pppoe_secrets`), mají kontrakt popsaný v docblocku repozitáře.
+Ruční změny schématu na produkci vždy dorovnat idempotentní migrací.
+
+Vzorové implementace: `Members/` (schválení člena), `Access/` (line-id, PPPoE).
