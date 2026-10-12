@@ -117,9 +117,8 @@ class ApproveMemberTest extends DatabaseTestCase
         $this->assertSame(MemberType::CUSTOMER, (int) $m->type);
         $this->assertSame(now()->toDateString(), (string) $m->entrance_form_accepted);
 
-        // Šablona 116 v této DB neexistuje → e-mail se nepošle (jen pokud by existovala).
-        $expected = DB::table('messages')->where('id', 116)->whereNotNull('email_text')->exists() ? 1 : 0;
-        $this->assertCount($expected, $this->queued($email));
+        // Zákazníkům se uvítací e-mail neposílá (mají e-mail se smlouvou po podpisu).
+        $this->assertCount(0, $this->queued($email));
     }
 
     public function test_bez_emailoveho_kontaktu_se_schvali_bez_emailu(): void

@@ -9,11 +9,13 @@ use App\Helpers\MemberType;
 use App\Models\Message;
 use App\Models\Setting;
 
-/** Po schválení zařadí uvítací e-mail ze šablony podle původního typu čekatele. */
+/**
+ * Po schválení na řádného člena zařadí uvítací e-mail (šablona 10).
+ * Zákazníkům se neposílá nic — ti dostávají e-mail se smlouvou po podpisu.
+ */
 class SendApprovalEmail
 {
-    private const TEMPLATE_MEMBER   = 10;   // Žádost o členství schválena
-    private const TEMPLATE_CUSTOMER = 116;  // schválení zákazníka
+    private const TEMPLATE_MEMBER = 10;   // Žádost o členství schválena
 
     public function __construct(
         private MemberRepository $members,
@@ -23,11 +25,11 @@ class SendApprovalEmail
 
     public function handle(MemberApproved $event): void
     {
-        $templateId = $event->previousType === MemberType::PENDING_MEMBER
-            ? self::TEMPLATE_MEMBER
-            : self::TEMPLATE_CUSTOMER;
+        if ($event->newType !== MemberType::REGULAR) {
+            return;
+        }
 
-        $message = $this->emails->emailTemplate($templateId);
+        $message = $this->emails->emailTemplate(self::TEMPLATE_MEMBER);
         if (!$message) {
             return;
         }
