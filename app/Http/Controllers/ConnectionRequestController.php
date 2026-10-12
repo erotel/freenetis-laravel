@@ -10,7 +10,7 @@ use App\Models\Member;
 use App\Models\Setting;
 use App\Models\Subnet;
 use App\Models\User;
-use App\Services\PppoeSecretService;
+use App\Domains\Access\Pppoe\PppoeCredentialGenerator;
 use App\Services\SnmpMacDetector;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -366,8 +366,8 @@ class ConnectionRequestController extends Controller
         if (!Setting::get('pppoe_enabled', 0)) {
             return ['pppoe_username' => null, 'pppoe_secret' => null];
         }
-        $c = app(PppoeSecretService::class)->buildCredential($memberId);
-        return ['pppoe_username' => $c['username'], 'pppoe_secret' => $c['secret']];
+        $generator = app(PppoeCredentialGenerator::class);
+        return ['pppoe_username' => $generator->usernameFor($memberId), 'pppoe_secret' => $generator->secret()];
     }
 
     public function create(Request $request, int $subnetId, string $ipAddress = '')

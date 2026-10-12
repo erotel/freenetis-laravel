@@ -2,11 +2,10 @@
 
 namespace App\Console\Commands;
 
+use App\Domains\Access\Actions\EnsurePppoeCredentialAction;
+use App\Domains\Access\Repositories\PppoeCredentialRepository;
 use App\Models\Iface;
-use App\Models\PppoeSecret;
-use App\Services\PppoeSecretService;
 use Illuminate\Console\Command;
-use Illuminate\Support\Facades\DB;
 
 /**
  * Hromadné vygenerování PPPoE credentialů pro EXISTUJÍCÍ přípojky (přechod
@@ -23,23 +22,14 @@ class PppoeGenerate extends Command
     protected $signature = 'pppoe:generate {--dry-run : jen spočítá, nic nezapíše}';
     protected $description = 'Vygeneruje PPPoE credentialy pro existující přípojky (příprava přechodu MAC/IP → PPPoE)';
 
-    public function handle(PppoeSecretService $svc): int
+    public function handle(PppoeCredentialRepository $credentials, EnsurePppoeCredentialAction $ensure): int
     {
         $dry = (bool) $this->option('dry-run');
 
-        $ifaceIds = DB::table('ip_addresses as ip')
-            ->join('ifaces as i', 'i.id', '=', 'ip.iface_id')
-            ->join('devices as d', 'd.id', '=', 'i.device_id')
-            ->join('users as u', 'u.id', '=', 'd.user_id')
-            ->where('ip.gateway', 0)
-            ->where('ip.service', 0)
-            ->whereNotNull('u.member_id')
-            ->where('u.member_id', '!=', 1) // asociace = infrastruktura, ne zákazník
-            ->distinct()
-            ->pluck('i.id');
+        $ifaceIds = $credentials->customerConnectionIfaceIds();
 
         // Existující credentialy předhčteme jedním dotazem (ne find() per iface).
-        $existing = PppoeSecret::pluck('iface_id')->flip();
+        $existing = $credentials->existingIfaceIds();
 
         $gen = 0; $skip = 0; $fail = 0;
         foreach ($ifaceIds as $id) {
@@ -52,7 +42,7 @@ class PppoeGenerate extends Command
                 continue;
             }
             $iface = Iface::find($id);
-            if ($iface && $svc->ensureForIface($iface)) {
+            if ($iface && $ensure->handle($iface)) {
                 $gen++;
             } else {
                 $fail++;

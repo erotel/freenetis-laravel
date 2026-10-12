@@ -294,8 +294,8 @@ class DeviceController extends Controller
         // vidět hesla. Klíčováno iface_id pro snadné dohledání v šabloně.
         $pppoeEnabled = (bool) Setting::get('pppoe_enabled', 0);
         $pppoeSecrets = ($pppoeEnabled && $this->can('view_all', 'password'))
-            ? \App\Models\PppoeSecret::whereIn('iface_id', $device->ifaces->pluck('id'))
-                ->get()->keyBy('iface_id')
+            ? app(\App\Domains\Access\Repositories\PppoeCredentialRepository::class)
+                ->forIfaces($device->ifaces->pluck('id'))
             : collect();
 
         return view('devices.show', [
@@ -322,13 +322,13 @@ class DeviceController extends Controller
      * existující heslo nemění. Vyžaduje právo editovat + vidět hesla; modul
      * musí být zapnutý (Setting pppoe_enabled). Viz onboarding návrh.
      */
-    public function pppoeGenerate(int $ifaceId, \App\Services\PppoeSecretService $svc)
+    public function pppoeGenerate(int $ifaceId, \App\Domains\Access\Actions\EnsurePppoeCredentialAction $ensure)
     {
         abort_unless((bool) Setting::get('pppoe_enabled', 0), 403, 'PPPoE modul není zapnutý.');
         abort_unless($this->can('edit_all') && $this->can('view_all', 'password'), 403);
 
         $iface  = $this->pppoeIface($ifaceId);
-        $secret = $svc->ensureForIface($iface);
+        $secret = $ensure->handle($iface);
 
         return redirect()->route('devices.show', $iface->device_id)->with(
             $secret ? 'success' : 'error',
@@ -339,13 +339,13 @@ class DeviceController extends Controller
     }
 
     /** Přegeneruje heslo (rotace) — username zůstává. Stejná autorizace jako generate. */
-    public function pppoeRotate(int $ifaceId, \App\Services\PppoeSecretService $svc)
+    public function pppoeRotate(int $ifaceId, \App\Domains\Access\Actions\RotatePppoeSecretAction $rotate)
     {
         abort_unless((bool) Setting::get('pppoe_enabled', 0), 403, 'PPPoE modul není zapnutý.');
         abort_unless($this->can('edit_all') && $this->can('view_all', 'password'), 403);
 
         $iface  = $this->pppoeIface($ifaceId);
-        $secret = $svc->rotateSecret($iface);
+        $secret = $rotate->handle($iface);
 
         return redirect()->route('devices.show', $iface->device_id)->with(
             $secret ? 'success' : 'error',
@@ -722,7 +722,8 @@ class DeviceController extends Controller
         // výchozí. Nikdy nesmí shodit vytvoření zařízení (try/catch).
         if ($crId && Setting::get('pppoe_enabled', 0)) {
             try {
-                $svc = app(\App\Services\PppoeSecretService::class);
+                $ensure = app(\App\Domains\Access\Actions\EnsurePppoeCredentialAction::class);
+                $adopt  = app(\App\Domains\Access\Actions\AdoptPppoeCredentialAction::class);
                 $cr  = ConnectionRequest::find($crId);
                 $connIfaces = Iface::with('device.user')
                     ->where('device_id', $deviceId)
@@ -734,10 +735,10 @@ class DeviceController extends Controller
                 $adopted = false;
                 foreach ($connIfaces as $connIface) {
                     if (!$adopted && $cr && $cr->pppoe_username && $cr->pppoe_secret) {
-                        $svc->adoptFromRequest($connIface, $cr->pppoe_username, $cr->pppoe_secret);
+                        $adopt->handle($connIface, $cr->pppoe_username, $cr->pppoe_secret);
                         $adopted = true;
                     } else {
-                        $svc->ensureForIface($connIface);
+                        $ensure->handle($connIface);
                     }
                 }
             } catch (\Throwable $e) {

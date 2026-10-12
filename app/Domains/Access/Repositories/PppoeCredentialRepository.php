@@ -37,6 +37,36 @@ class PppoeCredentialRepository
         $credential->update($values);
     }
 
+    /** Credentialy daných přípojek, klíčované iface_id. */
+    public function forIfaces(iterable $ifaceIds): \Illuminate\Support\Collection
+    {
+        return PppoeSecret::whereIn('iface_id', collect($ifaceIds))->get()->keyBy('iface_id');
+    }
+
+    /** Množina iface_id, které už credential mají (klíče pole = iface_id). */
+    public function existingIfaceIds(): array
+    {
+        return PppoeSecret::pluck('iface_id')->flip()->all();
+    }
+
+    /**
+     * Zákaznické přípojky: rozhraní s klientskou IP (gateway=0, ne service)
+     * u zařízení člena; asociace (member 1) = infrastruktura, ne zákazník.
+     */
+    public function customerConnectionIfaceIds(): \Illuminate\Support\Collection
+    {
+        return DB::table('ip_addresses as ip')
+            ->join('ifaces as i', 'i.id', '=', 'ip.iface_id')
+            ->join('devices as d', 'd.id', '=', 'i.device_id')
+            ->join('users as u', 'u.id', '=', 'd.user_id')
+            ->where('ip.gateway', 0)
+            ->where('ip.service', 0)
+            ->whereNotNull('u.member_id')
+            ->where('u.member_id', '!=', 1)
+            ->distinct()
+            ->pluck('i.id');
+    }
+
     /** Založí/přepíše credential přípojky a zapne ho (idempotentní přes iface_id). */
     public function upsertEnabled(int $ifaceId, string $username, string $secret): PppoeSecret
     {
