@@ -6,7 +6,7 @@ use Illuminate\Database\Eloquent\Model;
 
 /**
  * MAC-anomaly u IPoE line-id (přehození portů / cizí MAC na portu). Viz
- * [[project_pppoe_wpa2_nis2]] fáze B. Plněno LineIdSyncService::detectAnomalies.
+ * [[project_pppoe_wpa2_nis2]] fáze B. Plněno DetectLineIdAnomaliesAction (doména Access).
  */
 class LineIdAnomaly extends Model
 {

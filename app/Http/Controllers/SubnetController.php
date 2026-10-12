@@ -90,7 +90,7 @@ class SubnetController extends Controller
         // Sdílené line-idy: iface bez per-port mapování (line_ids), jehož MAC je
         // v line_id_seen na circuit-id, který vidí víc MAC → sdílený (typicky
         // bytovka za jedním ONT bez L2 switche s option82). Odlišíme ve výpisu
-        // žlutě „sdílený" od červené „chybí" (fakt nenaučeno). Viz LineIdSyncService.
+        // žlutě „sdílený" od červené „chybí" (fakt nenaučeno). Viz SharedCircuitDetector (doména Access).
         $macs = $subnet->ipAddresses
             ->map(fn($ip) => $ip->iface?->mac)
             ->filter()

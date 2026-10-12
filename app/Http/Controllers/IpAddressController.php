@@ -92,11 +92,11 @@ class IpAddressController extends Controller
 
         // IPoE optika: když port zákazníka už drží IP z poolu (čerstvé zapojení),
         // navrhni tuhle IP jako fixní — po registraci mu tak zůstane a nezmění se.
-        // Viz LineIdSyncService::currentLeaseIp / [[project_lineid_tr101_gotcha]].
+        // Viz KeaControlClient::currentLeaseIp / [[project_lineid_tr101_gotcha]].
         $suggestedIp = $suggestedSubnetId = null;
         if ($preselectedIfaceId) {
             $mac = $ifaces->firstWhere('id', $preselectedIfaceId)?->mac;
-            if ($mac && ($lease = app(\App\Services\LineIdSyncService::class)->currentLeaseIp($mac))) {
+            if ($mac && ($lease = app(\App\Domains\Access\Kea\KeaControlClient::class)->currentLeaseIp($mac))) {
                 $sid = $this->subnetIdForIp($subnets, $lease);
                 if ($sid !== null) { // jen IPoE subnet (dhcp+ipoe) → jinak nenavrhovat
                     $suggestedIp = $lease;
@@ -134,7 +134,7 @@ class IpAddressController extends Controller
         // dřív zacachovaný pool/negative verdikt a rezervace se neprojeví (reboot/renew
         // to nespraví). Best-effort. Viz [[project_lineid_tr101_gotcha]].
         if ($ip->iface_id && $ip->subnet && $ip->subnet->dhcp && $ip->subnet->ipoe) {
-            app(\App\Services\LineIdSyncService::class)->flushKeaHostCache();
+            app(\App\Domains\Access\Kea\KeaControlClient::class)->flushHostCache();
         }
 
         // Pokud IP patří čekajícímu zákazníkovi (type=18), okamžitě aktivovat

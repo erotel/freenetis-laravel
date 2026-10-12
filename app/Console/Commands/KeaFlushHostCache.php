@@ -2,7 +2,7 @@
 
 namespace App\Console\Commands;
 
-use App\Services\LineIdSyncService;
+use App\Domains\Access\Kea\KeaControlClient;
 use Illuminate\Console\Command;
 
 /**
@@ -16,9 +16,9 @@ class KeaFlushHostCache extends Command
     protected $signature   = 'kea:flush-host-cache';
     protected $description = 'Pročistí host-cache Kea uzlů (control API) — obnova po změně line-id rezervací.';
 
-    public function handle(LineIdSyncService $svc): int
+    public function handle(KeaControlClient $kea): int
     {
-        if ($svc->flushKeaHostCache()) {
+        if ($kea->flushHostCache()) {
             $this->info('Kea host-cache pročištěna.');
             return self::SUCCESS;
         }

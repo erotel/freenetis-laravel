@@ -2,7 +2,8 @@
 
 namespace App\Console\Commands;
 
-use App\Services\LineIdSyncService;
+use App\Domains\Access\Actions\DetectLineIdAnomaliesAction;
+use App\Domains\Access\Actions\ReconcileLineIdsAction;
 use Illuminate\Console\Command;
 
 /**
@@ -17,10 +18,10 @@ class LineIdSync extends Command
     protected $signature   = 'lineid:sync';
     protected $description = 'Překlopí line-id z RADIUS accountingu (line_id_seen) do line_ids (MAC→iface).';
 
-    public function handle(LineIdSyncService $svc): int
+    public function handle(ReconcileLineIdsAction $reconcile, DetectLineIdAnomaliesAction $detect): int
     {
-        $r = $svc->reconcileFromSeen();
-        $a = $svc->detectAnomalies();
+        $r = $reconcile->handle();
+        $a = $detect->handle();
         $cache = $r['cache_flushed'] === null
             ? 'beze změny rezervací'
             : ($r['cache_flushed'] ? 'Kea host-cache pročištěna' : 'POZOR: flush Kea cache selhal');
