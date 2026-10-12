@@ -719,36 +719,9 @@ class DeviceController extends Controller
             }
         }
 
-        // PPPoE onboarding: u zákaznické registrace (z connection requestu) vygeneruj
-        // PPPoE credential pro přípojné rozhraní (to, které dostalo statickou IP,
-        // gateway=0). Jen když je modul zapnutý — během přechodu MAC/IP zůstává
-        // výchozí. Nikdy nesmí shodit vytvoření zařízení (try/catch).
-        if ($crId && Setting::get('pppoe_enabled', 0)) {
-            try {
-                $ensure = app(\App\Domains\Access\Actions\EnsurePppoeCredentialAction::class);
-                $adopt  = app(\App\Domains\Access\Actions\AdoptPppoeCredentialAction::class);
-                $cr  = ConnectionRequest::find($crId);
-                $connIfaces = Iface::with('device.user')
-                    ->where('device_id', $deviceId)
-                    ->whereHas('ipAddresses', fn ($q) => $q->where('gateway', 0))
-                    ->get();
-                // První přípojné rozhraní zdědí credential z žádosti (instalátor ho
-                // už zadal do CPE) — zachovat username/heslo. Další (kdyby jich bylo
-                // víc) se dogenerují.
-                $adopted = false;
-                foreach ($connIfaces as $connIface) {
-                    if (!$adopted && $cr && $cr->pppoe_username && $cr->pppoe_secret) {
-                        $adopt->handle($connIface, $cr->pppoe_username, $cr->pppoe_secret);
-                        $adopted = true;
-                    } else {
-                        $ensure->handle($connIface);
-                    }
-                }
-            } catch (\Throwable $e) {
-                \Log::warning('PPPoE credential při registraci selhal', [
-                    'device' => $deviceId, 'error' => $e->getMessage(),
-                ]);
-            }
+        // Registrace ze žádosti → listenery domény Access (PPPoE onboarding).
+        if ($crId) {
+            \App\Domains\Access\Events\DeviceRegisteredFromRequest::dispatch($deviceId, $crId);
         }
 
         session()->flash('success', 'Zařízení bylo úspěšně přidáno.');

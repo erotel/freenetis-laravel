@@ -112,4 +112,32 @@ class PppoeCredentialRepository
 
         return (string) ($vs ?: $memberId);
     }
+
+    /**
+     * Credential, který žadatel dostal se žádostí o připojení (instalátor ho
+     * zadal do CPE). Null = žádost neexistuje nebo credential nemá.
+     *
+     * @return array{username: string, secret: string}|null
+     */
+    public function requestCredential(int $connectionRequestId): ?array
+    {
+        $cr = ConnectionRequest::find($connectionRequestId);
+        if (!$cr || !$cr->pppoe_username || !$cr->pppoe_secret) {
+            return null;
+        }
+        return ['username' => $cr->pppoe_username, 'secret' => $cr->pppoe_secret];
+    }
+
+    /**
+     * Přípojná rozhraní zařízení = ta s IP gateway=0 (zákaznická strana).
+     *
+     * @return \Illuminate\Support\Collection<int, Iface>
+     */
+    public function connectionIfaces(int $deviceId): \Illuminate\Support\Collection
+    {
+        return Iface::with('device.user')
+            ->where('device_id', $deviceId)
+            ->whereHas('ipAddresses', fn ($q) => $q->where('gateway', 0))
+            ->get();
+    }
 }

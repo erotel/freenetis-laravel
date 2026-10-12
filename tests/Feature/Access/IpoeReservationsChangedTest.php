@@ -21,10 +21,14 @@ use Tests\DatabaseTestCase;
  */
 class IpoeReservationsChangedTest extends DatabaseTestCase
 {
-    public function test_listener_je_registrovany(): void
+    public function test_listenery_domeny_access_jsou_registrovane(): void
     {
         Event::fake();
         Event::assertListening(IpoeReservationsChanged::class, FlushKeaHostCache::class);
+        Event::assertListening(
+            \App\Domains\Access\Events\DeviceRegisteredFromRequest::class,
+            \App\Domains\Access\Listeners\ProvisionPppoeCredentials::class
+        );
     }
 
     public function test_event_nese_vysledek_flushe(): void
