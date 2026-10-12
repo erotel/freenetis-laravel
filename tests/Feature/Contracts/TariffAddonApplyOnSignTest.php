@@ -102,7 +102,8 @@ class TariffAddonApplyOnSignTest extends DatabaseTestCase
         $this->assertSame('tariff_change', $addon->type);
         $this->assertSame('draft', $addon->status);
         $this->assertSame(self::SPEED_NEW, (int) $addon->new_speed_class_id, 'cílový tarif se uloží jako návrh');
-        $this->assertSame('Mega', $addon->new_speed_name);
+        // Název bereme z DB — třídy se v čase přejmenovávají (Mega → Special).
+        $this->assertSame(DB::table('speed_classes')->where('id', self::SPEED_NEW)->value('name'), $addon->new_speed_name);
         $this->assertSame('Standard', $addon->old_speed_name);
 
         // Klíčové: rychlost člena se NESMÍ změnit už při vytvoření návrhu.

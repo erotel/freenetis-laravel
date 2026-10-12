@@ -25,11 +25,15 @@ class PppoeGenerateActionTest extends DatabaseTestCase
         $row = DB::table('ifaces as i')
             ->join('devices as d', 'd.id', '=', 'i.device_id')
             ->join('users as u', 'u.id', '=', 'd.user_id')
+            // Rozhraní BEZ existujícího credentialu (reálná DB má PPPoE pilot) —
+            // jinak by aserce „nic nevzniklo“ padala na předem existujícím záznamu.
+            ->leftJoin('pppoe_secrets as ps', 'ps.iface_id', '=', 'i.id')
+            ->whereNull('ps.iface_id')
             ->whereNotNull('u.member_id')
             ->select('i.id as iface_id')
             ->first();
         if (!$row) {
-            $this->markTestSkipped('žádná iface s členem');
+            $this->markTestSkipped('žádná iface s členem bez PPPoE credentialu');
         }
         $this->ifaceId = (int) $row->iface_id;
     }

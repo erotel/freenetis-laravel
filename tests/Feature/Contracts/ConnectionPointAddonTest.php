@@ -56,7 +56,8 @@ class ConnectionPointAddonTest extends DatabaseTestCase
         $this->assertNotNull($addon);
         $this->assertSame('connection_point', $addon->type);
         $this->assertSame('Testovací 1, Prostějov', $addon->service_name);
-        $this->assertSame('Mega', $addon->place_speed_name);
+        // Název bereme z DB — třídy se v čase přejmenovávají (Mega → Special).
+        $this->assertSame(DB::table('speed_classes')->where('id', self::MEGA)->value('name'), $addon->place_speed_name);
         $megaPrice = (float) DB::table('speed_classes')->where('id', self::MEGA)->value('price');
         $this->assertEqualsWithDelta($megaPrice, (float) $addon->service_price, 0.001, 'cena = cena rychlosti Mega');
         $this->assertSame('add', $addon->service_action);
