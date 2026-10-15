@@ -1037,21 +1037,12 @@ class MemberController extends Controller
         // deduct_day, který padne před datum vystoupení (where leaving_date > deduct_date).
         // Předpočítáme měsíční tarif a v JS pak rebalanc refund_amount podle vybraného data,
         // ať admin nevrátí peníze, které DB stejně příští srážka zruší.
-        $monthlyFee = (float) DB::table('members_fees AS mf')
-            ->join('fees AS f', 'f.id', '=', 'mf.fee_id')
-            ->join('enum_types AS et', 'et.id', '=', 'f.type_id')
-            ->whereRaw('LOWER(et.value) = ?', ['regular member fee'])
-            ->where('mf.member_id', $id)
-            ->whereDate('mf.activation_date', '<=', now())
-            ->whereDate('mf.deactivation_date', '>=', now())
-            ->orderBy('mf.priority')
-            ->value('f.fee');
-        if ($monthlyFee <= 0) {
-            $defaultFeeId = (int) \App\Models\Setting::get('default_fee_member_type_' . $member->type, 0);
-            $monthlyFee   = $defaultFeeId
-                ? (float) DB::table('fees')->where('id', $defaultFeeId)->value('fee')
-                : 0.0;
-        }
+        // Měsíčně se strhne pravidelný poplatek (individuální → tarif → základní)
+        // + příplatky (služby, placená místa; type 6) — obojí do data odchodu.
+        $feePolicy  = app(\App\Domains\Billing\Fees\FeePolicy::class);
+        $todayStr   = now()->toDateString();
+        $monthlyFee = (float) ($feePolicy->regularFee($id, (int) $member->type, $todayStr) ?? 0.0)
+            + $feePolicy->surcharges($id, $todayStr);
 
         $deductDay = (int) \App\Models\Setting::get('deduct_day', 26);
 

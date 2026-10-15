@@ -189,4 +189,20 @@ class EndMembershipNoticePeriodTest extends DatabaseTestCase
             ->assertSee('Výpověď, odchod ' . $leaving->format('d.m.Y'))
             ->assertDontSee(route('members.end-membership', $x['member']), false);
     }
+
+    // ── F3: formulář počítá poplatek přes FeePolicy ─────────────────────────
+
+    /** Tarif + dodatečná služba (dřív jen individuální/základní → špatná vratka u tarifu). */
+    public function test_formular_mesicni_poplatek_tarif_plus_sluzby(): void
+    {
+        $x = $this->member(2, 1000);
+        $sc = (int) DB::table('speed_classes')->insertGetId(['name' => 'char ' . uniqid(), 'd_ceil' => 1, 'd_rate' => 1, 'u_ceil' => 1, 'u_rate' => 1, 'price' => 199]);
+        DB::table('members')->where('id', $x['member'])->update(['speed_class_id' => $sc]);
+        $fee = (int) DB::table('fees')->insertGetId(['readonly' => 0, 'fee' => 50, 'from' => '2000-01-01', 'to' => '9999-12-31', 'type_id' => 39, 'name' => 'char svc', 'special_type_id' => null]);
+        DB::table('members_fees')->insert(['fee_id' => $fee, 'member_id' => $x['member'], 'activation_date' => '2000-01-01', 'deactivation_date' => '9999-12-31', 'priority' => 1, 'comment' => 'char']);
+
+        $this->actingAs(User::find($this->adminId))->get(route('members.end-membership', $x['member']))
+            ->assertOk()
+            ->assertSee('const RF_MONTHLY_FEE   = 249;', false);
+    }
 }
