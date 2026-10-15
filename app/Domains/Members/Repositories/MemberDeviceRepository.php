@@ -53,6 +53,20 @@ class MemberDeviceRepository
      */
     public function deleteAll(int $memberId): int
     {
+        $count = $this->deleteDevices($memberId);
+
+        DB::table('ip_addresses')->where('member_id', $memberId)->delete();
+        DB::table('subnets_owners')->where('member_id', $memberId)->delete();
+
+        return $count;
+    }
+
+    /**
+     * Jen zařízení uživatelů člena (devices → ifaces → ip/ip6 adresy). Přímo
+     * přiřazené IP ani vlastnictví podsítí nemaže. Vrací počet zařízení.
+     */
+    public function deleteDevices(int $memberId): int
+    {
         $userIds   = DB::table('users')->where('member_id', $memberId)->pluck('id');
         $deviceIds = DB::table('devices')->whereIn('user_id', $userIds)->pluck('id');
         foreach ($deviceIds as $deviceId) {
@@ -64,9 +78,6 @@ class MemberDeviceRepository
             DB::table('ifaces')->where('device_id', $deviceId)->delete();
         }
         DB::table('devices')->whereIn('user_id', $userIds)->delete();
-
-        DB::table('ip_addresses')->where('member_id', $memberId)->delete();
-        DB::table('subnets_owners')->where('member_id', $memberId)->delete();
 
         return $deviceIds->count();
     }

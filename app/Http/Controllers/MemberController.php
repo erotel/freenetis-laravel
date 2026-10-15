@@ -4,10 +4,11 @@ namespace App\Http\Controllers;
 
 use App\Domains\Members\Actions\ApproveMemberAction;
 use App\Domains\Members\Actions\EndMembershipAction;
+use App\Domains\Members\Actions\MarkMemberFormerAction;
+use App\Domains\Members\Actions\PurgeMemberAction;
 use App\Domains\Members\Events\MemberApproved;
 use App\Domains\Members\Exceptions\MemberNotApprovable;
 use App\Domains\Members\Exceptions\MembershipNotEndable;
-use App\Domains\Members\Repositories\MemberContractRepository;
 use App\Domains\Members\Support\EndMode;
 use App\Domains\Members\Support\FormerType;
 use App\Helpers\MemberType;
@@ -736,150 +737,32 @@ class MemberController extends Controller
         return redirect()->route('members.show', $id);
     }
 
-    public function destroy(int $id)
+    /**
+     * Trvale smazat: čekatel (17/18) se smaže hned; aktivní člen se v kroku 1
+     * označí jako bývalý (90→15, jinak 16); bývalého (15/16) smaže krok 2.
+     */
+    public function destroy(int $id, PurgeMemberAction $purge, MarkMemberFormerAction $markFormer)
     {
         abort_unless($this->can('delete_all'), 403);
 
         $member = DB::table('members')->where('id', $id)->first();
         abort_if(!$member, 404);
 
-        $formerTypes  = [MemberType::FORMER, MemberType::FORMER_CUSTOMER];
-        $pendingTypes = [MemberType::PENDING_MEMBER, MemberType::PENDING_CUSTOMER];
-
-        // Čekající členové (17/18) — smazat okamžitě bez kroku "označit jako bývalého"
-        if (in_array($member->type, $pendingTypes)) {
-            DB::transaction(function () use ($id) {
-                $userIds    = DB::table('users')->where('member_id', $id)->pluck('id');
-                $contactIds = DB::table('users_contacts')->whereIn('user_id', $userIds)->pluck('contact_id');
-                DB::table('users_contacts')->whereIn('user_id', $userIds)->delete();
-                DB::table('contacts')->whereIn('id', $contactIds)->delete();
-                foreach ($userIds as $userId) {
-                    $deviceIds = DB::table('devices')->where('user_id', $userId)->pluck('id');
-                    foreach ($deviceIds as $deviceId) {
-                        $ifaceIds = DB::table('ifaces')->where('device_id', $deviceId)->pluck('id');
-                        foreach ($ifaceIds as $ifaceId) {
-                            DB::table('ip6_addresses')->where('iface_id', $ifaceId)->delete();
-                            DB::table('ip_addresses')->where('iface_id', $ifaceId)->delete();
-                        }
-                        DB::table('ifaces')->where('device_id', $deviceId)->delete();
-                    }
-                    DB::table('devices')->where('user_id', $userId)->delete();
-                }
-                DB::table('users')->where('member_id', $id)->delete();
-                $accountIds = DB::table('accounts')->where('member_id', $id)->pluck('id');
-                DB::table('variable_symbols')->whereIn('account_id', $accountIds)->delete();
-                DB::table('transfers')->whereIn('origin_id', $accountIds)->delete();
-                DB::table('transfers')->whereIn('destination_id', $accountIds)->delete();
-                DB::table('accounts')->where('member_id', $id)->delete();
-                DB::table('members_fees')->where('member_id', $id)->delete();
-                DB::table('allowed_subnets')->where('member_id', $id)->delete();
-                DB::table('members')->where('id', $id)->delete();
-            });
-            $this->purgeUnsignedContracts($id);
-            \App\Services\AuditLogger::log('deleted', 'members', $id, (array) $member, null);
-            return redirect()->route('members.index')
-                ->with('success', 'Čekající člen byl smazán.');
+        if (PurgeMemberAction::isPurgeable((int) $member->type)) {
+            $purge->handle($member);
+            $note = in_array((int) $member->type, PurgeMemberAction::PENDING_TYPES, true)
+                ? 'Čekající člen byl smazán.'
+                : 'Člen a všechna jeho data byla trvale smazána.';
+            return redirect()->route('members.index')->with('success', $note);
         }
 
-        // Krok 1: pokud není ještě bývalý, označit jako bývalého
-        if (!in_array($member->type, $formerTypes)) {
-            // řádný člen (90) → bývalý člen (15), ostatní → bývalý zákazník (16) —
-            // stejně jako endMembership a cron members:redirect-former.
-            $newType = FormerType::for((int) $member->type);
-            $leaving = now()->format('Y-m-d');
-            DB::table('members')->where('id', $id)->update([
-                'type'           => $newType,
-                'locked'         => 1,
-                'leaving_date'   => $leaving,
-                'speed_class_id' => null, // bývalý člen → rychlost „žádná"
-            ]);
-            \App\Services\AuditLogger::log('updated', 'members', $id, [
-                'type'           => $member->type,
-                'locked'         => $member->locked,
-                'leaving_date'   => $member->leaving_date,
-                'speed_class_id' => $member->speed_class_id,
-            ], [
-                'type'           => $newType,
-                'locked'         => 1,
-                'leaving_date'   => $leaving,
-                'speed_class_id' => null,
-            ]);
-            // Individuální tarif a dodatečné služby ukončit k datu odchodu.
-            \App\Services\MemberFeesTermination::deactivate($id, $leaving);
-            // Výpověď zákazníka → podepsané smlouvy označit jako ukončené.
-            $terminated = $this->terminateSignedContracts($id, $leaving);
-            // Rozpracované návrhy bývalého člena už nikdo nedokončí → smazat.
-            $this->purgeUnsignedContracts($id);
-            $label = ($newType === MemberType::FORMER_CUSTOMER) ? 'zákazník' : 'člen';
-            $note  = "Člen byl označen jako bývalý {$label}. Pro úplné smazání klikněte znovu na Trvale smazat.";
-            if ($terminated > 0) {
-                $note .= ' Smlouva byla označena jako ukončená.';
-            }
-            return redirect()->route('members.show', $id)->with('info', $note);
+        $ended = $markFormer->handle($member, auth()->user()?->login);
+        $label = ($ended->formerType === MemberType::FORMER_CUSTOMER) ? 'zákazník' : 'člen';
+        $note  = "Člen byl označen jako bývalý {$label}. Pro úplné smazání klikněte znovu na Trvale smazat.";
+        if ($ended->contractsTerminated > 0) {
+            $note .= ' Smlouva byla označena jako ukončená.';
         }
-
-        // Krok 2: člen je již bývalý — smazat vše
-        DB::transaction(function () use ($id) {
-            $userIds = DB::table('users')->where('member_id', $id)->pluck('id');
-
-            // Kontakty
-            $contactIds = DB::table('users_contacts')->whereIn('user_id', $userIds)->pluck('contact_id');
-            DB::table('users_contacts')->whereIn('user_id', $userIds)->delete();
-            DB::table('contacts')->whereIn('id', $contactIds)->delete();
-
-            // Zařízení, rozhraní, IP adresy
-            foreach ($userIds as $userId) {
-                $deviceIds = DB::table('devices')->where('user_id', $userId)->pluck('id');
-                foreach ($deviceIds as $deviceId) {
-                    $ifaceIds = DB::table('ifaces')->where('device_id', $deviceId)->pluck('id');
-                    foreach ($ifaceIds as $ifaceId) {
-                        DB::table('ip6_addresses')->where('iface_id', $ifaceId)->delete();
-                            DB::table('ip_addresses')->where('iface_id', $ifaceId)->delete();
-                    }
-                    DB::table('ifaces')->where('device_id', $deviceId)->delete();
-                }
-                DB::table('devices')->where('user_id', $userId)->delete();
-            }
-
-            // Uživatelé
-            DB::table('users')->where('member_id', $id)->delete();
-
-            // Účty a převody
-            $accountIds = DB::table('accounts')->where('member_id', $id)->pluck('id');
-            DB::table('transfers')->whereIn('origin_id', $accountIds)->delete();
-            DB::table('transfers')->whereIn('destination_id', $accountIds)->delete();
-            DB::table('accounts')->where('member_id', $id)->delete();
-
-            // Variabilní symboly (přes account_id)
-            DB::table('variable_symbols')->whereIn('account_id', $accountIds)->delete();
-
-            // Poplatky
-            DB::table('members_fees')->where('member_id', $id)->delete();
-
-            // Povolené podsítě
-            DB::table('allowed_subnets')->where('member_id', $id)->delete();
-
-            // Člen
-            DB::table('members')->where('id', $id)->delete();
-        });
-
-        $this->purgeUnsignedContracts($id);
-        \App\Services\AuditLogger::log('deleted', 'members', $id, (array) $member, null);
-
-        return redirect()->route('members.index')
-            ->with('success', 'Člen a všechna jeho data byla trvale smazána.');
-    }
-
-    /** Nepodepsané smlouvy člena smazat (podepsané/ukončené zůstávají) — viz MemberContractRepository. */
-    private function purgeUnsignedContracts(int $memberId): void
-    {
-        app(MemberContractRepository::class)->purgeUnsigned($memberId);
-    }
-
-    /** Podepsané smlouvy → „Ukončená"; vrací počet. */
-    private function terminateSignedContracts(int $memberId, ?string $leavingDate): int
-    {
-        return app(MemberContractRepository::class)->terminateSigned($memberId, $leavingDate, auth()->user()?->login);
+        return redirect()->route('members.show', $id)->with('info', $note);
     }
 
     public function applicants()

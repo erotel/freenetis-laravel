@@ -3,9 +3,12 @@
 namespace App\Domains\Members;
 
 use App\Domains\Members\Events\MemberApproved;
+use App\Domains\Members\Events\MemberPurged;
 use App\Domains\Members\Events\MembershipEnded;
 use App\Domains\Members\Listeners\CloseMemberContracts;
+use App\Domains\Members\Listeners\PurgeMemberContracts;
 use App\Domains\Members\Listeners\SendTerminationEmail;
+use App\Domains\Members\Listeners\WritePurgeAudit;
 use App\Domains\Members\Listeners\SendApprovalEmail;
 use App\Domains\Members\Listeners\WriteApprovalAudit;
 use Illuminate\Support\Facades\Event;
@@ -21,5 +24,8 @@ class MembersServiceProvider extends ServiceProvider
 
         Event::listen(MembershipEnded::class, SendTerminationEmail::class);
         Event::listen(MembershipEnded::class, CloseMemberContracts::class);
+
+        Event::listen(MemberPurged::class, PurgeMemberContracts::class);
+        Event::listen(MemberPurged::class, WritePurgeAudit::class);
     }
 }

@@ -70,6 +70,17 @@ class MemberRepository
         ]);
     }
 
+    /** Bývalý k datu: typ 15/16, zamčený, rychlost „žádná" (prepaid flagy beze změny). */
+    public function markFormer(int $id, int $formerType, string $leavingDate): void
+    {
+        DB::table('members')->where('id', $id)->update([
+            'type'           => $formerType,
+            'locked'         => 1,
+            'leaving_date'   => $leavingDate,
+            'speed_class_id' => null,
+        ]);
+    }
+
     /**
      * „+U" k (prvnímu) variabilnímu symbolu kreditního účtu — po odchodu se VS
      * už nepáruje s platbami (jako Kohana). Idempotentní.
@@ -87,6 +98,35 @@ class MemberRepository
         if ($vs && !str_ends_with($vs->variable_symbol, '+U')) {
             DB::table('variable_symbols')->where('id', $vs->id)->update(['variable_symbol' => $vs->variable_symbol . '+U']);
         }
+    }
+
+    /**
+     * Trvale smaže člena a jeho data: kontakty uživatelů, uživatele, účty
+     * s převody (obě strany) a VS, poplatky, povolené podsítě, člena. Zařízení
+     * maže volající (MemberDeviceRepository::deleteDevices) předem.
+     *
+     * Přímo přiřazené IP (ip_addresses.member_id) se nemažou — FK SET NULL je
+     * nechá bez vlastníka (zachované legacy chování). subnets_owners a další
+     * vazby se smažou kaskádou FK. Volat uvnitř transakce.
+     */
+    public function purge(int $id): void
+    {
+        $userIds    = DB::table('users')->where('member_id', $id)->pluck('id');
+        $contactIds = DB::table('users_contacts')->whereIn('user_id', $userIds)->pluck('contact_id');
+        DB::table('users_contacts')->whereIn('user_id', $userIds)->delete();
+        DB::table('contacts')->whereIn('id', $contactIds)->delete();
+
+        DB::table('users')->where('member_id', $id)->delete();
+
+        $accountIds = DB::table('accounts')->where('member_id', $id)->pluck('id');
+        DB::table('variable_symbols')->whereIn('account_id', $accountIds)->delete();
+        DB::table('transfers')->whereIn('origin_id', $accountIds)->delete();
+        DB::table('transfers')->whereIn('destination_id', $accountIds)->delete();
+        DB::table('accounts')->where('member_id', $id)->delete();
+
+        DB::table('members_fees')->where('member_id', $id)->delete();
+        DB::table('allowed_subnets')->where('member_id', $id)->delete();
+        DB::table('members')->where('id', $id)->delete();
     }
 
     /**
