@@ -46,6 +46,49 @@ class MemberRepository
         $member->save();
     }
 
+    /** Surový řádek members (hodnoty bez castů modelu — pro audit původních hodnot). */
+    public function row(int $id): ?object
+    {
+        return DB::table('members')->where('id', $id)->first();
+    }
+
+    /**
+     * Zapíše ukončení: typ, zámek, datum odchodu, rychlost a reset prepaid flagů
+     * (bývalý / odcházející člen už není kandidát na ukončení ani na redirect
+     * pro nedostatek kreditu).
+     */
+    public function markLeaving(int $id, int $type, int $locked, string $leavingDate, ?int $speedClassId): void
+    {
+        DB::table('members')->where('id', $id)->update([
+            'type'                  => $type,
+            'locked'                => $locked,
+            'leaving_date'          => $leavingDate,
+            'payment_blocked'       => 0,
+            'payment_blocked_since' => null,
+            'pending_termination'   => 0,
+            'speed_class_id'        => $speedClassId,
+        ]);
+    }
+
+    /**
+     * „+U" k (prvnímu) variabilnímu symbolu kreditního účtu — po odchodu se VS
+     * už nepáruje s platbami (jako Kohana). Idempotentní.
+     */
+    public function markVariableSymbolLeft(int $memberId): void
+    {
+        $accountId = DB::table('accounts')
+            ->where('member_id', $memberId)
+            ->where('account_attribute_id', 221100)
+            ->value('id');
+        if (!$accountId) {
+            return;
+        }
+        $vs = DB::table('variable_symbols')->where('account_id', $accountId)->orderBy('id')->first();
+        if ($vs && !str_ends_with($vs->variable_symbol, '+U')) {
+            DB::table('variable_symbols')->where('id', $vs->id)->update(['variable_symbol' => $vs->variable_symbol . '+U']);
+        }
+    }
+
     /**
      * E-mail hlavního uživatele člena (kontakt typu 20). Při více uživatelích /
      * kontaktech vrací první, který DB vydá — shodně s původním chováním.

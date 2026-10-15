@@ -18,15 +18,27 @@ class EmailQueueRepository
         return ($message && $message->email_text) ? $message : null;
     }
 
-    /** Zařadí e-mail do fronty (odešle ho cron fronty). */
-    public function enqueue(string $from, string $to, string $subject, string $body): void
+    /** Zařadí e-mail do fronty (odešle ho cron fronty). Vrací id ve frontě. */
+    public function enqueue(string $from, string $to, string $subject, string $body): int
     {
-        DB::table('email_queues')->insert([
+        return (int) DB::table('email_queues')->insertGetId([
             'from'    => $from,
             'to'      => $to,
             'subject' => $subject,
             'body'    => $body,
             'state'   => 0,
+        ]);
+    }
+
+    /** Příloha k e-mailu ve frontě (soubor na disku). */
+    public function attach(int $emailQueueId, string $path, string $name, string $mime): void
+    {
+        DB::table('email_queue_attachments')->insert([
+            'email_queue_id' => $emailQueueId,
+            'path'           => $path,
+            'name'           => $name,
+            'mime'           => $mime,
+            'created_at'     => now(),
         ]);
     }
 }

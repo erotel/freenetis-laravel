@@ -28,6 +28,15 @@ class LedgerRepository
         return $id ? (int) $id : null;
     }
 
+    /** Kreditní účet člena (id, balance, …) nebo null. */
+    public function creditAccount(int $memberId): ?object
+    {
+        return DB::table('accounts')
+            ->where('member_id', $memberId)
+            ->where('account_attribute_id', AccountAttribute::CREDIT)
+            ->first();
+    }
+
     public function feeAmount(int $feeId): float
     {
         return (float) DB::table('fees')->where('id', $feeId)->value('fee');
@@ -231,6 +240,27 @@ class LedgerRepository
         ]);
 
         DB::table('accounts')->where('id', $fromAccount)->decrement('balance', $amount);
+    }
+
+    /**
+     * Obecný převod mezi účty s okamžitou úpravou obou zůstatků (double-entry:
+     * origin −=, destination +=). Volat uvnitř transakce.
+     */
+    public function transfer(int $fromAccount, int $toAccount, int $type, float $amount, string $text, ?int $memberId): void
+    {
+        $now = now()->format('Y-m-d H:i:s');
+        DB::table('transfers')->insert([
+            'origin_id'         => $fromAccount,
+            'destination_id'    => $toAccount,
+            'type'              => $type,
+            'amount'            => abs($amount),
+            'datetime'          => $now,
+            'creation_datetime' => $now,
+            'text'              => $text,
+            'member_id'         => $memberId,
+        ]);
+        DB::table('accounts')->where('id', $fromAccount)->decrement('balance', $amount);
+        DB::table('accounts')->where('id', $toAccount)->increment('balance', $amount);
     }
 
     /**

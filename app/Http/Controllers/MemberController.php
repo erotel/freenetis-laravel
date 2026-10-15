@@ -3,8 +3,13 @@
 namespace App\Http\Controllers;
 
 use App\Domains\Members\Actions\ApproveMemberAction;
+use App\Domains\Members\Actions\EndMembershipAction;
 use App\Domains\Members\Events\MemberApproved;
 use App\Domains\Members\Exceptions\MemberNotApprovable;
+use App\Domains\Members\Exceptions\MembershipNotEndable;
+use App\Domains\Members\Repositories\MemberContractRepository;
+use App\Domains\Members\Support\EndMode;
+use App\Domains\Members\Support\FormerType;
 use App\Helpers\MemberType;
 use App\Models\AccountAttribute;
 use App\Models\AddressPoint;
@@ -780,7 +785,7 @@ class MemberController extends Controller
         if (!in_array($member->type, $formerTypes)) {
             // řádný člen (90) → bývalý člen (15), ostatní → bývalý zákazník (16) —
             // stejně jako endMembership a cron members:redirect-former.
-            $newType = ($member->type == MemberType::REGULAR) ? MemberType::FORMER : MemberType::FORMER_CUSTOMER;
+            $newType = FormerType::for((int) $member->type);
             $leaving = now()->format('Y-m-d');
             DB::table('members')->where('id', $id)->update([
                 'type'           => $newType,
@@ -865,63 +870,16 @@ class MemberController extends Controller
             ->with('success', 'Člen a všechna jeho data byla trvale smazána.');
     }
 
-    /**
-     * Při trvalém smazání člena smaž jeho nepodepsané smlouvy z contractsdb
-     * (návrh / čeká na podpis / ověřeno / zrušená), aby nezůstávaly "viset"
-     * bez existujícího člena. Podepsané (`signed`) i ukončené (`terminated`)
-     * smlouvy zůstávají jako právní dokument.
-     *
-     * Smlouvy jsou v samostatné DB (connection 'contracts'), takže to nejde
-     * dovnitř transakce nad `mysql`. Chyba contractsdb nesmí shodit už
-     * dokončené mazání člena — proto try/catch. Child tabulky
-     * (contract_parties/events/otps) se domažou přes ON DELETE CASCADE.
-     */
+    /** Nepodepsané smlouvy člena smazat (podepsané/ukončené zůstávají) — viz MemberContractRepository. */
     private function purgeUnsignedContracts(int $memberId): void
     {
-        try {
-            \App\Models\Contract::where('member_id', $memberId)
-                ->whereNotIn('status', ['signed', 'terminated'])
-                ->delete();
-        } catch (\Throwable $e) {
-            \Illuminate\Support\Facades\Log::warning(
-                'Nepodařilo se smazat nepodepsané smlouvy člena #' . $memberId . ': ' . $e->getMessage()
-            );
-        }
+        app(MemberContractRepository::class)->purgeUnsigned($memberId);
     }
 
-    /**
-     * Výpověď zákazníka: podepsané smlouvy člena označit jako `terminated`
-     * ("Ukončená"). Smlouva zůstává v systému jako právní dokument (PDF).
-     * Robustní vůči výpadku contractsdb (try/catch) — nesmí shodit ukončení
-     * člena. Vrací počet ukončených smluv.
-     */
+    /** Podepsané smlouvy → „Ukončená"; vrací počet. */
     private function terminateSignedContracts(int $memberId, ?string $leavingDate): int
     {
-        try {
-            $contracts = \App\Models\Contract::where('member_id', $memberId)
-                ->where('status', 'signed')
-                ->get();
-
-            foreach ($contracts as $contract) {
-                $contract->update(['status' => 'terminated']);
-                \App\Models\ContractEvent::create([
-                    'contract_id' => $contract->id,
-                    'event'       => 'terminated',
-                    'meta_json'   => json_encode([
-                        'by'     => auth()->user()?->login,
-                        'reason' => 'Ukončení zákazníka',
-                        'date'   => $leavingDate,
-                    ], JSON_UNESCAPED_UNICODE),
-                ]);
-            }
-
-            return $contracts->count();
-        } catch (\Throwable $e) {
-            \Illuminate\Support\Facades\Log::warning(
-                'Nepodařilo se ukončit smlouvy člena #' . $memberId . ': ' . $e->getMessage()
-            );
-            return 0;
-        }
+        return app(MemberContractRepository::class)->terminateSigned($memberId, $leavingDate, auth()->user()?->login);
     }
 
     public function applicants()
@@ -978,9 +936,7 @@ class MemberController extends Controller
     /** Má výpověď s datem odchodu v budoucnu (běží výpovědní lhůta)? */
     private static function inNoticePeriod(object $member): bool
     {
-        $leaving = (string) ($member->leaving_date ?? '');
-        return $leaving !== '' && $leaving !== '0000-00-00' && $leaving !== '9999-12-31'
-            && $leaving > now()->format('Y-m-d');
+        return FormerType::inNoticePeriod($member->leaving_date ?? null);
     }
 
     public function endMembershipForm(int $id)
@@ -1068,407 +1024,41 @@ class MemberController extends Controller
         ]);
     }
 
-    public function endMembership(Request $request, int $id)
+    public function endMembership(Request $request, int $id, EndMembershipAction $endMembership)
     {
         abort_unless($this->can('edit_all'), 403);
 
-        $isRefundMode = (int) $request->input('end_mode') === 3;
+        $isRefundMode = (int) $request->input('end_mode') === EndMode::REFUND;
 
         $validated = $request->validate([
             'leaving_date'   => 'required|date',
-            'end_mode'       => 'required|integer|in:1,2,3,4',
+            'end_mode'       => 'required|integer|in:' . implode(',', EndMode::ALL),
             'refund_account' => $isRefundMode ? 'required|string|max:50' : 'nullable',
             'refund_amount'  => $isRefundMode ? 'required|numeric|gt:0' : 'nullable',
         ]);
 
-        $member = DB::table('members')->where('id', $id)->first();
-        abort_if(!$member, 404);
-        // Už ukončený / ve výpovědní lhůtě → druhé ukončení by vyplatilo vratku znovu.
-        abort_if(in_array((int) $member->type, [15, 16], true) || self::inNoticePeriod($member), 400, 'Člen již byl ukončen.');
-
-        $newType = ($member->type == MemberType::REGULAR) ? MemberType::FORMER : MemberType::FORMER_CUSTOMER;
-        $endMode = (int) $validated['end_mode'];
-
-        // Výpovědní lhůta (odchod v budoucnu): člen zůstává svého typu a platí
-        // běžné poplatky až do odchodu — typ bývalého (15/16) nastaví cron
-        // members:redirect-former v den D. Vratka je už zkrácená o poplatky ve
-        // lhůtě (formulář), takže z kreditu odejde JEN vracená částka a zbytek
-        // strhne srážka. Dřív se typ měnil hned a vymazal se celý kredit →
-        // srážka ve lhůtě našla 0 a člena zablokovala (incident .54, člen 6235).
-        $inNotice = $validated['leaving_date'] > now()->format('Y-m-d');
-        if ($inNotice && $endMode === 3) {
-            $balance = (float) DB::table('accounts')->where('member_id', $id)
-                ->where('account_attribute_id', 221100)->value('balance');
-            if (round((float) $validated['refund_amount'], 2) > round($balance, 2)) {
-                return redirect()->back()->withInput()->withErrors([
-                    'refund_amount' => 'Ve výpovědní lhůtě nesmí vratka převýšit kredit (' . number_format($balance, 2, ',', ' ') . ' Kč).',
-                ]);
-            }
-        }
-        $typeNow = $inNotice ? (int) $member->type : $newType;
-
-        // Před otevřením transakce ověřit, že existuje bankovní účet pro tento typ člena.
-        // Bez něj by se outgoing_payment nevytvořil, ale credit by se vynuloval a email
-        // odešel — admin by pak hledal "kam zmizely peníze".
-        if ($endMode === 3) {
-            $configKey = 'bank_account_member_type_' . $member->type;
-            if (!(int) \App\Models\Setting::get($configKey, 0)) {
-                return redirect()->back()->withInput()->withErrors([
-                    'refund_account' => "Není nakonfigurován bankovní účet pro typ člena {$member->type} "
-                        . "(setting '{$configKey}'). Nastavte ho v Nastavení → Banka, pak vratku zopakujte."
-                ]);
-            }
+        try {
+            $ended = $endMembership->handle(
+                $id,
+                (string) $validated['leaving_date'],
+                (int) $validated['end_mode'],
+                $validated['refund_account'] ?? null,
+                isset($validated['refund_amount']) ? (float) $validated['refund_amount'] : null,
+                auth()->id() ?? 1,
+                auth()->user()?->login,
+            );
+        } catch (MembershipNotEndable $e) {
+            abort_if($e->field === null, 400, $e->getMessage());
+            return redirect()->back()->withInput()->withErrors([$e->field => $e->getMessage()]);
         }
 
-        // Zamknout přihlášení do portálu jen pokud leaving_date už nastalo.
-        // Pro budoucí datum (typicky "dohrání služby do data odjezdu") nechat
-        // locked=0 — cron RedirectFormerMembers zamkne v den D, stejně jako
-        // aktivuje redirect internetu a smazání zařízení. Pattern viz Kohana
-        // members.php:4076 (if leaving_date <= today { locked = 1 }).
-        $lockNow = $validated['leaving_date'] <= now()->format('Y-m-d') ? 1 : 0;
-
-        // Rychlost vynulovat stejně jako locked — jen když datum už nastalo.
-        // U budoucího data si člen internet DOhrává do odjezdu, takže tarif
-        // musí zůstat; cron RedirectFormerMembers ho vynuluje v den D (blok
-        // „locked dorovnání"). Bez téhle podmínky přišel člen o rychlost hned.
-        $speedNow = $lockNow ? null : $member->speed_class_id;
-
-        DB::transaction(function () use ($id, $member, $typeNow, $inNotice, $validated, $endMode, $lockNow, $speedNow) {
-            // Při ukončení reset prepaid flagů — bývalý člen už není kandidát
-            // na ukončení (vzhledem k tomu, že právě byl ukončen) ani na
-            // redirect pro nedostatek kreditu. Bez resetu zůstanou v menu/UI
-            // viset jako nesoulad: type=15/16 ale pending_termination=1.
-            DB::table('members')->where('id', $id)->update([
-                'type'                  => $typeNow,
-                'locked'                => $lockNow,
-                'leaving_date'          => $validated['leaving_date'],
-                'payment_blocked'       => 0,
-                'payment_blocked_since' => null,
-                'pending_termination'   => 0,
-                'speed_class_id'        => $speedNow, // null až v den odchodu (viz $speedNow)
-            ]);
-            \App\Services\AuditLogger::log('updated', 'members', $id, [
-                'type'         => $member->type,
-                'locked'       => $member->locked,
-                'leaving_date' => $member->leaving_date,
-            ], [
-                'type'         => $typeNow,
-                'locked'       => $lockNow,
-                'leaving_date' => $validated['leaving_date'],
-                'end_mode'     => $endMode,
-            ]);
-            // Když měl aktivní payment_blocked redirect, smaž ho.
-            app(\App\Services\PaymentBlockedRedirectService::class)->refreshForMember($id);
-
-            // Individuální tarif a dodatečné služby datumově ukončit k datu odchodu
-            // (i budoucímu) — jinak by bývalý člen dál „platil" a visel v seznamech.
-            \App\Services\MemberFeesTermination::deactivate($id, $validated['leaving_date']);
-
-            // Přidat +U k variabilnímu symbolu (jako Kohana). Ve výpovědní lhůtě
-            // až cron v den odchodu — do té doby se VS dál páruje s platbami.
-            $accountId = $inNotice ? null : DB::table('accounts')
-                ->where('member_id', $id)
-                ->where('account_attribute_id', 221100)
-                ->value('id');
-            if ($accountId) {
-                $vsRow = DB::table('variable_symbols')
-                    ->where('account_id', $accountId)
-                    ->orderBy('id')
-                    ->first();
-                if ($vsRow && !str_ends_with($vsRow->variable_symbol, '+U')) {
-                    DB::table('variable_symbols')
-                        ->where('id', $vsRow->id)
-                        ->update(['variable_symbol' => $vsRow->variable_symbol . '+U']);
-                }
-            }
-
-            // Mód 3: vratka — vložit do outgoing_payments + pohoda_refund_queue.
-            // Pro zákazníka (CUSTOMER=2) navíc vystavit vratnou fakturu (dobropis).
-            $refundInvoicePdf = null;
-            $refundDocNumber  = null;
-            if ($endMode === 3 && !empty($validated['refund_account']) && ($validated['refund_amount'] ?? 0) > 0) {
-                $configKey     = 'bank_account_member_type_' . $member->type;
-                $bankAccountId = (int) \App\Models\Setting::get($configKey, 0);
-
-                if ($bankAccountId) {
-                    $refundAmount = round((float)$validated['refund_amount'], 2);
-
-                    $outgoingPaymentId = DB::table('outgoing_payments')->insertGetId([
-                        'bank_account_id' => $bankAccountId,
-                        'target_account'  => $validated['refund_account'],
-                        'amount'          => $refundAmount,
-                        'currency'        => 'CZK',
-                        'message'         => 'Vratka při ukončení členství',
-                        'reason'          => 'termination_refund',
-                        'status'          => 'draft',
-                        'created_by'      => auth()->id() ?? 1,
-                        'created_at'      => now(),
-                        'updated_at'      => now(),
-                    ]);
-
-                    // Vygeneruj číslo dobropisu podle typu člena (stejně jako legacy Kohana):
-                    //   - CUSTOMER (2)   → "YY###"    (např. 26011)
-                    //   - REGULAR  (90)  → "YYČL####" (např. 26ČL0010)
-                    $isCustomer       = in_array($member->type, [MemberType::CUSTOMER, MemberType::PENDING_CUSTOMER], true);
-                    $refundDocNumber  = $this->nextRefundDocNumber($isCustomer);
-
-                    // PDF dobropisu — pro oba typy. Záměrně NEvkládáme řádek do invoices —
-                    // vratka je samostatný typ dokumentu (creditNote v Pohodě), stejný
-                    // pattern jako legacy Kohana Refund_Pdf lib.
-                    $refundInvoicePdf = (new \App\Services\RefundPdfService())->generate(
-                        $id,
-                        $refundDocNumber,
-                        (int) $member->type,
-                        (string) $validated['leaving_date'],
-                        (string) $validated['refund_account'],
-                        $refundAmount
-                    );
-
-                    // Vždy zápis do pohoda_refund_queue (zákazník i člen)
-                    DB::table('pohoda_refund_queue')->insert([
-                        'member_id'           => $id,
-                        'member_type'         => $member->type,  // PŮVODNÍ typ (2 nebo 90), ne FORMER
-                        'doc_number'          => $refundDocNumber,
-                        'outgoing_payment_id' => $outgoingPaymentId,
-                        'refund_account'      => $validated['refund_account'],
-                        'amount'              => $refundAmount,
-                        'currency'            => 'CZK',
-                        'reason'              => 'termination_refund',
-                        'note'                => 'Vratka při ukončení ' . ($isCustomer ? 'smlouvy' : 'členství'),
-                        'created_at'          => now(),
-                        'status'              => 'new',
-                    ]);
-
-                    \App\Services\AuditLogger::log('created', 'outgoing_payments', $outgoingPaymentId, null, [
-                        'member_id'      => $id,
-                        'amount'         => $refundAmount,
-                        'target_account' => $validated['refund_account'],
-                        'doc_number'     => $refundDocNumber,
-                        'reason'         => 'termination_refund',
-                    ]);
-
-                    // Vymazání kreditního účtu člena
-                    $creditAccount = DB::table('accounts')
-                        ->where('member_id', $id)
-                        ->where('account_attribute_id', 221100)
-                        ->first();
-
-                    if ($creditAccount && $creditAccount->balance != 0) {
-                        // Ve lhůtě jen vracená částka (zbytek = poplatky do odchodu).
-                        $clearAmount = $inNotice ? $refundAmount : $creditAccount->balance;
-                        $orgAccount  = DB::table('accounts')
-                            ->where('member_id', 1)
-                            ->where('account_attribute_id', 221101)
-                            ->first();
-
-                        if ($orgAccount) {
-                            DB::table('transfers')->insert([
-                                'origin_id'         => $creditAccount->id,
-                                'destination_id'    => $orgAccount->id,
-                                'type'              => 0,
-                                'amount'            => abs($clearAmount),
-                                'datetime'          => now()->format('Y-m-d H:i:s'),
-                                'creation_datetime' => now()->format('Y-m-d H:i:s'),
-                                'text'              => 'Vymazání kreditu při ukončení členství s vratkou',
-                                'member_id'         => $id,
-                            ]);
-                            // Double-entry: origin (credit) -=, destination (operating) +=.
-                            // Hard-set creditu na 0 by selhal pokud by mezitím přišla další platba,
-                            // ale tahle sekce běží uvnitř DB::transaction, takže ne. Pro consistency
-                            // s createTransfer v ImportController používáme decrement/increment dvojici.
-                            DB::table('accounts')->where('id', $creditAccount->id)->decrement('balance', $clearAmount);
-                            DB::table('accounts')->where('id', $orgAccount->id)->increment('balance', $clearAmount);
-                        }
-                    }
-                }
-            }
-
-            // Auto device remove — pokud leaving_date <= dnes a nastavení povoluje
-            if (\App\Models\Setting::get('former_member_auto_device_remove', '0') == '1'
-                && $validated['leaving_date'] <= now()->toDateString()) {
-
-                // 1. Sbírej IP adresy (přes member_id + přes ifaces→devices→users)
-                $ips1 = DB::table('ip_addresses')
-                    ->where('member_id', $id)
-                    ->whereNotNull('ip_address')
-                    ->pluck('ip_address');
-
-                $ips2 = DB::table('ip_addresses as ia')
-                    ->join('ifaces as i', 'i.id', '=', 'ia.iface_id')
-                    ->join('devices as d', 'd.id', '=', 'i.device_id')
-                    ->join('users as u', 'u.id', '=', 'd.user_id')
-                    ->where('u.member_id', $id)
-                    ->whereNotNull('ia.ip_address')
-                    ->pluck('ia.ip_address');
-
-                $ips = $ips1->merge($ips2)->unique()->sort()->values()->all();
-
-                // 2. Zapiš IP adresy jako prefix do members.comment
-                $today  = now()->format('Y-m-d');
-                $prefix = "[{$today}] ";
-                $maxLen = 250;
-                $out    = $prefix;
-                $shown  = 0;
-
-                foreach ($ips as $ip) {
-                    $add = ($shown ? ',' : '') . $ip;
-                    if (strlen($out . $add) > $maxLen) break;
-                    $out .= $add;
-                    $shown++;
-                }
-
-                $rest = count($ips) - $shown;
-                if ($rest > 0) {
-                    $suffix = " (+{$rest} další)";
-                    if (strlen($out . $suffix) > $maxLen) {
-                        $out = rtrim(substr($out, 0, max(0, $maxLen - strlen($suffix))), ', ');
-                    }
-                    $out .= $suffix;
-                }
-
-                if (empty($ips)) {
-                    $out = $prefix . '(žádné)';
-                }
-
-                DB::statement("
-                    UPDATE members
-                    SET comment = LEFT(
-                        CONCAT(?, IF(comment IS NULL OR comment = '', '', '\n'), IFNULL(comment, '')),
-                        250
-                    )
-                    WHERE id = ?
-                ", [$out, $id]);
-
-                // 3. Smaž zařízení (ifaces → ip_addresses, ip6_addresses kaskádně)
-                $userIds = DB::table('users')->where('member_id', $id)->pluck('id');
-                $deviceIds = DB::table('devices')->whereIn('user_id', $userIds)->pluck('id');
-                foreach ($deviceIds as $deviceId) {
-                    $ifaceIds = DB::table('ifaces')->where('device_id', $deviceId)->pluck('id');
-                    foreach ($ifaceIds as $ifaceId) {
-                        DB::table('ip6_addresses')->where('iface_id', $ifaceId)->delete();
-                        DB::table('ip_addresses')->where('iface_id', $ifaceId)->delete();
-                    }
-                    DB::table('ifaces')->where('device_id', $deviceId)->delete();
-                }
-                DB::table('devices')->whereIn('user_id', $userIds)->delete();
-
-                // 4. Smaž ip_addresses přímo přes member_id
-                DB::table('ip_addresses')->where('member_id', $id)->delete();
-
-                // 5. Smaž subnets_owners
-                DB::table('subnets_owners')->where('member_id', $id)->delete();
-            }
-
-            // Odeslat email pro módy 2, 3, 4
-            if (in_array($endMode, [2, 3, 4])) {
-                $messageId = match($endMode) {
-                    3 => 96, // Vrácení platby bývalému členovi
-                    2 => 94, // Bývalý člen bez platby (neplacení)
-                    4 => 34, // Ukončení na vlastní žádost
-                    default => 94,
-                };
-
-                $message = \App\Models\Message::where('id', $messageId)->first();
-                if ($message && $message->email_text) {
-                    $userId = DB::table('users')->where('member_id', $id)->value('id');
-                    if ($userId) {
-                        $email = DB::table('contacts as c')
-                            ->join('users_contacts as uc', 'uc.contact_id', '=', 'c.id')
-                            ->where('uc.user_id', $userId)
-                            ->where('c.type', 20)
-                            ->value('c.value');
-
-                        if ($email) {
-                            $extra = [];
-                            if ($endMode === 3) {
-                                $extra['ucet']    = $validated['refund_account'] ?? '';
-                                $extra['balance'] = number_format(
-                                    (float) ($validated['refund_amount'] ?? 0),
-                                    2, ',', ' '
-                                );
-                            }
-                            $body = \App\Models\Message::substitute(
-                                $message->email_text,
-                                \App\Models\Message::buildPlaceholders($id, $extra)
-                            );
-                            $prefix = \App\Models\Setting::get('email_subject_prefix', '');
-                            $emailQueueId = DB::table('email_queues')->insertGetId([
-                                'from'    => \App\Models\Setting::get('email_default_email', 'noreply@pvfree.net'),
-                                'to'      => $email,
-                                'subject' => ($prefix ? $prefix . ' :: ' : '') . $message->name,
-                                'body'    => $body,
-                                'state'   => 0,
-                            ]);
-
-                            // Pro zákazníka při vratce přilož PDF dobropisu k emailu.
-                            // $refundInvoicePdf a $refundDocNumber jsou nastavené výš v sekci
-                            // outgoing_payment, pokud se opravdu vystavila faktura.
-                            if ($endMode === 3 && $refundInvoicePdf && file_exists($refundInvoicePdf)) {
-                                DB::table('email_queue_attachments')->insert([
-                                    'email_queue_id' => $emailQueueId,
-                                    'path'           => $refundInvoicePdf,
-                                    'name'           => 'dobropis_' . $refundDocNumber . '.pdf',
-                                    'mime'           => 'application/pdf',
-                                    'created_at'     => now(),
-                                ]);
-                            }
-                        }
-                    }
-                }
-            }
-        });
-
-        // Ukončení členství/výpověď → podepsané smlouvy člena označit jako ukončené
-        // (mimo transakci — contracts jsou v samostatné DB, robustní vůči výpadku).
-        $terminated = $this->terminateSignedContracts($id, (string) $validated['leaving_date']);
-        // Rozpracované návrhy bývalého člena už nikdo nedokončí → smazat, ať neviší.
-        $this->purgeUnsignedContracts($id);
-
-        $label = ($newType == MemberType::FORMER_CUSTOMER) ? 'zákazník' : 'člen';
-        $note  = "Členství bylo ukončeno. {$member->name} označen jako bývalý {$label}.";
-        if ($terminated > 0) {
+        $name  = DB::table('members')->where('id', $id)->value('name');
+        $label = ($ended->formerType == MemberType::FORMER_CUSTOMER) ? 'zákazník' : 'člen';
+        $note  = "Členství bylo ukončeno. {$name} označen jako bývalý {$label}.";
+        if ($ended->contractsTerminated > 0) {
             $note .= ' Smlouva byla označena jako ukončená.';
         }
         return redirect()->route('members.show', $id)->with('success', $note);
-    }
-
-    /**
-     * Vrátí další číslo dobropisu (refund doc_number) v aktuálním roce.
-     *  - Zákazník: "YY###"     (např. 26011 = rok 26, sekvence 011)
-     *  - Člen:     "YYČL####"  (např. 26ČL0010)
-     * Sekvence je per-rok + per-formát (ne per member_type — viz níž).
-     *
-     * Filtr přes `doc_number` LIKE/NOT LIKE sám o sobě jednoznačně rozlišuje
-     * zákazníka od člena, takže explicitní `member_type` filtr je zbytečný a
-     * navíc nebezpečný: PENDING_CUSTOMER (18) i HONORARY/FEE_FREE dostávají
-     * zákaznický/členský formát, ale do queue se ukládá jejich vlastní typ a
-     * filtr by je vynechal → duplicitní sekvence.
-     *
-     * lockForUpdate() drží gap-lock přes celou MAX-skupinu do commitu transakce
-     * — chrání proti tomu, aby dvě paralelní endMembership() volání přečetla
-     * stejné MAX a vygenerovala stejné číslo. Musí se volat uvnitř transakce.
-     * RIGHT() místo SUBSTRING() ať MySQL korektně rozezná multibyte 'Č'.
-     */
-    private function nextRefundDocNumber(bool $isCustomer): string
-    {
-        $year2 = date('y');
-        if ($isCustomer) {
-            $maxSeq = (int) DB::table('pohoda_refund_queue')
-                ->where('doc_number', 'like', $year2 . '%')
-                ->where('doc_number', 'not like', $year2 . 'ČL%')
-                ->lockForUpdate()
-                ->selectRaw('MAX(CAST(RIGHT(doc_number, 3) AS UNSIGNED)) AS m')
-                ->value('m');
-            return $year2 . str_pad((string) ($maxSeq + 1), 3, '0', STR_PAD_LEFT);
-        }
-
-        $prefix = $year2 . 'ČL';
-        $maxSeq = (int) DB::table('pohoda_refund_queue')
-            ->where('doc_number', 'like', $prefix . '%')
-            ->lockForUpdate()
-            ->selectRaw('MAX(CAST(RIGHT(doc_number, 4) AS UNSIGNED)) AS m')
-            ->value('m');
-        return $prefix . str_pad((string) ($maxSeq + 1), 4, '0', STR_PAD_LEFT);
     }
 
     public function restore(int $id)

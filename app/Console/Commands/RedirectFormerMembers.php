@@ -1,6 +1,9 @@
 <?php
 namespace App\Console\Commands;
 
+use App\Domains\Members\Actions\RemoveFormerMemberDevicesAction;
+use App\Domains\Members\Repositories\MemberRepository;
+use App\Domains\Members\Support\FormerType;
 use App\Models\Message;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\DB;
@@ -10,10 +13,6 @@ class RedirectFormerMembers extends Command
 {
     protected $signature   = 'members:redirect-former {--force : Skip time check}';
     protected $description = 'Mark expired members as former, optionally remove devices, activate redirect message';
-
-    const TYPE_FORMER          = 15;
-    const TYPE_FORMER_CUSTOMER = 16;
-    const FORMER_TYPES         = [self::TYPE_FORMER, self::TYPE_FORMER_CUSTOMER];
 
     public function handle(): int
     {
@@ -25,7 +24,7 @@ class RedirectFormerMembers extends Command
         // Nejdřív si vytáhneme, koho budeme překlápět (kvůli deaktivaci poplatků
         // k jejich vlastnímu leaving_date), pak teprve hromadně přepneme typ.
         $toFormer = DB::table('members')
-            ->whereNotIn('type', self::FORMER_TYPES)
+            ->whereNotIn('type', FormerType::TYPES)
             ->whereNotNull('leaving_date')
             ->where('leaving_date', '!=', '9999-12-31')
             ->where('leaving_date', '!=', '0000-00-00')
@@ -34,7 +33,7 @@ class RedirectFormerMembers extends Command
 
         $updated = 0;
         if ($toFormer->isNotEmpty()) {
-            foreach ($toFormer->groupBy(fn ($m) => self::formerTypeFor((int) $m->type)) as $formerType => $group) {
+            foreach ($toFormer->groupBy(fn ($m) => FormerType::for((int) $m->type)) as $formerType => $group) {
                 $updated += DB::table('members')
                     ->whereIn('id', $group->pluck('id'))
                     ->update([
@@ -50,7 +49,7 @@ class RedirectFormerMembers extends Command
             // přerušení" i přímé editace leaving_date.
             foreach ($toFormer as $m) {
                 \App\Services\MemberFeesTermination::deactivate((int) $m->id, $m->leaving_date);
-                self::markVariableSymbolLeft((int) $m->id);
+                app(MemberRepository::class)->markVariableSymbolLeft((int) $m->id);
             }
 
             // Audit trail: automatické překlopení na bývalé členy (systém, user_id NULL).
@@ -69,7 +68,7 @@ class RedirectFormerMembers extends Command
         // člen internet dohrál do odjezdu. Step 1 výše je nechytne (jsou už
         // FORMER), takže je to jediné místo, kde jim tarif v den D „dojede".
         $locked = DB::table('members')
-            ->whereIn('type', self::FORMER_TYPES)
+            ->whereIn('type', FormerType::TYPES)
             ->where('locked', 0)
             ->whereNotNull('leaving_date')
             ->where('leaving_date', '!=', '9999-12-31')
@@ -96,79 +95,18 @@ class RedirectFormerMembers extends Command
             $sevenDaysAgo = now()->subDays(7)->format('Y-m-d');
 
             $memberIds = DB::table('members')
-                ->whereIn('type', self::FORMER_TYPES)
+                ->whereIn('type', FormerType::TYPES)
                 ->where('leaving_date', '!=', '9999-12-31')
                 ->where('leaving_date', '!=', '0000-00-00')
                 ->whereBetween('leaving_date', [$sevenDaysAgo, $today])
                 ->pluck('id');
 
+            // IP adresy se nejdřív zapíšou do komentáře ([YYYY-MM-DD] ip1,ip2,…) —
+            // stopa, na kterých IP bývalý člen byl. Bez IP se tady nic nezapisuje.
+            $removeDevices = app(RemoveFormerMemberDevicesAction::class);
             $removed = 0;
             foreach ($memberIds as $memberId) {
-                // Sbírej IP adresy PŘED mazáním a zapiš je jako prefix do members.comment
-                // (stejný pattern jako endMembership: [YYYY-MM-DD] ip1,ip2,...).
-                // Bez tohoto kroku by se po mazání ztratila stopa, na kterých IP
-                // adresách bývalý člen byl — což admin občas potřebuje dohledat.
-                $ips1 = DB::table('ip_addresses')
-                    ->where('member_id', $memberId)
-                    ->whereNotNull('ip_address')
-                    ->pluck('ip_address');
-
-                $ips2 = DB::table('ip_addresses as ia')
-                    ->join('ifaces as i', 'i.id', '=', 'ia.iface_id')
-                    ->join('devices as d', 'd.id', '=', 'i.device_id')
-                    ->join('users as u', 'u.id', '=', 'd.user_id')
-                    ->where('u.member_id', $memberId)
-                    ->whereNotNull('ia.ip_address')
-                    ->pluck('ia.ip_address');
-
-                $ips = $ips1->merge($ips2)->unique()->sort()->values()->all();
-
-                if (!empty($ips)) {
-                    $prefix = "[{$today}] ";
-                    $maxLen = 250;
-                    $out    = $prefix;
-                    $shown  = 0;
-                    foreach ($ips as $ip) {
-                        $add = ($shown ? ',' : '') . $ip;
-                        if (strlen($out . $add) > $maxLen) break;
-                        $out .= $add;
-                        $shown++;
-                    }
-                    $rest = count($ips) - $shown;
-                    if ($rest > 0) {
-                        $suffix = " (+{$rest} další)";
-                        if (strlen($out . $suffix) > $maxLen) {
-                            $out = rtrim(substr($out, 0, max(0, $maxLen - strlen($suffix))), ', ');
-                        }
-                        $out .= $suffix;
-                    }
-                    DB::statement("
-                        UPDATE members
-                        SET comment = LEFT(
-                            CONCAT(?, IF(comment IS NULL OR comment = '', '', '\n'), IFNULL(comment, '')),
-                            250
-                        )
-                        WHERE id = ?
-                    ", [$out, $memberId]);
-                }
-
-                $userIds = DB::table('users')->where('member_id', $memberId)->pluck('id');
-                foreach ($userIds as $userId) {
-                    $deviceIds = DB::table('devices')->where('user_id', $userId)->pluck('id');
-                    foreach ($deviceIds as $deviceId) {
-                        $ifaceIds = DB::table('ifaces')->where('device_id', $deviceId)->pluck('id');
-                        foreach ($ifaceIds as $ifaceId) {
-                            DB::table('ip6_addresses')->where('iface_id', $ifaceId)->delete();
-                            DB::table('ip_addresses')->where('iface_id', $ifaceId)->delete();
-                        }
-                        DB::table('ifaces')->where('device_id', $deviceId)->delete();
-                        $removed++;
-                    }
-                    DB::table('devices')->where('user_id', $userId)->delete();
-                }
-                // Smaž i ip_addresses napojené přímo na member_id (mimo ifaces)
-                DB::table('ip_addresses')->where('member_id', $memberId)->delete();
-                DB::table('subnets_owners')->where('member_id', $memberId)->delete();
+                $removed += $removeDevices->handle((int) $memberId, $today, false);
             }
             if ($removed > 0) {
                 $this->info("Removed {$removed} devices for former members in window (last 7d).");
@@ -189,7 +127,7 @@ class RedirectFormerMembers extends Command
         // Sentinel hodnoty 9999-12-31 / 0000-00-00 znamenají "datum neurčeno"
         // a takové členy raději nepřesměrováváme (defensive: admin to doplní).
         $formerMembers = DB::table('members as m')
-            ->whereIn('m.type', self::FORMER_TYPES)
+            ->whereIn('m.type', FormerType::TYPES)
             ->where('m.leaving_date', '<=', $today)
             ->where('m.leaving_date', '!=', '9999-12-31')
             ->where('m.leaving_date', '!=', '0000-00-00')
@@ -225,27 +163,5 @@ class RedirectFormerMembers extends Command
 
         $this->info("Activated redirect for {$count} IP addresses of {$formerMembers->count()} former members.");
         return 0;
-    }
-
-    /** Řádný člen (90) → bývalý člen (15); kdokoli jiný → bývalý zákazník (16). */
-    public static function formerTypeFor(int $type): int
-    {
-        return $type === \App\Helpers\MemberType::REGULAR ? self::TYPE_FORMER : self::TYPE_FORMER_CUSTOMER;
-    }
-
-    /** „+U" k variabilnímu symbolu kreditního účtu (jako Kohana a ruční ukončení). */
-    private static function markVariableSymbolLeft(int $memberId): void
-    {
-        $accountId = DB::table('accounts')
-            ->where('member_id', $memberId)
-            ->where('account_attribute_id', 221100)
-            ->value('id');
-        if (!$accountId) {
-            return;
-        }
-        $vs = DB::table('variable_symbols')->where('account_id', $accountId)->orderBy('id')->first();
-        if ($vs && !str_ends_with($vs->variable_symbol, '+U')) {
-            DB::table('variable_symbols')->where('id', $vs->id)->update(['variable_symbol' => $vs->variable_symbol . '+U']);
-        }
     }
 }

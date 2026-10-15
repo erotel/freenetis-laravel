@@ -5,6 +5,7 @@ namespace App\Domains\Billing\Support;
 /** Typy převodů (`transfers.type`) — shodné s Kohana Transfer_Model. */
 final class TransferType
 {
+    public const CREDIT_CLEARING        = 0; // vymazání kreditu při ukončení s vratkou
     public const MEMBER_FEE             = 1;
     public const ENTRANCE_FEE           = 2;
     public const DEVICE_FEE             = 5;
