@@ -399,20 +399,8 @@ class NotificationActivation extends Command
             case Message::PAYMENT_NOTICE_MESSAGE: // type 6 - zákazník upomínka (balance < tarif)
                 return $base
                     ->where('m.type', 2)
-                    ->leftJoin('members_fees as mf', function ($j) use ($date) {
-                        $j->on('mf.member_id', '=', 'm.id')
-                          ->where('mf.activation_date', '<=', $date)
-                          ->where(function ($q) use ($date) {
-                              $q->whereNull('mf.deactivation_date')
-                                ->orWhere('mf.deactivation_date', '>=', $date);
-                          });
-                    })
-                    ->leftJoin('fees as f', 'f.id', '=', 'mf.fee_id')
                     ->leftJoin('speed_classes as sc', 'sc.id', '=', 'm.speed_class_id')
-                    // Práh = individuální (f.fee) → cena tarifu (sc.price) → základní.
-                    ->whereRaw('a.balance < COALESCE(f.fee, sc.price, ?, 0)', [
-                        $this->defaultFeeAmount(2),
-                    ])
+                    ->whereRaw('a.balance < ' . self::MONTHLY_CHARGE_SQL, $this->monthlyChargeBindings(2, $date))
                     ->select(
                         'm.id', 'm.name',
                         DB::raw('MAX(CASE WHEN c.type = 20 THEN c.value END) as email'),
@@ -439,20 +427,8 @@ class NotificationActivation extends Command
             case Message::PAYMENT_NOTICE_MESSAGE_CLEN: // type 26 - člen upomínka
                 return $base
                     ->where('m.type', 90)
-                    ->leftJoin('members_fees as mf', function ($j) use ($date) {
-                        $j->on('mf.member_id', '=', 'm.id')
-                          ->where('mf.activation_date', '<=', $date)
-                          ->where(function ($q) use ($date) {
-                              $q->whereNull('mf.deactivation_date')
-                                ->orWhere('mf.deactivation_date', '>=', $date);
-                          });
-                    })
-                    ->leftJoin('fees as f', 'f.id', '=', 'mf.fee_id')
                     ->leftJoin('speed_classes as sc', 'sc.id', '=', 'm.speed_class_id')
-                    // Práh = individuální (f.fee) → cena tarifu (sc.price) → základní.
-                    ->whereRaw('a.balance < COALESCE(f.fee, sc.price, ?, 0)', [
-                        $this->defaultFeeAmount(90),
-                    ])
+                    ->whereRaw('a.balance < ' . self::MONTHLY_CHARGE_SQL, $this->monthlyChargeBindings(90, $date))
                     ->select(
                         'm.id', 'm.name',
                         DB::raw('MAX(CASE WHEN c.type = 20 THEN c.value END) as email'),
@@ -470,6 +446,38 @@ class NotificationActivation extends Command
      * Setting default_fee_member_type_{2|90} drží fee_id (FK do fees), ne částku.
      * Vrací skutečnou částku z fees.fee podle uložené id, jinak 0.
      */
+    /**
+     * Co se příští srážkou skutečně strhne (mirror FeePolicy a LedgerRepository):
+     * pravidelný poplatek = individuální 'regular member fee' s nejnižší
+     * prioritou → cena tarifu → základní dle typu; + příplatky = dodatečné
+     * služby + placená přípojná místa (transfer type 6). Dřív se připojoval
+     * JAKÝKOLI aktivní members_fees bez priority (víc individuálních → práh
+     * podle nejvyššího; služba nahradila tarif) — D3, 2026-10-15.
+     */
+    private const MONTHLY_CHARGE_SQL = "(
+        COALESCE(
+            (SELECT f.fee FROM members_fees mf
+               JOIN fees f ON f.id = mf.fee_id
+               JOIN enum_types et ON et.id = f.type_id
+              WHERE LOWER(et.value) = 'regular member fee'
+                AND mf.member_id = m.id AND mf.activation_date <= ? AND mf.deactivation_date >= ?
+              ORDER BY mf.priority LIMIT 1),
+            sc.price, ?, 0)
+        + (SELECT COALESCE(SUM(f.fee), 0) FROM members_fees mf
+             JOIN fees f ON f.id = mf.fee_id
+             JOIN enum_types et ON et.id = f.type_id
+            WHERE LOWER(et.value) = 'additional service'
+              AND mf.member_id = m.id AND mf.activation_date <= ? AND mf.deactivation_date >= ?)
+        + (SELECT COALESCE(SUM(COALESCE(scp.price, 0)), 0) FROM allowed_subnets asub
+             JOIN speed_classes scp ON scp.id = asub.speed_class_id
+            WHERE asub.member_id = m.id AND asub.charged = 1)
+    )";
+
+    private function monthlyChargeBindings(int $memberType, string $date): array
+    {
+        return [$date, $date, $this->defaultFeeAmount($memberType), $date, $date];
+    }
+
     private function defaultFeeAmount(int $memberType): float
     {
         $feeId = (int) Setting::get("default_fee_member_type_{$memberType}", 0);
