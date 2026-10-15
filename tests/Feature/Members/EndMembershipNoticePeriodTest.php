@@ -22,6 +22,8 @@ class EndMembershipNoticePeriodTest extends DatabaseTestCase
 {
     private int $adminId;
     private int $apId;
+    /** @var string[] PDF dobropisů před testem — vratka je zapisuje na disk (rollback DB je nesmaže) */
+    private array $refundFiles = [];
 
     protected function setUp(): void
     {
@@ -34,6 +36,15 @@ class EndMembershipNoticePeriodTest extends DatabaseTestCase
         $acl = $this->mock(AclService::class);
         $acl->shouldReceive('hasAccess')->andReturn(true);
         $acl->shouldReceive('flushUserCache')->andReturnNull();
+        $this->refundFiles = glob(storage_path('app/private/refunds/*/*.pdf')) ?: [];
+    }
+
+    protected function tearDown(): void
+    {
+        foreach (array_diff(glob(storage_path('app/private/refunds/*/*.pdf')) ?: [], $this->refundFiles) as $f) {
+            @unlink($f);
+        }
+        parent::tearDown();
     }
 
     /** @return array{member:int, account:int} */
@@ -85,5 +96,97 @@ class EndMembershipNoticePeriodTest extends DatabaseTestCase
         $this->artisan('members:redirect-former', ['--force' => true])->assertExitCode(0);
         $this->assertSame(2, (int) $this->row($x['member'])->type);
         $this->assertStringEndsNotWith('+U', $this->vs($x['account']));
+    }
+
+    // ── F1: ukončení ve výpovědní lhůtě ─────────────────────────────────────
+
+    private function end(int $member, string $leaving, int $mode = 1, ?float $refund = null)
+    {
+        $data = ['leaving_date' => $leaving, 'end_mode' => $mode];
+        if ($refund !== null) {
+            $data += ['refund_account' => '123456789/0100', 'refund_amount' => $refund];
+        }
+        return $this->actingAs(User::find($this->adminId))
+            ->from(route('members.show', $member))
+            ->post(route('members.end-membership.store', $member), $data);
+    }
+
+    private function balance(int $account): float
+    {
+        return (float) DB::table('accounts')->where('id', $account)->value('balance');
+    }
+
+    public function test_vypoved_do_budoucna_typ_zustava_vs_beze_zmeny(): void
+    {
+        $x = $this->member(2, 500);
+        $leaving = now()->addDays(20)->format('Y-m-d');
+        $this->end($x['member'], $leaving)->assertRedirect();
+
+        $m = $this->row($x['member']);
+        $this->assertSame(2, (int) $m->type, 've lhůtě zůstává zákazníkem');
+        $this->assertSame($leaving, $m->leaving_date);
+        $this->assertSame(0, (int) $m->locked);
+        $this->assertStringEndsNotWith('+U', $this->vs($x['account']));
+        $this->assertEqualsWithDelta(500, $this->balance($x['account']), 0.001);
+    }
+
+    /** Přesně scénář 6235: vratka zkrácená o poplatek ve lhůtě, srážka ho pak strhne. */
+    public function test_vratka_ve_lhute_odecte_jen_vracenou_castku_a_srazka_projde(): void
+    {
+        Setting::set('default_fee_member_type_2', (int) DB::table('fees')->insertGetId([
+            'readonly' => 0, 'fee' => 320, 'from' => '2000-01-01', 'to' => '9999-12-31', 'type_id' => 35, 'name' => 'char', 'special_type_id' => null,
+        ]));
+        $x = $this->member(2, 1640);
+        $leaving = now()->addDays(20)->format('Y-m-d');
+        $this->end($x['member'], $leaving, 3, 1320)->assertRedirect()->assertSessionHasNoErrors();
+
+        $this->assertSame(2, (int) $this->row($x['member'])->type);
+        $this->assertEqualsWithDelta(320, $this->balance($x['account']), 0.001, 'v kreditu zůstal poplatek do odchodu');
+        $this->assertEqualsWithDelta(1320, (float) DB::table('transfers')->where('origin_id', $x['account'])->where('type', 0)->value('amount'), 0.001);
+
+        // srážka ve lhůtě (den před odchodem) strhne poplatek, žádná blokace
+        $deductDate = now()->addDays(19)->format('Y-m-d');
+        $this->artisan('fees:deduct', ['--force' => true, '--date' => $deductDate, '--member' => $x['member']])->assertExitCode(0);
+        $this->assertEqualsWithDelta(320, (float) DB::table('transfers')->where('origin_id', $x['account'])->where('type', 1)->value('amount'), 0.001);
+        $this->assertEqualsWithDelta(0, $this->balance($x['account']), 0.001);
+        $this->assertSame(0, (int) $this->row($x['member'])->payment_blocked);
+    }
+
+    public function test_vratka_ve_lhute_nad_kredit_odmitnuta(): void
+    {
+        $x = $this->member(2, 100);
+        $this->end($x['member'], now()->addDays(20)->format('Y-m-d'), 3, 150)->assertSessionHasErrors('refund_amount');
+        $this->assertSame(2, (int) $this->row($x['member'])->type);
+        $this->assertSame('9999-12-31', $this->row($x['member'])->leaving_date);
+    }
+
+    public function test_druhe_ukonceni_ve_lhute_odmitnuto(): void
+    {
+        $x = $this->member(2, 500, now()->addDays(20)->format('Y-m-d'));
+        $this->end($x['member'], now()->addDays(25)->format('Y-m-d'))->assertStatus(400);
+        $this->actingAs(User::find($this->adminId))->get(route('members.end-membership', $x['member']))->assertStatus(400);
+    }
+
+    /** Odchod dnes: beze změny — bývalý typ hned, celý kredit pryč, +U. */
+    public function test_odchod_dnes_jako_dosud(): void
+    {
+        $x = $this->member(2, 1640);
+        $this->end($x['member'], now()->format('Y-m-d'), 3, 1640)->assertRedirect()->assertSessionHasNoErrors();
+
+        $m = $this->row($x['member']);
+        $this->assertSame(16, (int) $m->type);
+        $this->assertSame(1, (int) $m->locked);
+        $this->assertEqualsWithDelta(0, $this->balance($x['account']), 0.001);
+        $this->assertStringEndsWith('+U', $this->vs($x['account']));
+    }
+
+    public function test_detail_ve_lhute_ukaze_vypoved_misto_tlacitka(): void
+    {
+        $leaving = now()->addDays(20);
+        $x = $this->member(2, 0, $leaving->format('Y-m-d'));
+        $this->actingAs(User::find($this->adminId))->get(route('members.show', $x['member']))
+            ->assertOk()
+            ->assertSee('Výpověď, odchod ' . $leaving->format('d.m.Y'))
+            ->assertDontSee(route('members.end-membership', $x['member']), false);
     }
 }

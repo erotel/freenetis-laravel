@@ -974,12 +974,21 @@ class MemberController extends Controller
         ]);
     }
 
+    /** Má výpověď s datem odchodu v budoucnu (běží výpovědní lhůta)? */
+    private static function inNoticePeriod(object $member): bool
+    {
+        $leaving = (string) ($member->leaving_date ?? '');
+        return $leaving !== '' && $leaving !== '0000-00-00' && $leaving !== '9999-12-31'
+            && $leaving > now()->format('Y-m-d');
+    }
+
     public function endMembershipForm(int $id)
     {
         abort_unless($this->can('edit_all'), 403);
         $member = DB::table('members')->where('id', $id)->first();
         abort_if(!$member, 404);
         abort_if(in_array($member->type, [15, 16]), 400, 'Člen již byl ukončen.');
+        abort_if(self::inNoticePeriod($member), 400, "Člen už má výpověď s datem odchodu {$member->leaving_date}.");
 
         $account = DB::table('accounts')
             ->where('member_id', $id)
@@ -1082,9 +1091,29 @@ class MemberController extends Controller
 
         $member = DB::table('members')->where('id', $id)->first();
         abort_if(!$member, 404);
+        // Už ukončený / ve výpovědní lhůtě → druhé ukončení by vyplatilo vratku znovu.
+        abort_if(in_array((int) $member->type, [15, 16], true) || self::inNoticePeriod($member), 400, 'Člen již byl ukončen.');
 
         $newType = ($member->type == MemberType::REGULAR) ? MemberType::FORMER : MemberType::FORMER_CUSTOMER;
         $endMode = (int) $validated['end_mode'];
+
+        // Výpovědní lhůta (odchod v budoucnu): člen zůstává svého typu a platí
+        // běžné poplatky až do odchodu — typ bývalého (15/16) nastaví cron
+        // members:redirect-former v den D. Vratka je už zkrácená o poplatky ve
+        // lhůtě (formulář), takže z kreditu odejde JEN vracená částka a zbytek
+        // strhne srážka. Dřív se typ měnil hned a vymazal se celý kredit →
+        // srážka ve lhůtě našla 0 a člena zablokovala (incident .54, člen 6235).
+        $inNotice = $validated['leaving_date'] > now()->format('Y-m-d');
+        if ($inNotice && $endMode === 3) {
+            $balance = (float) DB::table('accounts')->where('member_id', $id)
+                ->where('account_attribute_id', 221100)->value('balance');
+            if (round((float) $validated['refund_amount'], 2) > round($balance, 2)) {
+                return redirect()->back()->withInput()->withErrors([
+                    'refund_amount' => 'Ve výpovědní lhůtě nesmí vratka převýšit kredit (' . number_format($balance, 2, ',', ' ') . ' Kč).',
+                ]);
+            }
+        }
+        $typeNow = $inNotice ? (int) $member->type : $newType;
 
         // Před otevřením transakce ověřit, že existuje bankovní účet pro tento typ člena.
         // Bez něj by se outgoing_payment nevytvořil, ale credit by se vynuloval a email
@@ -1112,13 +1141,13 @@ class MemberController extends Controller
         // „locked dorovnání"). Bez téhle podmínky přišel člen o rychlost hned.
         $speedNow = $lockNow ? null : $member->speed_class_id;
 
-        DB::transaction(function () use ($id, $member, $newType, $validated, $endMode, $lockNow, $speedNow) {
+        DB::transaction(function () use ($id, $member, $typeNow, $inNotice, $validated, $endMode, $lockNow, $speedNow) {
             // Při ukončení reset prepaid flagů — bývalý člen už není kandidát
             // na ukončení (vzhledem k tomu, že právě byl ukončen) ani na
             // redirect pro nedostatek kreditu. Bez resetu zůstanou v menu/UI
             // viset jako nesoulad: type=15/16 ale pending_termination=1.
             DB::table('members')->where('id', $id)->update([
-                'type'                  => $newType,
+                'type'                  => $typeNow,
                 'locked'                => $lockNow,
                 'leaving_date'          => $validated['leaving_date'],
                 'payment_blocked'       => 0,
@@ -1131,7 +1160,7 @@ class MemberController extends Controller
                 'locked'       => $member->locked,
                 'leaving_date' => $member->leaving_date,
             ], [
-                'type'         => $newType,
+                'type'         => $typeNow,
                 'locked'       => $lockNow,
                 'leaving_date' => $validated['leaving_date'],
                 'end_mode'     => $endMode,
@@ -1143,8 +1172,9 @@ class MemberController extends Controller
             // (i budoucímu) — jinak by bývalý člen dál „platil" a visel v seznamech.
             \App\Services\MemberFeesTermination::deactivate($id, $validated['leaving_date']);
 
-            // Přidat +U k variabilnímu symbolu (jako Kohana)
-            $accountId = DB::table('accounts')
+            // Přidat +U k variabilnímu symbolu (jako Kohana). Ve výpovědní lhůtě
+            // až cron v den odchodu — do té doby se VS dál páruje s platbami.
+            $accountId = $inNotice ? null : DB::table('accounts')
                 ->where('member_id', $id)
                 ->where('account_attribute_id', 221100)
                 ->value('id');
@@ -1232,7 +1262,8 @@ class MemberController extends Controller
                         ->first();
 
                     if ($creditAccount && $creditAccount->balance != 0) {
-                        $clearAmount = $creditAccount->balance;
+                        // Ve lhůtě jen vracená částka (zbytek = poplatky do odchodu).
+                        $clearAmount = $inNotice ? $refundAmount : $creditAccount->balance;
                         $orgAccount  = DB::table('accounts')
                             ->where('member_id', 1)
                             ->where('account_attribute_id', 221101)

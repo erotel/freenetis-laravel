@@ -200,7 +200,16 @@
         </form>
         @elseif(!in_array($member->type, [15, 16]))
         @if($canEdit)
+        @php
+            $leavingRaw = $member->leaving_date instanceof \DateTimeInterface ? $member->leaving_date->format('Y-m-d') : (string) $member->leaving_date;
+            $inNotice   = $leavingRaw !== '' && $leavingRaw !== '0000-00-00' && $leavingRaw !== '9999-12-31' && $leavingRaw > now()->format('Y-m-d');
+        @endphp
+        @if($inNotice)
+        {{-- Výpovědní lhůta: typ bývalého nastaví cron v den odchodu; druhé ukončení není povolené. --}}
+        <span class="m-btn" style="cursor:default" title="Ve výpovědní lhůtě — typ bývalého nastaví cron v den odchodu">Výpověď, odchod {{ \Carbon\Carbon::parse($leavingRaw)->format('d.m.Y') }}</span>
+        @else
         <a class="m-btn m-btn-danger" href="{{ route('members.end-membership', $member->id) }}">✕ Ukončit</a>
+        @endif
         @endif
         @else
         <form method="POST" action="{{ route('members.destroy', $member->id) }}" style="display:inline;">
