@@ -1,0 +1,225 @@
+{
+    "tables": {
+        "admin_rate_limits": {
+            "engine": "InnoDB",
+            "collation": "utf8mb4_uca1400_ai_ci",
+            "columns": {
+                "bucket": "varchar(191) | not null | default ∅ | - | utf8mb4_uca1400_ai_ci",
+                "window_sec": "int(10) unsigned | not null | default ∅ | - | -",
+                "max_hits": "int(10) unsigned | not null | default ∅ | - | -",
+                "hits": "int(10) unsigned | not null | default 0 | - | -",
+                "window_start": "datetime | not null | default ∅ | - | -"
+            },
+            "indexes": {
+                "PRIMARY": "unique (bucket,window_sec)"
+            }
+        },
+        "contracts": {
+            "engine": "InnoDB",
+            "collation": "utf8mb4_czech_ci",
+            "columns": {
+                "id": "int(11) | not null | default ∅ | auto_increment | -",
+                "member_id": "int(11) | not null | default ∅ | - | -",
+                "contract_no": "varchar(64) | not null | default ∅ | - | utf8mb4_czech_ci",
+                "status": "enum('draft','otp_sent','otp_verified','signed','canceled','terminated') | not null | default 'draft' | - | utf8mb4_czech_ci",
+                "addon": "tinyint(1) | not null | default 0 | - | -",
+                "addon_signed": "tinyint(1) | not null | default 0 | - | -",
+                "pdf_path": "varchar(255) | null | default NULL | - | utf8mb4_czech_ci",
+                "pdf_sha256": "varbinary(32) | null | default NULL | - | -",
+                "signature_path": "varchar(255) | null | default NULL | - | utf8mb4_czech_ci",
+                "phone": "varchar(32) | null | default NULL | - | utf8mb4_czech_ci",
+                "signed_at": "datetime | null | default NULL | - | -",
+                "created_at": "datetime | not null | default current_timestamp() | - | -",
+                "addon_pdf_path": "varchar(255) | null | default NULL | - | utf8mb4_czech_ci",
+                "addon_signed_at": "datetime | null | default NULL | - | -"
+            },
+            "indexes": {
+                "idx_contract_member": "index (member_id)",
+                "PRIMARY": "unique (id)",
+                "uq_contract_no": "unique (contract_no)"
+            }
+        },
+        "contract_addons": {
+            "engine": "InnoDB",
+            "collation": "utf8mb4_czech_ci",
+            "columns": {
+                "id": "int(10) unsigned | not null | default ∅ | auto_increment | -",
+                "contract_id": "int(10) unsigned | not null | default ∅ | - | -",
+                "type": "varchar(32) | not null | default 'tariff_change' | - | utf8mb4_czech_ci",
+                "addon_no": "int(10) unsigned | null | default NULL | - | -",
+                "old_speed_name": "varchar(100) | null | default NULL | - | utf8mb4_czech_ci",
+                "old_price": "decimal(10,2) | null | default NULL | - | -",
+                "old_price_after_discount": "decimal(10,2) | null | default NULL | - | -",
+                "new_speed_name": "varchar(100) | null | default NULL | - | utf8mb4_czech_ci",
+                "new_price": "decimal(10,2) | null | default NULL | - | -",
+                "new_price_after_discount": "decimal(10,2) | null | default NULL | - | -",
+                "new_speed_class_id": "int(10) unsigned | null | default NULL | - | -",
+                "discount_until": "date | null | default NULL | - | -",
+                "service_name": "varchar(150) | null | default NULL | - | utf8mb4_czech_ci",
+                "service_price": "decimal(10,2) | null | default NULL | - | -",
+                "service_action": "varchar(10) | null | default NULL | - | utf8mb4_czech_ci",
+                "fee_id": "int(10) unsigned | null | default NULL | - | -",
+                "place_speed_name": "varchar(100) | null | default NULL | - | utf8mb4_czech_ci",
+                "allowed_subnet_id": "int(10) unsigned | null | default NULL | - | -",
+                "effective_date": "date | not null | default ∅ | - | -",
+                "status": "varchar(20) | not null | default 'draft' | - | utf8mb4_czech_ci",
+                "pdf_path": "varchar(255) | null | default NULL | - | utf8mb4_czech_ci",
+                "signed_at": "datetime | null | default NULL | - | -",
+                "created_by": "varchar(64) | null | default NULL | - | utf8mb4_czech_ci",
+                "created_at": "datetime | null | default NULL | - | -"
+            },
+            "indexes": {
+                "contract_addons_contract_id_index": "index (contract_id)",
+                "PRIMARY": "unique (id)"
+            }
+        },
+        "contract_addon_otps": {
+            "engine": "InnoDB",
+            "collation": "utf8mb4_czech_ci",
+            "columns": {
+                "id": "int(11) | not null | default ∅ | auto_increment | -",
+                "contract_id": "int(11) | not null | default ∅ | - | -",
+                "otp_hash": "char(64) | not null | default ∅ | - | ascii_general_ci",
+                "attempts_left": "tinyint(4) | not null | default 5 | - | -",
+                "expires_at": "datetime | not null | default ∅ | - | -",
+                "created_at": "datetime | not null | default current_timestamp() | - | -"
+            },
+            "indexes": {
+                "contract_id": "index (contract_id)",
+                "PRIMARY": "unique (id)"
+            }
+        },
+        "contract_events": {
+            "engine": "InnoDB",
+            "collation": "utf8mb4_czech_ci",
+            "columns": {
+                "id": "int(11) | not null | default ∅ | auto_increment | -",
+                "contract_id": "int(11) | not null | default ∅ | - | -",
+                "event": "varchar(64) | not null | default ∅ | - | utf8mb4_czech_ci",
+                "meta_json": "text | null | default NULL | - | utf8mb4_czech_ci",
+                "created_at": "datetime | not null | default current_timestamp() | - | -"
+            },
+            "indexes": {
+                "idx_events_contract": "index (contract_id)",
+                "PRIMARY": "unique (id)"
+            }
+        },
+        "contract_otps": {
+            "engine": "InnoDB",
+            "collation": "utf8mb4_czech_ci",
+            "columns": {
+                "id": "int(11) | not null | default ∅ | auto_increment | -",
+                "contract_id": "int(11) | not null | default ∅ | - | -",
+                "otp_hash": "char(64) | not null | default ∅ | - | ascii_general_ci",
+                "attempts_left": "tinyint(4) | not null | default 5 | - | -",
+                "expires_at": "datetime | not null | default ∅ | - | -",
+                "created_at": "datetime | not null | default current_timestamp() | - | -"
+            },
+            "indexes": {
+                "idx_otps_contract": "index (contract_id)",
+                "idx_otps_expires": "index (expires_at)",
+                "PRIMARY": "unique (id)"
+            }
+        },
+        "contract_parties": {
+            "engine": "InnoDB",
+            "collation": "utf8mb4_czech_ci",
+            "columns": {
+                "id": "int(11) | not null | default ∅ | auto_increment | -",
+                "contract_id": "int(11) | not null | default ∅ | - | -",
+                "full_name": "varchar(255) | not null | default ∅ | - | utf8mb4_czech_ci",
+                "street": "varchar(255) | null | default NULL | - | utf8mb4_czech_ci",
+                "town": "varchar(100) | null | default NULL | - | utf8mb4_czech_ci",
+                "service_street": "varchar(255) | null | default NULL | - | utf8mb4_czech_ci",
+                "service_town": "varchar(100) | null | default NULL | - | utf8mb4_czech_ci",
+                "service_zip": "varchar(20) | null | default NULL | - | utf8mb4_czech_ci",
+                "service_full_address": "varchar(255) | null | default NULL | - | utf8mb4_czech_ci",
+                "country": "varchar(100) | null | default NULL | - | utf8mb4_czech_ci",
+                "ico": "varchar(32) | null | default NULL | - | utf8mb4_czech_ci",
+                "dic": "varchar(32) | null | default NULL | - | utf8mb4_czech_ci",
+                "speed_name": "varchar(100) | null | default NULL | - | utf8mb4_czech_ci",
+                "variable_symbol": "varchar(32) | null | default NULL | - | utf8mb4_czech_ci",
+                "price": "decimal(10,2) | not null | default 320.00 | - | -",
+                "price_after_discount": "decimal(10,2) | null | default NULL | - | -",
+                "discount_until": "date | null | default NULL | - | -",
+                "additional_services_json": "text | null | default NULL | - | utf8mb4_czech_ci",
+                "additional_services_total": "decimal(10,2) | null | default NULL | - | -",
+                "phone": "varchar(64) | null | default NULL | - | utf8mb4_czech_ci",
+                "email": "varchar(255) | null | default NULL | - | utf8mb4_czech_ci",
+                "birthday": "date | null | default NULL | - | -",
+                "created_at": "datetime | not null | default current_timestamp() | - | -",
+                "active": "tinyint(1) | not null | default 1 | - | -",
+                "termination": "enum('ano','ne') | not null | default 'ne' | - | utf8mb4_czech_ci"
+            },
+            "indexes": {
+                "cp_variable_symbol_idx": "index (variable_symbol)",
+                "idx_cp_contract": "index (contract_id)",
+                "PRIMARY": "unique (id)"
+            }
+        },
+        "download_tokens": {
+            "engine": "InnoDB",
+            "collation": "utf8mb4_uca1400_ai_ci",
+            "columns": {
+                "id": "bigint(20) unsigned | not null | default ∅ | auto_increment | -",
+                "token": "char(64) | not null | default ∅ | - | utf8mb4_uca1400_ai_ci",
+                "contract_id": "bigint(20) unsigned | not null | default ∅ | - | -",
+                "addon_id": "int(10) unsigned | null | default NULL | - | -",
+                "file_type": "enum('contract','termination','addon','tariff_addon','service_addon','connection_point_addon') | not null | default ∅ | - | utf8mb4_uca1400_ai_ci",
+                "expires_at": "datetime | not null | default ∅ | - | -",
+                "used_at": "datetime | null | default NULL | - | -",
+                "max_uses": "int(10) unsigned | not null | default 1 | - | -",
+                "bind_ip": "varchar(45) | null | default NULL | - | utf8mb4_uca1400_ai_ci",
+                "created_at": "datetime | not null | default current_timestamp() | - | -"
+            },
+            "indexes": {
+                "contract_id": "index (contract_id)",
+                "expires_at": "index (expires_at)",
+                "PRIMARY": "unique (id)",
+                "token": "unique (token)",
+                "token_2": "index (token)"
+            }
+        },
+        "mail_queue": {
+            "engine": "InnoDB",
+            "collation": "utf8mb4_czech_ci",
+            "columns": {
+                "id": "bigint(20) unsigned | not null | default ∅ | auto_increment | -",
+                "contract_id": "int(11) | not null | default ∅ | - | -",
+                "party_id": "int(11) | null | default NULL | - | -",
+                "email": "varchar(255) | not null | default ∅ | - | utf8mb4_czech_ci",
+                "status": "enum('pending','sending','sent','error') | not null | default 'pending' | - | utf8mb4_czech_ci",
+                "last_error": "text | null | default NULL | - | utf8mb4_czech_ci",
+                "created_at": "datetime | not null | default current_timestamp() | - | -",
+                "sent_at": "datetime | null | default NULL | - | -"
+            },
+            "indexes": {
+                "idx_mail_queue_contract": "index (contract_id)",
+                "idx_mail_queue_sent_at": "index (sent_at)",
+                "idx_mail_queue_status": "index (status)",
+                "PRIMARY": "unique (id)"
+            }
+        },
+        "sms_queue": {
+            "engine": "InnoDB",
+            "collation": "utf8mb4_czech_ci",
+            "columns": {
+                "id": "bigint(20) unsigned | not null | default ∅ | auto_increment | -",
+                "contract_id": "int(11) | not null | default ∅ | - | -",
+                "party_id": "int(11) | null | default NULL | - | -",
+                "phone": "varchar(64) | not null | default ∅ | - | utf8mb4_czech_ci",
+                "status": "enum('pending','sending','sent','error') | not null | default 'pending' | - | utf8mb4_czech_ci",
+                "last_error": "text | null | default NULL | - | utf8mb4_czech_ci",
+                "created_at": "datetime | not null | default current_timestamp() | - | -",
+                "sent_at": "datetime | null | default NULL | - | -"
+            },
+            "indexes": {
+                "idx_sms_queue_contract": "index (contract_id)",
+                "idx_sms_queue_sent_at": "index (sent_at)",
+                "idx_sms_queue_status": "index (status)",
+                "PRIMARY": "unique (id)"
+            }
+        }
+    },
+    "views": []
+}

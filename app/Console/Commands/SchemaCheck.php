@@ -7,15 +7,15 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 
 /**
- * Hlídání driftu schématu: porovná živou DB s otiskem v repu
- * (database/schema/fingerprint.json = výchozí schéma + migrace). Ruční změna
+ * Hlídání driftu schématu: porovná živé DB s otisky v repu
+ * (database/schema/fingerprint.json pro freenetis, contracts-fingerprint.json
+ * pro contractsdb = výchozí schéma + migrace). Ruční změna
  * na produkci (sloupec, typ, collation, index, view) se tak neschová — viz
  * remote_id / VARBINARY na .54 (Krok 4).
  *
- *   schema:check                         porovná DB z .env, drift → exit 1 + warning do logu
- *   schema:check --write --database=freenetis_test
- *                                        přegeneruje otisk z DB postavené jen z repa
- *                                        (po `testing:refresh-db`)
+ *   schema:check                  porovná obě DB z .env, drift → exit 1 + warning do logu
+ *   schema:check --write --test   přegeneruje otisky z testovacích DB postavených
+ *                                 jen z repa (po `testing:refresh-db`)
  *
  * Otisk nezahrnuje DEFINER, AUTO_INCREMENT ani data; jméno DB ve views se
  * normalizuje, takže freenetis_test i freenetis dají stejný otisk.
@@ -23,35 +23,50 @@ use Illuminate\Support\Facades\Log;
 class SchemaCheck extends Command
 {
     protected $signature = 'schema:check
-        {--write : přepsat otisk v repu místo porovnání}
-        {--database= : DB ke čtení (výchozí z .env)}';
+        {--write : přepsat otisky v repu místo porovnání}
+        {--test : číst testovací DB (*_test) místo DB z .env}';
 
     protected $description = 'Porovná schéma DB s otiskem v repu (drift ručních změn).';
 
-    public const FINGERPRINT = 'schema/fingerprint.json';
+    /** connection => otisk v database/ */
+    public const FINGERPRINTS = [
+        'mysql'     => 'schema/fingerprint.json',
+        'contracts' => 'schema/contracts-fingerprint.json',
+    ];
 
     public function handle(): int
     {
-        $db   = (string) ($this->option('database') ?: config('database.connections.mysql.database'));
-        $live = $this->fingerprint($db);
-        $path = database_path(self::FINGERPRINT);
+        $ok = true;
+        foreach (self::FINGERPRINTS as $conn => $file) {
+            $ok = $this->checkConnection($conn, database_path($file)) && $ok;
+        }
+        return $ok ? self::SUCCESS : self::FAILURE;
+    }
+
+    private function checkConnection(string $conn, string $path): bool
+    {
+        $db = (string) config("database.connections.{$conn}.database");
+        if ($this->option('test') && !str_ends_with($db, '_test')) {
+            $db .= '_test';
+        }
+        $live = $this->fingerprint($db, $conn);
 
         if ($this->option('write')) {
             file_put_contents($path, json_encode($live, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) . "\n");
             $this->info("Otisk z {$db} zapsán: " . count($live['tables']) . ' tabulek, ' . count($live['views']) . ' views.');
-            return self::SUCCESS;
+            return true;
         }
 
         if (!is_file($path)) {
-            $this->error("Chybí {$path} — vygeneruj ho přes --write.");
-            return self::FAILURE;
+            $this->error("Chybí {$path} — vygeneruj ho přes --write --test.");
+            return false;
         }
         $expected = json_decode((string) file_get_contents($path), true);
         $diff     = $this->diff($expected, $live);
 
         if ($diff === []) {
             $this->info("Schéma {$db} odpovídá repu (" . count($live['tables']) . ' tabulek, ' . count($live['views']) . ' views).');
-            return self::SUCCESS;
+            return true;
         }
 
         foreach ($diff as $line) {
@@ -59,18 +74,24 @@ class SchemaCheck extends Command
         }
         $this->warn(count($diff) . " rozdílů mezi {$db} a repem.");
         Log::warning('schema.drift', ['database' => $db, 'count' => count($diff), 'diff' => array_slice($diff, 0, 50)]);
-        return self::FAILURE;
+        return false;
     }
 
-    /** @return array{tables: array<string, array>, views: array<string, string>} */
-    public function fingerprint(string $db): array
+    /**
+     * information_schema čteme přes connection dané DB — uživatel jiné
+     * connection by v ní neviděl objekty, ke kterým nemá práva.
+     *
+     * @return array{tables: array<string, array>, views: array<string, string>}
+     */
+    public function fingerprint(string $db, string $conn = 'mysql'): array
     {
+        $q = DB::connection($conn);
         $tables = [];
-        foreach (DB::select("SELECT TABLE_NAME n, ENGINE e, TABLE_COLLATION c FROM information_schema.TABLES
+        foreach ($q->select("SELECT TABLE_NAME n, ENGINE e, TABLE_COLLATION c FROM information_schema.TABLES
                              WHERE TABLE_SCHEMA = ? AND TABLE_TYPE = 'BASE TABLE' ORDER BY 1", [$db]) as $t) {
             $tables[$t->n] = ['engine' => $t->e, 'collation' => $t->c, 'columns' => [], 'indexes' => []];
         }
-        foreach (DB::select('SELECT TABLE_NAME t, COLUMN_NAME c, COLUMN_TYPE ty, IS_NULLABLE n, COLUMN_DEFAULT d, EXTRA x, COLLATION_NAME co
+        foreach ($q->select('SELECT TABLE_NAME t, COLUMN_NAME c, COLUMN_TYPE ty, IS_NULLABLE n, COLUMN_DEFAULT d, EXTRA x, COLLATION_NAME co
                              FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = ? ORDER BY TABLE_NAME, ORDINAL_POSITION', [$db]) as $c) {
             if (isset($tables[$c->t])) {
                 $tables[$c->t]['columns'][$c->c] = implode(' | ', [
@@ -78,7 +99,7 @@ class SchemaCheck extends Command
                 ]);
             }
         }
-        foreach (DB::select('SELECT TABLE_NAME t, INDEX_NAME i, NON_UNIQUE nu, GROUP_CONCAT(COLUMN_NAME ORDER BY SEQ_IN_INDEX) cols
+        foreach ($q->select('SELECT TABLE_NAME t, INDEX_NAME i, NON_UNIQUE nu, GROUP_CONCAT(COLUMN_NAME ORDER BY SEQ_IN_INDEX) cols
                              FROM information_schema.STATISTICS WHERE TABLE_SCHEMA = ?
                              GROUP BY TABLE_NAME, INDEX_NAME, NON_UNIQUE ORDER BY 1, 2', [$db]) as $i) {
             if (isset($tables[$i->t])) {
@@ -87,7 +108,7 @@ class SchemaCheck extends Command
         }
 
         $views = [];
-        foreach (DB::select('SELECT TABLE_NAME n, VIEW_DEFINITION d FROM information_schema.VIEWS WHERE TABLE_SCHEMA = ? ORDER BY 1', [$db]) as $v) {
+        foreach ($q->select('SELECT TABLE_NAME n, VIEW_DEFINITION d FROM information_schema.VIEWS WHERE TABLE_SCHEMA = ? ORDER BY 1', [$db]) as $v) {
             $views[$v->n] = str_replace("`{$db}`.", '', $v->d);
         }
 
