@@ -43,6 +43,12 @@ listenery, ne kód v akci. Nová featura = nový listener, ne zásah do core.
   (`false` z listeneru Laravel bere jako stop propagace).
 
 **Controller** — tenký: ACL → validace (Form Request) → akce → redirect/flash.
+- Form Requesty v `app/Http/Requests/<Doména>/`; hrubé ACL smí být v `authorize()`
+  (běží před validací → 403 dřív než chyby formuláře). Musí volat
+  `hasAccess`/`aclCheck` (přímo nebo přes vlastní helper) — jinak je routa
+  pro `acl:coverage` / AclCoverageTest neošetřená.
+- Jemná práva (skrytá pole) zjistí controller a předá akci jako `bool` —
+  akce je vynutí i při podvrženém POSTu.
 
 **Service** — zůstává pro technické utility bez vlastního agregátu (PDF, OTP,
 QR). Existující `app/Services/*` se přesouvají do domén postupně.
