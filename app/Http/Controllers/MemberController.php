@@ -18,7 +18,6 @@ use App\Models\Setting;
 use App\Models\Street;
 use App\Models\Town;
 use App\Services\ContractService;
-use App\Services\RegularFeeResolver;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 
@@ -258,7 +257,7 @@ class MemberController extends Controller
 
         // Dodatečné služby (např. veřejná IP) — strhávají se měsíčně navíc k tarifu
         // jako samostatná položka. Rozpis + součet pro zobrazení na kartě.
-        $additionalServices      = \App\Services\AdditionalServicesResolver::items((int) $member->id, now()->toDateString());
+        $additionalServices      = app(\App\Domains\Billing\Fees\FeePolicy::class)->additionalServiceItems((int) $member->id, now()->toDateString());
         $additionalServicesTotal = array_sum(array_column($additionalServices, 'fee'));
 
         // Placená přípojná místa (povolené podsítě s vlastní cenou) — také měsíčně.
@@ -1591,11 +1590,11 @@ class MemberController extends Controller
     private function resolveMonthlyFee(int $memberId, int $memberType): array
     {
         $date = now()->toDateString();
-        $individual = RegularFeeResolver::individualFee($memberId, $date);
+        $individual = app(\App\Domains\Billing\Fees\FeePolicy::class)->individualFee($memberId, $date);
         if ($individual !== null) return [$individual, 'individuální'];
-        $tarif = RegularFeeResolver::tarifPrice($memberId);
+        $tarif = app(\App\Domains\Billing\Fees\FeePolicy::class)->tarifPrice($memberId);
         if ($tarif !== null) return [$tarif, 'tarif'];
-        $default = RegularFeeResolver::defaultFeeByType($memberType);
+        $default = app(\App\Domains\Billing\Fees\FeePolicy::class)->defaultFeeByType($memberType);
         if ($default !== null) return [$default, 'základní'];
         return [null, null];
     }
@@ -1612,7 +1611,7 @@ class MemberController extends Controller
     private function chargeMonthlyFeeNow(int $memberId, int $memberType, string $date): string
     {
         // Pořadí individuální → cena tarifu → základní řeší centrální resolver.
-        $feeAmount = (float) (RegularFeeResolver::amount($memberId, $memberType, $date) ?? 0.0);
+        $feeAmount = (float) (app(\App\Domains\Billing\Fees\FeePolicy::class)->regularFee($memberId, $memberType, $date) ?? 0.0);
 
         if ($feeAmount <= 0) return 'noop';
 

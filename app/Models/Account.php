@@ -4,7 +4,6 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\DB;
-use App\Services\RegularFeeResolver;
 
 class Account extends Model
 {
@@ -119,8 +118,8 @@ class Account extends Model
         // fallback member_id=1 default (320), takže „Zaplaceno do" nesedělo s tím, co se
         // reálně strhává u členů s tarifním poplatkem.
         $memberType = (int) ($member->type ?? 0);
-        $tarifFee   = RegularFeeResolver::tarifPrice($memberId);
-        $defaultFee = RegularFeeResolver::defaultFeeByType($memberType);
+        $tarifFee   = app(\App\Domains\Billing\Fees\FeePolicy::class)->tarifPrice($memberId);
+        $defaultFee = app(\App\Domains\Billing\Fees\FeePolicy::class)->defaultFeeByType($memberType);
 
         for ($i = 0; $i < $maxIterations; $i++) {
             $day = min($deductDay, cal_days_in_month(CAL_GREGORIAN, $month, $year));
@@ -132,7 +131,7 @@ class Account extends Model
 
             // Poplatek za tento měsíc (mirror RegularFeeResolver::amount):
             // individuální per měsíc, jinak předpočítaný tarif / základní.
-            $individual = RegularFeeResolver::individualFee($memberId, $date);
+            $individual = app(\App\Domains\Billing\Fees\FeePolicy::class)->individualFee($memberId, $date);
             $fee = $individual ?? $tarifFee ?? $defaultFee ?? 0.0;
 
             // Add debt payment if any

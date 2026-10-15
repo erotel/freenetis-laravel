@@ -228,7 +228,7 @@ class ContractService
     {
         $basePrice  = $tarifPrice !== null
             ? (float) $tarifPrice
-            : (RegularFeeResolver::defaultFeeByType((int) $member->type) ?? 0.0);
+            : (app(\App\Domains\Billing\Fees\FeePolicy::class)->defaultFeeByType((int) $member->type) ?? 0.0);
 
         $today      = now()->toDateString();
         $individual = DB::table('members_fees as mf')
@@ -1236,7 +1236,7 @@ class ContractService
 
         // Snapshot dodatečných služeb (např. veřejná IP) aktivních při vzniku
         // smlouvy — aby byly vidět přímo ve smlouvě (řádky + celková cena).
-        $services      = AdditionalServicesResolver::items((int) $member->id, now()->toDateString());
+        $services      = app(\App\Domains\Billing\Fees\FeePolicy::class)->additionalServiceItems((int) $member->id, now()->toDateString());
         $servicesTotal = array_sum(array_column($services, 'fee'));
 
         return [

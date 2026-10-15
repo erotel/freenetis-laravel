@@ -246,7 +246,7 @@ class PaymentBackchargeService
      */
     private function resolveFeeAmount(int $memberId, int $memberType, string $date): float
     {
-        return (float) (RegularFeeResolver::amount($memberId, $memberType, $date) ?? 0.0);
+        return (float) (app(\App\Domains\Billing\Fees\FeePolicy::class)->regularFee($memberId, $memberType, $date) ?? 0.0);
     }
 
     /**
@@ -257,8 +257,7 @@ class PaymentBackchargeService
      */
     private function resolveAdditionalServiceAmount(int $memberId, string $date): float
     {
-        return AdditionalServicesResolver::total($memberId, $date)
-            + AllowedSubnetFeesResolver::total($memberId);
+        return app(\App\Domains\Billing\Fees\FeePolicy::class)->surcharges($memberId, $date);
     }
 
     private function recalculateBalance(int $accountId): void

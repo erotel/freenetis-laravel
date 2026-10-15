@@ -40,7 +40,7 @@ class ContractController extends Controller
         $tariffAddons  = $contract ? $this->contracts->tariffAddons($contract->id) : collect();
         $serviceAddons = $contract ? $this->contracts->serviceAddons($contract->id) : collect();
         // Aktivní dodatečné služby člena (pro dodatek ZRUŠENÍ) — z members_fees.
-        $assignableServices = \App\Services\AdditionalServicesResolver::items($memberId, now()->toDateString());
+        $assignableServices = app(\App\Domains\Billing\Fees\FeePolicy::class)->additionalServiceItems($memberId, now()->toDateString());
         // Dostupné dodatečné služby k PŘIDÁNÍ (poplatky typu „additional service",
         // které člen ještě aktivní nemá) — přiřadí se teprve podpisem dodatku.
         $activeFeeIds = array_column($assignableServices, 'fee_id');

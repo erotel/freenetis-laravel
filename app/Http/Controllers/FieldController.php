@@ -9,7 +9,6 @@ use App\Models\Device;
 use App\Models\Member;
 use App\Models\MemberFee;
 use App\Services\LoginService;
-use App\Services\RegularFeeResolver;
 use App\Models\Setting;
 use App\Models\User;
 use Illuminate\Http\JsonResponse;
@@ -468,9 +467,9 @@ class FieldController extends Controller
         // Efektivní měsíční poplatek přes resolver (shodné se srážkou):
         // individuální → cena tarifu → základní.
         $feeDate = now()->toDateString();
-        $feeIndividual = RegularFeeResolver::individualFee((int) $member->id, $feeDate);
-        $feeTarif      = RegularFeeResolver::tarifPrice((int) $member->id);
-        $feeDefault    = RegularFeeResolver::defaultFeeByType((int) $member->type);
+        $feeIndividual = app(\App\Domains\Billing\Fees\FeePolicy::class)->individualFee((int) $member->id, $feeDate);
+        $feeTarif      = app(\App\Domains\Billing\Fees\FeePolicy::class)->tarifPrice((int) $member->id);
+        $feeDefault    = app(\App\Domains\Billing\Fees\FeePolicy::class)->defaultFeeByType((int) $member->type);
         if ($feeIndividual !== null)   { $monthlyFee = $feeIndividual; $monthlyFeeSource = 'individuální'; }
         elseif ($feeTarif !== null)    { $monthlyFee = $feeTarif;      $monthlyFeeSource = 'tarif'; }
         elseif ($feeDefault !== null)  { $monthlyFee = $feeDefault;    $monthlyFeeSource = 'základní'; }

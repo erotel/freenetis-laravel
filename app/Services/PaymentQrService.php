@@ -55,8 +55,7 @@ class PaymentQrService
         // (např. veřejná IP) + placená přípojná místa. Vše se strhává měsíčně
         // (transfer type 6 u služeb i míst), tak QR pokryje celek.
         $amount = $this->regularFee($memberId, (int) $member->type)
-            + AdditionalServicesResolver::total($memberId, now()->toDateString())
-            + AllowedSubnetFeesResolver::total($memberId);
+            + app(\App\Domains\Billing\Fees\FeePolicy::class)->surcharges($memberId, now()->toDateString());
         if ($amount <= 0) {
             return null;
         }
@@ -221,12 +220,12 @@ class PaymentQrService
     {
         $date = now()->toDateString();
 
-        $amount = RegularFeeResolver::amount($memberId, $memberType, $date);
+        $amount = app(\App\Domains\Billing\Fees\FeePolicy::class)->regularFee($memberId, $memberType, $date);
         if ($amount !== null) {
             return $amount;
         }
 
         // Poslední fallback jen pro QR: tarif sdružení (member 1).
-        return (float) (RegularFeeResolver::individualFee(1, $date) ?? 0);
+        return (float) (app(\App\Domains\Billing\Fees\FeePolicy::class)->individualFee(1, $date) ?? 0);
     }
 }
