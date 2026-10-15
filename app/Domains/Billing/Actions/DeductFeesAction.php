@@ -28,6 +28,9 @@ class DeductFeesAction
     /** @var Closure(string $level, string $message): void */
     private Closure $report;
 
+    /** @var string[] sekce, jejichž transakce selhala (rollback) v posledním běhu */
+    private array $failed = [];
+
     public function __construct(private LedgerRepository $ledger)
     {
     }
@@ -40,6 +43,7 @@ class DeductFeesAction
     public function handle(string $date, ?int $only = null, ?Closure $report = null): ?int
     {
         $this->report = $report ?? fn () => null;
+        $this->failed = [];
 
         $orgOperating      = $this->ledger->organizationAccountId(AccountAttribute::OPERATING);
         $orgInfrastructure = $this->ledger->organizationAccountId(AccountAttribute::INFRASTRUCTURE);
@@ -61,6 +65,12 @@ class DeductFeesAction
         }
 
         return $deducted;
+    }
+
+    /** @return string[] sekce, které v posledním běhu selhaly (jejich srážky se nezapsaly) */
+    public function failures(): array
+    {
+        return $this->failed;
     }
 
     private function memberFees(string $date, int $orgAccount, ?int $only): int
@@ -130,6 +140,7 @@ class DeductFeesAction
         } catch (\Throwable $e) {
             DB::rollBack();
             Log::error('DeductFees member fee error', ['error' => $e->getMessage()]);
+            $this->failed[] = 'member fees';
             ($this->report)('error', 'Member fee deduction failed: ' . $e->getMessage());
         }
 
@@ -177,6 +188,7 @@ class DeductFeesAction
         } catch (\Throwable $e) {
             DB::rollBack();
             Log::error('DeductFees additional service error', ['error' => $e->getMessage()]);
+            $this->failed[] = 'additional services';
             ($this->report)('error', 'Additional service deduction failed: ' . $e->getMessage());
         }
 
@@ -237,6 +249,7 @@ class DeductFeesAction
         } catch (\Throwable $e) {
             DB::rollBack();
             Log::error($logMessage, ['error' => $e->getMessage()]);
+            $this->failed[] = strtolower($label);
             ($this->report)('error', $errorPrefix . $e->getMessage());
         }
 

@@ -440,4 +440,21 @@ class DeductFeesTest extends DatabaseTestCase
         Artisan::call('fees:deduct', ['--date' => '2099-06-30', '--member' => $x['member']]);
         $this->assertSame(1, DB::table('transfers')->where('origin_id', $x['account'])->where('datetime', '2099-06-30')->count());
     }
+
+    /** Selhání sekce (rollback) → exit 1 + chyba; ostatní sekce běží dál. */
+    public function test_selhani_sekce_vrati_chybovy_kod(): void
+    {
+        $x = $this->member(2, 1000);
+        $this->partialMock(\App\Domains\Billing\Repositories\LedgerRepository::class)
+            ->shouldReceive('postFee')->andThrow(new \RuntimeException('boom'));
+
+        $code = Artisan::call('fees:deduct', ['--force' => true, '--date' => self::DATE, '--member' => $x['member']]);
+        $out  = Artisan::output();
+
+        $this->assertSame(1, $code);
+        $this->assertStringContainsString('Member fee deduction failed: boom', $out);
+        $this->assertStringContainsString('Srážka selhala v sekcích: member fees', $out);
+        $this->assertSame([], $this->transfers($x['account']));
+        $this->assertEqualsWithDelta(1000, $this->balance($x['account']), 0.001);
+    }
 }

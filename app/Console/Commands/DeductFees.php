@@ -54,6 +54,13 @@ class DeductFees extends Command
             return 1;
         }
 
+        // Selhaná sekce = její srážky se nezapsaly (rollback). Exit 1, ať to
+        // cron/plánovač zachytí — dřív končil 0 a chyba byla vidět jen v logu.
+        if ($failed = $deduct->failures()) {
+            $this->error('Srážka selhala v sekcích: ' . implode(', ', $failed) . ' — viz log (DeductFees … error).');
+            return 1;
+        }
+
         return 0;
     }
 }
