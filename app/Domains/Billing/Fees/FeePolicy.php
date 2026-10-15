@@ -53,6 +53,22 @@ class FeePolicy
             ?? $this->defaultFeeByType($memberType);
     }
 
+    /**
+     * Pravidelný poplatek i s úrovní, odkud pochází (pro kartu člena).
+     *
+     * @return array{0: ?float, 1: ?string} [částka, 'individuální'|'tarif'|'základní'|null]
+     */
+    public function regularFeeWithSource(int $memberId, int $memberType, string $date): array
+    {
+        $individual = $this->individualFee($memberId, $date);
+        if ($individual !== null) return [$individual, 'individuální'];
+        $tarif = $this->tarifPrice($memberId);
+        if ($tarif !== null) return [$tarif, 'tarif'];
+        $default = $this->defaultFeeByType($memberType);
+        if ($default !== null) return [$default, 'základní'];
+        return [null, null];
+    }
+
     /** Úroveň 1: individuální 'regular member fee' (nejnižší priorita číslem). */
     public function individualFee(int $memberId, string $date): ?float
     {

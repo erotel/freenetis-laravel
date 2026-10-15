@@ -34,6 +34,20 @@ class MemberDeviceRepository
         return $direct->merge($onDevices)->unique()->sort()->values()->all();
     }
 
+    /** Zruší přesměrování (messages_ip_addresses) všech IP na zařízeních člena. */
+    public function clearRedirects(int $memberId): void
+    {
+        $ipIds = DB::table('ip_addresses as ip')
+            ->join('ifaces as i', 'i.id', '=', 'ip.iface_id')
+            ->join('devices as d', 'd.id', '=', 'i.device_id')
+            ->join('users as u', 'u.id', '=', 'd.user_id')
+            ->where('u.member_id', $memberId)
+            ->pluck('ip.id');
+        if ($ipIds->isNotEmpty()) {
+            DB::table('messages_ip_addresses')->whereIn('ip_address_id', $ipIds)->delete();
+        }
+    }
+
     /** Řádek na začátek members.comment (sloupec drží max 250 znaků). */
     public function prependComment(int $memberId, string $line): void
     {

@@ -18,6 +18,19 @@ final class FormerType
         return $type === MemberType::REGULAR ? MemberType::FORMER : MemberType::FORMER_CUSTOMER;
     }
 
+    /**
+     * Typ po obnovení bývalého (tlačítko Obnovit).
+     *
+     * POZOR — legacy mapování je NAOPAK: bývalý zákazník (16) → řádný člen (90),
+     * bývalý člen (15) → zákazník (2). Zachováno beze změny (charakterizace
+     * RestoreMemberTest); na .54 se Obnovit dosud nepoužilo. Oprava = samostatný
+     * commit se změnou chování.
+     */
+    public static function restoredType(int $formerType): int
+    {
+        return $formerType === MemberType::FORMER_CUSTOMER ? MemberType::REGULAR : MemberType::CUSTOMER;
+    }
+
     public static function isFormer(int $type): bool
     {
         return in_array($type, self::TYPES, true);

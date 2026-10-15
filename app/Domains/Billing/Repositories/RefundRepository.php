@@ -22,6 +22,43 @@ class RefundRepository
         return 'bank_account_member_type_' . $memberType;
     }
 
+    /**
+     * Účet, na který vrátit přeplatek (předvyplnění formuláře Ukončit):
+     *  1) poslední bankovní platba, která reálně přistála na kreditu PRÁVĚ
+     *     tohoto člena (přeposlání → previous_transfer → bank_transfers.origin) —
+     *     pokrývá plátce s více záznamy v bank_accounts;
+     *  2) jinak nejnovější vyplněný bank_accounts záznam člena;
+     *  3) jinak '' (admin vyplní ručně).
+     */
+    public function suggestedRefundAccount(int $memberId): string
+    {
+        $lastPayer = DB::table('accounts AS a')
+            ->join('transfers AS t2',      't2.destination_id', '=', 'a.id')
+            ->join('transfers AS t1',      't1.id', '=', 't2.previous_transfer_id')
+            ->join('bank_transfers AS bt', 'bt.transfer_id', '=', 't1.id')
+            ->join('bank_accounts AS ba',  'ba.id', '=', 'bt.origin_id')
+            ->whereNull('bt.deleted_at')
+            ->where('a.member_id', $memberId)
+            ->where('a.account_attribute_id', 221100)
+            ->whereNotNull('ba.account_nr')
+            ->whereNotNull('ba.bank_nr')
+            ->where('ba.account_nr', '!=', '')
+            ->where('ba.bank_nr',    '!=', '')
+            ->orderByDesc('t2.datetime')
+            ->first(['ba.account_nr', 'ba.bank_nr']);
+
+        $bankAccount = $lastPayer ?: DB::table('bank_accounts')
+            ->where('member_id', $memberId)
+            ->whereNotNull('account_nr')
+            ->whereNotNull('bank_nr')
+            ->where('account_nr', '!=', '')
+            ->where('bank_nr', '!=', '')
+            ->orderByDesc('id')
+            ->first(['account_nr', 'bank_nr']);
+
+        return $bankAccount ? trim($bankAccount->account_nr) . '/' . trim($bankAccount->bank_nr) : '';
+    }
+
     /** Návrh odchozí platby (status draft — odešle ji až admin). */
     public function createOutgoingPayment(int $bankAccountId, string $targetAccount, float $amount, string $message, string $reason, int $createdBy): int
     {

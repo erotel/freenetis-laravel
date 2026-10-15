@@ -224,8 +224,28 @@ class LedgerRepository
 
     // ── zápisy ────────────────────────────────────────────────────────────────
 
+    /** Existuje převod daného typu z účtu s `datetime` přesně = $date (idempotence srážek)? */
+    public function hasTransferAt(int $fromAccount, int $type, string $date): bool
+    {
+        return DB::table('transfers')
+            ->where('origin_id', $fromAccount)
+            ->where('type', $type)
+            ->where('datetime', $date)
+            ->exists();
+    }
+
+    /** Existuje převod daného typu z účtu kdykoli během dne $date? */
+    public function hasTransferOnDay(int $fromAccount, int $type, string $date): bool
+    {
+        return DB::table('transfers')
+            ->where('origin_id', $fromAccount)
+            ->where('type', $type)
+            ->whereDate('datetime', $date)
+            ->exists();
+    }
+
     /** Převod z účtu člena na účet organizace + snížení zůstatku člena. */
-    public function postFee(int $fromAccount, int $toAccount, int $type, float $amount, string $date, string $createdAt, string $text): void
+    public function postFee(int $fromAccount, int $toAccount, int $type, float $amount, string $date, string $createdAt, string $text, ?int $userId = null): void
     {
         DB::table('transfers')->insert([
             'origin_id'         => $fromAccount,
@@ -236,7 +256,7 @@ class LedgerRepository
             'creation_datetime' => $createdAt,
             'text'              => $text,
             'member_id'         => null,
-            'user_id'           => null,
+            'user_id'           => $userId,
         ]);
 
         DB::table('accounts')->where('id', $fromAccount)->decrement('balance', $amount);

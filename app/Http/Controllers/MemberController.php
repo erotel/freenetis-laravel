@@ -2,12 +2,20 @@
 
 namespace App\Http\Controllers;
 
+use App\Domains\Billing\Actions\ChargeMonthlyFeeNowAction;
+use App\Domains\Billing\Fees\FeePolicy;
+use App\Domains\Billing\Repositories\LedgerRepository;
+use App\Domains\Billing\Repositories\RefundRepository;
+use App\Domains\Billing\Support\TransferType;
 use App\Domains\Members\Actions\ApproveMemberAction;
 use App\Domains\Members\Actions\EndMembershipAction;
 use App\Domains\Members\Actions\MarkMemberFormerAction;
 use App\Domains\Members\Actions\PurgeMemberAction;
+use App\Domains\Members\Actions\RestoreFormerMemberAction;
+use App\Domains\Members\Actions\ResumeInterruptedMembershipAction;
 use App\Domains\Members\Events\MemberApproved;
 use App\Domains\Members\Exceptions\MemberNotApprovable;
+use App\Domains\Members\Exceptions\MemberNotRestorable;
 use App\Domains\Members\Exceptions\MembershipNotEndable;
 use App\Domains\Members\Support\EndMode;
 use App\Domains\Members\Support\FormerType;
@@ -259,11 +267,11 @@ class MemberController extends Controller
 
         // Efektivní měsíční poplatek přes centrální resolver (shodné s tím, co se
         // reálně strhne): individuální → cena tarifu → základní. Zdroj pro popisek.
-        [$monthlyFee, $monthlyFeeSource] = $this->resolveMonthlyFee((int) $member->id, (int) $member->type);
+        [$monthlyFee, $monthlyFeeSource] = app(FeePolicy::class)->regularFeeWithSource((int) $member->id, (int) $member->type, now()->toDateString());
 
         // Dodatečné služby (např. veřejná IP) — strhávají se měsíčně navíc k tarifu
         // jako samostatná položka. Rozpis + součet pro zobrazení na kartě.
-        $additionalServices      = app(\App\Domains\Billing\Fees\FeePolicy::class)->additionalServiceItems((int) $member->id, now()->toDateString());
+        $additionalServices      = app(FeePolicy::class)->additionalServiceItems((int) $member->id, now()->toDateString());
         $additionalServicesTotal = array_sum(array_column($additionalServices, 'fee'));
 
         // Placená přípojná místa (povolené podsítě s vlastní cenou) — také měsíčně.
@@ -817,93 +825,33 @@ class MemberController extends Controller
     }
 
     /** Má výpověď s datem odchodu v budoucnu (běží výpovědní lhůta)? */
-    private static function inNoticePeriod(object $member): bool
-    {
-        return FormerType::inNoticePeriod($member->leaving_date ?? null);
-    }
-
-    public function endMembershipForm(int $id)
+    public function endMembershipForm(int $id, RefundRepository $refunds, LedgerRepository $ledger, FeePolicy $fees)
     {
         abort_unless($this->can('edit_all'), 403);
         $member = DB::table('members')->where('id', $id)->first();
         abort_if(!$member, 404);
         abort_if(in_array($member->type, [15, 16]), 400, 'Člen již byl ukončen.');
-        abort_if(self::inNoticePeriod($member), 400, "Člen už má výpověď s datem odchodu {$member->leaving_date}.");
+        abort_if(FormerType::inNoticePeriod($member->leaving_date), 400, "Člen už má výpověď s datem odchodu {$member->leaving_date}.");
 
-        $account = DB::table('accounts')
-            ->where('member_id', $id)
-            ->where('account_attribute_id', 221100)
-            ->first(['id', 'balance']);
+        $account = $ledger->creditAccount($id);
+        $today   = now()->toDateString();
 
-        // Předvyplnit účet, na který se má vrátit přeplatek. Logika:
-        // 1) Vzít poslední bankovní platbu, která reálně přistála na kreditním
-        //    účtu PRÁVĚ TOHOTO člena (chain: dependent transfer → previous transfer
-        //    → bank_transfer.origin). To pokrývá případy, kdy má jeden plátce
-        //    v `bank_accounts` víc záznamů a jen některé reálně používal pro
-        //    tenhle členský účet (např. zvlášť pro type 2 vs type 90).
-        // 2) Pokud žádná taková platba neexistuje (např. nový člen bez plateb
-        //    nebo manuálně vložený kredit), fallback na nejnovější platný
-        //    `bank_accounts` záznam tohoto člena.
-        // 3) Pokud ani ten není, prázdné pole — admin vyplní ručně.
-        $lastFromAccount = DB::table('accounts AS a')
-            ->join('transfers AS t2',         't2.destination_id', '=', 'a.id')
-            ->join('transfers AS t1',         't1.id', '=', 't2.previous_transfer_id')
-            ->join('bank_transfers AS bt',    'bt.transfer_id', '=', 't1.id')
-            ->join('bank_accounts AS ba',     'ba.id', '=', 'bt.origin_id')
-            ->whereNull('bt.deleted_at')
-            ->where('a.member_id', $id)
-            ->where('a.account_attribute_id', 221100)
-            ->whereNotNull('ba.account_nr')
-            ->whereNotNull('ba.bank_nr')
-            ->where('ba.account_nr', '!=', '')
-            ->where('ba.bank_nr',    '!=', '')
-            ->orderByDesc('t2.datetime')
-            ->first(['ba.account_nr', 'ba.bank_nr']);
-
-        $bankAccount = $lastFromAccount ?: DB::table('bank_accounts')
-            ->where('member_id', $id)
-            ->whereNotNull('account_nr')
-            ->whereNotNull('bank_nr')
-            ->where('account_nr', '!=', '')
-            ->where('bank_nr', '!=', '')
-            ->orderByDesc('id')
-            ->first(['account_nr', 'bank_nr']);
-
-        $refundAccount = $bankAccount
-            ? trim($bankAccount->account_nr) . '/' . trim($bankAccount->bank_nr)
-            : '';
-
-        // Pro budoucí leaving_date cron `fees:deduct` stihne strhnout tarif za každý
-        // deduct_day, který padne před datum vystoupení (where leaving_date > deduct_date).
-        // Předpočítáme měsíční tarif a v JS pak rebalanc refund_amount podle vybraného data,
-        // ať admin nevrátí peníze, které DB stejně příští srážka zruší.
-        // Měsíčně se strhne pravidelný poplatek (individuální → tarif → základní)
-        // + příplatky (služby, placená místa; type 6) — obojí do data odchodu.
-        $feePolicy  = app(\App\Domains\Billing\Fees\FeePolicy::class);
-        $todayStr   = now()->toDateString();
-        $monthlyFee = (float) ($feePolicy->regularFee($id, (int) $member->type, $todayStr) ?? 0.0)
-            + $feePolicy->surcharges($id, $todayStr);
-
-        $deductDay = (int) \App\Models\Setting::get('deduct_day', 26);
-
-        // Detekce zda už dnešní cron běžel (transfer s type=1 a datetime=dnes na účtu
-        // tohoto člena). Pokud běžel a dnes je deduct_day, nepočítáme ho do budoucích srážek.
-        $todayDeducted = $account
-            ? DB::table('transfers')
-                ->where('origin_id', $account->id)
-                ->where('type', 1)
-                ->whereDate('datetime', now()->toDateString())
-                ->exists()
-            : false;
+        // Do data odchodu strhne srážka (fees:deduct) poplatek za každý deduct_day
+        // před odchodem — JS z měsíčního poplatku přepočítá vratku podle data, ať
+        // admin nevrátí peníze, které srážka stejně strhne. Měsíčně = pravidelný
+        // poplatek (individuální → tarif → základní) + příplatky (služby, místa).
+        $monthlyFee = (float) ($fees->regularFee($id, (int) $member->type, $today) ?? 0.0)
+            + $fees->surcharges($id, $today);
 
         return view('members.end_membership', [
             'member'        => $member,
             'balance'       => $account?->balance ?? 0,
-            'refundAccount' => $refundAccount,
+            'refundAccount' => $refunds->suggestedRefundAccount($id),
             'today'         => now()->format('Y-m-d'),
             'monthlyFee'    => $monthlyFee,
-            'deductDay'     => $deductDay,
-            'todayDeducted' => $todayDeducted,
+            'deductDay'     => (int) \App\Models\Setting::get('deduct_day', 26),
+            // Dnešní srážka už proběhla → nepočítat ji mezi budoucí.
+            'todayDeducted' => $account ? $ledger->hasTransferOnDay((int) $account->id, TransferType::MEMBER_FEE, $today) : false,
         ]);
     }
 
@@ -944,59 +892,29 @@ class MemberController extends Controller
         return redirect()->route('members.show', $id)->with('success', $note);
     }
 
-    public function restore(int $id)
+    public function restore(int $id, RestoreFormerMemberAction $restore)
     {
         abort_unless($this->can('edit_all'), 403);
 
         $member = DB::table('members')->where('id', $id)->first();
         abort_if(!$member, 404);
 
-        if (!in_array($member->type, [MemberType::FORMER, MemberType::FORMER_CUSTOMER])) {
-            return back()->with('error', 'Tento člen není označen jako bývalý.');
+        try {
+            $newType = $restore->handle($member);
+        } catch (MemberNotRestorable $e) {
+            return back()->with('error', $e->getMessage());
         }
 
-        // 16 → 90 (zákazník), 15 → 2 (člen)
-        $originalType = ($member->type == MemberType::FORMER_CUSTOMER) ? MemberType::REGULAR : MemberType::CUSTOMER;
-        $oldLeaving   = $member->leaving_date;
-
-        DB::table('members')->where('id', $id)->update([
-            'type'         => $originalType,
-            'locked'       => 0,
-            'leaving_date' => '9999-12-31',
-        ]);
-
-        \App\Services\AuditLogger::log('updated', 'members', $id, [
-            'type'         => $member->type,
-            'locked'       => $member->locked,
-            'leaving_date' => $oldLeaving,
-        ], [
-            'type'         => $originalType,
-            'locked'       => 0,
-            'leaving_date' => '9999-12-31',
-            'note'         => 'obnovení bývalého člena',
-        ]);
-
-        // Poplatky, které automatika ukončila k datu odchodu, zase oživit.
-        \App\Services\MemberFeesTermination::reactivate($id, $oldLeaving);
-
-        $label = ($originalType == MemberType::REGULAR) ? 'zákazník' : 'člen';
+        $label = ($newType == MemberType::REGULAR) ? 'zákazník' : 'člen';
         return redirect()->route('members.show', $id)
             ->with('success', "Člen byl obnoven jako {$label}.");
     }
 
     /**
-     * Obnovit pozastavené členství (interrupt fee aktivní, fee_id->special_type_id=1).
-     *  - members.leaving_date → 9999-12-31, locked/payment_blocked/pending_termination → 0
-     *  - members_fees: deactivation_date → effective_date − 1 (přerušení končí dnem -1)
-     *  - membership_interrupts: end_after_interrupt_end → 0 (zruší plánovanou terminaci)
-     *  - smaže messages_ip_addresses pro IP členů
-     *  - strhne plný měsíční poplatek s datetime = effective_date
-     *
-     * effective_date: dnes (immediate) nebo budoucí datum. Pokud effective_date
-     * spadne na deduct_day, cron DeductFees uvidí náš transfer (idempotency na
-     * origin+type+datetime) a strhne pouze jednou.
+     * Obnovit přerušené členství (aktivní poplatek „Přerušení členství") k datu:
+     * dnes, nebo max 60 dní dopředu (jinak hrozí kolize s automatickou srážkou).
      */
-    public function restoreInterrupt(Request $request, int $id)
+    public function restoreInterrupt(Request $request, int $id, ResumeInterruptedMembershipAction $resume)
     {
         abort_unless($this->can('edit_all'), 403);
 
@@ -1014,152 +932,24 @@ class MemberController extends Controller
         ]);
 
         $effective = $validated['effective_date'] ?? $today;
-        $prevDay   = \Carbon\Carbon::parse($effective)->subDay()->toDateString();
 
-        $activeInterrupt = DB::table('members_fees as mf')
-            ->join('fees as f', 'f.id', '=', 'mf.fee_id')
-            ->where('mf.member_id', $id)
-            ->where('f.special_type_id', 1)
-            ->where('mf.activation_date', '<=', $today)
-            ->where('mf.deactivation_date', '>=', $today)
-            ->select('mf.id as mf_id', 'mf.deactivation_date')
-            ->first();
-
-        if (!$activeInterrupt) {
-            return back()->with('error', 'Tento člen nemá aktivní přerušení členství.');
+        try {
+            $chargeResult = $resume->handle($member, $effective, auth()->id());
+        } catch (MemberNotRestorable $e) {
+            return back()->with('error', $e->getMessage());
         }
 
-        $chargeResult = 'noop';
-        DB::transaction(function () use ($id, $member, $activeInterrupt, $effective, $prevDay, &$chargeResult) {
-            DB::table('members')->where('id', $id)->update([
-                'leaving_date'          => '9999-12-31',
-                'locked'                => 0,
-                'payment_blocked'       => 0,
-                'payment_blocked_since' => null,
-                'pending_termination'   => 0,
-            ]);
-
-            DB::table('members_fees')
-                ->where('id', $activeInterrupt->mf_id)
-                ->update(['deactivation_date' => $prevDay]);
-
-            DB::table('membership_interrupts')
-                ->where('members_fee_id', $activeInterrupt->mf_id)
-                ->update(['end_after_interrupt_end' => 0]);
-
-            $ipIds = DB::table('ip_addresses as ip')
-                ->join('ifaces as i', 'i.id', '=', 'ip.iface_id')
-                ->join('devices as d', 'd.id', '=', 'i.device_id')
-                ->join('users as u', 'u.id', '=', 'd.user_id')
-                ->where('u.member_id', $id)
-                ->pluck('ip.id');
-            if ($ipIds->isNotEmpty()) {
-                DB::table('messages_ip_addresses')->whereIn('ip_address_id', $ipIds)->delete();
-            }
-
-            $chargeResult = $this->chargeMonthlyFeeNow($id, (int) $member->type, $effective);
-        });
-
-        \App\Services\AuditLogger::log('updated', 'members', $id, null, [
-            'note'      => 'obnovení přerušení členství',
-            'effective' => $effective,
-        ]);
-
         $when = $effective === now()->toDateString() ? 'dnes' : 'k ' . $effective;
-        if ($chargeResult === 'skipped_blocked') {
+        if ($chargeResult === ChargeMonthlyFeeNowAction::SKIPPED_BLOCKED) {
             return redirect()->route('members.show', $id)
                 ->with('success', "Členství obnoveno {$when}. Poplatek NEstrhnut — nedostatek kreditu, nastaven payment_blocked. Doplatek proběhne po další příchozí platbě.");
         }
-        if ($chargeResult === 'noop') {
+        if ($chargeResult === ChargeMonthlyFeeNowAction::NOOP) {
             return redirect()->route('members.show', $id)
                 ->with('success', "Členství obnoveno {$when}. Poplatek nestrhnut (nulový tarif nebo už existuje), přesměrování smazáno.");
         }
         return redirect()->route('members.show', $id)
             ->with('success', "Členství obnoveno {$when}. Poplatek strhnut k {$effective}, přesměrování smazáno.");
-    }
-
-    /**
-     * Efektivní měsíční poplatek + jeho zdroj pro zobrazení na kartě člena.
-     * Vrací [?float $amount, ?string $source] kde source ∈ {individuální|tarif|základní}.
-     * Pořadí drží App\Services\RegularFeeResolver (shodné se srážkou).
-     */
-    private function resolveMonthlyFee(int $memberId, int $memberType): array
-    {
-        $date = now()->toDateString();
-        $individual = app(\App\Domains\Billing\Fees\FeePolicy::class)->individualFee($memberId, $date);
-        if ($individual !== null) return [$individual, 'individuální'];
-        $tarif = app(\App\Domains\Billing\Fees\FeePolicy::class)->tarifPrice($memberId);
-        if ($tarif !== null) return [$tarif, 'tarif'];
-        $default = app(\App\Domains\Billing\Fees\FeePolicy::class)->defaultFeeByType($memberType);
-        if ($default !== null) return [$default, 'základní'];
-        return [null, null];
-    }
-
-    /**
-     * Strhne 1× měsíční poplatek aktuálního dne — používá restoreInterrupt po
-     * obnově přerušeného členství. Prepaid pravidlo (jako DeductFees): při
-     * nedostatku kreditu transfer nevytvořit, payment_blocked=1 + datum;
-     * doplatek doběhne PaymentBackchargeService po další příchozí platbě.
-     * Idempotence: kontrola existujícího transfer.type=1 + datetime.
-     *
-     * Vrací: 'charged' | 'skipped_blocked' | 'noop'
-     */
-    private function chargeMonthlyFeeNow(int $memberId, int $memberType, string $date): string
-    {
-        // Pořadí individuální → cena tarifu → základní řeší centrální resolver.
-        $feeAmount = (float) (app(\App\Domains\Billing\Fees\FeePolicy::class)->regularFee($memberId, $memberType, $date) ?? 0.0);
-
-        if ($feeAmount <= 0) return 'noop';
-
-        $creditAccount = DB::table('accounts')
-            ->where('member_id', $memberId)
-            ->where('account_attribute_id', 221100)
-            ->first(['id', 'balance']);
-        if (!$creditAccount) return 'noop';
-
-        // Stejný cíl jako měsíční srážka a dohnání po platbě: provozní účet
-        // organizace (221101). Dřív 684000 „Přijaté členské příspěvky" bez
-        // přepočtu zůstatku (D2, 2026-10-15).
-        $ledger     = app(\App\Domains\Billing\Repositories\LedgerRepository::class);
-        $orgAccount = $ledger->organizationAccountId(\App\Domains\Billing\Support\AccountAttribute::OPERATING);
-        if (!$orgAccount) return 'noop';
-
-        $alreadyCharged = DB::table('transfers')
-            ->where('origin_id', $creditAccount->id)
-            ->where('type', 1)
-            ->where('datetime', $date)
-            ->exists();
-        if ($alreadyCharged) return 'noop';
-
-        // Prepaid: nedost. kredit → nestrhávat, jen flag (PaymentBackchargeService doběhne)
-        if ((float) $creditAccount->balance < $feeAmount) {
-            DB::table('members')->where('id', $memberId)->update([
-                'payment_blocked'       => 1,
-                'payment_blocked_since' => DB::raw('COALESCE(payment_blocked_since, ' . DB::getPdo()->quote($date) . ')'),
-            ]);
-            return 'skipped_blocked';
-        }
-
-        DB::table('transfers')->insert([
-            'origin_id'         => $creditAccount->id,
-            'destination_id'    => $orgAccount,
-            'type'              => 1,
-            'amount'            => $feeAmount,
-            'datetime'          => $date,
-            'creation_datetime' => now()->format('Y-m-d H:i:s'),
-            'text'              => 'Doplatek za měsíc po obnovení přerušení',
-            'member_id'         => null,
-            'user_id'           => auth()->id(),
-        ]);
-        DB::table('accounts')->where('id', $creditAccount->id)->decrement('balance', $feeAmount);
-        $ledger->recalculateBalance($orgAccount);
-        \App\Services\AuditLogger::log('created', 'transfers', null, null, [
-            'member_id' => $memberId,
-            'amount'    => $feeAmount,
-            'type'      => 1,
-            'text'      => 'Doplatek za měsíc po obnovení přerušení',
-        ]);
-        return 'charged';
     }
 
     public function approve(int $id, ApproveMemberAction $approve)

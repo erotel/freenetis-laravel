@@ -81,6 +81,28 @@ class MemberRepository
         ]);
     }
 
+    /** Obnovený bývalý: nový typ, odemčený, datum odchodu „neurčeno". */
+    public function markRestored(int $id, int $type): void
+    {
+        DB::table('members')->where('id', $id)->update([
+            'type'         => $type,
+            'locked'       => 0,
+            'leaving_date' => '9999-12-31',
+        ]);
+    }
+
+    /** Obnovené přerušení: bez data odchodu, odemčený, prepaid flagy vynulované. */
+    public function markResumed(int $id): void
+    {
+        DB::table('members')->where('id', $id)->update([
+            'leaving_date'          => '9999-12-31',
+            'locked'                => 0,
+            'payment_blocked'       => 0,
+            'payment_blocked_since' => null,
+            'pending_termination'   => 0,
+        ]);
+    }
+
     /**
      * „+U" k (prvnímu) variabilnímu symbolu kreditního účtu — po odchodu se VS
      * už nepáruje s platbami (jako Kohana). Idempotentní.
