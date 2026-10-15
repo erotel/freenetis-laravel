@@ -103,7 +103,7 @@ return [
             'driver'    => 'mysql',
             'host'      => '127.0.0.1',
             'port'      => '3306',
-            'database'  => 'contractsdb',
+            'database'  => env('CONTRACTS_DB_DATABASE', 'contractsdb'),
             'username'  => env('CONTRACTS_DB_USER', 'root'),
             'password'  => env('CONTRACTS_DB_PASS', ''),
             'charset'   => 'utf8mb4',

@@ -38,7 +38,7 @@ uzlech kea-a (10.133.230.22) a kea-b (10.133.230.23). **Produkce .54 = pravda**;
 | `radcheck_lineid_v` / `radreply_lineid_v` | circuit-id (bin) | Framed-IP | sql_lineid (MK BRAS) | .54 = .59, **v migraci** |
 | `radcheck_kea4_v` / `radreply_kea4_v` | `CONCAT(remote_id, circuit_id)` (bin) | Framed-IP (jen `dhcp=1 AND ipoe=1`, gateway=0, `10.%`) | sql_kea4 (Kea v4 flex-id) | **.59 starší** (jen circuit_id) |
 | `radcheck_kea6mac_v` / `radreply_kea6mac_v` | `UPPER(mac)` bez `:` | `Delegated-IPv6-Prefix` (jen MAC s právě 1 prefixem) | sql_kea6mac (Kea v6 hw-address) | **jen .54** |
-| `radcheck_kea6_v` / `radreply_kea6_v` | circuit-id | `Delegated-IPv6-Prefix` | nikdo (PoC) | **jen .59** — mrtvé |
+| ~~`radcheck_kea6_v` / `radreply_kea6_v`~~ | circuit-id | `Delegated-IPv6-Prefix` | nikdo (PoC) | smazáno z .59 2026-10-15 |
 
 Dotazy modulů: `sql_kea4` a `sql_lineid` hledají `HEX(username) = <hex z RADIUSu>` —
 username je **binární** (surové bajty option82), proto:

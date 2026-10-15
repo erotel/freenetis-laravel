@@ -3,29 +3,33 @@
 namespace App\Console\Commands;
 
 use Illuminate\Console\Command;
+use Illuminate\Database\Connection;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\DB;
 
 /**
- * Připraví testovací DB (výchozí `freenetis_test`) pro phpunit:
- *  1. smaže v ní všechny tabulky a views,
- *  2. nahraje výchozí schéma z repa (database/schema/mysql-schema.sql = produkce)
- *     a doběhne migrace, které v něm ještě nejsou,
- *  3. zkopíruje data ze zdrojové DB na stejném serveru (INSERT … SELECT) —
- *     testy stojí na referenčních datech (typy, šablony zpráv, nastavení, ACL),
- *     velké logovací tabulky se přeskakují (jen schéma).
+ * Připraví testovací DB pro phpunit — obě, které aplikace používá:
+ *   freenetis   → freenetis_test   (database/schema/mysql-schema.sql)
+ *   contractsdb → contractsdb_test (database/schema/contracts-schema.sql)
  *
- * Testy tak neběží na živé DB (na .59 z ní čte RADIUS) a DDL v testu nic
- * nerozbije. Cílová DB musí existovat a končit `_test` (založí ji root:
- * CREATE DATABASE freenetis_test; GRANT ALL ON freenetis_test.* TO freenetis@localhost).
+ * Pro každou: smaže v ní všechny tabulky a views, nahraje výchozí schéma z repa
+ * (= produkce), doběhnou migrace, které v něm ještě nejsou, a zkopírují se
+ * data ze zdrojové DB na stejném serveru (INSERT … SELECT) — testy stojí na
+ * referenčních datech (typy, šablony zpráv, nastavení, ACL). Velké logovací
+ * tabulky se přeskakují (jen schéma).
+ *
+ * Testy tak neběží na živých DB (na .59 z freenetis čte RADIUS) a DDL v testu
+ * nic nerozbije. Cílové DB musí existovat a končit `_test` (založí je root:
+ * CREATE DATABASE freenetis_test; GRANT ALL ON freenetis_test.* TO freenetis@localhost;
+ * totéž contractsdb_test pro uživatele z CONTRACTS_DB_USER).
  */
 class TestingRefreshDb extends Command
 {
     protected $signature = 'testing:refresh-db
-        {--target=freenetis_test : testovací DB (musí končit _test)}
-        {--source= : zdroj dat (výchozí = DB z .env)}';
+        {--target=freenetis_test : testovací DB pro freenetis (musí končit _test)}
+        {--contracts-target=contractsdb_test : testovací DB pro smlouvy (musí končit _test)}';
 
-    protected $description = 'Obnoví testovací DB: schéma z repa + kopie dat ze zdrojové DB.';
+    protected $description = 'Obnoví testovací DB (freenetis + smlouvy): schéma z repa + kopie dat ze živých DB.';
 
     /** Velké logovací tabulky — kopíruje se jen schéma. */
     public const SKIP_DATA = [
@@ -35,36 +39,60 @@ class TestingRefreshDb extends Command
 
     public function handle(): int
     {
-        $target = (string) $this->option('target');
-        $source = (string) ($this->option('source') ?: config('database.connections.mysql.database'));
-
-        if (!str_ends_with($target, '_test') || $target === $source) {
-            $this->error("Cílová DB „{$target}“ musí končit _test a lišit se od zdroje.");
-            return self::FAILURE;
-        }
         if (app()->isProduction()) {
             $this->error('Na produkci se testovací DB neobnovuje.');
             return self::FAILURE;
         }
 
-        config(['database.connections.testing_target' => array_merge(
-            config('database.connections.mysql'),
-            ['database' => $target]
-        )]);
-        $db = DB::connection('testing_target');
-
-        $this->info("1/3 Mažu objekty v {$target}…");
-        $db->statement('SET FOREIGN_KEY_CHECKS=0');
-        foreach ($db->select('SELECT TABLE_NAME n, TABLE_TYPE t FROM information_schema.TABLES WHERE TABLE_SCHEMA = ?', [$target]) as $o) {
-            $db->statement(($o->t === 'VIEW' ? 'DROP VIEW' : 'DROP TABLE') . " IF EXISTS `{$o->n}`");
+        $dbs = [
+            // connection => [zdroj, cíl, schéma]
+            'mysql'     => [config('database.connections.mysql.database'), (string) $this->option('target'), 'mysql-schema.sql'],
+            'contracts' => [config('database.connections.contracts.database'), (string) $this->option('contracts-target'), 'contracts-schema.sql'],
+        ];
+        foreach ($dbs as [$source, $target]) {
+            if (!str_ends_with($target, '_test') || $target === $source) {
+                $this->error("Cílová DB „{$target}“ musí končit _test a lišit se od zdroje „{$source}“.");
+                return self::FAILURE;
+            }
         }
 
-        $this->info('2/3 Schéma z repa + migrace…');
-        $db->getSchemaState()->load(database_path('schema/mysql-schema.sql'));
-        Artisan::call('migrate', ['--database' => 'testing_target', '--force' => true]);
+        // Oba connectiony přesměrujeme na testovací DB — migrace, které
+        // míří na Schema::connection('contracts'), tak nikdy nesáhnou na živou DB.
+        foreach ($dbs as $conn => [, $target]) {
+            config(["database.connections.{$conn}.database" => $target]);
+            DB::purge($conn);
+        }
+
+        foreach ($dbs as $conn => [$source, $target, $schema]) {
+            $db = DB::connection($conn);
+            $this->info("[{$target}] mažu objekty, nahrávám {$schema}…");
+            $this->dropAll($db, $target);
+            $db->getSchemaState()->load(database_path("schema/{$schema}"));
+        }
+
+        $this->info('Migrace…');
+        Artisan::call('migrate', ['--database' => 'mysql', '--force' => true]);
         $this->line(trim(Artisan::output()) ?: '   (žádné nové migrace)');
 
-        $this->info("3/3 Kopíruju data z {$source}…");
+        foreach ($dbs as $conn => [$source, $target]) {
+            $copied = $this->copyData(DB::connection($conn), $source, $target);
+            $this->info("[{$target}] {$copied} tabulek s daty z {$source}.");
+        }
+
+        return self::SUCCESS;
+    }
+
+    private function dropAll(Connection $db, string $target): void
+    {
+        $db->statement('SET FOREIGN_KEY_CHECKS=0');
+        foreach ($db->select('SELECT TABLE_NAME n, TABLE_TYPE t FROM information_schema.TABLES WHERE TABLE_SCHEMA = ?', [$target]) as $o) {
+            $db->statement(($o->t === 'VIEW' ? 'DROP VIEW' : 'DROP TABLE') . " IF EXISTS `{$target}`.`{$o->n}`");
+        }
+        $db->statement('SET FOREIGN_KEY_CHECKS=1');
+    }
+
+    private function copyData(Connection $db, string $source, string $target): int
+    {
         $tables = $db->select(
             "SELECT TABLE_NAME n FROM information_schema.TABLES WHERE TABLE_SCHEMA = ? AND TABLE_TYPE = 'BASE TABLE' AND TABLE_NAME <> 'migrations' ORDER BY 1",
             [$target]
@@ -93,8 +121,6 @@ class TestingRefreshDb extends Command
             $copied++;
         }
         $db->statement('SET FOREIGN_KEY_CHECKS=1');
-
-        $this->info("Hotovo: {$copied} tabulek s daty, " . count(self::SKIP_DATA) . ' jen se schématem.');
-        return self::SUCCESS;
+        return $copied;
     }
 }

@@ -14,9 +14,11 @@ abstract class TestCase extends BaseTestCase
         // Pojistka: testy (DatabaseTransactions, DDL autocommit, Setting::set…)
         // smí běžet jen proti testovací DB — nikdy proti živé freenetis (.59
         // z ní čte RADIUS, .54 je produkce). Připraví ji `testing:refresh-db`.
-        $db = (string) config('database.connections.mysql.database');
-        if (!str_ends_with($db, '_test')) {
-            throw new RuntimeException("Testy běží jen proti DB s příponou _test, ne „{$db}“ (viz phpunit.xml).");
+        foreach (['mysql', 'contracts'] as $conn) {
+            $db = (string) config("database.connections.{$conn}.database");
+            if (!str_ends_with($db, '_test')) {
+                throw new RuntimeException("Testy běží jen proti DB s příponou _test, ne „{$db}“ ({$conn}, viz phpunit.xml).");
+            }
         }
     }
 }

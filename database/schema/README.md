@@ -1,12 +1,14 @@
 # Výchozí schéma (baseline)
 
 `mysql-schema.sql` = struktura DB **produkce (.54)** bez dat + obsah tabulky
-`migrations`. Legacy tabulky z Kohana FreenetIS nemají vlastní migrace — tohle je
+`migrations`. `contracts-schema.sql` = totéž pro `contractsdb` (connection
+`contracts`; její migrace se evidují v `freenetis.migrations`, takže bez dat). Legacy tabulky z Kohana FreenetIS nemají vlastní migrace — tohle je
 jejich jediný popis v repu.
 
 - Laravel ho načte **jen do prázdné DB** (`migrate` bez tabulky `migrations`),
   pak doběhnou novější migrace. Na .54/.59 se nikdy nepoužije.
-- Používá ho `php artisan testing:refresh-db` pro testovací DB `freenetis_test`.
+- Používá je `php artisan testing:refresh-db` pro testovací DB `freenetis_test`
+  a `contractsdb_test` (phpunit: `DB_DATABASE`, `CONTRACTS_DB_DATABASE`).
 
 ## Obnovení (po migracích, které mění schéma)
 
@@ -19,6 +21,11 @@ ssh -p29 root@10.133.230.54 '
   mysqldump $O freenetis migrations --no-create-info --skip-extended-insert --skip-routines --compact --complete-insert' \
 | sed -E 's/\s+AUTO_INCREMENT=[0-9]+//I; s#/\*!50013 DEFINER=`[^`]+`@`[^`]+` SQL SECURITY DEFINER \*/##' \
 > database/schema/mysql-schema.sql
+
+# smlouvy (bez migrations)
+ssh -p29 root@10.133.230.54 'mysqldump --no-tablespaces --skip-add-locks --skip-comments --skip-set-charset --tz-utc --routines --no-data contractsdb' \
+| sed -E 's/\s+AUTO_INCREMENT=[0-9]+//I; s#/\*!50013 DEFINER=`[^`]+`@`[^`]+` SQL SECURITY DEFINER \*/##' \
+> database/schema/contracts-schema.sql
 ```
 
 `DEFINER` se odstraňuje, aby schéma šlo nahrát i neprivilegovaným uživatelem
