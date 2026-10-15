@@ -129,7 +129,7 @@ class Account extends Model
             if ($sign === 1 && $maxFeeRow && $date > $maxFeeRow) break;
             if ($sign === -1 && $minFeeRow && $date < $minFeeRow) break;
 
-            // Poplatek za tento měsíc (mirror RegularFeeResolver::amount):
+            // Poplatek za tento měsíc (mirror FeePolicy::regularFee):
             // individuální per měsíc, jinak předpočítaný tarif / základní.
             $individual = app(\App\Domains\Billing\Fees\FeePolicy::class)->individualFee($memberId, $date);
             $fee = $individual ?? $tarifFee ?? $defaultFee ?? 0.0;
