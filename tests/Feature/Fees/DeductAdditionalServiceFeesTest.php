@@ -2,13 +2,9 @@
 
 namespace Tests\Feature\Fees;
 
-use App\Console\Commands\DeductFees;
+use App\Domains\Billing\Actions\DeductFeesAction;
 use Closure;
-use Illuminate\Console\Command;
-use Illuminate\Console\OutputStyle;
 use Illuminate\Support\Facades\DB;
-use Symfony\Component\Console\Input\ArrayInput;
-use Symfony\Component\Console\Output\NullOutput;
 use Tests\DatabaseTestCase;
 
 /**
@@ -16,7 +12,7 @@ use Tests\DatabaseTestCase;
  * samostatná transakce oddělená od tarifu, prepaid blokace při nedostatku
  * kreditu, idempotence. (v2.16.0)
  *
- * Metoda deductAdditionalServiceFees() je private → voláme přes Closure::bind.
+ * Sekce DeductFeesAction::additionalServiceFees() je private → voláme přes Closure::bind.
  * Má vlastní beginTransaction/commit; uvnitř testovací transakce běží jako
  * savepoint, takže rollback DatabaseTestCase vše zahodí.
  */
@@ -27,7 +23,6 @@ class DeductAdditionalServiceFeesTest extends DatabaseTestCase
     private const TYPE      = 6;
     private const DATE      = '2099-06-01'; // daleká budoucnost → žádné kolizní transfery
 
-    private DeductFees $cmd;
     private Closure $deduct;
     private int $orgOperating;
 
@@ -41,15 +36,13 @@ class DeductAdditionalServiceFeesTest extends DatabaseTestCase
             $this->markTestSkipped('organizační operating účet (member 1) nenalezen');
         }
 
-        $this->cmd = app(DeductFees::class);
-        // Metoda na konci volá $this->info() → musíme nastavit výstup.
-        $out = new OutputStyle(new ArrayInput([]), new NullOutput());
-        Closure::bind(function () use ($out) { $this->output = $out; }, $this->cmd, Command::class)();
-
         $this->deduct = Closure::bind(
-            fn (string $date, int $org) => $this->deductAdditionalServiceFees($date, $org),
-            $this->cmd,
-            DeductFees::class
+            function (string $date, int $org) {
+                $this->report = fn () => null; // výpis do konzole netestujeme
+                return $this->additionalServiceFees($date, $org, null);
+            },
+            app(DeductFeesAction::class),
+            DeductFeesAction::class
         );
     }
 

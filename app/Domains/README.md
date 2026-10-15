@@ -65,4 +65,5 @@ volající se přepojují po jednom, fasáda nakonec zanikne.
 (`line_ids`, `pppoe_secrets`), mají kontrakt popsaný v docblocku repozitáře.
 Ruční změny schématu na produkci vždy dorovnat idempotentní migrací.
 
-Vzorové implementace: `Members/` (schválení člena), `Access/` (line-id, PPPoE).
+Vzorové implementace: `Members/` (schválení člena), `Access/` (line-id, PPPoE,
+DHCP export, eventy Kea/PPPoE), `Billing/` (měsíční srážka poplatků).
