@@ -1644,9 +1644,11 @@ class MemberController extends Controller
             ->first(['id', 'balance']);
         if (!$creditAccount) return 'noop';
 
-        $orgAccount = DB::table('accounts')
-            ->where('account_attribute_id', 684000)
-            ->value('id');
+        // Stejný cíl jako měsíční srážka a dohnání po platbě: provozní účet
+        // organizace (221101). Dřív 684000 „Přijaté členské příspěvky" bez
+        // přepočtu zůstatku (D2, 2026-10-15).
+        $ledger     = app(\App\Domains\Billing\Repositories\LedgerRepository::class);
+        $orgAccount = $ledger->organizationAccountId(\App\Domains\Billing\Support\AccountAttribute::OPERATING);
         if (!$orgAccount) return 'noop';
 
         $alreadyCharged = DB::table('transfers')
@@ -1677,6 +1679,7 @@ class MemberController extends Controller
             'user_id'           => auth()->id(),
         ]);
         DB::table('accounts')->where('id', $creditAccount->id)->decrement('balance', $feeAmount);
+        $ledger->recalculateBalance($orgAccount);
         \App\Services\AuditLogger::log('created', 'transfers', null, null, [
             'member_id' => $memberId,
             'amount'    => $feeAmount,
