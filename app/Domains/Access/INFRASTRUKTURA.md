@@ -73,4 +73,5 @@ testu jde se `sql_mode` serveru jako FreeRADIUS.
 ## .59 (test)
 
 FreeRADIUS má navíc `sql_kea4`/`sql_kea6` a sites `kea4-test`/`kea-test` (PoC). Kea
-na .59 neběží; `kea-test` sites zapisují do `line_id_pending`, která na .59 není.
+na .59 neběží. `sql_kea6` ukazuje na smazané `*_kea6_v` — při oživení PoC
+přepnout na `*_kea6mac_v` (+ GRANT radius_ro, restart FreeRADIUS).
