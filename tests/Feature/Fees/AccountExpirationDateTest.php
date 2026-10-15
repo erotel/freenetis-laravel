@@ -108,4 +108,41 @@ class AccountExpirationDateTest extends DatabaseTestCase
 
         $this->assertNull(\App\Models\Account::find($accId)->getExpirationDate());
     }
+
+    /** D4: dodatečná služba se do „Zaplaceno do" počítá jako tarif (strhává se měsíčně taky). */
+    public function test_priplatky_se_pocitaji(): void
+    {
+        $db = \Illuminate\Support\Facades\DB::class;
+        $apId = (int) $db::table('members')->whereNotNull('address_point_id')->value('address_point_id');
+        $mk = function (float $tarif) use ($db, $apId): array {
+            $sc = (int) $db::table('speed_classes')->insertGetId(['name' => 'char ' . uniqid(), 'd_ceil' => 1, 'd_rate' => 1, 'u_ceil' => 1, 'u_rate' => 1, 'price' => $tarif]);
+            $id = (int) $db::table('members')->insertGetId([
+                'name' => 'Char Exp', 'type' => 2, 'registration' => 1, 'locked' => 0, 'address_point_id' => $apId,
+                'entrance_date' => '2026-01-10', 'leaving_date' => '9999-12-31', 'speed_class_id' => $sc,
+            ]);
+            $acc = (int) $db::table('accounts')->insertGetId(['member_id' => $id, 'account_attribute_id' => 221100, 'balance' => 2000, 'name' => 'char']);
+            return [$id, $acc];
+        };
+        [$withSvc, $accSvc] = $mk(300);
+        $feeId = (int) $db::table('fees')->insertGetId(['readonly' => 0, 'fee' => 100, 'from' => '2000-01-01', 'to' => '9999-12-31', 'type_id' => 39, 'name' => 'char svc', 'special_type_id' => null]);
+        $db::table('members_fees')->insert(['fee_id' => $feeId, 'member_id' => $withSvc, 'activation_date' => '2000-01-01', 'deactivation_date' => '9999-12-31', 'priority' => 1, 'comment' => 'char']);
+        [, $acc400] = $mk(400);
+        [, $acc300] = $mk(300);
+
+        $svc = \App\Models\Account::find($accSvc)->getExpirationDate();
+        $this->assertSame(\App\Models\Account::find($acc400)->getExpirationDate(), $svc, 'tarif 300 + služba 100 = jako tarif 400');
+        $this->assertLessThan(\App\Models\Account::find($acc300)->getExpirationDate(), $svc, 'se službou kredit vydrží kratší dobu');
+    }
+
+    /** D1/D4: čekající (18) se neúčtuje → „—". */
+    public function test_cekajici_bez_data(): void
+    {
+        $apId = (int) \Illuminate\Support\Facades\DB::table('members')->whereNotNull('address_point_id')->value('address_point_id');
+        $id = (int) \Illuminate\Support\Facades\DB::table('members')->insertGetId([
+            'name' => 'Char Exp', 'type' => 18, 'registration' => 0, 'locked' => 0, 'address_point_id' => $apId,
+            'entrance_date' => '2026-01-10', 'leaving_date' => '9999-12-31',
+        ]);
+        $acc = (int) \Illuminate\Support\Facades\DB::table('accounts')->insertGetId(['member_id' => $id, 'account_attribute_id' => 221100, 'balance' => 1000, 'name' => 'char']);
+        $this->assertNull(\App\Models\Account::find($acc)->getExpirationDate());
+    }
 }

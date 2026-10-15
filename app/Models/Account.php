@@ -118,8 +118,13 @@ class Account extends Model
         // fallback member_id=1 default (320), takže „Zaplaceno do" nesedělo s tím, co se
         // reálně strhává u členů s tarifním poplatkem.
         $memberType = (int) ($member->type ?? 0);
-        $tarifFee   = app(\App\Domains\Billing\Fees\FeePolicy::class)->tarifPrice($memberId);
-        $defaultFee = app(\App\Domains\Billing\Fees\FeePolicy::class)->defaultFeeByType($memberType);
+        $feePolicy  = app(\App\Domains\Billing\Fees\FeePolicy::class);
+        $tarifFee   = $feePolicy->tarifPrice($memberId);
+        $defaultFee = $feePolicy->defaultFeeByType($memberType);
+        // Typ mimo účtování (žadatel, čekající, bývalý) — nic se nestrhává → „—".
+        $billed     = \App\Domains\Billing\Fees\FeePolicy::isBilled($memberType);
+        // Placená přípojná místa jsou v čase konstantní; služby závisí na datu.
+        $placesFee  = \App\Services\AllowedSubnetFeesResolver::total($memberId);
 
         $charged = false; // strhává se v některém měsíci vůbec něco?
         for ($i = 0; $i < $maxIterations; $i++) {
@@ -132,8 +137,12 @@ class Account extends Model
 
             // Poplatek za tento měsíc (mirror FeePolicy::regularFee):
             // individuální per měsíc, jinak předpočítaný tarif / základní.
-            $individual = app(\App\Domains\Billing\Fees\FeePolicy::class)->individualFee($memberId, $date);
-            $fee = $individual ?? $tarifFee ?? $defaultFee ?? 0.0;
+            // + příplatky (služby, placená místa) — strhávají se taky (type 6), D4.
+            $individual = $feePolicy->individualFee($memberId, $date);
+            $fee = $billed
+                ? ($individual ?? $tarifFee ?? $defaultFee ?? 0.0)
+                    + $feePolicy->additionalServicesTotal($memberId, $date) + $placesFee
+                : 0.0;
 
             // Add debt payment if any
             if (isset($payments[$year][$month])) {
