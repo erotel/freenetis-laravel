@@ -38,8 +38,8 @@ class LedgerRepository
     /**
      * Kreditní účty aktivních členů pro členský poplatek: individuální poplatek
      * (members_fees 'regular member fee', nejnižší priority) + cena tarifu.
-     * Vstup PŘED datem, odchod po datu (nebo neurčen). Bývalí (15/16) nikdy —
-     * ve výpovědní lhůtě má člen ještě svůj typ, bývalý typ = už odešel.
+     * Vstup PŘED datem, odchod po datu (nebo neurčen). Typy mimo účtování
+     * (FeePolicy::NOT_BILLED_TYPES: žadatel, čekající, bývalí) nikdy.
      */
     public function dueMemberFees(string $date, ?int $only = null): array
     {
@@ -66,7 +66,7 @@ class LedgerRepository
                     AND t.type = :type AND t.datetime = :date3
                 WHERE m.id <> 1{$mf}
                   AND a.account_attribute_id = :credit
-                  AND m.type NOT IN (15, 16)
+                  AND m.type NOT IN (1, 15, 16, 17, 18)
                   AND m.entrance_date < :date4
                   AND (m.leaving_date = '0000-00-00' OR m.leaving_date = '9999-12-31' OR m.leaving_date > :date5)
                   AND t.id IS NULL
@@ -118,7 +118,7 @@ class LedgerRepository
                     AND t.type = :type AND t.datetime = :date3
                 WHERE m.id <> 1{$mf}
                   AND a.account_attribute_id = :credit
-                  AND m.type NOT IN (15, 16)
+                  AND m.type NOT IN (1, 15, 16, 17, 18)
                   AND m.entrance_date < :date4
                   AND (m.leaving_date = '0000-00-00' OR m.leaving_date = '9999-12-31' OR m.leaving_date > :date5)
                   AND t.id IS NULL

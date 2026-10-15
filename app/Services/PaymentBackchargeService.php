@@ -164,7 +164,7 @@ class PaymentBackchargeService
                         continue;
                     }
 
-                    $svcAmount = $this->resolveAdditionalServiceAmount((int) $member->id, $targetDate);
+                    $svcAmount = $this->resolveAdditionalServiceAmount((int) $member->id, (int) $member->type, $targetDate);
                     if ($svcAmount <= 0) {
                         $cursorSvc->modify('first day of next month');
                         continue;
@@ -246,6 +246,11 @@ class PaymentBackchargeService
      */
     private function resolveFeeAmount(int $memberId, int $memberType, string $date): float
     {
+        // Žadatel/čekající/bývalý se neúčtuje (FeePolicy::NOT_BILLED_TYPES) —
+        // regularFee by mu vrátil budoucí cenu (smlouva/QR), ne co dluží.
+        if (!\App\Domains\Billing\Fees\FeePolicy::isBilled($memberType)) {
+            return 0.0;
+        }
         return (float) (app(\App\Domains\Billing\Fees\FeePolicy::class)->regularFee($memberId, $memberType, $date) ?? 0.0);
     }
 
@@ -255,8 +260,11 @@ class PaymentBackchargeService
      * (AllowedSubnetFeesResolver). Shodné se zobrazením na kartě a s bulk SQL
      * v DeductFees::deductAdditionalServiceFees.
      */
-    private function resolveAdditionalServiceAmount(int $memberId, string $date): float
+    private function resolveAdditionalServiceAmount(int $memberId, int $memberType, string $date): float
     {
+        if (!\App\Domains\Billing\Fees\FeePolicy::isBilled($memberType)) {
+            return 0.0;
+        }
         return app(\App\Domains\Billing\Fees\FeePolicy::class)->surcharges($memberId, $date);
     }
 

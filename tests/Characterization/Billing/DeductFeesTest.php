@@ -264,12 +264,19 @@ class DeductFeesTest extends DatabaseTestCase
         $this->assertSame([], $this->transfers($x['account']));
     }
 
-    /** Quirk: tarif se strhne JAKÉMUKOLIV typu s datem vstupu — i čekateli (17). */
-    public function test_cekatel_s_tarifem_zaplati_quirk(): void
+    /**
+     * Žadatel / čekající (1, 17, 18) se neúčtuje vůbec — ani tarif, ani služby
+     * (dřív quirk: tarif se strhl i čekateli). FeePolicy::NOT_BILLED_TYPES.
+     */
+    public function test_cekatel_s_tarifem_a_sluzbou_nezaplati(): void
     {
-        $x = $this->member(17, 1000, ['speed_class_id' => $this->speedClass(199)]);
-        $this->deduct($x['member']);
-        $this->assertEqualsWithDelta(199, $this->transfers($x['account'])[1]->amount, 0.001);
+        foreach ([1, 17, 18] as $type) {
+            $x = $this->member($type, 1000, ['speed_class_id' => $this->speedClass(199)]);
+            $this->individualFee($x['member'], 50, 1, 39);
+            $this->deduct($x['member']);
+            $this->assertSame([], $this->transfers($x['account']), "typ {$type}");
+            $this->assertSame(0, (int) $this->memberRow($x['member'])->payment_blocked);
+        }
     }
 
     // ── dodatečné služby (type 6) ────────────────────────────────────────────

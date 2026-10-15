@@ -143,10 +143,9 @@ class FeeRulesMatrixTest extends DatabaseTestCase
     // ── ROZDÍLY ──────────────────────────────────────────────────────────────
 
     /**
-     * ROZDÍL: čekající / žadatel. Resolver mapuje 1,18 → základní typu 2 a
-     * 17 → typu 90 (aby smlouva/QR žadatele ukazovaly budoucí cenu); srážka
-     * základní zná jen u 2/90 → nestrhne nic. Dohnání po platbě by u
-     * blokovaného čekatele strhlo (resolver).
+     * Čekající / žadatel: resolver (FeePolicy::regularFee) mapuje 1,18 → základní
+     * typu 2 a 17 → typu 90, aby smlouva/QR ukazovaly budoucí cenu. Strhává se
+     * ale NIC (FeePolicy::NOT_BILLED_TYPES) — srážka ani dohnání po platbě.
      */
     public function test_cekatele_rozdil(): void
     {

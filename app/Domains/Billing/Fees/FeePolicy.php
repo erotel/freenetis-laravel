@@ -29,6 +29,19 @@ class FeePolicy
     public const REGULAR_FEE        = 'regular member fee';
     public const ADDITIONAL_SERVICE = 'additional service';
 
+    /**
+     * Typy, kterým se měsíční poplatek a příplatky NEstrhávají: žadatel (1),
+     * čekající člen/zákazník (17/18) — služba ještě neběží; bývalí (15/16) —
+     * už odešli. regularFee() jim přesto vrací budoucí/poslední cenu pro
+     * zobrazení (smlouva, QR).
+     */
+    public const NOT_BILLED_TYPES = [1, 15, 16, 17, 18];
+
+    public static function isBilled(int $memberType): bool
+    {
+        return !in_array($memberType, self::NOT_BILLED_TYPES, true);
+    }
+
     public function __construct(private FeeRepository $fees)
     {
     }
