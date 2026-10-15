@@ -457,4 +457,15 @@ class DeductFeesTest extends DatabaseTestCase
         $this->assertSame([], $this->transfers($x['account']));
         $this->assertEqualsWithDelta(1000, $this->balance($x['account']), 0.001);
     }
+
+    /** Bývalý (15/16) s budoucím datem odchodu (starý stav ukončení) — nestrhne ani nezablokuje. */
+    public function test_byvaly_s_budoucim_odchodem_nic(): void
+    {
+        $x = $this->member(16, 0, ['leaving_date' => '2099-07-14']);
+        $this->individualFee($x['member'], 100, 1, 39);
+        $this->deduct($x['member']);
+
+        $this->assertSame([], $this->transfers($x['account']));
+        $this->assertSame(0, (int) $this->memberRow($x['member'])->payment_blocked);
+    }
 }

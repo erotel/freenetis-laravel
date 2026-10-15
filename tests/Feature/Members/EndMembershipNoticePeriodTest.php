@@ -205,4 +205,22 @@ class EndMembershipNoticePeriodTest extends DatabaseTestCase
             ->assertOk()
             ->assertSee('const RF_MONTHLY_FEE   = 249;', false);
     }
+
+    // ── F4: pending termination nebere už ukončené ──────────────────────────
+
+    public function test_k_ukonceni_neoznaci_byvale_ani_clena_ve_lhute(): void
+    {
+        $since = now()->subMonths(2)->startOfMonth()->format('Y-m-d');
+        $former = $this->member(16, 0, now()->subDays(5)->format('Y-m-d'));
+        $notice = $this->member(2, 0, now()->addDays(10)->format('Y-m-d'));
+        $active = $this->member(2, 0);
+        DB::table('members')->whereIn('id', [$former['member'], $notice['member'], $active['member']])
+            ->update(['payment_blocked' => 1, 'payment_blocked_since' => $since]);
+
+        $this->artisan('members:mark-pending-termination', ['--force' => true]);
+
+        $this->assertSame(0, (int) $this->row($former['member'])->pending_termination);
+        $this->assertSame(0, (int) $this->row($notice['member'])->pending_termination);
+        $this->assertSame(1, (int) $this->row($active['member'])->pending_termination);
+    }
 }

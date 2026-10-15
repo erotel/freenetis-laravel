@@ -46,6 +46,12 @@ class MarkPendingTermination extends Command
             })
             ->where('m.payment_blocked', 1)
             ->where('m.pending_termination', 0)
+            // Už ukončení: bývalí (15/16) a členové ve výpovědní lhůtě (odchod v budoucnu).
+            ->whereNotIn('m.type', [15, 16])
+            ->where(function ($q) {
+                $q->whereIn('m.leaving_date', ['9999-12-31', '0000-00-00'])
+                  ->orWhereNull('m.leaving_date');
+            })
             ->whereNotNull('m.payment_blocked_since')
             ->whereRaw("DATE_FORMAT(m.payment_blocked_since, '%Y-%m') < ?", [$currentMonth])
             ->select('m.id', 'm.name', 'm.type', 'm.payment_blocked_since', 'a.balance')
