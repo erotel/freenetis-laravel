@@ -11,9 +11,10 @@ use App\Domains\Members\Actions\ApproveMemberAction;
 use App\Domains\Members\Actions\EndMembershipAction;
 use App\Domains\Members\Actions\MarkMemberFormerAction;
 use App\Domains\Members\Actions\PurgeMemberAction;
+use App\Domains\Members\Actions\RegisterMemberAction;
 use App\Domains\Members\Actions\RestoreFormerMemberAction;
 use App\Domains\Members\Actions\ResumeInterruptedMembershipAction;
-use App\Domains\Members\Events\MemberApproved;
+use App\Domains\Members\Actions\UpdateMemberAction;
 use App\Domains\Members\Exceptions\MemberNotApprovable;
 use App\Domains\Members\Exceptions\MemberNotRestorable;
 use App\Domains\Members\Exceptions\MembershipNotEndable;
@@ -21,11 +22,11 @@ use App\Domains\Members\Support\EndMode;
 use App\Domains\Members\Support\FormerType;
 use App\Helpers\MemberType;
 use App\Models\AccountAttribute;
-use App\Models\AddressPoint;
 use App\Http\Filters\MemberFilter;
+use App\Http\Requests\Members\StoreMemberRequest;
+use App\Http\Requests\Members\UpdateMemberRequest;
 use App\Models\EmailQueue;
 use App\Models\EmailQueueAttachment;
-use App\Models\IpAddress;
 use App\Models\Member;
 use App\Models\MemberFee;
 use App\Models\Setting;
@@ -452,128 +453,9 @@ class MemberController extends Controller
         return view('members.create', compact('memberTypes', 'towns'));
     }
 
-    public function store(Request $request)
+    public function store(StoreMemberRequest $request, RegisterMemberAction $register)
     {
-        abort_unless($this->can('new_all'), 403);
-
-        $request->validate([
-            'name'                        => 'required|string|max:30',
-            'surname'                     => 'nullable|string|max:60',
-            'type'                        => 'required|integer|in:' . implode(',', array_keys(MemberType::labels())),
-            'entrance_date'               => 'required|date',
-            'login'                       => 'required|string|min:5|max:50|unique:users,login',
-            'password'                    => 'required|string|min:6|confirmed',
-            'email'                       => 'required|email|max:255',
-            'phone'                       => 'required|string|max:40',
-            'town_id'                     => 'required|integer|exists:towns,id',
-            'street_id'                   => 'required|integer|exists:streets,id',
-            'street_number'               => ['required', 'string', 'max:15', 'regex:/^(ev\.?\s*č\.?\s*)?\d[\dA-Za-z\/\- ]*$/iu'],
-            'organization_identifier'     => ['nullable', 'string', 'max:20', 'regex:/^[^@\s]*$/u'],
-            'vat_organization_identifier' => ['nullable', 'string', 'max:30', 'regex:/^[^@\s]*$/u'],
-            'birthday'                    => 'required|date',
-            'comment'                     => 'nullable|string|max:250',
-        ], [
-            'organization_identifier.regex'     => 'IČO nesmí obsahovat email ani mezery — zadejte pouze číslo IČO.',
-            'vat_organization_identifier.regex' => 'DIČ nesmí obsahovat email ani mezery — zadejte pouze DIČ (např. CZ12345678).',
-        ]);
-
-        $memberId = null;
-
-        DB::transaction(function () use ($request, &$memberId) {
-            // 1. Adresní bod
-            $addressPointId = DB::table('address_points')->insertGetId([
-                'town_id'       => $request->town_id,
-                'street_id'     => $request->street_id,
-                'street_number' => $request->street_number,
-                'country_id'    => 1,
-            ]);
-
-            // 2. Člen
-            $fullName = $request->surname ? trim($request->name . ' ' . $request->surname) : $request->name;
-            $memberId = DB::table('members')->insertGetId([
-                'name'                        => $fullName,
-                'type'                        => $request->type,
-                'entrance_date'               => $request->entrance_date,
-                'leaving_date'                => '9999-12-31',
-                'comment'                     => $request->comment ?? '',
-                'organization_identifier'     => $request->organization_identifier ?? '',
-                'vat_organization_identifier' => $request->vat_organization_identifier ?? '',
-                'address_point_id'            => $addressPointId,
-                'locked'                      => 0,
-                'registration'                => 0,
-            ]);
-
-            // 3. Uživatelský účet
-            $userId = DB::table('users')->insertGetId([
-                'member_id'            => $memberId,
-                'name'                 => $request->name,
-                'surname'              => $request->surname ?? '',
-                'login'                => $request->login,
-                'password'             => bcrypt($request->password),
-                'application_password' => \Illuminate\Support\Facades\Crypt::encryptString(\App\Models\User::generateApplicationPassword()),
-                'type'                 => 1, // MAIN_USER
-                'birthday'             => $request->birthday ?: null,
-                'comment'              => '',
-                'settings'             => '',
-            ]);
-
-            // 4. Kreditní účet člena
-            $accountId = DB::table('accounts')->insertGetId([
-                'member_id'            => $memberId,
-                'account_attribute_id' => 221100, // Účet kreditu
-                'balance'              => 0,
-                'comment'              => '',
-            ]);
-
-            // 5. Variabilní symbol: member_id + 2 náhodné cifry
-            $vs = (string) $memberId . str_pad((string) rand(0, 99), 2, '0', STR_PAD_LEFT);
-            DB::table('variable_symbols')->insert([
-                'account_id'      => $accountId,
-                'variable_symbol' => $vs,
-            ]);
-
-            // 6. Výchozí třída rychlosti (regular_member_default) — NE pro řádné členy
-            //    (typ 90): ti rychlost/tarif mít nesmí, platí členský základ.
-            if ((int) $request->type !== 90) {
-                $defaultSpeedClassId = \App\Models\SpeedClass::where('regular_member_default', 1)->value('id') ?? 1;
-                DB::table('members')->where('id', $memberId)->update([
-                    'speed_class_id' => $defaultSpeedClassId,
-                ]);
-            }
-
-            // 7. Kontakty — email (typ 20)
-            if ($request->filled('email')) {
-                $contactId = DB::table('contacts')->insertGetId([
-                    'type'  => 20,
-                    'value' => $request->email,
-                ]);
-                DB::table('users_contacts')->insert([
-                    'user_id'          => $userId,
-                    'contact_id'       => $contactId,
-                    'mail_redirection' => 0,
-                ]);
-            }
-
-            // 6. Kontakty — telefon (typ 21)
-            if ($request->filled('phone')) {
-                $contactId = DB::table('contacts')->insertGetId([
-                    'type'  => 21,
-                    'value' => $request->phone,
-                ]);
-                DB::table('users_contacts')->insert([
-                    'user_id'          => $userId,
-                    'contact_id'       => $contactId,
-                    'mail_redirection' => 0,
-                ]);
-            }
-        });
-
-        \App\Services\AuditLogger::log('created', 'members', $memberId, null, [
-            'name'          => $request->surname ? trim($request->name . ' ' . $request->surname) : $request->name,
-            'type'          => $request->type,
-            'entrance_date' => $request->entrance_date,
-            'login'         => $request->login,
-        ]);
+        $memberId = $register->handle($request->toNewMember());
 
         return redirect()->route('members.show', $memberId)
             ->with('success', 'Člen byl úspěšně vytvořen.');
@@ -603,142 +485,22 @@ class MemberController extends Controller
 
         // Má-li člen podepsanou smlouvu, tarif se mění POUZE dodatkem (apply-on-sign),
         // ne přímou editací — jinak by dostal novou rychlost/cenu bez podpisu.
-        $signed            = app(ContractService::class)->getByMemberId($id);
-        $hasSignedContract = $signed && $signed->status === 'signed';
+        $hasSignedContract = app(UpdateMemberAction::class)->hasSignedContract($id);
 
         return view('members.edit', compact('member', 'types', 'towns', 'streets', 'speedClasses', 'defaultSpeedClass', 'canEditQos', 'canEditVoting', 'hasSignedContract'));
     }
 
-    public function update(Request $request, int $id)
+    public function update(UpdateMemberRequest $request, int $id, UpdateMemberAction $update)
     {
-        if (!$this->can('edit_all')) {
-            abort(403);
-        }
-
-        $member = Member::find($id);
-        if (!$member) {
-            abort(404);
-        }
-
-        // Třídu rychlosti (QoS) smí měnit jen kdo má jemné právo qos_ceil.
-        // Formulář pole skrývá stejným právem (members/edit.blade.php), ale server
-        // ho musí vynutit taky — jinak by šlo speed_class_id podvrhnout POSTem.
-        $canEditQos = $this->aclCheck('edit_all', 'Members_Controller', 'qos_ceil');
-
-        // Má-li člen podepsanou smlouvu, přímá změna tarifu je zakázaná — mění se
-        // jen dodatkem, který se aplikuje až po podpisu (apply-on-sign). Vynucení
-        // i na serveru (view dropdown skrývá, ale POST nesmí projít).
-        $signed            = app(ContractService::class)->getByMemberId($id);
-        $hasSignedContract = $signed && $signed->status === 'signed';
-        if ($hasSignedContract) {
-            $canEditQos = false;
-        }
-
-        // Hlasovací právo (senior) spravuje kdo má právo na modul Schůzí.
-        $canEditVoting = $this->aclCheck('edit_all', 'Meetings_Controller', 'meeting');
-        $oldCanVote    = (bool) $member->can_vote;
-
-        $data = $request->validate([
-            'name'           => 'required|string|max:100',
-            'type'           => 'required|integer|in:' . implode(',', array_keys(MemberType::labels())),
-            'entrance_date'  => 'nullable|date',
-            'leaving_date'   => 'nullable|date_format:Y-m-d',
-            'comment'        => 'nullable|string|max:250',
-            'organization_identifier'     => ['nullable', 'string', 'max:20', 'regex:/^[^@\s]*$/u'],
-            'vat_organization_identifier' => ['nullable', 'string', 'max:30', 'regex:/^[^@\s]*$/u'],
-            'town_id'         => 'nullable|integer|exists:towns,id',
-            'street_id'       => 'nullable|integer|exists:streets,id',
-            'street_number'   => ['nullable', 'string', 'max:15', 'regex:/^(ev\.?\s*č\.?\s*)?\d[\dA-Za-z\/\- ]*$/iu'],
-            'speed_class_id'         => 'nullable|integer|exists:speed_classes,id',
-        ], [
-            'organization_identifier.regex'     => 'IČO nesmí obsahovat email ani mezery — zadejte pouze číslo IČO.',
-            'vat_organization_identifier.regex' => 'DIČ nesmí obsahovat email ani mezery — zadejte pouze DIČ (např. CZ12345678).',
-        ]);
-
-        // Senior (can_vote) je jen pro řadové členy (typ 90). U jiného typu vynutit 0
-        // (i kdyby se can_vote=1 podvrhlo POSTem). Bez práva → ponechat beze změny.
-        $newCanVote = $canEditVoting
-            ? ((int) $data['type'] === 90 && $request->boolean('can_vote'))
-            : (bool) $member->can_vote;
-
-        // Datum vstupu = den schválení. Při přechodu z čekajícího (17/18) na aktivní
-        // typ (řádný člen/zákazník/…) se doplní dnešek — ne datum registrace. Pokud
-        // admin ve formuláři datum ručně změnil (liší se od uloženého), respektuje se.
-        $isApproval = in_array((int) $member->type, [MemberType::PENDING_MEMBER, MemberType::PENDING_CUSTOMER], true)
-            && MemberType::isActive((int) $data['type']);
-        $submittedEntrance = ($data['entrance_date'] ?? null) ?: null;
-        $entranceUnchanged = (string) $submittedEntrance === (string) ($member->entrance_date ?: null);
-        $oldType      = (int) $member->type;
-        $entranceDate = ($isApproval && $entranceUnchanged)
-            ? now()->format('Y-m-d')
-            : $submittedEntrance;
-
-        // Schválení = i datum přijetí přihlášky (stejně jako tlačítko Schválit).
-        if ($isApproval) {
-            $member->entrance_form_accepted = now()->toDateString();
-        }
-
-        $member->update([
-            'name'                        => $data['name'],
-            'type'                        => $data['type'],
-            'entrance_date'               => $entranceDate,
-            'leaving_date'                => $request->leaving_date ?: '9999-12-31',
-            'comment'                     => $data['comment'] ?? null,
-            'organization_identifier'     => $data['organization_identifier'] ?? null,
-            'vat_organization_identifier' => $data['vat_organization_identifier'] ?? null,
-            'locked'                      => $request->boolean('locked'),
-            'registration'                => $request->boolean('registration'),
-            // Řádný člen (typ 90) rychlost/tarif mít nesmí → vždy null (i kdyby se
-            // speed_class_id podvrhlo POSTem). Jinak stávající logika (qos_ceil právo).
-            'speed_class_id'              => ((int) $data['type'] === 90)
-                ? null
-                : ($canEditQos ? ($data['speed_class_id'] ?? null) : $member->speed_class_id),
-            'can_vote'                    => $newCanVote,
-            'notification_by_redirection' => $request->boolean('notification_by_redirection'),
-            'notification_by_email'       => $request->boolean('notification_by_email'),
-            'notification_by_sms'         => $request->boolean('notification_by_sms'),
-        ]);
-
-        // Audit ruční změny hlasovacího práva.
-        if ($canEditVoting && $newCanVote !== $oldCanVote) {
-            \App\Models\MemberVotingLog::create([
-                'member_id'  => $member->id,
-                'action'     => $newCanVote
-                    ? \App\Models\MemberVotingLog::ACTION_GRANTED
-                    : \App\Models\MemberVotingLog::ACTION_DEGRADED,
-                'reason'     => 'Ruční změna v editaci člena',
-                'user_id'    => auth()->id(),
-                'created_at' => now(),
-            ]);
-        }
-
-        // Update or create address point
-        if ($request->filled('town_id')) {
-            $addressPoint = $member->addressPoint ?? new AddressPoint();
-            $addressPoint->town_id       = $data['town_id'];
-            $addressPoint->street_id     = $data['street_id'] ?? null;
-            $addressPoint->street_number = $data['street_number'] ?? null;
-            if (!$addressPoint->exists) {
-                $addressPoint->country_id = 1;
-            }
-            $addressPoint->save();
-
-            if ($member->address_point_id !== $addressPoint->id) {
-                $member->address_point_id = $addressPoint->id;
-                $member->save();
-            }
-        }
-
-        IpAddress::where('member_id', $id)
-            ->with('subnet')
-            ->get()
-            ->each(fn($ip) => $ip->subnet?->setExpired());
-
-        // Schválení přes editaci (čekatel → aktivní typ) = stejné vedlejší efekty
-        // jako tlačítko Schválit (uvítací e-mail, …).
-        if ($isApproval) {
-            MemberApproved::dispatch($member->id, $oldType, (int) $data['type']);
-        }
+        // Jemná práva vynucuje i server (formulář pole jen skrývá): třídu rychlosti
+        // jen s qos_ceil, hlasovací právo jen s právem na modul Schůzí.
+        $update->handle(
+            $id,
+            $request->toChanges(),
+            $this->aclCheck('edit_all', 'Members_Controller', 'qos_ceil'),
+            $this->aclCheck('edit_all', 'Meetings_Controller', 'meeting'),
+            auth()->id(),
+        );
 
         session()->flash('success', 'Člen byl úspěšně upraven.');
 

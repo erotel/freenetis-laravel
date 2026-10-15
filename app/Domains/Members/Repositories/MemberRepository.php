@@ -3,6 +3,9 @@
 namespace App\Domains\Members\Repositories;
 
 use App\Models\Member;
+use App\Models\SpeedClass;
+use App\Models\User;
+use Illuminate\Support\Facades\Crypt;
 use Illuminate\Support\Facades\DB;
 
 /**
@@ -44,6 +47,75 @@ class MemberRepository
         $member->entrance_form_accepted = $approvedOn;
         $member->entrance_date          = $approvedOn;
         $member->save();
+    }
+
+    // ── založení ─────────────────────────────────────────────────────────────
+
+    public function createAddressPoint(int $townId, ?int $streetId, ?string $streetNumber): int
+    {
+        return (int) DB::table('address_points')->insertGetId([
+            'town_id'       => $townId,
+            'street_id'     => $streetId,
+            'street_number' => $streetNumber,
+            'country_id'    => 1,
+        ]);
+    }
+
+    /** Nový člen (nepodepsaná registrace, odemčený, bez data odchodu). */
+    public function create(string $name, int|string $type, string $entranceDate, ?string $comment, ?string $ico,
+                           ?string $dic, int $addressPointId): int
+    {
+        return (int) DB::table('members')->insertGetId([
+            'name'                        => $name,
+            'type'                        => $type,
+            'entrance_date'               => $entranceDate,
+            'leaving_date'                => '9999-12-31',
+            'comment'                     => $comment ?? '',
+            'organization_identifier'     => $ico ?? '',
+            'vat_organization_identifier' => $dic ?? '',
+            'address_point_id'            => $addressPointId,
+            'locked'                      => 0,
+            'registration'                => 0,
+        ]);
+    }
+
+    /** Hlavní uživatel člena (users.type 1) s náhodným aplikačním heslem. */
+    public function createMainUser(int $memberId, string $name, ?string $surname, string $login, string $password, ?string $birthday): int
+    {
+        return (int) DB::table('users')->insertGetId([
+            'member_id'            => $memberId,
+            'name'                 => $name,
+            'surname'              => $surname ?? '',
+            'login'                => $login,
+            'password'             => bcrypt($password),
+            'application_password' => Crypt::encryptString(User::generateApplicationPassword()),
+            'type'                 => 1, // MAIN_USER
+            'birthday'             => $birthday ?: null,
+            'comment'              => '',
+            'settings'             => '',
+        ]);
+    }
+
+    /** Kontakt uživatele (20 e-mail, 21 telefon). */
+    public function addContact(int $userId, int $type, string $value): void
+    {
+        $contactId = DB::table('contacts')->insertGetId(['type' => $type, 'value' => $value]);
+        DB::table('users_contacts')->insert([
+            'user_id'          => $userId,
+            'contact_id'       => $contactId,
+            'mail_redirection' => 0,
+        ]);
+    }
+
+    /** Výchozí třída rychlosti nového člena (regular_member_default), jinak 1. */
+    public function defaultSpeedClassId(): int
+    {
+        return (int) (SpeedClass::where('regular_member_default', 1)->value('id') ?? 1);
+    }
+
+    public function setSpeedClass(int $id, ?int $speedClassId): void
+    {
+        DB::table('members')->where('id', $id)->update(['speed_class_id' => $speedClassId]);
     }
 
     /** Surový řádek members (hodnoty bez castů modelu — pro audit původních hodnot). */

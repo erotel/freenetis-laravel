@@ -37,6 +37,26 @@ class LedgerRepository
             ->first();
     }
 
+    /**
+     * Založí kreditní účet nového člena s nulovým zůstatkem a variabilním
+     * symbolem id člena + 2 náhodné cifry. Vrací id účtu.
+     */
+    public function openCreditAccount(int $memberId): int
+    {
+        $accountId = (int) DB::table('accounts')->insertGetId([
+            'member_id'            => $memberId,
+            'account_attribute_id' => AccountAttribute::CREDIT,
+            'balance'              => 0,
+            'comment'              => '',
+        ]);
+        DB::table('variable_symbols')->insert([
+            'account_id'      => $accountId,
+            'variable_symbol' => (string) $memberId . str_pad((string) rand(0, 99), 2, '0', STR_PAD_LEFT),
+        ]);
+
+        return $accountId;
+    }
+
     public function feeAmount(int $feeId): float
     {
         return (float) DB::table('fees')->where('id', $feeId)->value('fee');
