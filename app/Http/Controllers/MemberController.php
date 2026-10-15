@@ -8,6 +8,7 @@ use App\Domains\Billing\Repositories\LedgerRepository;
 use App\Domains\Billing\Repositories\RefundRepository;
 use App\Domains\Billing\Support\TransferType;
 use App\Domains\Members\Actions\ApproveMemberAction;
+use App\Domains\Members\Actions\EmailRegistrationDocumentAction;
 use App\Domains\Members\Actions\EndMembershipAction;
 use App\Domains\Members\Actions\MarkMemberFormerAction;
 use App\Domains\Members\Actions\PurgeMemberAction;
@@ -16,23 +17,22 @@ use App\Domains\Members\Actions\RestoreFormerMemberAction;
 use App\Domains\Members\Actions\ResumeInterruptedMembershipAction;
 use App\Domains\Members\Actions\UpdateMemberAction;
 use App\Domains\Members\Exceptions\MemberNotApprovable;
+use App\Domains\Members\Documents\RegistrationDocument;
 use App\Domains\Members\Exceptions\MemberNotRestorable;
 use App\Domains\Members\Exceptions\MembershipNotEndable;
+use App\Domains\Members\Queries\MemberCardQuery;
+use App\Domains\Members\Queries\MemberListQuery;
+use App\Domains\Members\Repositories\MemberRepository;
 use App\Domains\Members\Support\EndMode;
 use App\Domains\Members\Support\FormerType;
 use App\Helpers\MemberType;
-use App\Models\AccountAttribute;
 use App\Http\Filters\MemberFilter;
 use App\Http\Requests\Members\StoreMemberRequest;
 use App\Http\Requests\Members\UpdateMemberRequest;
-use App\Models\EmailQueue;
-use App\Models\EmailQueueAttachment;
 use App\Models\Member;
-use App\Models\MemberFee;
 use App\Models\Setting;
 use App\Models\Street;
 use App\Models\Town;
-use App\Services\ContractService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 
@@ -70,16 +70,13 @@ class MemberController extends Controller
         return $out;
     }
 
-    public function index(Request $request)
+    public function index(Request $request, MemberListQuery $list)
     {
-        $allowedSorts = ['id', 'name', 'type', 'entrance_date', 'registration'];
-        $sort = in_array($request->query('sort'), $allowedSorts, true)
-            ? $request->query('sort')
-            : 'id';
-        $dir = $request->query('dir') === 'desc' ? 'desc' : 'asc';
+        $sort = in_array($request->query('sort'), MemberListQuery::SORTS, true) ? $request->query('sort') : 'id';
+        $dir  = $request->query('dir') === 'desc' ? 'desc' : 'asc';
 
         $perPage = (int) $request->query('record_per_page', 50);
-        if (!in_array($perPage, [50, 100, 150, 200, 250, 300, 350, 400, 450, 500], true)) {
+        if (!in_array($perPage, MemberListQuery::PER_PAGES, true)) {
             $perPage = 50;
         }
 
@@ -87,119 +84,21 @@ class MemberController extends Controller
         $currentLocked = $request->query('locked', 'all');
 
         // types — čárkou oddělený seznam typů (např. "2,16,18") nebo 'all'
-        $typesParam = $request->query('types', 'all');
+        $typesParam   = $request->query('types', 'all');
         $currentTypes = 'all';
         $typesArray   = [];
         if ($typesParam !== 'all' && $typesParam !== '') {
-            $typesArray = array_filter(
-                array_map('intval', explode(',', $typesParam)),
-                fn($t) => $t > 0
-            );
+            $typesArray = array_filter(array_map('intval', explode(',', $typesParam)), fn ($t) => $t > 0);
             if (!empty($typesArray)) {
                 $currentTypes = implode(',', $typesArray);
             }
         }
 
-        $query = Member::query()
-            ->select([
-                'members.id',
-                'members.name',
-                'members.type',
-                'members.registration',
-                'members.entrance_date',
-                'members.leaving_date',
-                'members.locked',
-                'members.address_point_id',
-                'members.tv_active',
-                'members.tv_valid_until',
-                'members.tv_synced_at',
-                'members.payment_blocked',
-                'members.payment_blocked_since',
-                'members.pending_termination',
-                DB::raw('(SELECT a.balance FROM accounts a WHERE a.member_id = members.id AND a.account_attribute_id = 221100 LIMIT 1) AS credit_balance'),
-                DB::raw('(SELECT msg.type FROM messages_ip_addresses mia JOIN ip_addresses ip ON ip.id = mia.ip_address_id JOIN messages msg ON msg.id = mia.message_id WHERE ip.member_id = members.id LIMIT 1) AS redirect_type'),
-                DB::raw("(SELECT CASE WHEN mw.permanent = 1 OR mw.until = '9999-12-31' THEN 'permanent' ELSE 'temporary' END FROM members_whitelists mw WHERE mw.member_id = members.id AND mw.since <= CURDATE() AND mw.until >= CURDATE() LIMIT 1) AS whitelist_type"),
-            ])
-            ->with(['addressPoint.town', 'addressPoint.street']);
-
-        if ($search !== '') {
-            // Stejná pole jako SearchController (jméno, IČO/DIČ, adresa, VS, multi-token jméno).
-            // Zajišťuje, že odkaz „Otevřít všechny v seznamu" z /search dojde ke stejné množině.
-            $like   = '%' . $search . '%';
-            $tokens = preg_split('/\s+/', $search, -1, PREG_SPLIT_NO_EMPTY);
-            $multi  = count($tokens) > 1;
-
-            $query->where(function ($q) use ($search, $like, $tokens, $multi) {
-                $q->where('members.name', 'like', $like)
-                  ->orWhere('members.organization_identifier', 'like', $like)
-                  ->orWhere('members.vat_organization_identifier', 'like', $like)
-                  ->orWhere('members.comment', 'like', $like);
-
-                if (is_numeric($search)) {
-                    $q->orWhere('members.id', (int) $search);
-                }
-
-                // VS přes accounts/variable_symbols
-                $q->orWhereExists(function ($sub) use ($like) {
-                    $sub->from('variable_symbols as vs')
-                        ->join('accounts as a', 'a.id', '=', 'vs.account_id')
-                        ->whereColumn('a.member_id', 'members.id')
-                        ->where('vs.variable_symbol', 'like', $like);
-                });
-
-                // Adresa (obec, ulice, č.p.) přes address_points
-                $q->orWhereExists(function ($sub) use ($like) {
-                    $sub->from('address_points as ap')
-                        ->leftJoin('towns as t', 't.id', '=', 'ap.town_id')
-                        ->leftJoin('streets as s', 's.id', '=', 'ap.street_id')
-                        ->whereColumn('ap.id', 'members.address_point_id')
-                        ->where(function ($qq) use ($like) {
-                            $qq->where('t.town', 'like', $like)
-                               ->orWhere('s.street', 'like', $like)
-                               ->orWhere('ap.street_number', 'like', $like);
-                        });
-                });
-
-                if ($multi) {
-                    // Composite přes podselect, aby každý token matchnul v aspoň jednom
-                    // z polí: jméno člena, ulice, č.p., obec. Mirror chování SearchController.
-                    $q->orWhere(function ($qq) use ($tokens) {
-                        foreach ($tokens as $t) {
-                            $qq->whereExists(function ($sub) use ($t) {
-                                $sub->from('address_points as ap')
-                                    ->leftJoin('streets as s', 's.id', '=', 'ap.street_id')
-                                    ->leftJoin('towns as tn', 'tn.id', '=', 'ap.town_id')
-                                    ->whereColumn('ap.id', 'members.address_point_id')
-                                    ->whereRaw(
-                                        "CONCAT_WS(' ', members.name, IFNULL(s.street,''), IFNULL(ap.street_number,''), IFNULL(tn.town,'')) LIKE ?",
-                                        ['%' . $t . '%']
-                                    );
-                            });
-                        }
-                    });
-                }
-            });
-        }
-        if (!empty($typesArray)) {
-            $query->whereIn('members.type', $typesArray);
-        }
-        if ($currentLocked !== 'all') {
-            $query->where('members.locked', (int) $currentLocked);
-        }
-
         $advancedFilters = $request->input('filters', []);
-        if (!empty($advancedFilters)) {
-            MemberFilter::apply($query, $advancedFilters);
-        }
-
-        $members = $query->orderBy('members.' . $sort, $dir)
-            ->paginate($perPage)
-            ->withQueryString();
-
-        $tvEnabled = (bool) \App\Models\Setting::get('sledovanitv_enabled', 0);
+        $tvEnabled       = (bool) Setting::get('sledovanitv_enabled', 0);
 
         return view('members.index', [
-            'members'         => $members,
+            'members'         => $list->paginate($search, $typesArray, (string) $currentLocked, $advancedFilters, $sort, $dir, $perPage),
             'sort'            => $sort,
             'dir'             => $dir,
             'perPage'         => $perPage,
@@ -216,159 +115,27 @@ class MemberController extends Controller
         ]);
     }
 
-    public function show(int $id)
+    public function show(int $id, MemberCardQuery $card)
     {
-        $ownMemberId = auth()->user()?->member_id;
-        $isOwnProfile = ($id == $ownMemberId);
+        $isOwnProfile = ($id == auth()->user()?->member_id);
 
         if (!$isOwnProfile && !$this->can('view_all')) {
             abort(403);
         }
 
-        $member = Member::with([
-            'users',
-            'accounts.variableSymbols',
-            'accounts.accountAttribute',
-            'addressPoint.town',
-            'addressPoint.street',
-            'ipAddresses.subnet',
-            'speedClass',
-        ])->find($id);
-        if (!$member) {
-            abort(404);
-        }
+        $member = $card->find($id);
+        abort_if(!$member, 404);
 
-        // Collect all variable symbols across all accounts
-        $variableSymbols = $member->accounts
-            ->flatMap(fn($a) => $a->variableSymbols)
-            ->pluck('variable_symbol');
-
-        // Credit account: attribute_id = 221100 ("Účet kreditu")
-        $creditAccount = $member->accounts
-            ->first(fn($a) => $a->account_attribute_id === AccountAttribute::CREDIT_ATTRIBUTE_ID);
-
-        $mainUser = $member->users()->where('type', \App\Models\User::MAIN_USER)->first();
-        $contacts = $mainUser
-            ? $mainUser->contacts()->with('enumType')->get()
-            : collect();
-
-        // Active regular fee — member-specific, then config-based default by member type
-        $activeMemberFee = MemberFee::where('member_id', $member->id)->active()->with('fee')->first();
-        if (!$activeMemberFee) {
-            $configKey    = 'default_fee_member_type_' . $member->type;
-            $defaultFeeId = (int) \App\Models\Setting::get($configKey, 0);
-            if ($defaultFeeId) {
-                $defaultFee = \App\Models\Fee::find($defaultFeeId);
-                if ($defaultFee) {
-                    $activeMemberFee = new \App\Models\MemberFee();
-                    $activeMemberFee->setRelation('fee', $defaultFee);
-                }
-            }
-        }
-
-        // Efektivní měsíční poplatek přes centrální resolver (shodné s tím, co se
-        // reálně strhne): individuální → cena tarifu → základní. Zdroj pro popisek.
-        [$monthlyFee, $monthlyFeeSource] = app(FeePolicy::class)->regularFeeWithSource((int) $member->id, (int) $member->type, now()->toDateString());
-
-        // Dodatečné služby (např. veřejná IP) — strhávají se měsíčně navíc k tarifu
-        // jako samostatná položka. Rozpis + součet pro zobrazení na kartě.
-        $additionalServices      = app(FeePolicy::class)->additionalServiceItems((int) $member->id, now()->toDateString());
-        $additionalServicesTotal = array_sum(array_column($additionalServices, 'fee'));
-
-        // Placená přípojná místa (povolené podsítě s vlastní cenou) — také měsíčně.
-        $subnetFees      = \App\Services\AllowedSubnetFeesResolver::items((int) $member->id);
-        $subnetFeesTotal = array_sum(array_column($subnetFees, 'fee'));
-
-        // Detekce pozastaveného členství — má aktivní members_fees s fee.special_type_id=1
-        $hasActiveInterrupt = DB::table('members_fees as mf')
-            ->join('fees as f', 'f.id', '=', 'mf.fee_id')
-            ->where('mf.member_id', $id)
-            ->where('f.special_type_id', 1)
-            ->where('mf.activation_date', '<=', now()->toDateString())
-            ->where('mf.deactivation_date', '>=', now()->toDateString())
-            ->exists();
-
-        // Audit trail (NIS2/ZoKB): historie změn člena, jeho uživatelů a placených
-        // míst. Jen pro adminy (edit_all) — obsahuje citlivé provozní údaje.
-        $canViewAudit = $this->can('edit_all');
-        $auditHistory = collect();
-        if ($canViewAudit) {
-            $userIds    = $member->users->pluck('id')->all();
-            $allowedIds = DB::table('allowed_subnets')->where('member_id', $id)->pluck('id')->all();
-            // Zařízení člena (přes jeho uživatele) — pro create/update, které mají živé ID.
-            // Smazání zařízení se navíc loguje member-keyed (viz DeviceController::destroy),
-            // protože smazaný řádek už v `devices` není a přes ID by se nedohledal.
-            $deviceIds = !empty($userIds)
-                ? DB::table('devices')->whereIn('user_id', $userIds)->pluck('id')->all()
-                : [];
-
-            $auditHistory = DB::table('audit_logs as a')
-                ->leftJoin('users as u', 'u.id', '=', 'a.user_id')
-                ->where(function ($q) use ($id, $userIds, $allowedIds, $deviceIds) {
-                    $q->where(function ($x) use ($id) {
-                        $x->where('a.auditable_type', 'members')->where('a.auditable_id', $id);
-                    });
-                    if (!empty($userIds)) {
-                        $q->orWhere(function ($x) use ($userIds) {
-                            $x->where('a.auditable_type', 'users')->whereIn('a.auditable_id', $userIds);
-                        });
-                    }
-                    if (!empty($allowedIds)) {
-                        $q->orWhere(function ($x) use ($allowedIds) {
-                            $x->where('a.auditable_type', 'allowed_subnets')->whereIn('a.auditable_id', $allowedIds);
-                        });
-                    }
-                    if (!empty($deviceIds)) {
-                        $q->orWhere(function ($x) use ($deviceIds) {
-                            $x->where('a.auditable_type', 'devices')->whereIn('a.auditable_id', $deviceIds);
-                        });
-                    }
-                })
-                ->orderByDesc('a.id')
-                ->limit(100)
-                ->selectRaw("a.*, TRIM(CONCAT(COALESCE(u.surname,''),' ',COALESCE(u.name,''))) as actor_name, u.login as actor_login")
-                ->get();
-        }
-
-        // Zámek přihlášení: pokud je některý uživatel člena zamčený po neúspěšných
-        // pokusech, ukázat to rovnou na kartě člena (ať to admin nehledá v users).
+        // Audit trail (NIS2/ZoKB) jen pro adminy (edit_all) — citlivé provozní údaje.
+        // Zámek přihlášení uživatelů jen pro toho, kdo ho smí odemknout.
+        $canViewAudit   = $this->can('edit_all');
         $canUnlockLogin = $this->aclCheck('edit_all', 'Users_Controller', 'users');
-        $lockedUsers    = [];
-        if ($canUnlockLogin) {
-            $lockService = app(\App\Services\LoginLockService::class);
-            foreach ($member->users as $u) {
-                $st = $lockService->status((int) $u->id);
-                if ($st['locked_until']) {
-                    $lockedUsers[] = [
-                        'id'           => $u->id,
-                        'login'        => $u->login,
-                        'locked_until' => $st['locked_until'],
-                    ];
-                }
-            }
-        }
 
-        return view('members.show', [
-            'member'              => $member,
+        return view('members.show', $card->data($member, $canViewAudit, $canUnlockLogin) + [
             'canViewAudit'        => $canViewAudit,
-            'auditHistory'        => $auditHistory,
             'canUnlockLogin'      => $canUnlockLogin,
-            'lockedUsers'         => $lockedUsers,
-            'variableSymbols'     => $variableSymbols,
-            'creditAccount'       => $creditAccount,
-            'activeMemberFee'     => $activeMemberFee,
-            'monthlyFee'          => $monthlyFee,
-            'monthlyFeeSource'    => $monthlyFeeSource,
-            'additionalServices'      => $additionalServices,
-            'additionalServicesTotal' => $additionalServicesTotal,
-            'subnetFees'          => $subnetFees,
-            'subnetFeesTotal'     => $subnetFeesTotal,
-            'hasActiveInterrupt'  => $hasActiveInterrupt,
-            'tvEnabled'           => (bool) \App\Models\Setting::get('sledovanitv_enabled', 0),
             'canEdit'             => $this->can('edit_all'),
             'canDelete'           => $this->can('delete_all'),
-            'mainUser'            => $mainUser,
-            'contacts'            => $contacts,
             'canViewUser'         => $this->aclCheck('view_all', 'Users_Controller', 'users'),
             'canEditUser'         => $this->aclCheck('edit_all', 'Users_Controller', 'users'),
             'canNewUser'          => $this->aclCheck('new_all', 'Users_Controller', 'users'),
@@ -396,48 +163,14 @@ class MemberController extends Controller
             'canComment'           => $this->aclCheck('new_all',    'Members_Controller', 'comment'),
             'canEditComment'       => $this->aclCheck('edit_all',   'Members_Controller', 'comment'),
             'canDeleteComment'     => $this->aclCheck('delete_all', 'Members_Controller', 'comment'),
-            'accountCommentsList'  => $creditAccount
-                ? DB::table('comments as c')
-                    ->join('users as u', 'u.id', '=', 'c.user_id')
-                    ->where('c.comments_thread_id', $creditAccount->comments_thread_id)
-                    ->orderByDesc('c.datetime')
-                    ->selectRaw('c.id, c.text, c.datetime, CONCAT(u.surname, " ", u.name) as user_name')
-                    ->get()
-                : collect(),
-            'accountComments'      => $creditAccount && $creditAccount->comments_thread_id
-                ? DB::table('comments as c')
-                    ->join('users as u', 'u.id', '=', 'c.user_id')
-                    ->where('c.comments_thread_id', $creditAccount->comments_thread_id)
-                    ->orderByDesc('c.datetime')
-                    ->selectRaw('CONCAT(u.surname, " ", u.name, " (", DATE(c.datetime), "):\n", c.text) as line')
-                    ->pluck('line')
-                    ->implode("\n\n")
-                : '',
-            'gponOnts'             => \App\Models\Setting::get('gpon_enabled', '0')
-                ? $member->onts()->where('reg_status', 'registered')->get()
-                : collect(),
             'canViewInterrupts'    => $this->aclCheck('view_all', 'Members_Controller', 'membership_interrupts'),
             'canEditInterrupts'    => $this->aclCheck('edit_all', 'Members_Controller', 'membership_interrupts'),
-            'interrupts'           => \Illuminate\Support\Facades\DB::table('membership_interrupts as mi')
-                ->join('members_fees as mf', 'mf.id', '=', 'mi.members_fee_id')
-                ->where('mi.member_id', $id)
-                ->select('mi.*', 'mf.activation_date', 'mf.deactivation_date')
-                ->orderBy('mf.activation_date')
-                ->get(),
             'canViewWhitelists'    => $this->aclCheck('view_all', 'Members_whitelists_Controller', 'whitelist'),
             'canViewLanAccess'     => $this->aclCheck('view_all', 'Members_Controller', 'lan_access'),
             'canEditLanAccess'     => $this->aclCheck('edit_all', 'Members_Controller', 'lan_access'),
-            'lanAccess'            => \App\Models\MemberLanAccess::where('member_id', $id)->orderBy('destination')->get(),
-            'lanIsInfra'           => app(\App\Services\LanIsolationService::class)->isInfraMember($id),
-            'lanNetwork'           => app(\App\Services\LanIsolationService::class)->networkCidr(),
             'canViewRedirect'      => $this->aclCheck('view_all',   'Redirect_Controller', 'redirect'),
             'canEditRedirect'      => $this->aclCheck('edit_all',   'Redirect_Controller', 'redirect'),
             'canDeleteRedirect'    => $this->aclCheck('delete_all', 'Redirect_Controller', 'redirect'),
-            'memberRedirections'   => \App\Http\Controllers\RedirectController::getMemberRedirections($id),
-            'expirationDate'       => $creditAccount?->getExpirationDate(),
-            'memberContract'       => app(ContractService::class)->getByMemberId($id),
-            'paymentInfo'          => app(\App\Services\PaymentQrService::class)->paymentInfoForMember($id),
-            'paymentQrSvg'         => app(\App\Services\PaymentQrService::class)->svgForMember($id),
         ]);
     }
 
@@ -535,21 +268,11 @@ class MemberController extends Controller
         return redirect()->route('members.show', $id)->with('info', $note);
     }
 
-    public function applicants()
+    public function applicants(MemberListQuery $list)
     {
         abort_unless($this->can('view_all'), 403);
 
-        $pending = DB::table('members as m')
-            ->whereIn('m.type', [17, 18])
-            ->where(function ($q) {
-                $q->where('m.leaving_date', '9999-12-31')
-                  ->orWhere('m.leaving_date', '0000-00-00');
-            })
-            ->orderByDesc('m.id')
-            ->select('m.id', 'm.name', 'm.type', 'm.entrance_date', 'm.registration')
-            ->get();
-
-        return view('members.applicants', compact('pending'));
+        return view('members.applicants', ['pending' => $list->applicants()]);
     }
 
     /**
@@ -558,29 +281,12 @@ class MemberController extends Controller
      * Admin každý případ projde a klikne 'Ukončit' (link na endMembershipForm
      * s předvyplněným leaving_date) nebo 'Reset blokace' pokud chce dát milost.
      */
-    public function pendingTermination()
+    public function pendingTermination(MemberListQuery $list)
     {
         abort_unless($this->can('view_all'), 403);
 
-        $rows = DB::table('members as m')
-            ->join('accounts as a', function ($j) {
-                $j->on('a.member_id', '=', 'm.id')->where('a.account_attribute_id', 221100);
-            })
-            ->leftJoin('variable_symbols as vs', 'vs.account_id', '=', 'a.id')
-            ->where('m.pending_termination', 1)
-            ->whereIn('m.type', [2, 90])
-            ->select(
-                'm.id', 'm.name', 'm.type',
-                'm.payment_blocked_since',
-                'a.balance',
-                DB::raw('GROUP_CONCAT(vs.variable_symbol) AS variable_symbols')
-            )
-            ->groupBy('m.id', 'm.name', 'm.type', 'm.payment_blocked_since', 'a.balance')
-            ->orderBy('m.payment_blocked_since')
-            ->get();
-
         return view('members.pending_termination', [
-            'rows'    => $rows,
+            'rows'    => $list->pendingTermination(),
             'today'   => now()->format('Y-m-d'),
             'canEdit' => $this->can('edit_all'),
         ]);
@@ -732,9 +438,9 @@ class MemberController extends Controller
      * Export přihlášky nebo ukončení členství jako PDF (inline v prohlížeči).
      * type: 'registration' = Přihláška, 'end' = Ukončení členství, 'contract_end' = Výpověď smlouvy
      */
-    public function registrationExport(int $id, string $type)
+    public function registrationExport(int $id, string $type, RegistrationDocument $document)
     {
-        abort_unless(in_array($type, ['registration', 'end', 'contract_end']), 404);
+        abort_unless(in_array($type, RegistrationDocument::TYPES, true), 404);
         // Staff (view_all) → jakýkoli člen i typ. Řádný člen (view_own) → jen SVOJI
         // přihlášku (own + type=registration); ukončení/výpověď zůstává staff-only.
         $isOwn  = ($id === (int) (auth()->user()?->member_id ?? 0));
@@ -743,7 +449,7 @@ class MemberController extends Controller
                 && $this->aclCheck('view_own', 'Members_Controller', 'registration_export'));
         abort_unless($allowed, 403);
 
-        [$pdfString, $filename] = $this->buildRegistrationPdf($id, $type);
+        [$pdfString, $filename] = $document->render($id, $type);
 
         return response($pdfString, 200, [
             'Content-Type'        => 'application/pdf',
@@ -753,214 +459,19 @@ class MemberController extends Controller
 
     /**
      * Odeslat stejné PDF (přihláška / ukončení / výpověď) e-mailem na první
-     * e-mail kontakt hlavního uživatele. Stejný ACL gate jako inline export.
+     * e-mail kontakt hlavního uživatele. Jen staff (view_all).
      */
-    public function registrationExportEmail(int $id, string $type)
+    public function registrationExportEmail(int $id, string $type, EmailRegistrationDocumentAction $send)
     {
         abort_unless($this->aclCheck('view_all', 'Members_Controller', 'registration_export'), 403);
-        abort_unless(in_array($type, ['registration', 'end', 'contract_end']), 404);
+        abort_unless(in_array($type, RegistrationDocument::TYPES, true), 404);
 
-        $mainUser = DB::table('users')
-            ->where('member_id', $id)
-            ->where('type', 1) // MAIN_USER
-            ->first();
-        abort_if(!$mainUser, 404);
-
-        $email = DB::table('contacts as c')
-            ->join('users_contacts as uc', 'uc.contact_id', '=', 'c.id')
-            ->where('uc.user_id', $mainUser->id)
-            ->where('c.type', 20) // TYPE_EMAIL
-            ->orderBy('c.id')
-            ->value('c.value');
-
+        $email = $send->handle($id, $type);
         if (!$email) {
             return back()->with('error', 'Člen nemá v kontaktech žádný e-mail.');
         }
 
-        [$pdfString, $filename] = $this->buildRegistrationPdf($id, $type);
-
-        // Storage dir je v allowed-list SendEmailQueue (storage/...). Soubor zůstává
-        // i po odeslání — admin akce, není to bulk, případný cleanup řešíme později.
-        $dir = storage_path('app/email-attachments');
-        if (!is_dir($dir)) {
-            mkdir($dir, 0775, true);
-        }
-        $storedName = preg_replace('/\.pdf$/', '', $filename) . '-' . uniqid() . '.pdf';
-        $path = $dir . DIRECTORY_SEPARATOR . $storedName;
-        file_put_contents($path, $pdfString);
-
-        $subject = match($type) {
-            'registration'  => 'Přihláška za člena',
-            'end'           => 'Ukončení členství',
-            'contract_end'  => 'Výpověď smlouvy',
-            default         => 'Dokument',
-        };
-
-        $assocName = \App\Models\Setting::get('title', 'Sdružení');
-
-        $emailQueue = EmailQueue::create([
-            'from'        => \App\Models\Setting::get('email_default_email', 'noreply@pvfree.net'),
-            'to'          => $email,
-            'subject'     => $subject,
-            'body'        => "<p>Dobrý den,</p>"
-                . "<p>v příloze posíláme dokument <strong>" . e($subject) . "</strong> ve formátu PDF.</p>"
-                . "<p>S pozdravem,<br>" . e($assocName) . "</p>",
-            'state'       => EmailQueue::STATE_NEW,
-            'access_time' => now(),
-        ]);
-
-        EmailQueueAttachment::create([
-            'email_queue_id' => $emailQueue->id,
-            'path'           => $path,
-            'name'           => $filename,
-            'mime'           => 'application/pdf',
-            'created_at'     => now(),
-        ]);
-
-        return back()->with('success', 'PDF „' . $subject . '" zařazeno do fronty k odeslání na ' . $email . '.');
-    }
-
-    /**
-     * Vygeneruje PDF (registrační/ukončovací/výpovědní) a vrátí [bytes, filename].
-     * Sdíleno mezi inline exportem a odesláním e-mailem.
-     */
-    private function buildRegistrationPdf(int $id, string $type): array
-    {
-        $member = DB::table('members as m')
-            ->join('address_points as ap', 'ap.id', '=', 'm.address_point_id')
-            ->join('towns as t', 't.id', '=', 'ap.town_id')
-            ->leftJoin('streets as s', 's.id', '=', 'ap.street_id')
-            ->where('m.id', $id)
-            ->select('m.*', 't.town', 't.zip_code', 's.street', 'ap.street_number')
-            ->first();
-        abort_if(!$member, 404);
-
-        // Sdružení (člen id=1)
-        $assoc = DB::table('members as m')
-            ->join('address_points as ap', 'ap.id', '=', 'm.address_point_id')
-            ->join('towns as t', 't.id', '=', 'ap.town_id')
-            ->leftJoin('streets as s', 's.id', '=', 'ap.street_id')
-            ->where('m.id', 1)
-            ->select('m.*', 't.town', 't.zip_code', 's.street', 'ap.street_number')
-            ->first();
-
-        // Hlavní uživatel
-        $mainUser = DB::table('users')
-            ->where('member_id', $id)
-            ->where('type', 1) // MAIN_USER
-            ->first();
-
-        // Kontakty (email=20, telefon=21) hlavního uživatele
-        $contacts = $mainUser
-            ? DB::table('contacts as c')
-                ->join('users_contacts as uc', 'uc.contact_id', '=', 'c.id')
-                ->where('uc.user_id', $mainUser->id)
-                ->whereIn('c.type', [20, 21])
-                ->select('c.type', 'c.value')
-                ->get()
-            : collect();
-
-        $email = $contacts->firstWhere('type', 20)?->value ?? '';
-        $phone = $contacts->firstWhere('type', 21)?->value ?? '';
-
-        // ICQ / Jabber / Skype / MSN kontakty (typy 18,19,22,23)
-        $otherContacts = $mainUser
-            ? DB::table('contacts as c')
-                ->join('users_contacts as uc', 'uc.contact_id', '=', 'c.id')
-                ->join('enum_types as et', 'et.id', '=', 'c.type')
-                ->where('uc.user_id', $mainUser->id)
-                ->whereIn('c.type', [18, 19, 22, 23])
-                ->selectRaw('et.value as type_name, c.value')
-                ->get()
-            : collect();
-
-        // Variabilní symboly
-        $variableSymbols = DB::table('variable_symbols as vs')
-            ->join('accounts as a', 'a.id', '=', 'vs.account_id')
-            ->where('a.member_id', $id)
-            ->pluck('vs.variable_symbol');
-
-        // Kredit (zůstatek kreditního účtu)
-        $creditBalance = DB::table('accounts')
-            ->where('member_id', $id)
-            ->where('account_attribute_id', 221100)
-            ->value('balance') ?? 0;
-
-        // Podsíť (první subnet přes zařízení člena)
-        $subnetName = DB::table('users as u')
-            ->join('devices as d', 'd.user_id', '=', 'u.id')
-            ->join('ifaces as i', 'i.device_id', '=', 'd.id')
-            ->join('ip_addresses as ip', 'ip.iface_id', '=', 'i.id')
-            ->join('subnets as s', 's.id', '=', 'ip.subnet_id')
-            ->where('u.member_id', $id)
-            ->where('u.type', 1)
-            ->value('s.name') ?? '';
-
-        // Technici zařízení člena
-        $engineers = DB::table('device_engineers as de')
-            ->join('devices as d', 'd.id', '=', 'de.device_id')
-            ->join('users as du', 'du.id', '=', 'd.user_id')
-            ->join('users as u', 'u.id', '=', 'de.user_id')
-            ->where('du.member_id', $id)
-            ->selectRaw('CONCAT(u.name, " ", u.surname) as name')
-            ->distinct()
-            ->pluck('name');
-
-        // Bankovní účet sdružení
-        $bankAccountId = (int) \App\Models\Setting::get('export_header_bank_account', 1);
-        $bankAccount = DB::table('bank_accounts')->where('id', $bankAccountId)->first();
-
-        // Konfigurace
-        $registrationInfo    = \App\Models\Setting::get('registration_info', '');
-        $registrationLicense = \App\Models\Setting::get('registration_license', '');
-
-        // Kontaktní údaje sdružení pro contract_end footer
-        $assocWww      = \App\Models\Setting::get('association_www', '');
-        $assocEmail    = \App\Models\Setting::get('association_email', '');
-        $assocPhone    = \App\Models\Setting::get('association_phone', '');
-        $assocCourt    = \App\Models\Setting::get('association_court', '');
-        $assocCourtRef = \App\Models\Setting::get('association_court_ref', '');
-
-        $viewName = ($type === 'contract_end')
-            ? 'members.contract_end_pdf'
-            : 'members.registration_pdf';
-
-        $html = view($viewName, compact(
-            'type', 'member', 'assoc', 'mainUser',
-            'email', 'phone', 'variableSymbols', 'bankAccount',
-            'registrationInfo', 'registrationLicense',
-            'assocWww', 'assocEmail', 'assocPhone', 'assocCourt', 'assocCourtRef',
-            'otherContacts', 'creditBalance', 'subnetName', 'engineers'
-        ))->render();
-
-        $tmpDir = storage_path('framework/cache/mpdf');
-        if (!is_dir($tmpDir)) {
-            mkdir($tmpDir, 0775, true);
-        }
-
-        $mpdf = new \Mpdf\Mpdf([
-            'tempDir'           => $tmpDir,
-            'mode'              => 'utf-8',
-            'format'            => 'A4',
-            'margin_top'        => 20,
-            'margin_bottom'     => 20,
-            'margin_left'       => 15,
-            'margin_right'      => 15,
-            'default_font'      => 'dejavusans',
-            'default_font_size' => 9,
-        ]);
-        $mpdf->WriteHTML($html);
-        $pdfString = $mpdf->Output('', 'S');
-
-        $filePrefix = match($type) {
-            'registration'  => 'prihlaska',
-            'end'           => 'ukonceni-clenstvi',
-            'contract_end'  => 'vypoved-smlouvy',
-            default         => 'export',
-        };
-        $filename = $filePrefix . '-' . $id . '.pdf';
-
-        return [$pdfString, $filename];
+        return back()->with('success', 'PDF „' . RegistrationDocument::SUBJECTS[$type] . '" zařazeno do fronty k odeslání na ' . $email . '.');
     }
 
     /**
@@ -982,11 +493,11 @@ class MemberController extends Controller
         $member   = $memberId ? Member::find($memberId) : null;
         abort_if(!$member, 404, 'Účet není navázán na člena.');
 
-        $member->update([
-            'notification_by_redirection' => $request->boolean('notification_by_redirection'),
-            'notification_by_email'       => $request->boolean('notification_by_email'),
-            'notification_by_sms'         => $request->boolean('notification_by_sms'),
-        ]);
+        app(MemberRepository::class)->setNotificationChannels($member,
+            $request->boolean('notification_by_redirection'),
+            $request->boolean('notification_by_email'),
+            $request->boolean('notification_by_sms'),
+        );
 
         return redirect()->route('me.notifications')
             ->with('success', 'Nastavení oznámení bylo uloženo.');

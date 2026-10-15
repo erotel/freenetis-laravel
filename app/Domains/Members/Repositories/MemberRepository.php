@@ -223,6 +223,34 @@ class MemberRepository
         DB::table('members')->where('id', $id)->delete();
     }
 
+    /** Hlavní uživatel člena (users.type 1), nebo null. */
+    public function mainUserId(int $memberId): ?int
+    {
+        $id = DB::table('users')->where('member_id', $memberId)->where('type', 1)->value('id');
+        return $id ? (int) $id : null;
+    }
+
+    /** Nejstarší e-mailový kontakt (typ 20) uživatele, nebo null. */
+    public function firstEmailOfUser(int $userId): ?string
+    {
+        return DB::table('contacts as c')
+            ->join('users_contacts as uc', 'uc.contact_id', '=', 'c.id')
+            ->where('uc.user_id', $userId)
+            ->where('c.type', 20)
+            ->orderBy('c.id')
+            ->value('c.value') ?: null;
+    }
+
+    /** Kanály oznámení, které si člen nastavuje sám. */
+    public function setNotificationChannels(Member $member, bool $redirection, bool $email, bool $sms): void
+    {
+        $member->update([
+            'notification_by_redirection' => $redirection,
+            'notification_by_email'       => $email,
+            'notification_by_sms'         => $sms,
+        ]);
+    }
+
     /**
      * E-mail hlavního uživatele člena (kontakt typu 20). Při více uživatelích /
      * kontaktech vrací první, který DB vydá — shodně s původním chováním.

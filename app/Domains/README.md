@@ -11,6 +11,8 @@ app/Domains/<Doména>/
     Listeners/      reakce na event (SendApprovalEmail, WriteAuditLog)
     Exceptions/     doménové chyby (MemberNotApprovable)
     Support/        čisté pomocné třídy domény bez vlastního úložiště (CircuitIdParser)
+    Queries/        čtecí dotazy pro obrazovky (read model, nic nemění) — MemberListQuery
+    Documents/      generované dokumenty domény (PDF) — RegistrationDocument
     <Technologie>/  klient externího systému / specifická logika (Access/Kea, Access/Pppoe)
     <Doména>ServiceProvider.php   registrace eventů/listenerů domény
 ```
