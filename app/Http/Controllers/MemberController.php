@@ -34,7 +34,6 @@ use App\Models\Setting;
 use App\Models\Street;
 use App\Models\Town;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\DB;
 
 class MemberController extends Controller
 {
@@ -248,7 +247,7 @@ class MemberController extends Controller
     {
         abort_unless($this->can('delete_all'), 403);
 
-        $member = DB::table('members')->where('id', $id)->first();
+        $member = app(MemberRepository::class)->row($id);
         abort_if(!$member, 404);
 
         if (PurgeMemberAction::isPurgeable((int) $member->type)) {
@@ -296,7 +295,7 @@ class MemberController extends Controller
     public function endMembershipForm(int $id, RefundRepository $refunds, LedgerRepository $ledger, FeePolicy $fees)
     {
         abort_unless($this->can('edit_all'), 403);
-        $member = DB::table('members')->where('id', $id)->first();
+        $member = app(MemberRepository::class)->row($id);
         abort_if(!$member, 404);
         abort_if(in_array($member->type, [15, 16]), 400, 'Člen již byl ukončen.');
         abort_if(FormerType::inNoticePeriod($member->leaving_date), 400, "Člen už má výpověď s datem odchodu {$member->leaving_date}.");
@@ -351,7 +350,7 @@ class MemberController extends Controller
             return redirect()->back()->withInput()->withErrors([$e->field => $e->getMessage()]);
         }
 
-        $name  = DB::table('members')->where('id', $id)->value('name');
+        $name  = app(MemberRepository::class)->row($id)?->name;
         $label = ($ended->formerType == MemberType::FORMER_CUSTOMER) ? 'zákazník' : 'člen';
         $note  = "Členství bylo ukončeno. {$name} označen jako bývalý {$label}.";
         if ($ended->contractsTerminated > 0) {
@@ -364,7 +363,7 @@ class MemberController extends Controller
     {
         abort_unless($this->can('edit_all'), 403);
 
-        $member = DB::table('members')->where('id', $id)->first();
+        $member = app(MemberRepository::class)->row($id);
         abort_if(!$member, 404);
 
         try {
@@ -386,7 +385,7 @@ class MemberController extends Controller
     {
         abort_unless($this->can('edit_all'), 403);
 
-        $member = DB::table('members')->where('id', $id)->first();
+        $member = app(MemberRepository::class)->row($id);
         abort_if(!$member, 404);
 
         $today = now()->toDateString();
