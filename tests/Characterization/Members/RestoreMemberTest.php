@@ -14,9 +14,8 @@ use Tests\DatabaseTestCase;
  * (::endMembershipForm) před přesunem do domény Members.
  * Poplatek po obnovení přerušení: Feature/Fees/RestoreInterruptChargeTest.
  *
- * Podivnost zachycená testem: restore mapuje typy NAOPAK — bývalý zákazník
- * (16) → řádný člen (90), bývalý člen (15) → zákazník (2); hláška to opakuje.
- * Obnovení nechává VS s +U a rychlost „žádná".
+ * Obnovení: bývalý zákazník (16) → zákazník (2), bývalý člen (15) → řádný
+ * člen (90) — do 2026-10-15 bylo naopak. Obnovení nechává VS s +U a rychlost „žádná".
  */
 class RestoreMemberTest extends DatabaseTestCase
 {
@@ -59,7 +58,7 @@ class RestoreMemberTest extends DatabaseTestCase
 
     // ── obnovení bývalého ────────────────────────────────────────────────────
 
-    public function test_obnoveni_byvaleho_typy_naopak_a_poplatky_ozivi(): void
+    public function test_obnoveni_byvaleho_typy_a_poplatky_ozivi(): void
     {
         $leaving = '2026-05-31';
         $customer = $this->member(16, ['locked' => 1, 'leaving_date' => $leaving]);
@@ -72,15 +71,15 @@ class RestoreMemberTest extends DatabaseTestCase
         $this->as()->post(route('members.restore', $regular))->assertSessionHas('success', 'Člen byl obnoven jako člen.');
 
         $c = DB::table('members')->where('id', $customer)->first();
-        $this->assertSame([90, 0, '9999-12-31'], [(int) $c->type, (int) $c->locked, $c->leaving_date], 'podivnost: 16 → 90');
-        $this->assertSame(2, (int) DB::table('members')->where('id', $regular)->value('type'), 'podivnost: 15 → 2');
+        $this->assertSame([2, 0, '9999-12-31'], [(int) $c->type, (int) $c->locked, $c->leaving_date], '16 → 2');
+        $this->assertSame(90, (int) DB::table('members')->where('id', $regular)->value('type'), '15 → 90');
 
         $this->assertSame('9999-12-31', DB::table('members_fees')->where('id', $auto)->value('deactivation_date'), 'ukončený k odchodu se oživí');
         $this->assertSame('2026-03-31', DB::table('members_fees')->where('id', $manual)->value('deactivation_date'), 'ručně ukončený zůstává');
 
         $audit = DB::table('audit_logs')->where('auditable_type', 'members')->where('auditable_id', $customer)->where('action', 'updated')->first();
         $this->assertSame(['type' => 16, 'locked' => 1, 'leaving_date' => $leaving], json_decode($audit->old_values, true));
-        $this->assertSame(['type' => 90, 'locked' => 0, 'leaving_date' => '9999-12-31', 'note' => 'obnovení bývalého člena'], json_decode($audit->new_values, true));
+        $this->assertSame(['type' => 2, 'locked' => 0, 'leaving_date' => '9999-12-31', 'note' => 'obnovení bývalého člena'], json_decode($audit->new_values, true));
     }
 
     public function test_obnoveni_aktivniho_chyba(): void

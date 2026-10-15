@@ -905,7 +905,7 @@ class MemberController extends Controller
             return back()->with('error', $e->getMessage());
         }
 
-        $label = ($newType == MemberType::REGULAR) ? 'zákazník' : 'člen';
+        $label = ($newType === MemberType::REGULAR) ? 'člen' : 'zákazník';
         return redirect()->route('members.show', $id)
             ->with('success', "Člen byl obnoven jako {$label}.");
     }
