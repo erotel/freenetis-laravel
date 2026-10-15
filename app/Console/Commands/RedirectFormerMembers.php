@@ -17,7 +17,9 @@ class RedirectFormerMembers extends Command
 
     public function handle(): int
     {
-        // Step 1: Mark today's expired members as former (type=15, locked=1)
+        // Step 1: Mark today's expired members as former (locked=1) — řádný člen (90)
+        // → bývalý člen (15), ostatní (zákazník 2, čekající 18 …) → bývalý zákazník (16),
+        // stejně jako ruční ukončení (MemberController::endMembership).
         $today = now()->format('Y-m-d');
 
         // Nejdřív si vytáhneme, koho budeme překlápět (kvůli deaktivaci poplatků
@@ -28,17 +30,19 @@ class RedirectFormerMembers extends Command
             ->where('leaving_date', '!=', '9999-12-31')
             ->where('leaving_date', '!=', '0000-00-00')
             ->where('leaving_date', '<=', $today)
-            ->get(['id', 'leaving_date']);
+            ->get(['id', 'type', 'leaving_date']);
 
         $updated = 0;
         if ($toFormer->isNotEmpty()) {
-            $updated = DB::table('members')
-                ->whereIn('id', $toFormer->pluck('id'))
-                ->update([
-                    'type'           => self::TYPE_FORMER,
-                    'locked'         => 1,
-                    'speed_class_id' => null, // bývalý člen → rychlost „žádná"
-                ]);
+            foreach ($toFormer->groupBy(fn ($m) => self::formerTypeFor((int) $m->type)) as $formerType => $group) {
+                $updated += DB::table('members')
+                    ->whereIn('id', $group->pluck('id'))
+                    ->update([
+                        'type'           => $formerType,
+                        'locked'         => 1,
+                        'speed_class_id' => null, // bývalý člen → rychlost „žádná"
+                    ]);
+            }
 
             // Individuální tarif + dodatečné služby ukončit k datu odchodu.
             // Sem spadají budoucí datumy (endMembership je sice ukončil hned, ty
@@ -46,6 +50,7 @@ class RedirectFormerMembers extends Command
             // přerušení" i přímé editace leaving_date.
             foreach ($toFormer as $m) {
                 \App\Services\MemberFeesTermination::deactivate((int) $m->id, $m->leaving_date);
+                self::markVariableSymbolLeft((int) $m->id);
             }
 
             // Audit trail: automatické překlopení na bývalé členy (systém, user_id NULL).
@@ -54,7 +59,7 @@ class RedirectFormerMembers extends Command
                 'member_ids'    => $toFormer->pluck('id')->all(),
             ]);
 
-            $this->info("Marked {$updated} members as former (type=15).");
+            $this->info("Marked {$updated} members as former (type 15/16).");
         }
 
         // Zamknout členy, kteří byli ukončeni s budoucím datem (type už je
@@ -220,5 +225,27 @@ class RedirectFormerMembers extends Command
 
         $this->info("Activated redirect for {$count} IP addresses of {$formerMembers->count()} former members.");
         return 0;
+    }
+
+    /** Řádný člen (90) → bývalý člen (15); kdokoli jiný → bývalý zákazník (16). */
+    public static function formerTypeFor(int $type): int
+    {
+        return $type === \App\Helpers\MemberType::REGULAR ? self::TYPE_FORMER : self::TYPE_FORMER_CUSTOMER;
+    }
+
+    /** „+U" k variabilnímu symbolu kreditního účtu (jako Kohana a ruční ukončení). */
+    private static function markVariableSymbolLeft(int $memberId): void
+    {
+        $accountId = DB::table('accounts')
+            ->where('member_id', $memberId)
+            ->where('account_attribute_id', 221100)
+            ->value('id');
+        if (!$accountId) {
+            return;
+        }
+        $vs = DB::table('variable_symbols')->where('account_id', $accountId)->orderBy('id')->first();
+        if ($vs && !str_ends_with($vs->variable_symbol, '+U')) {
+            DB::table('variable_symbols')->where('id', $vs->id)->update(['variable_symbol' => $vs->variable_symbol . '+U']);
+        }
     }
 }
