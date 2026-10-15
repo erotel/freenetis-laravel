@@ -223,4 +223,19 @@ class EndMembershipNoticePeriodTest extends DatabaseTestCase
         $this->assertSame(0, (int) $this->row($notice['member'])->pending_termination);
         $this->assertSame(1, (int) $this->row($active['member'])->pending_termination);
     }
+
+    // ── Trvale smazat (krok 1 = označit jako bývalého) ──────────────────────
+
+    public function test_trvale_smazat_krok1_radny_15_zakaznik_16(): void
+    {
+        $regular  = $this->member(90);
+        $customer = $this->member(2);
+
+        foreach ([$regular['member'], $customer['member']] as $id) {
+            $this->actingAs(User::find($this->adminId))->delete(route('members.destroy', $id))->assertRedirect();
+        }
+
+        $this->assertSame(15, (int) $this->row($regular['member'])->type);
+        $this->assertSame(16, (int) $this->row($customer['member'])->type);
+    }
 }

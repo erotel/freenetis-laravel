@@ -778,8 +778,9 @@ class MemberController extends Controller
 
         // Krok 1: pokud není ještě bývalý, označit jako bývalého
         if (!in_array($member->type, $formerTypes)) {
-            // typ 90 (řádný člen) → 16 (bývalý zákazník), ostatní → 15 (bývalý člen)
-            $newType = ($member->type == MemberType::REGULAR) ? MemberType::FORMER_CUSTOMER : MemberType::FORMER;
+            // řádný člen (90) → bývalý člen (15), ostatní → bývalý zákazník (16) —
+            // stejně jako endMembership a cron members:redirect-former.
+            $newType = ($member->type == MemberType::REGULAR) ? MemberType::FORMER : MemberType::FORMER_CUSTOMER;
             $leaving = now()->format('Y-m-d');
             DB::table('members')->where('id', $id)->update([
                 'type'           => $newType,
