@@ -121,6 +121,7 @@ class Account extends Model
         $tarifFee   = app(\App\Domains\Billing\Fees\FeePolicy::class)->tarifPrice($memberId);
         $defaultFee = app(\App\Domains\Billing\Fees\FeePolicy::class)->defaultFeeByType($memberType);
 
+        $charged = false; // strhává se v některém měsíci vůbec něco?
         for ($i = 0; $i < $maxIterations; $i++) {
             $day = min($deductDay, cal_days_in_month(CAL_GREGORIAN, $month, $year));
             $date = sprintf('%04d-%02d-%02d', $year, $month, $day);
@@ -139,6 +140,7 @@ class Account extends Model
                 $fee += $payments[$year][$month];
             }
 
+            if ($fee > 0) $charged = true;
             $balance -= $sign * $fee;
 
             if ($balance * $sign < 0) {
@@ -149,6 +151,14 @@ class Account extends Model
             $month += $sign;
             if ($month === 0) { $month = 12; $year--; }
             elseif ($month === 13) { $month = 1; $year++; }
+        }
+
+        // V žádném měsíci se nic nestrhává (bez poplatku, bývalý člen, osvobozený)
+        // → „zaplaceno do" nedává smysl. Dřív cyklus doběhl na limit / hranici
+        // ceníku a vracel datum desítky let dopředu (31.08.2076 u bývalého
+        // zákazníka 6235 na .54).
+        if (!$charged) {
+            return null;
         }
 
         // Back up one month (Kohana: $month-- after break)

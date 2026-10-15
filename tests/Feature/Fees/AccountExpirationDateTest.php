@@ -88,4 +88,24 @@ class AccountExpirationDateTest extends DatabaseTestCase
             'individuální poplatek (members_fees) musí mít přednost před tarifem'
         );
     }
+
+    /**
+     * Člen bez strhávaného poplatku (bývalý zákazník bez tarifu/individuálního,
+     * typ bez základního poplatku) → „Zaplaceno do" nemá smysl → null („—").
+     * Dřív +50 let (incident .54, člen 6235: 31.08.2076).
+     */
+    public function test_bez_poplatku_vrati_null(): void
+    {
+        $apId = (int) \Illuminate\Support\Facades\DB::table('members')->whereNotNull('address_point_id')->value('address_point_id');
+        \App\Models\Setting::set('default_fee_member_type_16', '');
+        $id = (int) \Illuminate\Support\Facades\DB::table('members')->insertGetId([
+            'name' => 'Char Exp', 'type' => 16, 'registration' => 1, 'locked' => 1, 'address_point_id' => $apId,
+            'entrance_date' => '2015-11-25', 'leaving_date' => '2026-09-14', 'speed_class_id' => null,
+        ]);
+        $accId = (int) \Illuminate\Support\Facades\DB::table('accounts')->insertGetId([
+            'member_id' => $id, 'account_attribute_id' => 221100, 'balance' => 0, 'name' => 'char',
+        ]);
+
+        $this->assertNull(\App\Models\Account::find($accId)->getExpirationDate());
+    }
 }
