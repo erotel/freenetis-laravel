@@ -2,7 +2,17 @@
 
 namespace App\Services;
 
+use App\Domains\Contracts\Actions\CreateConnectionPointAddonAction;
+use App\Domains\Contracts\Actions\CreateServiceAddonAction;
+use App\Domains\Contracts\Actions\CreateTariffAddonAction;
+use App\Domains\Contracts\Actions\DeleteAddonAction;
+use App\Domains\Contracts\Actions\IssueAddonRemovalAction;
 use App\Domains\Contracts\Actions\IssueSignLinkAction;
+use App\Domains\Contracts\Actions\SignAddonAction;
+use App\Domains\Contracts\Repositories\ContractAddonRepository;
+use App\Domains\Contracts\Support\AddonType;
+use App\Domains\Contracts\Support\ContractStorage;
+use App\Domains\Contracts\Support\TariffSnapshot;
 use App\Domains\Contracts\Support\MemberContacts;
 use App\Domains\Contracts\Support\SignLinkKind;
 use App\Domains\Contracts\Support\SignLinkToken;
@@ -190,163 +200,42 @@ class ContractService
      * Snapshot z živých dat člena → pole pro contract_parties (bez `contract_id`).
      * Používá createContract() i refreshPartyFromMember().
      */
-    /**
-     * Aktuální tarif člena jako snapshot: ['speed_name','price','price_after_discount','discount_until'].
-     * price = ceníková cena tarifu (speed_classes.price), fallback základní poplatek dle typu;
-     * zvýhodněná cena = aktivní individuální 'regular member fee' + jeho platnost.
-     */
     public function tariffSnapshot(Member $member): array
     {
-        return $this->buildTariffSnapshot(
-            $member,
-            $member->speedClass?->name ?? '',
-            $member->speedClass?->price
-        );
+        return app(TariffSnapshot::class)->current($member);
     }
 
-    /**
-     * Jako tariffSnapshot(), ale pro KONKRÉTNÍ (navrhovanou) třídu rychlosti —
-     * použití u tarifního dodatku, kde `new_*` je návrh, ne živý stav člena.
-     * Zvýhodněná cena (individuální 'regular member fee') je vlastnost člena,
-     * ne rychlosti, takže se snímá stejně.
-     */
+    /** Snímek pro navrhovanou třídu rychlosti (new_* tarifního dodatku). */
     public function tariffSnapshotForSpeedClass(Member $member, int $speedClassId): array
     {
-        $sc = \App\Models\SpeedClass::find($speedClassId);
-        return $this->buildTariffSnapshot($member, $sc?->name ?? '', $sc?->price);
+        return app(TariffSnapshot::class)->forSpeedClass($member, $speedClassId);
     }
 
-    /** Společné jádro snapshotu tarifu — jméno/cena rychlosti + individuální sleva člena. */
-    private function buildTariffSnapshot(Member $member, string $speedName, $tarifPrice): array
-    {
-        $basePrice  = $tarifPrice !== null
-            ? (float) $tarifPrice
-            : (app(\App\Domains\Billing\Fees\FeePolicy::class)->defaultFeeByType((int) $member->type) ?? 0.0);
-
-        $today      = now()->toDateString();
-        $individual = DB::table('members_fees as mf')
-            ->join('fees as f', 'f.id', '=', 'mf.fee_id')
-            ->join('enum_types as et', 'et.id', '=', 'f.type_id')
-            ->whereRaw("LOWER(et.value) = 'regular member fee'")
-            ->where('mf.member_id', $member->id)
-            ->where('mf.activation_date', '<=', $today)
-            ->where('mf.deactivation_date', '>=', $today)
-            ->orderBy('mf.priority')
-            ->first(['f.fee', 'mf.deactivation_date']);
-
-        return [
-            'speed_name'           => $speedName,
-            'price'                => $basePrice,
-            'price_after_discount' => $individual !== null ? (float) $individual->fee : null,
-            'discount_until'       => $individual !== null ? $individual->deactivation_date : null,
-        ];
-    }
-
-    /**
-     * Vytvoř dodatek „změna tarifu" k podepsané smlouvě jako NÁVRH. `old_*` snímá
-     * SOUČASNÝ tarif člena (živý stav = poslední aplikovaný), `new_*` snímá
-     * NAVRHOVANÝ tarif (`$newSpeedClassId`) a uloží jeho ID do `new_speed_class_id`.
-     * Rychlost člena se NEMĚNÍ — propíše se teprve při podpisu (signTariffAddon).
-     * Účinnost = datum podpisu (viz signTariffAddon); zde jen předvyplněná. Repeatable.
-     */
+    /** Návrh dodatku „změna tarifu" — viz CreateTariffAddonAction. */
     public function createTariffChangeAddon(int $contractId, int $newSpeedClassId): ?ContractAddon
     {
-        $contract = Contract::find($contractId);
-        if (!$contract || $contract->status !== 'signed') {
-            return null;
-        }
-        $member = Member::with(['speedClass'])->find($contract->member_id);
-        if (!$member) {
-            return null;
-        }
-        // Navrhovaná třída rychlosti musí existovat.
-        if (!\App\Models\SpeedClass::whereKey($newSpeedClassId)->exists()) {
-            return null;
-        }
-
-        // Původní = SOUČASNÝ (živý) tarif člena; s apply-on-sign je to zároveň
-        // poslední podepsaný stav (rychlost se mění až podpisem dodatku).
-        $old = $this->tariffSnapshot($member);
-        $new = $this->tariffSnapshotForSpeedClass($member, $newSpeedClassId);
-
-        // Pořadové číslo dodatku — navazuje i na legacy nulový-tarif addon (č. 1).
-        $maxNo    = (int) (ContractAddon::where('contract_id', $contractId)->max('addon_no') ?? 0);
-        $addonNo  = max($maxNo, $contract->addon ? 1 : 0) + 1;
-
-        $addon = ContractAddon::create([
-            'contract_id'              => $contractId,
-            'type'                     => 'tariff_change',
-            'addon_no'                 => $addonNo,
-            'old_speed_name'           => $old['speed_name'],
-            'old_price'                => $old['price'],
-            'old_price_after_discount' => $old['price_after_discount'],
-            'new_speed_name'           => $new['speed_name'],
-            'new_price'                => $new['price'],
-            'new_price_after_discount' => $new['price_after_discount'],
-            'new_speed_class_id'       => $newSpeedClassId,
-            'discount_until'           => $new['discount_until'],
-            // Účinnost = den podpisu (apply-on-sign). Zde jen předvyplněno na dnešek
-            // (náhled), při podpisu se přepíše na skutečné datum (signTariffAddon).
-            'effective_date'           => now()->toDateString(),
-            'status'                   => 'draft',
-            'created_by'               => auth()->user()?->login,
-            'created_at'               => now()->format('Y-m-d H:i:s'),
-        ]);
-
-        ContractEvent::create([
-            'contract_id' => $contractId,
-            'event'       => 'tariff_addon_created',
-            'meta_json'   => json_encode(['addon_id' => $addon->id, 'by' => auth()->user()?->login]),
-        ]);
-
-        return $addon;
+        return app(CreateTariffAddonAction::class)->handle($contractId, $newSpeedClassId);
     }
 
     public function deleteTariffAddon(ContractAddon $addon): bool
     {
-        if ($addon->status === 'signed') {
-            return false;
-        }
-        $path = $this->tariffAddonPdfPath($addon);
-        if ($path && file_exists($path)) {
-            @unlink($path);
-        }
-        $cid = $addon->contract_id;
-        $aid = $addon->id;
-        $addon->delete();
-
-        ContractEvent::create([
-            'contract_id' => $cid,
-            'event'       => 'tariff_addon_deleted',
-            'meta_json'   => json_encode(['addon_id' => $aid, 'by' => auth()->user()?->login]),
-        ]);
-
-        return true;
+        return app(DeleteAddonAction::class)->handle($addon, AddonType::TariffChange);
     }
 
     public function tariffAddonPdfPath(ContractAddon $addon): ?string
     {
-        if (!$addon->pdf_path) {
-            return null;
-        }
-        if (str_starts_with($addon->pdf_path, '/')) {
-            return $addon->pdf_path;
-        }
-        return $this->storageBase . '/' . $addon->pdf_path;
+        return ContractStorage::path($addon->pdf_path);
     }
 
     /** Všechny dodatky „změna tarifu" dané smlouvy (nejnovější první). */
     public function tariffAddons(int $contractId)
     {
-        return ContractAddon::where('contract_id', $contractId)
-            ->where('type', 'tariff_change')
-            ->orderByDesc('id')
-            ->get();
+        return app(ContractAddonRepository::class)->forContract($contractId, AddonType::TariffChange);
     }
 
     public function getTariffAddon(int $id): ?ContractAddon
     {
-        return ContractAddon::where('type', 'tariff_change')->find($id);
+        return app(ContractAddonRepository::class)->find($id, AddonType::TariffChange);
     }
 
     /** Podpisový odkaz dodatku tarifu (token nese cid i aid) + e-mail zákazníkovi. */
@@ -365,169 +254,39 @@ class ContractService
         return app(SignLinkToken::class)->addonId($token);
     }
 
-    /**
-     * Finalizuje dodatek: vygeneruje podepsané PDF, uloží na řádek dodatku
-     * (status=signed, signed_at, pdf_path) a zaloguje. Volá se po ověření OTP.
-     */
+    /** Finalizace po OTP + aplikace tarifu na člena — viz SignAddonAction. */
     public function signTariffAddon(ContractAddon $addon, PdfService $pdf, ?Request $request = null): ContractAddon
     {
-        // Účinnost = den podpisu (apply-on-sign, bez plánovače). Musí být před
-        // renderem PDF, aby dokument nesl skutečné datum účinnosti.
-        $addon->effective_date = now()->toDateString();
-
-        $fullpath = $pdf->renderTariffAddonPdf($addon, false, $request);
-        $raw      = (string) @file_get_contents($fullpath);
-        $sha256   = hash('sha256', $raw);
-
-        $addon->update([
-            'status'         => 'signed',
-            'signed_at'      => now(),
-            'pdf_path'       => $fullpath,
-            'effective_date' => $addon->effective_date,
-        ]);
-
-        ContractEvent::create([
-            'contract_id' => $addon->contract_id,
-            'event'       => 'tariff_addon_signed',
-            'meta_json'   => json_encode(['addon_id' => $addon->id, 'sha256' => $sha256], JSON_UNESCAPED_UNICODE),
-        ]);
-
-        // Aplikace tarifu na člena AŽ TEĎ (po podpisu). Billing (RegularFeeResolver
-        // /DeductFees) čte živý stav člena, takže nová cena naskočí automaticky.
-        // Vzor: PublicSignController::finalizeContract (aktivace člena po podpisu).
-        if ($addon->new_speed_class_id) {
-            $contract = Contract::find($addon->contract_id);
-            $memberId = $contract?->member_id;
-            $member   = $memberId ? Member::find($memberId) : null;
-            if ($member) {
-                $oldSpeedClassId = $member->speed_class_id;
-                if ((int) $oldSpeedClassId !== (int) $addon->new_speed_class_id) {
-                    $member->update(['speed_class_id' => $addon->new_speed_class_id]);
-
-                    ContractEvent::create([
-                        'contract_id' => $addon->contract_id,
-                        'event'       => 'tariff_addon_applied',
-                        'meta_json'   => json_encode([
-                            'addon_id'            => $addon->id,
-                            'member_id'           => $member->id,
-                            'old_speed_class_id'  => $oldSpeedClassId,
-                            'new_speed_class_id'  => (int) $addon->new_speed_class_id,
-                        ], JSON_UNESCAPED_UNICODE),
-                    ]);
-                }
-            }
-        }
-
-        return $addon->refresh();
+        return app(SignAddonAction::class)->handle($addon, AddonType::TariffChange, $pdf, $request);
     }
 
     // ── Dodatek: dodatečná služba (contract_addons, type='additional_service') ──
 
-    /**
-     * Vytvoř dodatek „dodatečná služba" k podepsané smlouvě jako NÁVRH.
-     * $action = 'add'|'remove'. Službu (název + cena) snímá z poplatku typu
-     * 'additional service' (fees) a uloží jeho ID do `fee_id`. Poplatek se
-     * členovi NEPŘIŘADÍ hned — u 'add' se přiřadí teprve podpisem
-     * (signServiceAddon), u 'remove' se deaktivuje vydáním (issueServiceRemoval).
-     * Účinnost = datum podpisu/vydání (viz sign/issue); zde jen předvyplněná.
-     */
+    /** Návrh dodatku „dodatečná služba" — viz CreateServiceAddonAction. */
     public function createServiceAddon(int $contractId, int $feeId, string $action = 'add'): ?ContractAddon
     {
-        $contract = Contract::find($contractId);
-        if (!$contract || $contract->status !== 'signed') {
-            return null;
-        }
-        if (!in_array($action, ['add', 'remove'], true)) {
-            return null;
-        }
-
-        // Poplatek musí být typu „additional service" (dodatečná služba).
-        $fee = DB::table('fees as f')
-            ->join('enum_types as et', 'et.id', '=', 'f.type_id')
-            ->whereRaw("LOWER(et.value) = 'additional service'")
-            ->where('f.id', $feeId)
-            ->first(['f.name', 'f.fee']);
-        if (!$fee) {
-            return null;
-        }
-
-        $maxNo   = (int) (ContractAddon::where('contract_id', $contractId)->max('addon_no') ?? 0);
-        $addonNo = max($maxNo, $contract->addon ? 1 : 0) + 1;
-
-        $addon = ContractAddon::create([
-            'contract_id'    => $contractId,
-            'type'           => 'additional_service',
-            'addon_no'       => $addonNo,
-            'service_name'   => $fee->name !== '' ? $fee->name : 'Dodatečná služba',
-            'service_price'  => (float) $fee->fee,
-            'service_action' => $action,
-            'fee_id'         => $feeId,
-            // Účinnost = den podpisu/vydání (apply-on-sign). Předvyplněno na dnešek.
-            'effective_date' => now()->toDateString(),
-            'status'         => 'draft',
-            'created_by'     => auth()->user()?->login,
-            'created_at'     => now()->format('Y-m-d H:i:s'),
-        ]);
-
-        ContractEvent::create([
-            'contract_id' => $contractId,
-            'event'       => 'service_addon_created',
-            'meta_json'   => json_encode([
-                'addon_id' => $addon->id,
-                'action'   => $action,
-                'fee_id'   => $feeId,
-                'by'       => auth()->user()?->login,
-            ]),
-        ]);
-
-        return $addon;
+        return app(CreateServiceAddonAction::class)->handle($contractId, $feeId, $action);
     }
 
     public function deleteServiceAddon(ContractAddon $addon): bool
     {
-        if ($addon->status === 'signed') {
-            return false;
-        }
-        $path = $this->serviceAddonPdfPath($addon);
-        if ($path && file_exists($path)) {
-            @unlink($path);
-        }
-        $cid = $addon->contract_id;
-        $aid = $addon->id;
-        $addon->delete();
-
-        ContractEvent::create([
-            'contract_id' => $cid,
-            'event'       => 'service_addon_deleted',
-            'meta_json'   => json_encode(['addon_id' => $aid, 'by' => auth()->user()?->login]),
-        ]);
-
-        return true;
+        return app(DeleteAddonAction::class)->handle($addon, AddonType::AdditionalService);
     }
 
     public function serviceAddonPdfPath(ContractAddon $addon): ?string
     {
-        if (!$addon->pdf_path) {
-            return null;
-        }
-        if (str_starts_with($addon->pdf_path, '/')) {
-            return $addon->pdf_path;
-        }
-        return $this->storageBase . '/' . $addon->pdf_path;
+        return ContractStorage::path($addon->pdf_path);
     }
 
     /** Všechny dodatky „dodatečná služba" dané smlouvy (nejnovější první). */
     public function serviceAddons(int $contractId)
     {
-        return ContractAddon::where('contract_id', $contractId)
-            ->where('type', 'additional_service')
-            ->orderByDesc('id')
-            ->get();
+        return app(ContractAddonRepository::class)->forContract($contractId, AddonType::AdditionalService);
     }
 
     public function getServiceAddon(int $id): ?ContractAddon
     {
-        return ContractAddon::where('type', 'additional_service')->find($id);
+        return app(ContractAddonRepository::class)->find($id, AddonType::AdditionalService);
     }
 
     /** Podpisový odkaz dodatku služby (jen přidání; odebrání se nepodepisuje). */
@@ -546,330 +305,40 @@ class ContractService
         return app(SignLinkToken::class)->addonId($token);
     }
 
-    /**
-     * Finalizuje dodatek služby: vygeneruje podepsané PDF, uloží na řádek
-     * (status=signed, signed_at, pdf_path) a zaloguje. Volá se po ověření OTP.
-     */
+    /** Finalizace po OTP + přiřazení služby členovi — viz SignAddonAction. */
     public function signServiceAddon(ContractAddon $addon, PdfService $pdf, ?Request $request = null): ContractAddon
     {
-        // Účinnost = den podpisu (apply-on-sign). Před renderem PDF.
-        $addon->effective_date = now()->toDateString();
-
-        $fullpath = $pdf->renderServiceAddonPdf($addon, false, $request);
-        $raw      = (string) @file_get_contents($fullpath);
-        $sha256   = hash('sha256', $raw);
-
-        $addon->update([
-            'status'         => 'signed',
-            'signed_at'      => now(),
-            'pdf_path'       => $fullpath,
-            'effective_date' => $addon->effective_date,
-        ]);
-
-        ContractEvent::create([
-            'contract_id' => $addon->contract_id,
-            'event'       => 'service_addon_signed',
-            'meta_json'   => json_encode(['addon_id' => $addon->id, 'sha256' => $sha256], JSON_UNESCAPED_UNICODE),
-        ]);
-
-        // Přiřazení služby (poplatku) na člena AŽ TEĎ (po podpisu). Billing
-        // (AdditionalServicesResolver/DeductFees) čte živý stav members_fees.
-        if ($addon->service_action === 'add' && $addon->fee_id) {
-            $this->applyServiceAddonAdd($addon);
-        }
-
-        return $addon->refresh();
+        return app(SignAddonAction::class)->handle($addon, AddonType::AdditionalService, $pdf, $request);
     }
 
-    /**
-     * Přiřadí poplatek dodatku „dodatečná služba" (add) členovi do members_fees
-     * s účinností = datum účinnosti dodatku. Idempotentní — když už člen tuto
-     * službu aktivní má, nic nepřidává.
-     */
-    private function applyServiceAddonAdd(ContractAddon $addon): void
-    {
-        $memberId = Contract::find($addon->contract_id)?->member_id;
-        if (!$memberId) {
-            return;
-        }
-
-        $from = $addon->effective_date
-            ? $addon->effective_date->toDateString()
-            : now()->toDateString();
-
-        // Už aktivní stejná služba? (activation<=today<=deactivation) → nepřidávat.
-        $already = \App\Models\MemberFee::where('member_id', $memberId)
-            ->where('fee_id', $addon->fee_id)
-            ->whereDate('activation_date', '<=', now()->toDateString())
-            ->whereDate('deactivation_date', '>=', now()->toDateString())
-            ->exists();
-        if ($already) {
-            return;
-        }
-
-        \App\Models\MemberFee::create([
-            'member_id'         => $memberId,
-            'fee_id'            => $addon->fee_id,
-            'activation_date'   => $from,
-            'deactivation_date' => '9999-12-31',
-            'priority'          => 1,
-            'comment'           => 'Dodatek č. ' . ($addon->addon_no ?? '?') . ' ke smlouvě (dodatečná služba)',
-        ]);
-
-        ContractEvent::create([
-            'contract_id' => $addon->contract_id,
-            'event'       => 'service_addon_applied',
-            'meta_json'   => json_encode([
-                'addon_id'  => $addon->id,
-                'member_id' => $memberId,
-                'fee_id'    => (int) $addon->fee_id,
-                'from'      => $from,
-            ], JSON_UNESCAPED_UNICODE),
-        ]);
-    }
-
-    /**
-     * Deaktivuje aktivní přiřazení poplatku dodatku „dodatečná služba" (remove)
-     * u člena — nastaví deactivation_date na datum účinnosti dodatku. Přes
-     * Eloquent instance (ne bulk update), ať se změna zapíše do auditu.
-     */
-    private function applyServiceAddonRemoval(ContractAddon $addon): void
-    {
-        $memberId = Contract::find($addon->contract_id)?->member_id;
-        if (!$memberId) {
-            return;
-        }
-
-        $to = $addon->effective_date
-            ? $addon->effective_date->toDateString()
-            : now()->toDateString();
-
-        $rows = \App\Models\MemberFee::where('member_id', $memberId)
-            ->where('fee_id', $addon->fee_id)
-            ->whereDate('deactivation_date', '>=', now()->toDateString())
-            ->get();
-
-        foreach ($rows as $row) {
-            $row->update(['deactivation_date' => $to]);
-        }
-
-        if ($rows->isNotEmpty()) {
-            ContractEvent::create([
-                'contract_id' => $addon->contract_id,
-                'event'       => 'service_addon_removal_applied',
-                'meta_json'   => json_encode([
-                    'addon_id'  => $addon->id,
-                    'member_id' => $memberId,
-                    'fee_id'    => (int) $addon->fee_id,
-                    'until'     => $to,
-                    'count'     => $rows->count(),
-                ], JSON_UNESCAPED_UNICODE),
-            ]);
-        }
-    }
-
-    /**
-     * Vydá dodatek „zrušení služby" bez podpisu zákazníka (poskytovatel).
-     * Zrušení jen snižuje závazek účastníka, proto nevyžaduje OTP — poskytovatel
-     * vygeneruje PDF, označí jako vydané (signed) a zašle zákazníkovi na e-mail.
-     * Jen pro type='additional_service' a service_action='remove'.
-     */
+    /** Vydání zrušení služby bez podpisu zákazníka — viz IssueAddonRemovalAction. */
     public function issueServiceRemoval(ContractAddon $addon, PdfService $pdf): ?ContractAddon
     {
-        if ($addon->type !== 'additional_service' || $addon->service_action !== 'remove' || $addon->status === 'signed') {
-            return null;
-        }
-
-        // Účinnost = den vydání. Před renderem PDF.
-        $addon->effective_date = now()->toDateString();
-
-        $fullpath = $pdf->renderServiceAddonPdf($addon, false, null);
-        $raw      = (string) @file_get_contents($fullpath);
-        $sha256   = hash('sha256', $raw);
-
-        $addon->update([
-            'status'         => 'signed',
-            'signed_at'      => now(),
-            'pdf_path'       => $fullpath,
-            'effective_date' => $addon->effective_date,
-        ]);
-
-        ContractEvent::create([
-            'contract_id' => $addon->contract_id,
-            'event'       => 'service_addon_removal_issued',
-            'meta_json'   => json_encode(['addon_id' => $addon->id, 'sha256' => $sha256], JSON_UNESCAPED_UNICODE),
-        ]);
-
-        // Deaktivace služby (poplatku) na členovi AŽ TEĎ (vydání dodatku o zrušení).
-        if ($addon->fee_id) {
-            $this->applyServiceAddonRemoval($addon);
-        }
-
-        $this->emailServiceRemoval($addon);
-
-        return $addon->refresh();
-    }
-
-    /** Best-effort: pošle zákazníkovi PDF zrušení služby (nepovinné, neblokuje). */
-    private function emailServiceRemoval(ContractAddon $addon): void
-    {
-        $contract = Contract::find($addon->contract_id);
-        if (!$contract) return;
-
-        $party = ContractParty::where('contract_id', $addon->contract_id)->orderByDesc('id')->first();
-        $email = trim((string) ($party?->email ?? ''));
-        $pdfPath = (string) $addon->pdf_path;
-        if ($email === '' || $pdfPath === '' || !is_file($pdfPath)) return;
-
-        try {
-            $no      = htmlspecialchars((string) $contract->contract_no, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
-            $svc     = htmlspecialchars((string) $addon->service_name, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
-            $subject = $this->buildSubject('Zrušení služby ke smlouvě ' . $contract->contract_no);
-            $body    = '<p>Dobrý den,</p>'
-                . '<p>v příloze Vám zasíláme dodatek o zrušení služby <strong>' . $svc . '</strong> ke smlouvě <strong>' . $no . '</strong>'
-                . ' s účinností od ' . htmlspecialchars((string) $addon->effective_date?->format('d.m.Y'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . '.</p>'
-                . '<p>Dokument si prosím uschovejte pro svoji evidenci.</p>'
-                . '<p>S pozdravem,<br>PVfree.net, z.s.</p>';
-
-            $q = EmailQueue::create([
-                'from'        => Setting::get('email_default_email', 'noreply@pvfree.net'),
-                'to'          => $email,
-                'subject'     => $subject,
-                'body'        => $body,
-                'state'       => EmailQueue::STATE_NEW,
-                'access_time' => now(),
-            ]);
-            EmailQueueAttachment::create([
-                'email_queue_id' => $q->id,
-                'path'           => $pdfPath,
-                'name'           => 'dodatek-sluzba-zruseni-' . $contract->contract_no . '.pdf',
-                'mime'           => 'application/pdf',
-                'created_at'     => now(),
-            ]);
-            ContractEvent::create([
-                'contract_id' => $contract->id,
-                'event'       => 'service_addon_removal_email_sent',
-                'meta_json'   => json_encode(['to' => $email, 'addon_id' => $addon->id], JSON_UNESCAPED_UNICODE),
-            ]);
-        } catch (\Throwable $e) {
-            \Log::warning('Service removal email failed for contract #' . $contract->id . ': ' . $e->getMessage());
-        }
+        return app(IssueAddonRemovalAction::class)->handle($addon, AddonType::AdditionalService, $pdf);
     }
 
     // ── Dodatek: přípojné místo (contract_addons, type='connection_point') ──
 
-    /**
-     * Vytvoř dodatek „přípojné místo" k podepsané smlouvě jako NÁVRH.
-     * $action = 'add'|'remove'. Snímá místo (allowed_subnets): rychlost a cenu
-     * (dle vlastní rychlosti místa) + adresu; uloží `allowed_subnet_id`. Účtování
-     * místa (charged) se NEMĚNÍ hned — u 'add' se zapne podpisem
-     * (signConnectionPointAddon), u 'remove' vypne vydáním
-     * (issueConnectionPointRemoval). Účinnost = datum podpisu/vydání; předvyplněná.
-     */
+    /** Návrh dodatku „přípojné místo" — viz CreateConnectionPointAddonAction. */
     public function createConnectionPointAddon(int $contractId, int $allowedSubnetId, string $action = 'add', string $address = ''): ?ContractAddon
     {
-        $contract = Contract::find($contractId);
-        if (!$contract || $contract->status !== 'signed') {
-            return null;
-        }
-        if (!in_array($action, ['add', 'remove'], true)) {
-            return null;
-        }
-
-        // Snímek místa z výchozí DB (allowed_subnets + podsíť + rychlost). Musí
-        // patřit členovi té smlouvy.
-        $place = DB::table('allowed_subnets as a')
-            ->leftJoin('subnets as s', 's.id', '=', 'a.subnet_id')
-            ->leftJoin('speed_classes as sc_place', 'sc_place.id', '=', 'a.speed_class_id')
-            ->where('a.id', $allowedSubnetId)
-            ->where('a.member_id', $contract->member_id)
-            ->first([
-                's.name as subnet_name',
-                'sc_place.name as place_speed', 'sc_place.price as place_price',
-            ]);
-        if (!$place) {
-            return null;
-        }
-
-        // Rychlost a cena z VLASTNÍ rychlosti místa (cena vždy podle rychlosti).
-        $speedName = $place->place_speed;
-        $fee       = $place->place_price ?? 0;
-
-        // Do dodatku jde ADRESA připojení (ne technický název podsítě). Předvyplňuje
-        // se ze zařízení v podsíti, admin ji může upravit — ale musí být vyplněná,
-        // jinak dodatek nevytvoříme.
-        $address = trim($address);
-        if ($address === '') {
-            return null;
-        }
-
-        $maxNo   = (int) (ContractAddon::where('contract_id', $contractId)->max('addon_no') ?? 0);
-        $addonNo = max($maxNo, $contract->addon ? 1 : 0) + 1;
-
-        $addon = ContractAddon::create([
-            'contract_id'      => $contractId,
-            'type'             => 'connection_point',
-            'addon_no'         => $addonNo,
-            'service_name'     => $address,
-            'service_price'    => (float) $fee,
-            'service_action'   => $action,
-            'place_speed_name' => $speedName,
-            'allowed_subnet_id' => $allowedSubnetId,
-            // Účinnost = den podpisu/vydání (apply-on-sign). Předvyplněno na dnešek.
-            'effective_date'   => now()->toDateString(),
-            'status'           => 'draft',
-            'created_by'       => auth()->user()?->login,
-            'created_at'       => now()->format('Y-m-d H:i:s'),
-        ]);
-
-        ContractEvent::create([
-            'contract_id' => $contractId,
-            'event'       => 'connection_point_addon_created',
-            'meta_json'   => json_encode([
-                'addon_id'          => $addon->id,
-                'action'            => $action,
-                'allowed_subnet_id' => $allowedSubnetId,
-                'by'                => auth()->user()?->login,
-            ]),
-        ]);
-
-        return $addon;
+        return app(CreateConnectionPointAddonAction::class)->handle($contractId, $allowedSubnetId, $action, $address);
     }
 
     public function deleteConnectionPointAddon(ContractAddon $addon): bool
     {
-        if ($addon->status === 'signed') {
-            return false;
-        }
-        $path = $this->serviceAddonPdfPath($addon); // cesta k PDF je typově neutrální
-        if ($path && file_exists($path)) {
-            @unlink($path);
-        }
-        $cid = $addon->contract_id;
-        $aid = $addon->id;
-        $addon->delete();
-
-        ContractEvent::create([
-            'contract_id' => $cid,
-            'event'       => 'connection_point_addon_deleted',
-            'meta_json'   => json_encode(['addon_id' => $aid, 'by' => auth()->user()?->login]),
-        ]);
-
-        return true;
+        return app(DeleteAddonAction::class)->handle($addon, AddonType::ConnectionPoint);
     }
 
     /** Všechny dodatky „přípojné místo" dané smlouvy (nejnovější první). */
     public function connectionPointAddons(int $contractId)
     {
-        return ContractAddon::where('contract_id', $contractId)
-            ->where('type', 'connection_point')
-            ->orderByDesc('id')
-            ->get();
+        return app(ContractAddonRepository::class)->forContract($contractId, AddonType::ConnectionPoint);
     }
 
     public function getConnectionPointAddon(int $id): ?ContractAddon
     {
-        return ContractAddon::where('type', 'connection_point')->find($id);
+        return app(ContractAddonRepository::class)->find($id, AddonType::ConnectionPoint);
     }
 
     /** Podpisový odkaz dodatku přípojného místa (jen přidání). */
@@ -888,165 +357,16 @@ class ContractService
         return app(SignLinkToken::class)->addonId($token);
     }
 
-    /** Finalizuje dodatek přípojného místa (podepsané PDF). Volá se po ověření OTP. */
+    /** Finalizace po OTP + zapnutí účtování místa — viz SignAddonAction. */
     public function signConnectionPointAddon(ContractAddon $addon, PdfService $pdf, ?Request $request = null): ContractAddon
     {
-        // Účinnost = den podpisu (apply-on-sign). Před renderem PDF.
-        $addon->effective_date = now()->toDateString();
-
-        $fullpath = $pdf->renderConnectionPointAddonPdf($addon, false, $request);
-        $raw      = (string) @file_get_contents($fullpath);
-        $sha256   = hash('sha256', $raw);
-
-        $addon->update([
-            'status'         => 'signed',
-            'signed_at'      => now(),
-            'pdf_path'       => $fullpath,
-            'effective_date' => $addon->effective_date,
-        ]);
-
-        ContractEvent::create([
-            'contract_id' => $addon->contract_id,
-            'event'       => 'connection_point_addon_signed',
-            'meta_json'   => json_encode(['addon_id' => $addon->id, 'sha256' => $sha256], JSON_UNESCAPED_UNICODE),
-        ]);
-
-        // Zapnutí účtování místa AŽ TEĎ (po podpisu). Billing
-        // (AllowedSubnetFeesResolver/DeductFees) účtuje místa s charged=1.
-        if ($addon->service_action === 'add' && $addon->allowed_subnet_id) {
-            $this->applyConnectionPointCharged($addon, true);
-        }
-
-        return $addon->refresh();
+        return app(SignAddonAction::class)->handle($addon, AddonType::ConnectionPoint, $pdf, $request);
     }
 
-    /**
-     * Přepne účtování (charged) přípojného místa dodatku na $charged. Přes
-     * Eloquent instance (audit). Ověří, že místo patří členovi smlouvy; při
-     * zapínání musí mít vlastní rychlost (jinak nelze účtovat — konzistentní
-     * s AllowedSubnetController::updateBilling).
-     */
-    private function applyConnectionPointCharged(ContractAddon $addon, bool $charged): void
-    {
-        $memberId = Contract::find($addon->contract_id)?->member_id;
-        if (!$memberId) {
-            return;
-        }
-
-        $as = \App\Models\AllowedSubnet::where('id', $addon->allowed_subnet_id)
-            ->where('member_id', $memberId)
-            ->first();
-        if (!$as) {
-            return;
-        }
-        if ($charged && !$as->speed_class_id) {
-            // Bez vlastní rychlosti nelze účtovat — přeskočit (nemělo by nastat,
-            // výběr do dodatku nabízí jen místa s rychlostí).
-            return;
-        }
-        if ((bool) $as->charged === $charged) {
-            return; // beze změny
-        }
-
-        $as->update(['charged' => $charged]);
-
-        ContractEvent::create([
-            'contract_id' => $addon->contract_id,
-            'event'       => $charged ? 'connection_point_addon_applied' : 'connection_point_addon_removal_applied',
-            'meta_json'   => json_encode([
-                'addon_id'          => $addon->id,
-                'member_id'         => $memberId,
-                'allowed_subnet_id' => (int) $addon->allowed_subnet_id,
-                'charged'           => $charged,
-            ], JSON_UNESCAPED_UNICODE),
-        ]);
-    }
-
-    /**
-     * Vydá dodatek „zrušení přípojného místa" bez podpisu zákazníka
-     * (poskytovatel) — zrušení snižuje závazek, proto bez OTP. Jen
-     * type='connection_point' a service_action='remove'.
-     */
+    /** Vydání zrušení přípojného místa bez podpisu zákazníka — viz IssueAddonRemovalAction. */
     public function issueConnectionPointRemoval(ContractAddon $addon, PdfService $pdf): ?ContractAddon
     {
-        if ($addon->type !== 'connection_point' || $addon->service_action !== 'remove' || $addon->status === 'signed') {
-            return null;
-        }
-
-        // Účinnost = den vydání. Před renderem PDF.
-        $addon->effective_date = now()->toDateString();
-
-        $fullpath = $pdf->renderConnectionPointAddonPdf($addon, false, null);
-        $raw      = (string) @file_get_contents($fullpath);
-        $sha256   = hash('sha256', $raw);
-
-        $addon->update([
-            'status'         => 'signed',
-            'signed_at'      => now(),
-            'pdf_path'       => $fullpath,
-            'effective_date' => $addon->effective_date,
-        ]);
-
-        ContractEvent::create([
-            'contract_id' => $addon->contract_id,
-            'event'       => 'connection_point_addon_removal_issued',
-            'meta_json'   => json_encode(['addon_id' => $addon->id, 'sha256' => $sha256], JSON_UNESCAPED_UNICODE),
-        ]);
-
-        // Vypnutí účtování místa AŽ TEĎ (vydání dodatku o zrušení).
-        if ($addon->allowed_subnet_id) {
-            $this->applyConnectionPointCharged($addon, false);
-        }
-
-        $this->emailConnectionPointRemoval($addon);
-
-        return $addon->refresh();
-    }
-
-    /** Best-effort: pošle zákazníkovi PDF zrušení přípojného místa. */
-    private function emailConnectionPointRemoval(ContractAddon $addon): void
-    {
-        $contract = Contract::find($addon->contract_id);
-        if (!$contract) return;
-
-        $party = ContractParty::where('contract_id', $addon->contract_id)->orderByDesc('id')->first();
-        $email = trim((string) ($party?->email ?? ''));
-        $pdfPath = (string) $addon->pdf_path;
-        if ($email === '' || $pdfPath === '' || !is_file($pdfPath)) return;
-
-        try {
-            $no      = htmlspecialchars((string) $contract->contract_no, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
-            $place   = htmlspecialchars((string) $addon->service_name, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
-            $subject = $this->buildSubject('Zrušení přípojného místa ke smlouvě ' . $contract->contract_no);
-            $body    = '<p>Dobrý den,</p>'
-                . '<p>v příloze Vám zasíláme dodatek o zrušení přípojného místa <strong>' . $place . '</strong> ke smlouvě <strong>' . $no . '</strong>'
-                . ' s účinností od ' . htmlspecialchars((string) $addon->effective_date?->format('d.m.Y'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . '.</p>'
-                . '<p>Dokument si prosím uschovejte pro svoji evidenci.</p>'
-                . '<p>S pozdravem,<br>PVfree.net, z.s.</p>';
-
-            $q = EmailQueue::create([
-                'from'        => Setting::get('email_default_email', 'noreply@pvfree.net'),
-                'to'          => $email,
-                'subject'     => $subject,
-                'body'        => $body,
-                'state'       => EmailQueue::STATE_NEW,
-                'access_time' => now(),
-            ]);
-            EmailQueueAttachment::create([
-                'email_queue_id' => $q->id,
-                'path'           => $pdfPath,
-                'name'           => 'dodatek-misto-zruseni-' . $contract->contract_no . '.pdf',
-                'mime'           => 'application/pdf',
-                'created_at'     => now(),
-            ]);
-            ContractEvent::create([
-                'contract_id' => $contract->id,
-                'event'       => 'connection_point_addon_removal_email_sent',
-                'meta_json'   => json_encode(['to' => $email, 'addon_id' => $addon->id], JSON_UNESCAPED_UNICODE),
-            ]);
-        } catch (\Throwable $e) {
-            \Log::warning('Connection-point removal email failed for contract #' . $contract->id . ': ' . $e->getMessage());
-        }
+        return app(IssueAddonRemovalAction::class)->handle($addon, AddonType::ConnectionPoint, $pdf);
     }
 
     private function buildPartyData(Member $member): array
