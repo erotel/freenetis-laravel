@@ -22,8 +22,8 @@ use Tests\DatabaseTestCase;
  *   nespárováno: neznámý VS, VS „+U", čekatel 17/18, platba na špatný účet
  *   po importu: potvrzení / faktura + dohnání blokovaných poplatků; audit dávky
  *
- * Zachycená CHYBA: spárovaný vklad pokladnou bez účtu pokladny (211000)
- * přepíše bank_transfer_id u potvrzení PŘEDCHOZÍ platby.
+ * Spárovaný vklad pokladnou bez účtu pokladny (211000) nesmí přepsat
+ * bank_transfer_id u potvrzení předchozí platby (do 2026-10-16 přepisoval).
  */
 class BankImportTest extends DatabaseTestCase
 {
@@ -212,7 +212,7 @@ class BankImportTest extends DatabaseTestCase
         $this->assertSame([null, $this->bankAccountId], [$this->bt($c + 2)->origin_id, (int) $this->bt($c + 2)->destination_id]);
     }
 
-    public function test_chyba_vklad_pokladnou_bez_uctu_pokladny_prepise_id_predchozi_platby(): void
+    public function test_vklad_pokladnou_bez_uctu_pokladny_neprepise_id_predchozi_platby(): void
     {
         DB::table('accounts')->where('account_attribute_id', 211000)->update(['account_attribute_id' => 221000]);  // „bez účtu pokladny" (rollback testu)
         [$b, $bCredit, $bVs] = $this->member(2);
@@ -224,7 +224,7 @@ class BankImportTest extends DatabaseTestCase
         $this->assertNull($this->bt($c + 2)->transfer_id, 'vklad bez účtu pokladny: bez převodu');
         $this->assertEqualsWithDelta(0, $this->balance($bCredit), 0.001);
         $mail = DB::table('email_queues')->where('to', "charbank{$this->memberId}@example.invalid")->first();
-        $this->assertSame('PID=' . $this->bt($c + 2)->id . ';AMT=100,00', $mail->body, 'CHYBA: potvrzení platby A nese id převodu B');
+        $this->assertSame('PID=' . $this->bt($c + 1)->id . ';AMT=100,00', $mail->body, 'potvrzení platby A nese id SVÉHO převodu');
     }
 
     // ── odchozí ──────────────────────────────────────────────────────────────

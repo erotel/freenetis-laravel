@@ -75,7 +75,8 @@ class ImportBankStatementAction
                 $bt->specific_symbol   = $row['ss'] ?? null;
                 $bt->comment           = isset($row['identifikace']) && $row['identifikace'] !== '' ? $row['identifikace'] : ($row['zprava'] ?? null);
 
-                $match = null;
+                $match   = null;
+                $payment = null; // index platby přidané TÍMTO řádkem
                 if (!$isIncoming) {
                     $bt->origin_id      = $account->id;
                     $bt->destination_id = null;
@@ -106,6 +107,7 @@ class ImportBankStatementAction
                             $this->ledger->post($bankId, $match['creditAccountId'], $bt->transfer_id, $match['memberId'], $userId, null,
                                 $datetime, $now, 'Přiřazení platby', $absAmount);
                             $payments[] = ['memberId' => $match['memberId'], 'amount' => $absAmount];
+                            $payment    = array_key_last($payments);
                         }
                     }
                 }
@@ -120,10 +122,10 @@ class ImportBankStatementAction
                     $this->reconciler->reconcile($bt, $account, (string) ($row['identifikace'] ?? $row['zprava'] ?? ''), $absAmount);
                 }
 
-                // Id bankovního převodu ke spárované platbě. POZOR (legacy): přiřazuje se
-                // poslední platbě v seznamu — i když tento řádek žádnou nepřidal.
-                if (!empty($payments) && $match) {
-                    $payments[count($payments) - 1]['bankTransferId'] = $bt->id;
+                // Id bankovního převodu jen k platbě z tohoto řádku (spárovaný vklad
+                // pokladnou bez účtu pokladny platbu nepřidá a cizí id nesmí přepsat).
+                if ($payment !== null) {
+                    $payments[$payment]['bankTransferId'] = $bt->id;
                 }
             }
         });
