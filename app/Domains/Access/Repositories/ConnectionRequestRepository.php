@@ -12,8 +12,8 @@ class ConnectionRequestRepository
      * Podsíť, do které IP patří, pokud je IP v ní volná (bez ip_addresses) a nemá
      * čekající žádost. null = IP není v žádné podsíti / je obsazená / čeká.
      *
-     * POZOR (legacy): `? NOT IN (SELECT ip_address …)` — čekající žádost s NULL
-     * ip_address způsobí, že podmínka nikdy neplatí (viz charakterizace).
+     * Samoobslužné žádosti mohou mít ip_address NULL — v NOT IN se vynechávají
+     * (NULL v seznamu by podmínku pro všechny IP zneplatnil).
      */
     public function freeSubnetFor(string $ip): ?int
     {
@@ -26,7 +26,7 @@ class ConnectionRequestRepository
             LEFT JOIN ip_addresses ip ON ip.subnet_id = s.subnet_id
                 AND inet_aton(ip.ip_address) = inet_aton(?)
             WHERE ? NOT IN (
-                SELECT cr.ip_address FROM connection_requests cr WHERE cr.state = ?
+                SELECT cr.ip_address FROM connection_requests cr WHERE cr.state = ? AND cr.ip_address IS NOT NULL
             )
             GROUP BY s.subnet_id
             HAVING COUNT(ip.id) = 0

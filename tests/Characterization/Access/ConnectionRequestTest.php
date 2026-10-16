@@ -19,8 +19,8 @@ use Tests\DatabaseTestCase;
  * registrace zařízení), zamítnutí (+ zpráva 14). PPPoE onboarding:
  * Access/DeviceFromConnectionRequestTest, Feature/Devices/Pppoe*Test.
  *
- * Zachycená CHYBA: „je IP volná?" používá `? NOT IN (SELECT ip_address …)` —
- * čekající samoobslužná žádost bez IP (NULL) způsobí, že žádná IP volná není.
+ * Čekající samoobslužná žádost bez IP (NULL) nesmí zablokovat volnost ostatních
+ * IP (do 2026-10-16 `NOT IN` s NULL tvrdil, že žádná IP volná není).
  */
 class ConnectionRequestTest extends DatabaseTestCase
 {
@@ -165,11 +165,11 @@ class ConnectionRequestTest extends DatabaseTestCase
             ->assertViewHas('members', fn ($m) => $m->get($this->memberId) === 'Zadatel Petr');
     }
 
-    public function test_chyba_cekajici_zadost_bez_ip_zablokuje_vsechny_ip(): void
+    public function test_cekajici_zadost_bez_ip_neblokuje_ostatni_ip(): void
     {
         $this->cr(['ip_address' => null, 'subnet_id' => null]);
-        $this->as()->from(route('connection_requests.index'))->get(route('connection_requests.create', [$this->subnetId, '10.250.22.23']))
-            ->assertSessionHas('warning', 'IP adresa již není volná nebo má čekající žádost.');
+        $this->as()->get(route('connection_requests.create', [$this->subnetId, '10.250.22.23']))->assertOk()
+            ->assertViewHas('ipAddress', '10.250.22.23');
     }
 
     // ── samoobslužná žádost ──────────────────────────────────────────────────
