@@ -3,7 +3,7 @@
 namespace App\Domains\Billing\Listeners;
 
 use App\Domains\Billing\Events\PaymentReceived;
-use App\Services\PaymentBackchargeService;
+use App\Domains\Billing\Actions\ChargeOverdueFeesAction;
 use App\Services\PaymentBlockedRedirectService;
 use Illuminate\Support\Facades\Log;
 
@@ -17,7 +17,7 @@ class BackchargeAfterPayment
     public function handle(PaymentReceived $event): void
     {
         try {
-            if (app(PaymentBackchargeService::class)->backchargeForMember($event->memberId, date('Y-m-d'))) {
+            if (app(ChargeOverdueFeesAction::class)->handle($event->memberId, date('Y-m-d'))) {
                 app(PaymentBlockedRedirectService::class)->refreshForMember($event->memberId);
             }
         } catch (\Throwable $e) {

@@ -326,6 +326,22 @@ class LedgerRepository
             ->update(['payment_blocked' => 0, 'payment_blocked_since' => null]) > 0;
     }
 
+    /** Konec blokace po dohnání dluhu: flag, datum vzniku dluhu i označení k ukončení. */
+    public function clearPaymentBlock(int $memberId): void
+    {
+        DB::table('members')->where('id', $memberId)->update([
+            'payment_blocked'       => 0,
+            'payment_blocked_since' => null,
+            'pending_termination'   => 0,
+        ]);
+    }
+
+    /** Aktuální zůstatek účtu. */
+    public function balance(int $accountId): float
+    {
+        return (float) DB::table('accounts')->where('id', $accountId)->value('balance');
+    }
+
     /**
      * Přepočet zůstatku účtu ze všech převodů (Kohana recalculate_account_balance_of_account).
      * Balance = SUM(incoming) - SUM(outgoing)
