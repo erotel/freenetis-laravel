@@ -21,6 +21,7 @@ use App\Services\Contracts\PdfService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
+use Symfony\Component\HttpFoundation\BinaryFileResponse;
 
 class PublicSignController extends Controller
 {
@@ -233,17 +234,17 @@ class PublicSignController extends Controller
 
     public function showTariffAddon(Request $request)            { return $this->addonView($request, AddonType::TariffChange); }
     public function tariffAddonInfo(Request $request): JsonResponse { return $this->addonInfo($request, AddonType::TariffChange); }
-    public function previewTariffAddon(Request $request): Response  { return $this->addonPreview($request, AddonType::TariffChange); }
+    public function previewTariffAddon(Request $request): Response|BinaryFileResponse  { return $this->addonPreview($request, AddonType::TariffChange); }
     public function verifyTariffAddonOtp(Request $request): JsonResponse { return $this->verifyTypedAddonOtp($request, AddonType::TariffChange); }
 
     public function showServiceAddon(Request $request)            { return $this->addonView($request, AddonType::AdditionalService); }
     public function serviceAddonInfo(Request $request): JsonResponse { return $this->addonInfo($request, AddonType::AdditionalService); }
-    public function previewServiceAddon(Request $request): Response  { return $this->addonPreview($request, AddonType::AdditionalService); }
+    public function previewServiceAddon(Request $request): Response|BinaryFileResponse  { return $this->addonPreview($request, AddonType::AdditionalService); }
     public function verifyServiceAddonOtp(Request $request): JsonResponse { return $this->verifyTypedAddonOtp($request, AddonType::AdditionalService); }
 
     public function showConnectionPointAddon(Request $request)            { return $this->addonView($request, AddonType::ConnectionPoint); }
     public function connectionPointAddonInfo(Request $request): JsonResponse { return $this->addonInfo($request, AddonType::ConnectionPoint); }
-    public function previewConnectionPointAddon(Request $request): Response  { return $this->addonPreview($request, AddonType::ConnectionPoint); }
+    public function previewConnectionPointAddon(Request $request): Response|BinaryFileResponse  { return $this->addonPreview($request, AddonType::ConnectionPoint); }
     public function verifyConnectionPointAddonOtp(Request $request): JsonResponse { return $this->verifyTypedAddonOtp($request, AddonType::ConnectionPoint); }
 
     private function addonView(Request $request, AddonType $type)
@@ -270,7 +271,7 @@ class PublicSignController extends Controller
     }
 
     /** Náhled: podepsaný = uložené PDF, jinak vykreslený návrh. */
-    private function addonPreview(Request $request, AddonType $type): Response
+    private function addonPreview(Request $request, AddonType $type): Response|BinaryFileResponse
     {
         $addon = $this->resolveAddon($request, $type);
         if (!$addon) return response('', 401);

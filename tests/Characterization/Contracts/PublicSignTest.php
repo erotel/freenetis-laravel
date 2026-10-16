@@ -18,7 +18,7 @@ use Tests\DatabaseTestCase;
  * starý dodatek, výpověď, stažení přes token a tři typy dodatků (info,
  * náhled, ověření OTP → podpis + e-mail + stažení). PDF a SMS podvržené.
  *
- * Zachycená CHYBA: náhled už podepsaného dodatku = HTTP 500 (návratový typ).
+ * Náhled už podepsaného dodatku vrací uložené PDF (do 2026-10-16 HTTP 500).
  */
 class PublicSignTest extends DatabaseTestCase
 {
@@ -266,9 +266,8 @@ class PublicSignTest extends DatabaseTestCase
 
             $this->postJson(route("sign.{$route}.otp.verify"), ['t' => $t, 'otp' => '1234'])->assertStatus(409)->assertExactJson(['error' => 'Dodatek je již podepsán.']);
             $this->assertSame(1, $this->postJson(route("sign.{$route}.info"), ['t' => $t])->json('signed'));
-            // CHYBA: náhled podepsaného dodatku vrací uložené PDF (BinaryFileResponse),
-            // ale metoda deklaruje návratový typ Response → TypeError → HTTP 500.
-            $this->get(route("sign.{$route}.preview", ['t' => $t]))->assertStatus(500);
+            $res = $this->get(route("sign.{$route}.preview", ['t' => $t]))->assertOk();
+            $this->assertSame('inline; filename="' . $previewName . '.pdf"', $res->headers->get('Content-Disposition'), 'podepsaný → uložené PDF');
         }
 
         $svcInfo = $this->postJson(route('sign.service_addon.info'), ['t' => $tokens[1]])->json();
