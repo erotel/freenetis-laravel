@@ -2,19 +2,20 @@
 
 namespace App\Http\Controllers;
 
+use App\Domains\Access\Actions\RejectConnectionRequestAction;
+use App\Domains\Access\Actions\SubmitConnectionRequestAction;
+use App\Domains\Access\Onboarding\ConnectionDetector;
+use App\Domains\Access\Repositories\ConnectionRequestRepository;
+use App\Domains\Network\Queries\DeviceFormQuery;
 use App\Models\ConnectionRequest;
 use App\Models\DeviceTemplate;
-use App\Models\EmailQueue;
 use App\Models\EnumType;
 use App\Models\Member;
 use App\Models\Setting;
 use App\Models\Subnet;
-use App\Models\User;
-use App\Domains\Access\Pppoe\PppoeCredentialGenerator;
-use App\Services\SnmpMacDetector;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\DB;
 
+/** Žádosti o připojení (onboarding). Logika v app/Domains/Access. */
 class ConnectionRequestController extends Controller
 {
     const ACL_SECTION = 'Connection_Requests_Controller';
@@ -27,32 +28,6 @@ class ConnectionRequestController extends Controller
         if (!Setting::get('connection_request_enable')) {
             abort(403, 'Connection requests are not enabled.');
         }
-    }
-
-    private function ipInSubnet(string $ip, string $network, string $netmask): bool
-    {
-        return (ip2long($ip) & ip2long($netmask)) === (ip2long($network) & ip2long($netmask));
-    }
-
-    /** Find subnet_id for an IP that is free and has no pending request */
-    private function getSubnetForConnectionRequest(string $ip): ?int
-    {
-        $row = DB::selectOne("
-            SELECT s.subnet_id FROM (
-                SELECT s.id AS subnet_id
-                FROM subnets s
-                WHERE inet_aton(s.netmask) & inet_aton(?) = inet_aton(s.network_address)
-            ) s
-            LEFT JOIN ip_addresses ip ON ip.subnet_id = s.subnet_id
-                AND inet_aton(ip.ip_address) = inet_aton(?)
-            WHERE ? NOT IN (
-                SELECT cr.ip_address FROM connection_requests cr WHERE cr.state = ?
-            )
-            GROUP BY s.subnet_id
-            HAVING COUNT(ip.id) = 0
-        ", [$ip, $ip, $ip, ConnectionRequest::STATE_UNDECIDED]);
-
-        return $row?->subnet_id;
     }
 
     private function deviceTypes(): array
@@ -159,35 +134,12 @@ class ConnectionRequestController extends Controller
     // ── Create ────────────────────────────────────────────────────────────────
 
     /**
-     * Seznam členů pro výběr vlastníka připojení.
-     * Stejná logika jako picker v Devices: fyzické osoby zobrazí jako
-     * „Příjmení Jméno" z hlavního uživatele (type = MAIN_USER), seřazené podle
-     * příjmení; pokud surname/jméno chybí (organizace, legacy), fallback na
-     * members.name.
-     *
-     * @return \Illuminate\Support\Collection<int, string>  id => popisek
+     * Výběr vlastníka připojení: id => „Příjmení Jméno" hlavního uživatele
+     * (fallback members.name) — stejný výběr jako u zařízení.
      */
     private function membersForSelect(): \Illuminate\Support\Collection
     {
-        return DB::table('members as m')
-            ->join('users as u', function ($j) {
-                $j->on('u.member_id', '=', 'm.id')
-                  ->where('u.type', '=', User::MAIN_USER);
-            })
-            ->select('m.id', 'm.name', 'u.surname', 'u.name as user_name')
-            ->orderBy('u.surname')
-            ->orderBy('u.name')
-            ->orderBy('u.id')
-            ->get()
-            ->unique('id')
-            ->mapWithKeys(function ($row) {
-                $surname = trim((string) $row->surname);
-                $name    = trim((string) $row->user_name);
-                $label   = ($surname !== '' && $name !== '')
-                    ? $surname . ' ' . $name
-                    : $row->name;
-                return [$row->id => $label];
-            });
+        return app(DeviceFormQuery::class)->membersForPicker()->mapWithKeys(fn ($row) => [$row->id => $row->display_name]);
     }
 
     /**
@@ -219,7 +171,7 @@ class ConnectionRequestController extends Controller
     /**
      * Uloží proaktivní self-service žádost (member_id = přihlášený člen).
      */
-    public function storeRequest(Request $request)
+    public function storeRequest(Request $request, ConnectionRequestRepository $requests, SubmitConnectionRequestAction $submit)
     {
         $canNewAll = $this->aclCheck('new_all', self::ACL_SECTION, self::ACL_KEY);
         $canNewOwn = $this->aclCheck('new_own', self::ACL_SECTION, self::ACL_KEY);
@@ -235,13 +187,12 @@ class ConnectionRequestController extends Controller
         $detected = $this->detectCurrentConnection($request);
 
         // Brání duplicitní čekající žádosti pro stejnou (detekovanou) IP.
-        if ($detected && ConnectionRequest::where('ip_address', $detected['ip'])
-                ->where('state', ConnectionRequest::STATE_UNDECIDED)->exists()) {
+        if ($detected && $requests->hasPendingForIp($detected['ip'])) {
             $detected = null;
         }
 
-        // MAC je povinný — bez něj technik zařízení v DHCP nedohledá. Když se
-        // podařilo detekovat přes SNMP, použijeme ho; jinak ho zadá zákazník.
+        // MAC je povinný — bez něj technik zařízení v DHCP nedohledá. Detekovaný
+        // (radacct/SNMP) má přednost, jinak ho zadá zákazník.
         $hasDetectedMac = $detected && !empty($detected['mac']);
 
         $rules = [
@@ -254,120 +205,29 @@ class ConnectionRequestController extends Controller
         }
         $data = $request->validate($rules, [], ['mac_address' => 'MAC adresa']);
 
-        $mac = $hasDetectedMac
-            ? $detected['mac']
-            : strtoupper(str_replace('-', ':', $data['mac_address']));
-
-        $cr = ConnectionRequest::create([
-            'member_id'          => $memberId,
-            'added_user_id'      => auth()->id(),
-            'decided_user_id'    => null,
-            'state'              => ConnectionRequest::STATE_UNDECIDED,
-            'created_at'         => now(),
-            'decided_at'         => null,
+        $submit->handle($memberId, auth()->id(), [
             'ip_address'         => $detected['ip'] ?? null,
             'subnet_id'          => $detected['subnet_id'] ?? null,
-            'mac_address'        => $mac,
-            'device_id'          => null,
+            'mac_address'        => $hasDetectedMac ? $detected['mac'] : strtoupper(str_replace('-', ':', $data['mac_address'])),
             'device_type_id'     => $data['device_type_id'] ?? null,
             'device_template_id' => $data['device_template_id'] ?? null,
             'comment'            => $data['comment'] ?? null,
-            'comments_thread_id' => null,
-            ...$this->pppoeCredentialFor($memberId),
-        ]);
-
-        // Notifikace administrátora
-        $notifyEmail = Setting::get('connection_request_notify_email');
-        if ($notifyEmail) {
-            $member = Member::find($memberId);
-            EmailQueue::create([
-                'from'    => Setting::get('email_default_email', 'freenetis@localhost'),
-                'to'      => $notifyEmail,
-                'subject' => 'Nová žádost o připojení — ' . ($member?->name ?? "#{$memberId}"),
-                'body'    => 'Byla podána nová žádost o připojení (self-service).'
-                    . "\n\nČlen: " . ($member?->name ?? "#{$memberId}")
-                    . "\nIP adresa: " . ($detected['ip'] ?? '— doplní technik')
-                    . "\nMAC adresa: " . $mac
-                    . "\nPoznámka: " . ($data['comment'] ?? '—')
-                    . "\n\nDetail: " . route('connection_requests.show', $cr->id),
-                'state'   => EmailQueue::STATE_NEW,
-            ]);
-        }
-
-        // Message 12 — potvrzení žadateli
-        $this->sendMessageToMember(12, $memberId, [
-            'member_name' => Member::find($memberId)?->name ?? '',
-            'comment'     => $data['comment'] ?? '',
-        ]);
+        ], selfService: true);
 
         return redirect()->route('connection_requests.by_member', $memberId)
             ->with('success', 'Žádost o připojení byla odeslána. Ozveme se vám.');
     }
 
-    /**
-     * Zjistí, zda aktuální IP klienta je volná neregistrovaná adresa v nějakém
-     * subnetu (situace „neznámé zařízení") — pak vrátí subnet + MAC (SNMP).
-     *
-     * @return array{subnet_id:int, ip:string, mac:?string}|null
-     */
+    /** Aktuální připojení klienta = volná neregistrovaná IP? @return ?array{subnet_id:int, ip:string, mac:?string} */
     private function detectCurrentConnection(Request $request): ?array
     {
-        $ip = (string) $request->ip();
-        if (!filter_var($ip, FILTER_VALIDATE_IP)) {
-            return null;
-        }
-        $subnetId = $this->getSubnetForConnectionRequest($ip);
-        if ($subnetId === null) {
-            return null;
-        }
-
-        return [
-            'subnet_id' => $subnetId,
-            'ip'        => $ip,
-            'mac'       => $this->detectMac($subnetId, $ip),
-        ];
+        return app(ConnectionDetector::class)->detect((string) $request->ip());
     }
 
-    /**
-     * MAC pro (subnet, ip). Se zapnutým PPPoE modulem nejdřív zkusí RADIUS
-     * accounting (radacct — aktivní PPPoE session podle přidělené pool IP →
-     * Calling-Station-Id), pak fallback na SNMP (starý MAC/IP režim). Během
-     * přechodu běží oba: PPPoE klient přes radacct, DHCP klient přes SNMP.
-     */
+    /** MAC pro (subnet, IP) — radacct (PPPoE) primárně, jinak SNMP; viz ConnectionDetector. */
     private function detectMac(int $subnetId, string $ip): ?string
     {
-        if (Setting::get('pppoe_enabled', 0)) {
-            try {
-                $raw = DB::table('radacct')
-                    ->where('framedipaddress', $ip)
-                    ->whereNull('acctstoptime')
-                    ->orderByDesc('acctstarttime')
-                    ->value('callingstationid');
-                $mac = $raw ? strtoupper(str_replace('-', ':', trim($raw))) : null;
-                if ($mac && preg_match('/^([0-9A-F]{2}:){5}[0-9A-F]{2}$/', $mac)) {
-                    return $mac;
-                }
-            } catch (\Throwable $e) {
-                \Log::warning('radacct MAC lookup selhal', ['ip' => $ip, 'error' => $e->getMessage()]);
-            }
-        }
-        return app(SnmpMacDetector::class)->detectForSubnet($subnetId, $ip);
-    }
-
-    /**
-     * PPPoE credential pro novou žádost — vygeneruje se jen se zapnutým modulem.
-     * Uloží se na žádost, instalátor ho opíše do CPE; při schválení se překlopí
-     * do pppoe_secrets. Vrací pole klíčů rovnou pro ConnectionRequest::create.
-     *
-     * @return array{pppoe_username: ?string, pppoe_secret: ?string}
-     */
-    private function pppoeCredentialFor(int $memberId): array
-    {
-        if (!Setting::get('pppoe_enabled', 0)) {
-            return ['pppoe_username' => null, 'pppoe_secret' => null];
-        }
-        $generator = app(PppoeCredentialGenerator::class);
-        return ['pppoe_username' => $generator->usernameFor($memberId), 'pppoe_secret' => $generator->secret()];
+        return app(ConnectionDetector::class)->mac($subnetId, $ip);
     }
 
     public function create(Request $request, int $subnetId, string $ipAddress = '')
@@ -381,12 +241,12 @@ class ConnectionRequestController extends Controller
 
         // Validate IP is in subnet range
         if (!filter_var($ipAddress, FILTER_VALIDATE_IP)
-            || !$this->ipInSubnet($ipAddress, $subnet->network_address, $subnet->netmask)) {
+            || !ConnectionDetector::ipInSubnet($ipAddress, $subnet->network_address, $subnet->netmask)) {
             abort(400, 'IP adresa není v rozsahu subnetu.');
         }
 
         // Check IP still available
-        if ($this->getSubnetForConnectionRequest($ipAddress) === null) {
+        if (app(ConnectionRequestRepository::class)->freeSubnetFor($ipAddress) === null) {
             return redirect()->back()->with('warning', 'IP adresa již není volná nebo má čekající žádost.');
         }
 
@@ -408,7 +268,7 @@ class ConnectionRequestController extends Controller
 
     // ── Store ─────────────────────────────────────────────────────────────────
 
-    public function store(Request $request)
+    public function store(Request $request, ConnectionRequestRepository $requests, SubmitConnectionRequestAction $submit)
     {
         $canNewAll = $this->aclCheck('new_all', self::ACL_SECTION, self::ACL_KEY);
         $canNewOwn = $this->aclCheck('new_own', self::ACL_SECTION, self::ACL_KEY);
@@ -433,59 +293,23 @@ class ConnectionRequestController extends Controller
 
         $subnet = Subnet::findOrFail($data['subnet_id']);
 
-        if (!$this->ipInSubnet($data['ip_address'], $subnet->network_address, $subnet->netmask)) {
+        if (!ConnectionDetector::ipInSubnet($data['ip_address'], $subnet->network_address, $subnet->netmask)) {
             return back()->withErrors(['ip_address' => 'IP adresa není v rozsahu subnetu.'])->withInput();
         }
-
-        // Check no undecided request for same IP
-        if (ConnectionRequest::where('ip_address', $data['ip_address'])
-                ->where('state', ConnectionRequest::STATE_UNDECIDED)->exists()) {
+        if ($requests->hasPendingForIp($data['ip_address'])) {
             return back()->withErrors(['ip_address' => 'Pro tuto IP adresu již existuje čekající žádost.'])->withInput();
         }
 
         $memberId = $canEditDevices ? (int) $data['member_id'] : auth()->user()?->member_id;
 
-        $cr = ConnectionRequest::create([
-            'member_id'          => $memberId,
-            'added_user_id'      => auth()->id(),
-            'decided_user_id'    => null,
-            'state'              => ConnectionRequest::STATE_UNDECIDED,
-            'created_at'         => now(),
-            'decided_at'         => null,
+        $submit->handle($memberId, auth()->id(), [
             'ip_address'         => $data['ip_address'],
             'subnet_id'          => $data['subnet_id'],
             'mac_address'        => strtoupper($data['mac_address']),
-            'device_id'          => null,
             'device_type_id'     => $data['device_type_id'],
             'device_template_id' => $data['device_template_id'],
             'comment'            => $data['comment'] ?? null,
-            'comments_thread_id' => null,
-            ...$this->pppoeCredentialFor($memberId),
-        ]);
-
-        // Notify admin email
-        $notifyEmail = Setting::get('connection_request_notify_email');
-        if ($notifyEmail) {
-            $member = Member::find($memberId);
-            EmailQueue::create([
-                'from'    => Setting::get('email_default_email', 'freenetis@localhost'),
-                'to'      => $notifyEmail,
-                'subject' => 'Nová žádost o připojení — ' . $data['ip_address'],
-                'body'    => 'Byla podána nová žádost o připojení.'
-                    . "\n\nČlen: " . ($member?->name ?? "#{$memberId}")
-                    . "\nIP adresa: " . $data['ip_address']
-                    . "\nMAC adresa: " . strtoupper($data['mac_address'])
-                    . "\n\nDetail: " . route('connection_requests.show', $cr->id),
-                'state'   => EmailQueue::STATE_NEW,
-            ]);
-        }
-
-        // Message 12 — notify applicant
-        $memberName = Member::find($memberId)?->name ?? '';
-        $this->sendMessageToMember(12, $memberId, [
-            'member_name' => $memberName,
-            'comment'     => $data['comment'] ?? '',
-        ]);
+        ], selfService: false);
 
         return redirect()->route('connection_requests.by_member', $memberId)
             ->with('success', 'Žádost o připojení byla odeslána.');
@@ -510,7 +334,7 @@ class ConnectionRequestController extends Controller
 
     // ── Reject ────────────────────────────────────────────────────────────────
 
-    public function reject(Request $request, int $id)
+    public function reject(Request $request, int $id, RejectConnectionRequestAction $reject)
     {
         abort_unless($this->aclCheck('edit_all', self::ACL_SECTION, self::ACL_KEY), 403);
         $this->checkEnabled();
@@ -521,17 +345,7 @@ class ConnectionRequestController extends Controller
             abort(400, 'Žádost již byla rozhodnuta.');
         }
 
-        $cr->update([
-            'state'           => ConnectionRequest::STATE_REJECTED,
-            'decided_user_id' => auth()->id(),
-            'decided_at'      => now(),
-        ]);
-
-        // Message 14 — notify applicant of rejection
-        $this->sendMessageToMember(14, $cr->member_id, [
-            'member_name' => $cr->member?->name ?? '',
-            'comment'     => $cr->comment ?? '',
-        ]);
+        $reject->handle($cr, auth()->id());
 
         return redirect()->route('connection_requests.show', $id)
             ->with('success', 'Žádost byla zamítnuta.');
