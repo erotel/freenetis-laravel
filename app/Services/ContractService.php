@@ -2,6 +2,10 @@
 
 namespace App\Services;
 
+use App\Domains\Contracts\Actions\IssueSignLinkAction;
+use App\Domains\Contracts\Support\MemberContacts;
+use App\Domains\Contracts\Support\SignLinkKind;
+use App\Domains\Contracts\Support\SignLinkToken;
 use App\Models\Contract;
 use App\Models\ContractAddon;
 use App\Models\ContractEvent;
@@ -19,7 +23,6 @@ use Illuminate\Support\Facades\DB;
 class ContractService
 {
     private string $smlouvyUrl;
-    private string $tokenSecret;
     private string $storageBase;
 
     public function __construct()
@@ -27,20 +30,10 @@ class ContractService
         // Čteme přes config() místo env() — env() vrací null po `php artisan config:cache`,
         // pokud klíč není mapovaný v config/*.php souboru. Mapujeme v config/services.php.
         $this->smlouvyUrl  = rtrim((string) config('services.contracts.smlouvy_url', 'https://smlouvy.pvfree.net'), '/');
-        $this->tokenSecret = (string) config('services.contracts.token_secret', '');
         $this->storageBase = rtrim((string) config('services.contracts.storage', '/var/www/contract-app/storage/contracts'), '/');
 
-        // Bezpečnostní guard: prázdný/krátký/placeholder secret = forgeable HMAC tokeny.
-        // Hex z `openssl rand -hex 32` má 64 znaků; akceptujeme min. 32.
-        if (
-            strlen($this->tokenSecret) < 32
-            || $this->tokenSecret === 'long_random_hex_64'
-        ) {
-            throw new \RuntimeException(
-                'CONTRACTS_TOKEN_SECRET není nastaven nebo je příliš krátký (min. 32 znaků). '
-                . 'Vygeneruj např. `openssl rand -hex 32` a nastav v .env, pak spusť `php artisan config:cache`.'
-            );
-        }
+        // Bezpečnostní guard tajemství podpisových tokenů (vyhodí výjimku při slabém secretu).
+        app(SignLinkToken::class);
     }
 
     public function getByMemberId(int $memberId): ?Contract
@@ -356,67 +349,20 @@ class ContractService
         return ContractAddon::where('type', 'tariff_change')->find($id);
     }
 
-    /**
-     * Vydá podpisový odkaz pro dodatek. Token nese cid (pro /sign/info + addon OTP)
-     * i aid (pro náhled a finalizaci konkrétního dodatku). Odešle e-mail zákazníkovi.
-     */
+    /** Podpisový odkaz dodatku tarifu (token nese cid i aid) + e-mail zákazníkovi. */
     public function issueTariffAddonLink(int $addonId): array
     {
         $addon = ContractAddon::find($addonId);
         if (!$addon) {
             return ['url' => null, 'email_sent' => false, 'email' => null];
         }
-        $contractId = (int) $addon->contract_id;
-
-        $payload = [
-            'cid' => $contractId,
-            'aid' => $addonId,
-            'exp' => time() + (7 * 86400),
-            'rnd' => bin2hex(random_bytes(8)),
-        ];
-        $json  = json_encode($payload, JSON_UNESCAPED_SLASHES);
-        $sig   = hash_hmac('sha256', $json, $this->tokenSecret, true);
-        $token = $this->b64url($json) . '.' . $this->b64url($sig);
-
-        if ($addon->status === 'draft') {
-            $addon->update(['status' => 'otp_sent']);
-        }
-
-        ContractEvent::create([
-            'contract_id' => $contractId,
-            'event'       => 'tariff_addon_link_issued',
-            'meta_json'   => json_encode([
-                'addon_id' => $addonId,
-                'by'       => auth()->user()?->login,
-                'token'    => substr($token, 0, 20) . '…',
-            ]),
-        ]);
-
-        $url   = route('sign.tariff_addon.show', ['t' => $token]);
-        $email = $this->queueSignLinkEmail($contractId, $url, true);
-
-        return ['url' => $url, 'email_sent' => $email !== null, 'email' => $email];
+        return app(IssueSignLinkAction::class)->handle((int) $addon->contract_id, SignLinkKind::TariffAddon, $addon);
     }
 
     /** Ověří podpisový token dodatku (sig + exp). Vrací addon_id, nebo null. */
     public function verifyTariffAddonToken(string $token): ?int
     {
-        $parts = explode('.', $token, 2);
-        if (count($parts) !== 2) return null;
-
-        [$p64, $s64] = $parts;
-        $json = $this->b64urlDec($p64);
-        $sig  = $this->b64urlDec($s64);
-        if ($json === '' || $sig === '') return null;
-
-        $calc = hash_hmac('sha256', $json, $this->tokenSecret, true);
-        if (!hash_equals($calc, $sig)) return null;
-
-        $data = json_decode($json, true);
-        if (!is_array($data) || ((int) ($data['exp'] ?? 0)) < time()) return null;
-
-        $aid = (int) ($data['aid'] ?? 0);
-        return $aid > 0 ? $aid : null;
+        return app(SignLinkToken::class)->addonId($token);
     }
 
     /**
@@ -584,68 +530,20 @@ class ContractService
         return ContractAddon::where('type', 'additional_service')->find($id);
     }
 
-    /**
-     * Vydá podpisový odkaz pro dodatek služby. Token nese cid (pro /sign OTP)
-     * i aid (pro náhled a finalizaci). Odešle e-mail zákazníkovi.
-     * Jen pro type='additional_service' a service_action='add' (zrušení = fáze C, bez OTP).
-     */
+    /** Podpisový odkaz dodatku služby (jen přidání; odebrání se nepodepisuje). */
     public function issueServiceAddonLink(int $addonId): array
     {
         $addon = ContractAddon::where('type', 'additional_service')->find($addonId);
         if (!$addon || $addon->service_action !== 'add') {
             return ['url' => null, 'email_sent' => false, 'email' => null];
         }
-        $contractId = (int) $addon->contract_id;
-
-        $payload = [
-            'cid' => $contractId,
-            'aid' => $addonId,
-            'exp' => time() + (7 * 86400),
-            'rnd' => bin2hex(random_bytes(8)),
-        ];
-        $json  = json_encode($payload, JSON_UNESCAPED_SLASHES);
-        $sig   = hash_hmac('sha256', $json, $this->tokenSecret, true);
-        $token = $this->b64url($json) . '.' . $this->b64url($sig);
-
-        if ($addon->status === 'draft') {
-            $addon->update(['status' => 'otp_sent']);
-        }
-
-        ContractEvent::create([
-            'contract_id' => $contractId,
-            'event'       => 'service_addon_link_issued',
-            'meta_json'   => json_encode([
-                'addon_id' => $addonId,
-                'by'       => auth()->user()?->login,
-                'token'    => substr($token, 0, 20) . '…',
-            ]),
-        ]);
-
-        $url   = route('sign.service_addon.show', ['t' => $token]);
-        $email = $this->queueSignLinkEmail($contractId, $url, true);
-
-        return ['url' => $url, 'email_sent' => $email !== null, 'email' => $email];
+        return app(IssueSignLinkAction::class)->handle((int) $addon->contract_id, SignLinkKind::ServiceAddon, $addon);
     }
 
     /** Ověří podpisový token dodatku služby (sig + exp). Vrací addon_id, nebo null. */
     public function verifyServiceAddonToken(string $token): ?int
     {
-        $parts = explode('.', $token, 2);
-        if (count($parts) !== 2) return null;
-
-        [$p64, $s64] = $parts;
-        $json = $this->b64urlDec($p64);
-        $sig  = $this->b64urlDec($s64);
-        if ($json === '' || $sig === '') return null;
-
-        $calc = hash_hmac('sha256', $json, $this->tokenSecret, true);
-        if (!hash_equals($calc, $sig)) return null;
-
-        $data = json_decode($json, true);
-        if (!is_array($data) || ((int) ($data['exp'] ?? 0)) < time()) return null;
-
-        $aid = (int) ($data['aid'] ?? 0);
-        return $aid > 0 ? $aid : null;
+        return app(SignLinkToken::class)->addonId($token);
     }
 
     /**
@@ -974,67 +872,20 @@ class ContractService
         return ContractAddon::where('type', 'connection_point')->find($id);
     }
 
-    /**
-     * Vydá podpisový odkaz pro dodatek přípojného místa (jen action='add').
-     * Token nese cid (pro OTP) i aid (náhled + finalizace). Odešle e-mail.
-     */
+    /** Podpisový odkaz dodatku přípojného místa (jen přidání). */
     public function issueConnectionPointAddonLink(int $addonId): array
     {
         $addon = ContractAddon::where('type', 'connection_point')->find($addonId);
         if (!$addon || $addon->service_action !== 'add') {
             return ['url' => null, 'email_sent' => false, 'email' => null];
         }
-        $contractId = (int) $addon->contract_id;
-
-        $payload = [
-            'cid' => $contractId,
-            'aid' => $addonId,
-            'exp' => time() + (7 * 86400),
-            'rnd' => bin2hex(random_bytes(8)),
-        ];
-        $json  = json_encode($payload, JSON_UNESCAPED_SLASHES);
-        $sig   = hash_hmac('sha256', $json, $this->tokenSecret, true);
-        $token = $this->b64url($json) . '.' . $this->b64url($sig);
-
-        if ($addon->status === 'draft') {
-            $addon->update(['status' => 'otp_sent']);
-        }
-
-        ContractEvent::create([
-            'contract_id' => $contractId,
-            'event'       => 'connection_point_addon_link_issued',
-            'meta_json'   => json_encode([
-                'addon_id' => $addonId,
-                'by'       => auth()->user()?->login,
-                'token'    => substr($token, 0, 20) . '…',
-            ]),
-        ]);
-
-        $url   = route('sign.connection_point.show', ['t' => $token]);
-        $email = $this->queueSignLinkEmail($contractId, $url, true);
-
-        return ['url' => $url, 'email_sent' => $email !== null, 'email' => $email];
+        return app(IssueSignLinkAction::class)->handle((int) $addon->contract_id, SignLinkKind::ConnectionPoint, $addon);
     }
 
     /** Ověří podpisový token dodatku přípojného místa. Vrací addon_id, nebo null. */
     public function verifyConnectionPointAddonToken(string $token): ?int
     {
-        $parts = explode('.', $token, 2);
-        if (count($parts) !== 2) return null;
-
-        [$p64, $s64] = $parts;
-        $json = $this->b64urlDec($p64);
-        $sig  = $this->b64urlDec($s64);
-        if ($json === '' || $sig === '') return null;
-
-        $calc = hash_hmac('sha256', $json, $this->tokenSecret, true);
-        if (!hash_equals($calc, $sig)) return null;
-
-        $data = json_decode($json, true);
-        if (!is_array($data) || ((int) ($data['exp'] ?? 0)) < time()) return null;
-
-        $aid = (int) ($data['aid'] ?? 0);
-        return $aid > 0 ? $aid : null;
+        return app(SignLinkToken::class)->addonId($token);
     }
 
     /** Finalizuje dodatek přípojného místa (podepsané PDF). Volá se po ověření OTP. */
@@ -1330,29 +1181,7 @@ class ContractService
 
     public function issueAccessLink(int $contractId): array
     {
-        $payload = [
-            'cid' => $contractId,
-            'exp' => time() + (7 * 86400),
-            'rnd' => bin2hex(random_bytes(8)),
-        ];
-
-        $json = json_encode($payload, JSON_UNESCAPED_SLASHES);
-        $sig  = hash_hmac('sha256', $json, $this->tokenSecret, true);
-        $token = $this->b64url($json) . '.' . $this->b64url($sig);
-
-        ContractEvent::create([
-            'contract_id' => $contractId,
-            'event'       => 'link_issued',
-            'meta_json'   => json_encode([
-                'by'    => auth()->user()?->login,
-                'token' => substr($token, 0, 20) . '…',
-            ]),
-        ]);
-
-        $url   = route('sign.show', ['t' => $token]);
-        $email = $this->queueSignLinkEmail($contractId, $url, false);
-
-        return ['url' => $url, 'email_sent' => $email !== null, 'email' => $email];
+        return app(IssueSignLinkAction::class)->handle($contractId, SignLinkKind::Contract);
     }
 
     public function createAddon(int $contractId): bool
@@ -1375,96 +1204,7 @@ class ContractService
 
     public function sendAddonLink(int $contractId): array
     {
-        $payload = [
-            'cid' => $contractId,
-            'exp' => time() + (7 * 86400),
-            'rnd' => bin2hex(random_bytes(8)),
-        ];
-
-        $json  = json_encode($payload, JSON_UNESCAPED_SLASHES);
-        $sig   = hash_hmac('sha256', $json, $this->tokenSecret, true);
-        $token = $this->b64url($json) . '.' . $this->b64url($sig);
-
-        ContractEvent::create([
-            'contract_id' => $contractId,
-            'event'       => 'addon_link_issued',
-            'meta_json'   => json_encode([
-                'by'    => auth()->user()?->login,
-                'token' => substr($token, 0, 20) . '…',
-            ]),
-        ]);
-
-        $url   = route('sign.addon.show', ['t' => $token]);
-        $email = $this->queueSignLinkEmail($contractId, $url, true);
-
-        return ['url' => $url, 'email_sent' => $email !== null, 'email' => $email];
-    }
-
-    /**
-     * Look up the member's email and enqueue the sign-link email.
-     * Returns the recipient email if queued, otherwise null.
-     */
-    private function queueSignLinkEmail(int $contractId, string $url, bool $isAddon): ?string
-    {
-        $contract = Contract::find($contractId);
-        if (!$contract) {
-            return null;
-        }
-
-        $mainUser = Member::find($contract->member_id)
-            ?->users()
-            ->where('type', User::MAIN_USER)
-            ->first();
-
-        [, $email] = $this->extractContacts($mainUser);
-        if (!$email) {
-            return null;
-        }
-
-        // Šablonu načítáme ze systémové zprávy (messages tabulka) — admin ji
-        // edituje v UI Sdělení. Když řádek chybí (např. nezaběhla migrace),
-        // padá na hardcoded fallback, aby podpisový flow nikdy neztichnul.
-        $type = $isAddon ? Message::CONTRACT_ADDON_SIGN_LINK : Message::CONTRACT_SIGN_LINK;
-        $tpl  = Message::where('type', $type)->first();
-
-        if ($tpl && trim((string) $tpl->email_text) !== '') {
-            $body    = Message::substitute($tpl->email_text, ['url' => $url]);
-            $subject = $this->buildSubject($tpl->name);
-        } else {
-            $urlHtml = htmlspecialchars($url, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
-            $what    = $isAddon ? 'dodatku smlouvy' : 'smlouvy';
-            $subject = $this->buildSubject('Odkaz pro podpis ' . $what);
-            $body = '<p>Dobrý den,</p>'
-                . '<p>zasíláme Vám odkaz pro elektronický podpis ' . $what . ':</p>'
-                . '<p><a href="' . $urlHtml . '">' . $urlHtml . '</a></p>'
-                . '<p>Odkaz je platný 7 dní.</p>'
-                . '<p>S pozdravem<br>PVfree.net</p>';
-        }
-
-        try {
-            EmailQueue::create([
-                'from'        => Setting::get('email_default_email', 'noreply@pvfree.net'),
-                'to'          => $email,
-                'subject'     => $subject,
-                'body'        => $body,
-                'state'       => EmailQueue::STATE_NEW,
-                'access_time' => now(),
-            ]);
-
-            ContractEvent::create([
-                'contract_id' => $contractId,
-                'event'       => 'email_sent',
-                'meta_json'   => json_encode([
-                    'by'    => auth()->user()?->login,
-                    'to'    => $email,
-                    'addon' => $isAddon,
-                ]),
-            ]);
-
-            return $email;
-        } catch (\Throwable $e) {
-            return null;
-        }
+        return app(IssueSignLinkAction::class)->handle($contractId, SignLinkKind::LegacyAddon);
     }
 
     public function deleteAddon(Contract $contract): bool
@@ -1575,14 +1315,10 @@ class ContractService
 
     // ── Private helpers ─────────────────────────────────────────────────────
 
-    /**
-     * Build the email subject using the same prefix pattern as Controller::sendMessageToMember,
-     * so that contract emails match the rest of the system ("PREFIX :: Subject").
-     */
+    /** Předmět s prefixem systému („PREFIX :: Název"). */
     private function buildSubject(string $name): string
     {
-        $prefix = (string) Setting::get('email_subject_prefix', '');
-        return ($prefix !== '' ? $prefix . ' :: ' : '') . $name;
+        return IssueSignLinkAction::subject($name);
     }
 
     /**
@@ -1614,19 +1350,7 @@ class ContractService
 
     private function extractContacts(?User $user): array
     {
-        if (!$user) return ['', ''];
-
-        $contacts = $user->contacts()->with('enumType')->get();
-
-        $phone = $contacts
-            ->first(fn($c) => str_contains(strtolower($c->enumType?->value ?? ''), 'tel'))
-            ?->value ?? '';
-
-        $email = $contacts
-            ->first(fn($c) => str_contains(strtolower($c->enumType?->value ?? ''), 'mail'))
-            ?->value ?? '';
-
-        return [$phone, $email];
+        return MemberContacts::of($user);
     }
 
     private function httpPost(string $path, array $data): array
@@ -1648,38 +1372,12 @@ class ContractService
         return $body ? (json_decode((string) $body, true) ?? []) : [];
     }
 
-    private function b64url(string $s): string
-    {
-        return rtrim(strtr(base64_encode($s), '+/', '-_'), '=');
-    }
-
-    private function b64urlDec(string $s): string
-    {
-        $r = base64_decode(strtr($s, '-_', '+/'));
-        return $r === false ? '' : $r;
-    }
-
     /**
-     * Verify a sign-link access token issued by issueAccessLink/sendAddonLink.
-     * Returns the contract ID on success, or null if invalid/expired/tampered.
+     * Ověří podpisový token (smlouva i dodatek nesou cid). Vrací id smlouvy,
+     * nebo null (neplatný/expirovaný/podvržený).
      */
     public function verifyAccessToken(string $token): ?int
     {
-        $parts = explode('.', $token, 2);
-        if (count($parts) !== 2) return null;
-
-        [$p64, $s64] = $parts;
-        $json = $this->b64urlDec($p64);
-        $sig  = $this->b64urlDec($s64);
-        if ($json === '' || $sig === '') return null;
-
-        $calc = hash_hmac('sha256', $json, $this->tokenSecret, true);
-        if (!hash_equals($calc, $sig)) return null;
-
-        $data = json_decode($json, true);
-        if (!is_array($data) || ((int) ($data['exp'] ?? 0)) < time()) return null;
-
-        $cid = (int) ($data['cid'] ?? 0);
-        return $cid > 0 ? $cid : null;
+        return app(SignLinkToken::class)->contractId($token);
     }
 }
