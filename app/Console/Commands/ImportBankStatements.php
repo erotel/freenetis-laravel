@@ -2,7 +2,7 @@
 
 namespace App\Console\Commands;
 
-use App\Http\Controllers\ImportController;
+use App\Domains\Billing\Actions\ImportNewFioPaymentsAction;
 use App\Models\LogQueue;
 use App\Models\Setting;
 use Illuminate\Console\Command;
@@ -38,7 +38,7 @@ class ImportBankStatements extends Command
     const TYPE_HOURLY         = 5;
     const TYPE_AFTER_DEDUCTION = 6;
 
-    public function handle(ImportController $importer): int
+    public function handle(ImportNewFioPaymentsAction $importer): int
     {
         $now    = time();
         $onlyId = $this->option('account') ? (int) $this->option('account') : null;
@@ -85,7 +85,7 @@ class ImportBankStatements extends Command
             $this->info("Importing {$label}...");
 
             try {
-                $result = $importer->runFioImportForScheduler($account->id);
+                $result = $importer->handle($account->id);
 
                 $imported = $result['imported'];
                 $skipped  = $result['skipped'];
