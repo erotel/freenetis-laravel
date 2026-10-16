@@ -143,4 +143,26 @@ enum AddonType: string
             ],
         };
     }
+
+    // ── správa smluv (admin) ────────────────────────────────────────────────
+
+    /** Základ názvu PDF ve správě („…-preview.pdf", stažení „…-{id}.pdf"). */
+    public function adminFileBase(): string
+    {
+        return match ($this) {
+            self::TariffChange      => 'dodatek-tarif',
+            self::AdditionalService => 'dodatek-sluzba',
+            self::ConnectionPoint   => 'dodatek-misto',
+        };
+    }
+
+    /** Klíč session flash s vydaným podpisovým odkazem. */
+    public function linkFlashKey(): string
+    {
+        return match ($this) {
+            self::TariffChange      => 'tariff_addon_link',
+            self::AdditionalService => 'service_addon_link',
+            self::ConnectionPoint   => 'connection_point_addon_link',
+        };
+    }
 }
