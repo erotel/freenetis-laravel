@@ -45,11 +45,35 @@ class RedirectionRepository
         return count($rows);
     }
 
+    /** Zruší všechna přesměrování na zprávy (přestavba automatických). */
+    public function clear(array $messageIds): void
+    {
+        DB::table('messages_ip_addresses')->whereIn('message_id', $messageIds)->delete();
+    }
+
+    /** Automatické přesměrování IP na zprávu (existující ponechá). */
+    public function addAuto(int $messageId, iterable $ipIds, int $userId, string $comment): void
+    {
+        $now  = now();
+        $rows = collect($ipIds)->map(fn ($ipId) => [
+            'message_id' => $messageId, 'ip_address_id' => $ipId, 'user_id' => $userId, 'comment' => $comment, 'datetime' => $now,
+        ])->all();
+        if ($rows) {
+            DB::table('messages_ip_addresses')->insertOrIgnore($rows);
+        }
+    }
+
     /** @return int počet zrušených přesměrování */
     public function remove(int $messageId, iterable $ipIds): int
     {
-        $ids = collect($ipIds)->all();
-        return DB::table('messages_ip_addresses')->where('message_id', $messageId)->whereIn('ip_address_id', $ids)->delete();
+        return $this->removeFrom([$messageId], $ipIds);
+    }
+
+    /** Zruší přesměrování IP na kteroukoli z daných zpráv. @return int počet */
+    public function removeFrom(array $messageIds, iterable $ipIds): int
+    {
+        return DB::table('messages_ip_addresses')->whereIn('message_id', $messageIds)
+            ->whereIn('ip_address_id', collect($ipIds)->all())->delete();
     }
 
     /** Členové s platným whitelistem k dnešku (klíče pole = member_id). */
