@@ -62,4 +62,85 @@ enum AddonType: string
     {
         return $this === self::ConnectionPoint ? 'Connection-point removal' : 'Service removal';
     }
+
+    // ── veřejné podepisování (/sign/*) ───────────────────────────────────────
+
+    /** View SPA pro podpis dodatku. */
+    public function signView(): string
+    {
+        return match ($this) {
+            self::TariffChange      => 'contracts.tariff-addon-sign',
+            self::AdditionalService => 'contracts.service-addon-sign',
+            self::ConnectionPoint   => 'contracts.connection-point-sign',
+        };
+    }
+
+    /** Základ názvu souboru PDF v náhledu („…-preview.pdf" / podepsaný „….pdf"). */
+    public function previewFileBase(): string
+    {
+        return match ($this) {
+            self::TariffChange      => 'dodatek',
+            self::AdditionalService => 'dodatek-sluzba',
+            self::ConnectionPoint   => 'dodatek-misto',
+        };
+    }
+
+    /** download_tokens.file_type podepsaného dodatku. */
+    public function downloadFileType(): string
+    {
+        return match ($this) {
+            self::TariffChange      => 'tariff_addon',
+            self::AdditionalService => 'service_addon',
+            self::ConnectionPoint   => 'connection_point_addon',
+        };
+    }
+
+    /** Popis v e-mailu po podpisu („Podepsaný dodatek (…) ke smlouvě"). */
+    public function signedLabel(): string
+    {
+        return match ($this) {
+            self::TariffChange      => 'změna tarifu',
+            self::AdditionalService => 'dodatečná služba',
+            self::ConnectionPoint   => 'přípojné místo',
+        };
+    }
+
+    /** Předpona přílohy e-mailu po podpisu. */
+    public function signedAttachmentPrefix(): string
+    {
+        return match ($this) {
+            self::TariffChange      => 'dodatek-tarif-',
+            self::AdditionalService => 'dodatek-sluzba-',
+            self::ConnectionPoint   => 'dodatek-misto-',
+        };
+    }
+
+    /** Popis pro log při selhání e-mailu po podpisu. */
+    public function signedLogLabel(): string
+    {
+        return match ($this) {
+            self::TariffChange      => 'Tariff addon',
+            self::AdditionalService => 'Service addon',
+            self::ConnectionPoint   => 'Connection-point addon',
+        };
+    }
+
+    /** Pole navíc v /sign/…/info podle typu (za společnými). */
+    public function infoFields(ContractAddon $addon): array
+    {
+        return match ($this) {
+            self::TariffChange      => [],
+            self::AdditionalService => [
+                'service_name'   => $addon->service_name,
+                'service_price'  => $addon->service_price !== null ? (float) $addon->service_price : null,
+                'effective_date' => $addon->effective_date?->format('d.m.Y'),
+            ],
+            self::ConnectionPoint   => [
+                'place_name'     => $addon->service_name,
+                'place_speed'    => $addon->place_speed_name,
+                'place_price'    => $addon->service_price !== null ? (float) $addon->service_price : null,
+                'effective_date' => $addon->effective_date?->format('d.m.Y'),
+            ],
+        };
+    }
 }
