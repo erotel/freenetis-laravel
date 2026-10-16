@@ -2,102 +2,39 @@
 
 namespace App\Http\Controllers;
 
-use Carbon\Carbon;
 use App\Domains\Access\Actions\ExportDhcpConfigAction;
 use App\Domains\Access\Repositories\DhcpExportRepository;
 use App\Domains\Access\Support\DhcpClientId;
-use App\Http\Controllers\Concerns\SyncsIp6Address;
+use App\Domains\Network\Actions\CreateDeviceAction;
+use App\Domains\Network\Actions\RegisterDeviceFromTemplateAction;
+use App\Domains\Network\Actions\RemoveDeviceAction;
+use App\Domains\Network\Actions\RemoveDeviceEngineerAction;
+use App\Domains\Network\Actions\UpdateDeviceAction;
+use App\Domains\Network\Documents\DeviceInventoryCsv;
+use App\Domains\Network\Exceptions\DeviceOwnerInvalid;
+use App\Domains\Network\Queries\DeviceCardQuery;
+use App\Domains\Network\Queries\DeviceFormQuery;
+use App\Domains\Network\Queries\DeviceListQuery;
+use App\Domains\Network\Repositories\DeviceRepository;
 use App\Http\Filters\DeviceFilter;
+use App\Http\Requests\Devices\StoreDeviceFromTemplateRequest;
+use App\Http\Requests\Devices\StoreDeviceRequest;
+use App\Http\Requests\Devices\UpdateDeviceRequest;
 use App\Models\ConnectionRequest;
 use App\Models\Device;
-use App\Models\DeviceEngineer;
-use App\Models\DeviceTemplate;
-use App\Models\EnumType;
 use App\Models\Iface;
-use App\Models\IpAddress;
 use App\Models\Setting;
-use App\Models\Subnet;
 use App\Models\User;
-use App\Services\AllowedSubnetSyncService;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\DB;
 
 class DeviceController extends Controller
 {
-    use SyncsIp6Address;
     private const ACL_SECTION = 'Devices_Controller';
     private const ACL_VALUE   = 'devices';
-
-    /**
-     * WPA2 klíč: prázdný string → null; klíč dává smysl jen u AP, u ostatních
-     * typů ho zahodíme (např. při přetypování AP → switch se klíč vymaže).
-     * Působí jen když je `wpa_key` v datech (tj. uživatel má právo na heslo).
-     */
-    private function normalizeWpaKey(array $data): array
-    {
-        if (!array_key_exists('wpa_key', $data)) {
-            return $data;
-        }
-        $key = trim((string) ($data['wpa_key'] ?? ''));
-        $isAp = (int) ($data['type'] ?? 0) === Device::AP_TYPE_ID;
-        $data['wpa_key'] = ($isAp && $key !== '') ? $key : null;
-
-        return $data;
-    }
 
     private function can(string $action, string $value = self::ACL_VALUE): bool
     {
         return $this->aclCheck($action, self::ACL_SECTION, $value);
-    }
-
-    /**
-     * Member picker pro device formuláře. Vrací jen členy, kteří mají main usera
-     * (type=1) — pro ostatní se nemá co uložit do devices.user_id. Pokud má člen
-     * víc main userů (legacy data), bere nejnižší id.
-     *
-     * Třídění podle příjmení (u.surname) → jméno → login. members.name je sice
-     * "Jméno Příjmení", ale picker řadí podle příjmení, jak admin čeká.
-     */
-    private function loadMembersForPicker(): \Illuminate\Support\Collection
-    {
-        return DB::table('members as m')
-            ->join('users as u', function ($j) {
-                $j->on('u.member_id', '=', 'm.id')
-                  ->where('u.type', '=', User::MAIN_USER);
-            })
-            // Adresa umístění člena — zdroj předvyplnění u zařízení (address_point sdílený).
-            ->leftJoin('address_points as ap', 'ap.id', '=', 'm.address_point_id')
-            ->leftJoin('streets as st', 'st.id', '=', 'ap.street_id')
-            ->leftJoin('towns as tn', 'tn.id', '=', 'ap.town_id')
-            ->select(
-                'm.id', 'm.name', 'u.id as user_id', 'u.login', 'u.surname', 'u.name as user_name',
-                'm.address_point_id',
-                'ap.town_id as ap_town_id', 'ap.street_id as ap_street_id', 'ap.street_number as ap_street_number',
-                'st.street as ap_street',
-                'tn.town as ap_town', 'tn.zip_code as ap_zip'
-            )
-            ->orderBy('u.surname')
-            ->orderBy('u.name')
-            ->orderBy('u.id')
-            ->get()
-            ->unique('id')
-            ->values()
-            ->map(function ($row) {
-                // Pro fyzické osoby zobrazujeme "Příjmení Jméno" (sjednoceno se sortem).
-                // Pokud surname/name chybí (organizace, legacy), fallback na members.name.
-                $surname = trim((string) $row->surname);
-                $name    = trim((string) $row->user_name);
-                $row->display_name = ($surname !== '' && $name !== '')
-                    ? $surname . ' ' . $name
-                    : $row->name;
-
-                // Čitelný popis adresy umístění (stejný formát jako devices/show).
-                $street = trim(($row->ap_street ?? '') . ' ' . ($row->ap_street_number ?? ''));
-                $town   = trim(($row->ap_town ?? '') . ' ' . ($row->ap_zip ?? ''));
-                $row->address_label = trim(trim($street) . (($street && $town) ? ', ' : '') . $town);
-
-                return $row;
-            });
     }
 
     /**
@@ -111,109 +48,28 @@ class DeviceController extends Controller
             return false;
         }
 
-        return DB::table('users')->where('id', $userId)->value('member_id') == $ownMemberId;
+        return app(DeviceRepository::class)->memberIdOfUser($userId) == $ownMemberId;
     }
 
-    /**
-     * Najde main user_id pro daného člena. Vrací null pokud člen nebo main user neexistuje.
-     */
-    private function resolveMainUserId(int $memberId): ?int
-    {
-        return DB::table('users')
-            ->where('member_id', $memberId)
-            ->where('type', User::MAIN_USER)
-            ->orderBy('id')
-            ->value('id');
-    }
-
-    public function index(Request $request)
+    public function index(Request $request, DeviceListQuery $list)
     {
         if (!$this->can('view_all')) {
             abort(403);
         }
 
-        $allowedSorts = ['id', 'name', 'type', 'user_id', 'access_time'];
-        $sort = in_array($request->query('sort'), $allowedSorts, true)
-            ? $request->query('sort')
-            : 'id';
-        $dir = $request->query('dir') === 'desc' ? 'desc' : 'asc';
+        $sort = in_array($request->query('sort'), DeviceListQuery::SORTS, true) ? $request->query('sort') : 'id';
+        $dir  = $request->query('dir') === 'desc' ? 'desc' : 'asc';
 
         $perPage = (int) $request->query('record_per_page', 50);
-        if (!in_array($perPage, [50, 100, 150, 200, 250, 300, 350, 400, 450, 500], true)) {
+        if (!in_array($perPage, DeviceListQuery::PER_PAGES, true)) {
             $perPage = 50;
         }
 
-        $search = trim((string) $request->query('search', ''));
-
-        $query = Device::with(['user', 'enumType']);
-
-        if ($search !== '') {
-            // Stejná pole jako SearchController — název, MAC, IPv4, IPv6 a adresa
-            // (town/street/č.p. + multi-token composite), aby odkaz „Otevřít všechny
-            // v seznamu" z /search seděl.
-            $like   = '%' . $search . '%';
-            $tokens = preg_split('/\s+/', $search, -1, PREG_SPLIT_NO_EMPTY);
-            $multi  = count($tokens) > 1;
-            $query->where(function ($q) use ($like, $tokens, $multi) {
-                $q->where('devices.name', 'like', $like);
-                $q->orWhereExists(function ($sub) use ($like) {
-                    $sub->from('ifaces as i')
-                        ->whereColumn('i.device_id', 'devices.id')
-                        ->where('i.mac', 'like', $like);
-                });
-                $q->orWhereExists(function ($sub) use ($like) {
-                    $sub->from('ifaces as i')
-                        ->join('ip_addresses as ip', 'ip.iface_id', '=', 'i.id')
-                        ->whereColumn('i.device_id', 'devices.id')
-                        ->where('ip.ip_address', 'like', $like);
-                });
-                $q->orWhereExists(function ($sub) use ($like) {
-                    $sub->from('ifaces as i')
-                        ->join('ip6_addresses as ip6', 'ip6.iface_id', '=', 'i.id')
-                        ->whereColumn('i.device_id', 'devices.id')
-                        ->where('ip6.ip_address', 'like', $like);
-                });
-                $q->orWhereExists(function ($sub) use ($like) {
-                    $sub->from('address_points as ap')
-                        ->leftJoin('towns as t', 't.id', '=', 'ap.town_id')
-                        ->leftJoin('streets as s', 's.id', '=', 'ap.street_id')
-                        ->whereColumn('ap.id', 'devices.address_point_id')
-                        ->where(function ($qq) use ($like) {
-                            $qq->where('t.town', 'like', $like)
-                               ->orWhere('s.street', 'like', $like)
-                               ->orWhere('ap.street_number', 'like', $like);
-                        });
-                });
-                if ($multi) {
-                    $q->orWhere(function ($qq) use ($tokens) {
-                        foreach ($tokens as $t) {
-                            $qq->whereExists(function ($sub) use ($t) {
-                                $sub->from('address_points as ap')
-                                    ->leftJoin('streets as s', 's.id', '=', 'ap.street_id')
-                                    ->leftJoin('towns as tn', 'tn.id', '=', 'ap.town_id')
-                                    ->whereColumn('ap.id', 'devices.address_point_id')
-                                    ->whereRaw(
-                                        "CONCAT_WS(' ', devices.name, IFNULL(s.street,''), IFNULL(ap.street_number,''), IFNULL(tn.town,'')) LIKE ?",
-                                        ['%' . $t . '%']
-                                    );
-                            });
-                        }
-                    });
-                }
-            });
-        }
-
+        $search          = trim((string) $request->query('search', ''));
         $advancedFilters = $request->input('filters', []);
-        if (!empty($advancedFilters)) {
-            DeviceFilter::apply($query, $advancedFilters);
-        }
-
-        $devices = $query->orderBy($sort, $dir)
-            ->paginate($perPage)
-            ->withQueryString();
 
         return view('devices.index', [
-            'devices'        => $devices,
+            'devices'        => $list->paginate($search, $advancedFilters, $sort, $dir, $perPage),
             'sort'           => $sort,
             'dir'            => $dir,
             'perPage'        => $perPage,
@@ -237,13 +93,10 @@ class DeviceController extends Controller
             abort(404);
         }
 
-        $sort = in_array(request('sort'), ['id', 'name'], true) ? request('sort') : 'name';
+        $sort = in_array(request('sort'), DeviceListQuery::USER_SORTS, true) ? request('sort') : 'name';
         $dir  = request('dir') === 'desc' ? 'desc' : 'asc';
 
-        $devices = Device::with(['enumType', 'ifaces.ipAddresses.subnet'])
-            ->where('user_id', $userId)
-            ->orderBy($sort, $dir)
-            ->get();
+        $devices = app(DeviceListQuery::class)->forUser($userId, $sort, $dir);
 
         return view('devices.show_by_user', [
             'user'      => $user,
@@ -262,19 +115,9 @@ class DeviceController extends Controller
         ]);
     }
 
-    public function show(int $id)
+    public function show(int $id, DeviceCardQuery $card)
     {
-        $device = Device::with([
-            'user.member',
-            'enumType',
-            'addressPoint.street',
-            'addressPoint.town',
-            'ifaces.ipAddresses.subnet',
-            'ifaces.ip6Addresses',
-            'ifaces.lineId',
-            'deviceEngineers.user',
-        ])->find($id);
-
+        $device = $card->find($id);
         if (!$device) {
             abort(404);
         }
@@ -284,22 +127,9 @@ class DeviceController extends Controller
         }
 
         $canManageEngineers = $this->can('new_all', 'engineer');
-        $canDeleteEngineer  = $this->can('delete_all', 'engineer');
 
-        $assignedEngineerIds = $device->deviceEngineers->pluck('user_id')->all();
-        $engineerUsers = $canManageEngineers
-            ? User::orderBy('surname')->orderBy('name')
-                ->whereNotIn('id', $assignedEngineerIds)
-                ->get(['id', 'login', 'name', 'surname'])
-            : collect();
-
-        // PPPoE přístupy (per iface) — jen když je modul zapnutý a uživatel smí
-        // vidět hesla. Klíčováno iface_id pro snadné dohledání v šabloně.
+        // PPPoE přístupy (per iface) — jen se zapnutým modulem a právem vidět hesla.
         $pppoeEnabled = (bool) Setting::get('pppoe_enabled', 0);
-        $pppoeSecrets = ($pppoeEnabled && $this->can('view_all', 'password'))
-            ? app(\App\Domains\Access\Repositories\PppoeCredentialRepository::class)
-                ->forIfaces($device->ifaces->pluck('id'))
-            : collect();
 
         return view('devices.show', [
             'device'             => $device,
@@ -309,10 +139,10 @@ class DeviceController extends Controller
             'canViewLogin'       => $this->can('view_all', 'login'),
             'canViewPassword'    => $this->can('view_all', 'password'),
             'pppoeEnabled'       => $pppoeEnabled,
-            'pppoeSecrets'       => $pppoeSecrets,
+            'pppoeSecrets'       => ($pppoeEnabled && $this->can('view_all', 'password')) ? $card->pppoeSecrets($device) : collect(),
             'canManageEngineers' => $canManageEngineers,
-            'canDeleteEngineer'  => $canDeleteEngineer,
-            'engineerUsers'      => $engineerUsers,
+            'canDeleteEngineer'  => $this->can('delete_all', 'engineer'),
+            'engineerUsers'      => $canManageEngineers ? $card->assignableEngineers($device) : collect(),
             'canViewAll'         => $this->can('view_all'),
             'canViewUser'        => $this->aclCheck('view_all', 'Users_Controller', 'users'),
         ]);
@@ -371,366 +201,65 @@ class DeviceController extends Controller
 
     // ── Engineers ─────────────────────────────────────────────────────────────
 
-    public function addEngineer(Request $request, int $deviceId)
+    public function addEngineer(Request $request, int $deviceId, DeviceRepository $devices)
     {
         abort_unless($this->can('new_all', 'engineer'), 403);
 
-        $device = Device::findOrFail($deviceId);
-
+        Device::findOrFail($deviceId);
         $data = $request->validate(['user_id' => 'required|integer|exists:users,id']);
-
-        $already = DeviceEngineer::where('device_id', $deviceId)
-            ->where('user_id', $data['user_id'])->exists();
-
-        if (!$already) {
-            DeviceEngineer::create([
-                'device_id' => $deviceId,
-                'user_id'   => $data['user_id'],
-            ]);
-        }
+        $devices->addEngineer($deviceId, (int) $data['user_id']);
 
         return redirect()->route('devices.show', $deviceId)
             ->with('success', 'Technik byl přidán.');
     }
 
-    public function removeEngineer(int $deviceId, int $userId)
+    public function removeEngineer(int $deviceId, int $userId, RemoveDeviceEngineerAction $remove)
     {
         abort_unless($this->can('delete_all', 'engineer'), 403);
 
-        // Hromadný delete přes query builder nespustí model events — logujeme ručně.
-        DeviceEngineer::where('device_id', $deviceId)
-            ->where('user_id', $userId)
-            ->delete();
-
-        \App\Services\AuditLogger::log('deleted', 'device_engineers', $deviceId, [
-            'device_id' => $deviceId,
-            'user_id'   => $userId,
-        ], null);
+        $remove->handle($deviceId, $userId);
 
         return redirect()->route('devices.show', $deviceId)
             ->with('success', 'Technik byl odebrán.');
     }
 
-    public function createWithTemplate(Request $request, ?int $userId = null)
+    public function createWithTemplate(Request $request, DeviceFormQuery $form, ?int $userId = null)
     {
         abort_unless($this->can('new_all'), 403);
 
-        $user        = $userId ? User::findOrFail($userId) : null;
-        $members     = $this->loadMembersForPicker();
-        // Preselect: primárně z query ?member_id= (po reload form), fallback na member_id
-        // hlavního usera v URL path (legacy "/devices/add/{userId}").
-        $preselectedMemberId = $request->filled('member_id')
-            ? (int) $request->query('member_id')
-            : $user?->member_id;
-        $deviceTypes = EnumType::where('type_id', EnumType::DEVICE_GROUP_ID)->orderBy('value')->get();
-        $rawTemplates = DeviceTemplate::with('enumType')->get();
-        $subnets     = Subnet::orderBy('name')->get();
+        $user = $userId ? User::findOrFail($userId) : null;
+        // Preselect: primárně ?member_id= (po reloadu formuláře), jinak člen
+        // hlavního uživatele z URL (legacy „/devices/add/{userId}").
+        $preselectedMemberId = $request->filled('member_id') ? (int) $request->query('member_id') : $user?->member_id;
 
-        // JSON-friendly list for JS filtering (id, name, enum_type_id)
-        $templates = $rawTemplates->map(fn($t) => [
-            'id'           => $t->id,
-            'name'         => $t->name . ($t->enumType ? ' (' . $t->enumType->value . ')' : ''),
-            'enum_type_id' => $t->enum_type_id,
-        ]);
-
-        // Pre-selected type from query string (preserved across template reload)
-        $selectedTypeId = (int) $request->query('type_id') ?: null;
-
-        // Server-side template rendering when template_id passed via GET
-        $selectedTemplate  = null;
-        $ifaceDefinitions  = [];
-        if ($templateId = (int) $request->query('template_id')) {
-            $selectedTemplate = $rawTemplates->find($templateId);
-            if ($selectedTemplate) {
-                $ifaceDefinitions = $selectedTemplate->getIfaceDefinitions();
-            }
-        }
-
-        // Subnet data with free IPs for JS autocomplete
-        $subnetData = Subnet::with('ipAddresses')->get()->map(function ($subnet) {
-            $usedIps  = $subnet->ipAddresses->pluck('ip_address')->toArray();
-            $network   = ip2long($subnet->network_address);
-            $mask      = ip2long($subnet->netmask);
-            $broadcast = $network | (~$mask & 0xFFFFFFFF);
-            $freeIps   = [];
-            for ($ip = $network + 1; $ip < $broadcast && count($freeIps) < 30; $ip++) {
-                $ipStr = long2ip($ip);
-                if (!in_array($ipStr, $usedIps)) {
-                    $freeIps[] = $ipStr;
-                }
-            }
-            return [
-                'id'      => $subnet->id,
-                'network' => $subnet->network_address,
-                'mask'    => $subnet->netmask,
-                'label'   => $subnet->label,
-                'freeIps' => $freeIps,
-            ];
-        })->values()->toArray();
-
-        $towns = DB::table('towns')->orderBy('town')->get(['id', 'town', 'zip_code']);
-
-        return view('devices.add', compact(
-            'user', 'members', 'preselectedMemberId', 'deviceTypes', 'templates',
-            'subnets', 'selectedTemplate', 'ifaceDefinitions', 'selectedTypeId',
-            'subnetData', 'towns'
-        ));
+        return view('devices.add', ['user' => $user, 'preselectedMemberId' => $preselectedMemberId]
+            + $form->templateForm((int) $request->query('type_id') ?: null, (int) $request->query('template_id') ?: null));
     }
 
-    public function createFromConnectionRequest(Request $request, int $crId)
+    public function createFromConnectionRequest(Request $request, int $crId, DeviceFormQuery $form)
     {
         abort_unless($this->can('new_all'), 403);
 
         $cr = ConnectionRequest::with(['member', 'deviceTemplate', 'deviceType'])->findOrFail($crId);
 
-        // Find first user of the member
-        $user = User::where('member_id', $cr->member_id)->orderBy('id')->first();
-        $members     = $this->loadMembersForPicker();
-        $preselectedMemberId = $cr->member_id;
-        $deviceTypes = EnumType::where('type_id', EnumType::DEVICE_GROUP_ID)->orderBy('value')->get();
-        $rawTemplates = DeviceTemplate::with('enumType')->get();
-        $subnets     = Subnet::orderBy('name')->get();
+        // Admin může typ/šablonu ze žádosti přepsat (reloadWithTemplate()).
+        $typeId     = (int) $request->query('type_id', $cr->device_type_id) ?: $cr->device_type_id;
+        $templateId = (int) $request->query('template_id', $cr->device_template_id) ?: $cr->device_template_id;
 
-        $templates = $rawTemplates->map(fn($t) => [
-            'id'           => $t->id,
-            'name'         => $t->name . ($t->enumType ? ' (' . $t->enumType->value . ')' : ''),
-            'enum_type_id' => $t->enum_type_id,
-        ]);
-
-        // Allow admin to override type/template via query params (e.g. after reloadWithTemplate())
-        $selectedTypeId   = (int) $request->query('type_id', $cr->device_type_id) ?: $cr->device_type_id;
-        $templateId       = (int) $request->query('template_id', $cr->device_template_id) ?: $cr->device_template_id;
-        $selectedTemplate = $templateId ? $rawTemplates->find($templateId) : null;
-        $ifaceDefinitions = $selectedTemplate ? $selectedTemplate->getIfaceDefinitions() : [];
-
-        $subnetData = Subnet::with('ipAddresses')->get()->map(function ($subnet) {
-            $usedIps   = $subnet->ipAddresses->pluck('ip_address')->toArray();
-            $network   = ip2long($subnet->network_address);
-            $mask      = ip2long($subnet->netmask);
-            $broadcast = $network | (~$mask & 0xFFFFFFFF);
-            $freeIps   = [];
-            for ($ip = $network + 1; $ip < $broadcast && count($freeIps) < 30; $ip++) {
-                $ipStr = long2ip($ip);
-                if (!in_array($ipStr, $usedIps)) {
-                    $freeIps[] = $ipStr;
-                }
-            }
-            return [
-                'id'      => $subnet->id,
-                'network' => $subnet->network_address,
-                'mask'    => $subnet->netmask,
-                'label'   => $subnet->label,
-                'freeIps' => $freeIps,
-            ];
-        })->values()->toArray();
-
-        $towns = DB::table('towns')->orderBy('town')->get(['id', 'town', 'zip_code']);
-
-        return view('devices.add', array_merge(compact(
-            'user', 'members', 'preselectedMemberId', 'deviceTypes', 'templates',
-            'subnets', 'selectedTemplate', 'ifaceDefinitions', 'selectedTypeId',
-            'subnetData', 'towns'
-        ), [
+        return view('devices.add', [
+            'user'                => User::where('member_id', $cr->member_id)->orderBy('id')->first(),
+            'preselectedMemberId' => $cr->member_id,
             'preselectedMac'      => $cr->mac_address,
             'preselectedIp'       => $cr->ip_address,
             'preselectedSubnetId' => $cr->subnet_id,
             'connectionRequestId' => $cr->id,
-        ]));
+        ] + $form->templateForm($typeId, $templateId));
     }
 
-    public function storeWithTemplate(Request $request)
+    public function storeWithTemplate(StoreDeviceFromTemplateRequest $request, RegisterDeviceFromTemplateAction $register)
     {
         try {
-
-        abort_unless($this->can('new_all'), 403);
-
-        // Formulář posílá member_id; resolvneme na main user_id ještě před validací
-        // a strčíme zpět do requestu jako 'user_id', aby zbytek pipeline (FormRequest,
-        // validated array, downstream inserty) zůstal beze změny.
-        if ($request->filled('member_id') && !$request->filled('user_id')) {
-            $resolvedUserId = $this->resolveMainUserId((int) $request->input('member_id'));
-            if (!$resolvedUserId) {
-                return back()->withInput()
-                    ->withErrors(['member_id' => 'Zvolený člen nemá hlavního uživatele.']);
-            }
-            $request->merge(['user_id' => $resolvedUserId]);
-        }
-
-        $baseRules = [
-            'user_id'            => 'required|integer|exists:users,id',
-            'name'               => 'required|string|max:255',
-            'type'               => 'required|integer|exists:enum_types,id',
-            'device_template_id' => 'nullable|integer|exists:device_templates,id',
-            'buy_date'           => 'nullable|date',
-            'comment'            => 'nullable|string|max:254',
-            'town_id'            => 'nullable|integer|exists:towns,id',
-            'street_id'          => 'nullable|integer|exists:streets,id',
-            'street_number'      => 'nullable|string|max:50',
-        ];
-
-        // Build iface validation rules from template
-        $ifaceRules = [];
-        $ifaceDefs  = [];
-        if ($templateId = (int) $request->input('device_template_id')) {
-            $template = DeviceTemplate::findOrFail($templateId);
-            $ifaceDefs = $template->getIfaceDefinitions();
-            foreach ($ifaceDefs as $n => $def) {
-                if (($def['count'] ?? 1) <= 0) continue;
-                $ifaceRules["iface_name_{$n}"] = 'required|string|max:254';
-                if ($def['has_mac']) {
-                    $ifaceRules["iface_mac_{$n}"] = [
-                        'nullable',
-                        'regex:/^([0-9a-fA-F]{2}:){5}[0-9a-fA-F]{2}$/',
-                        'unique:ifaces,mac',
-                    ];
-                }
-                if ($def['has_ip']) {
-                    $ifaceRules["iface_ip_{$n}"]     = "nullable|ip|required_with:iface_subnet_{$n}";
-                    $ifaceRules["iface_subnet_{$n}"] = "nullable|integer|exists:subnets,id|required_with:iface_ip_{$n}";
-                }
-            }
-        }
-
-        $validated = $request->validate(array_merge($baseRules, $ifaceRules), [
-            'iface_mac_*.regex'  => 'MAC adresa musí být ve formátu aa:bb:cc:dd:ee:ff.',
-            'iface_mac_*.unique' => 'Tato MAC adresa je již použita.',
-        ]);
-
-        // IP uniqueness check per subnet
-        foreach ($ifaceDefs as $i => $def) {
-            if (($def['count'] ?? 1) <= 0) continue;
-            if (!($def['has_ip'] ?? false)) continue;
-            $ip       = $request->input("iface_ip_{$i}");
-            $subnetId = $request->input("iface_subnet_{$i}");
-            if ($ip && $subnetId) {
-                if (IpAddress::where('ip_address', $ip)->where('subnet_id', $subnetId)->exists()) {
-                    return back()->withInput()->withErrors(["iface_ip_{$i}" => "IP adresa {$ip} je již použita v tomto subnetu."]);
-                }
-            }
-        }
-
-        // At least one has_mac iface must have MAC filled (if template has any)
-        $hasMacDefs = array_filter($ifaceDefs, fn($d) => ($d['has_mac'] ?? false) && ($d['count'] ?? 1) > 0);
-        if (!empty($hasMacDefs)) {
-            $atLeastOneMac = false;
-            foreach ($hasMacDefs as $n => $def) {
-                if ($request->filled("iface_mac_{$n}")) {
-                    $atLeastOneMac = true;
-                    break;
-                }
-            }
-            if (!$atLeastOneMac) {
-                return back()->withInput()
-                    ->withErrors(['iface_mac_0' => 'Alespoň jedno rozhraní musí mít vyplněnou MAC adresu.']);
-            }
-        }
-
-        $deviceId = null;
-
-        $touchedSubnetIds = [];
-
-        $addressPointId = app(\App\Services\AddressResolverService::class)
-            ->resolveAddressPoint(
-                $validated['town_id'] ?? null,
-                $validated['street_id'] ?? null,
-                $validated['street_number'] ?? null
-            );
-
-        DB::transaction(function () use ($validated, $ifaceDefs, $request, $addressPointId, &$deviceId, &$touchedSubnetIds) {
-            $memberId = User::find($validated['user_id'])?->member_id;
-
-            $device = Device::create([
-                'user_id'          => $validated['user_id'],
-                'name'             => $validated['name'],
-                'type'             => $validated['type'],
-                'buy_date'         => $validated['buy_date'] ?? now()->toDateString(),
-                'comment'          => $validated['comment'] ?? null,
-                'address_point_id' => $addressPointId,
-            ]);
-
-            $deviceId = $device->id;
-
-            foreach ($ifaceDefs as $n => $def) {
-                if (($def['count'] ?? 1) <= 0) continue;
-                $iface = Iface::create([
-                    'device_id' => $device->id,
-                    'type'      => $def['type'],
-                    'name'      => $request->input("iface_name_{$n}"),
-                    'mac'       => ($def['has_mac'] && $request->filled("iface_mac_{$n}"))
-                                    ? $request->input("iface_mac_{$n}") : null,
-                ]);
-
-                if ($def['has_ip'] && $request->filled("iface_ip_{$n}")) {
-                    $ipVal    = $request->input("iface_ip_{$n}");
-                    $subnetId = (int) $request->input("iface_subnet_{$n}");
-                    IpAddress::create([
-                        'iface_id'   => $iface->id,
-                        'subnet_id'  => $subnetId,
-                        'ip_address' => $ipVal,
-                        'member_id'  => $memberId,
-                        'dhcp'       => 0,
-                        'gateway'    => 0,
-                        'service'    => 0,
-                    ]);
-                    $this->syncIp6Add($iface->id, $ipVal);
-                    $touchedSubnetIds[$subnetId] = true;
-                }
-            }
-        });
-
-        // dhcp_expired=1 pro DHCP subnety, aby DHCP server přečetl nový lease
-        foreach (array_keys($touchedSubnetIds) as $sid) {
-            Subnet::find($sid)?->setExpired();
-        }
-
-        // Allowed subnets — auto-přidat každý subnet, do kterého padla nová IP
-        $memberId = User::find($validated['user_id'])?->member_id;
-        if ($memberId) {
-            $sync = app(AllowedSubnetSyncService::class);
-            foreach (array_keys($touchedSubnetIds) as $sid) {
-                $sync->onIpAdded($memberId, (int) $sid);
-            }
-
-            // Pokud byl device přidán čekajícímu zákazníkovi (type=18), aktivovat
-            // přesměrování okamžitě bez čekání na hodinový cron.
-            if (!empty($touchedSubnetIds)) {
-                app(\App\Services\PendingCustomerRedirectService::class)->refreshForMember((int) $memberId);
-            }
-        }
-
-        // Approve connection request if device was created from one
-        if ($crId = (int) $request->input('connection_request_id')) {
-            $cr = ConnectionRequest::with('member')
-                ->where('id', $crId)
-                ->where('state', ConnectionRequest::STATE_UNDECIDED)
-                ->first();
-            if ($cr) {
-                $cr->update([
-                    'device_id'       => $deviceId,
-                    'state'           => ConnectionRequest::STATE_APPROVED,
-                    'decided_user_id' => auth()->id(),
-                    'decided_at'      => now(),
-                ]);
-                // Message 13 — notify applicant of approval
-                $this->sendMessageToMember(13, $cr->member_id, [
-                    'member_name' => $cr->member?->name ?? '',
-                    'comment'     => $cr->comment ?? '',
-                ]);
-            }
-        }
-
-        // Registrace ze žádosti → listenery domény Access (PPPoE onboarding).
-        if ($crId) {
-            \App\Domains\Access\Events\DeviceRegisteredFromRequest::dispatch($deviceId, $crId);
-        }
-
-        session()->flash('success', 'Zařízení bylo úspěšně přidáno.');
-        return redirect()->route('devices.show', $deviceId);
-
-        } catch (\Illuminate\Validation\ValidationException $e) {
-            // Běžná chyba formuláře (např. prázdný název) — není to aplikační chyba,
-            // Laravel ji sám zpracuje (redirect zpět s chybami). Nelogovat jako ERROR.
-            throw $e;
+            $deviceId = $register->handle($request->deviceData(), $request->ifaceInputs(), $request->connectionRequestId(), auth()->id());
         } catch (\Exception $e) {
             \Log::error('storeWithTemplate error', [
                 'message' => $e->getMessage(),
@@ -738,29 +267,26 @@ class DeviceController extends Controller
             ]);
             throw $e;
         }
+
+        session()->flash('success', 'Zařízení bylo úspěšně přidáno.');
+        return redirect()->route('devices.show', $deviceId);
     }
 
-    public function create(Request $request)
+    public function create(Request $request, DeviceFormQuery $form, DeviceRepository $devices)
     {
         if (!$this->can('new_all')) {
             abort(403);
         }
 
-        // Pro zpětnou kompatibilitu URL i podporujeme ?user_id=, převedeme na member_id.
-        $preselectedMemberId = null;
-        if ($request->filled('member_id')) {
-            $preselectedMemberId = (int) $request->query('member_id');
-        } elseif ($request->filled('user_id')) {
-            $preselectedMemberId = DB::table('users')->where('id', (int) $request->query('user_id'))->value('member_id');
-        }
-        $deviceTypes = EnumType::where('type_id', EnumType::DEVICE_GROUP_ID)->orderBy('id')->pluck('value', 'id');
-        $members     = $this->loadMembersForPicker();
-        $towns       = DB::table('towns')->orderBy('town')->get(['id', 'town', 'zip_code']);
+        // Zpětná kompatibilita URL: ?user_id= se převede na člena.
+        $preselectedMemberId = $request->filled('member_id')
+            ? (int) $request->query('member_id')
+            : ($request->filled('user_id') ? $devices->memberIdOfUser((int) $request->query('user_id')) : null);
 
         return view('devices.create', [
-            'deviceTypes'         => $deviceTypes,
-            'members'             => $members,
-            'towns'               => $towns,
+            'deviceTypes'         => $form->deviceTypeOptions(),
+            'members'             => $form->membersForPicker(),
+            'towns'               => $form->towns(),
             'preselectedMemberId' => $preselectedMemberId,
             'canEditLogin'        => $this->can('view_all', 'login'),
             'canEditPassword'     => $this->can('view_all', 'password'),
@@ -768,73 +294,19 @@ class DeviceController extends Controller
         ]);
     }
 
-    public function store(Request $request)
+    public function store(StoreDeviceRequest $request, CreateDeviceAction $create)
     {
-        if (!$this->can('new_all')) {
-            abort(403);
+        try {
+            $device = $create->handle($request->validated());
+        } catch (DeviceOwnerInvalid $e) {
+            return back()->withInput()->withErrors(['member_id' => $e->getMessage()]);
         }
-
-        $rules = [
-            'member_id'       => 'required|integer|exists:members,id',
-            'name'            => 'required|string|max:255',
-            'type'            => 'required|integer|exists:enum_types,id',
-            'trade_name'      => 'nullable|string|max:50',
-            'operating_system'=> 'nullable|integer',
-            'PPPoE_logging_in'=> 'nullable|integer',
-            'price'           => 'nullable|numeric|min:0',
-            'payment_rate'    => 'nullable|numeric|min:0',
-            'buy_date'        => 'nullable|date',
-            'comment'         => 'nullable|string|max:254',
-            'town_id'         => 'nullable|integer|exists:towns,id',
-            'street_id'       => 'nullable|integer|exists:streets,id',
-            'street_number'   => 'nullable|string|max:50',
-        ];
-
-        // Login/heslo jsou citlivá — přijmout jen s jemným právem (stejně jako
-        // update()). Formulář je i skrývá; bez práva se podvržený POST zahodí.
-        if ($this->can('view_all', 'login')) {
-            $rules['login'] = 'nullable|string|max:30';
-        }
-        if ($this->can('view_all', 'password')) {
-            $rules['password'] = 'nullable|string|max:30';
-            // WPA2 klíč AP: stejné jemné právo jako heslo. Délka dle WPA2 (8–63),
-            // min 16 pro dostatečnou entropii (doporučení NIS2/ZKB pro sdílený klíč).
-            $rules['wpa_key']  = 'nullable|string|min:22|max:63';
-        }
-
-        $data = $request->validate($rules);
-
-        $data = $this->normalizeWpaKey($data);
-
-        $userId = $this->resolveMainUserId((int) $data['member_id']);
-        if (!$userId) {
-            return back()->withInput()
-                ->withErrors(['member_id' => 'Zvolený člen nemá hlavního uživatele.']);
-        }
-        $data['user_id'] = $userId;
-        unset($data['member_id']);
-
-        // Adresa umístění: z město/ulice/číslo najdi nebo vytvoř address_point.
-        $data['address_point_id'] = app(\App\Services\AddressResolverService::class)
-            ->resolveAddressPoint(
-                $data['town_id'] ?? null,
-                $data['street_id'] ?? null,
-                $data['street_number'] ?? null
-            );
-        unset($data['town_id'], $data['street_id'], $data['street_number']);
-
-        // Jako v Kohaně: pokud datum koupě není zadáno, ulož datum vytvoření.
-        if (empty($data['buy_date'])) {
-            $data['buy_date'] = now()->toDateString();
-        }
-
-        $device = Device::create($data);
 
         session()->flash('success', 'Zařízení bylo úspěšně přidáno.');
         return redirect()->route('devices.show', $device->id);
     }
 
-    public function edit(int $id)
+    public function edit(int $id, DeviceFormQuery $form, DeviceRepository $devices)
     {
         if (!$this->can('edit_all')) {
             abort(403);
@@ -844,213 +316,62 @@ class DeviceController extends Controller
         if (!$device) {
             abort(404);
         }
-
-        $deviceTypes = EnumType::where('type_id', EnumType::DEVICE_GROUP_ID)->orderBy('id')->pluck('value', 'id');
-        $members     = $this->loadMembersForPicker();
-        $towns       = DB::table('towns')->orderBy('town')->get(['id', 'town', 'zip_code']);
-        // Preselect aktuálního člena přes user → member_id (všechny existující devices
-        // koukají na main usera, takže member_id je vždy dostupný).
-        $currentMemberId = DB::table('users')->where('id', $device->user_id)->value('member_id');
-
-        // Aktuální adresa zařízení rozložená do polí (pro předvyplnění selectů).
         $ap = $device->addressPoint;
-        $currentTownId      = $ap?->town_id;
-        $currentStreetId    = $ap?->street_id;
-        $currentStreetNumber = $ap?->street_number;
 
         return view('devices.edit', [
             'device'              => $device,
-            'deviceTypes'         => $deviceTypes,
-            'members'             => $members,
-            'towns'               => $towns,
-            'currentMemberId'     => $currentMemberId,
-            'currentTownId'       => $currentTownId,
-            'currentStreetId'     => $currentStreetId,
-            'currentStreetNumber' => $currentStreetNumber,
+            'deviceTypes'         => $form->deviceTypeOptions(),
+            'members'             => $form->membersForPicker(),
+            'towns'               => $form->towns(),
+            'currentMemberId'     => $devices->memberIdOfUser($device->user_id),
+            'currentTownId'       => $ap?->town_id,
+            'currentStreetId'     => $ap?->street_id,
+            'currentStreetNumber' => $ap?->street_number,
             'canEditLogin'        => $this->can('view_all', 'login'),
             'canEditPassword'     => $this->can('view_all', 'password'),
             'apTypeId'            => Device::AP_TYPE_ID,
         ]);
     }
 
-    public function update(Request $request, int $id)
+    public function update(UpdateDeviceRequest $request, int $id, UpdateDeviceAction $update)
     {
-        if (!$this->can('edit_all')) {
-            abort(403);
-        }
-
         $device = Device::find($id);
         if (!$device) {
             abort(404);
         }
 
-        $rules = [
-            'member_id'       => 'required|integer|exists:members,id',
-            'name'            => 'required|string|max:255',
-            'type'            => 'required|integer|exists:enum_types,id',
-            'trade_name'      => 'nullable|string|max:50',
-            'operating_system'=> 'nullable|integer',
-            'PPPoE_logging_in'=> 'nullable|integer',
-            'price'           => 'nullable|numeric|min:0',
-            'payment_rate'    => 'nullable|numeric|min:0',
-            'buy_date'        => 'nullable|date',
-            'comment'         => 'nullable|string|max:254',
-            'town_id'         => 'nullable|integer|exists:towns,id',
-            'street_id'       => 'nullable|integer|exists:streets,id',
-            'street_number'   => 'nullable|string|max:50',
-        ];
-
-        if ($this->can('view_all', 'login')) {
-            $rules['login'] = 'nullable|string|max:30';
-        }
-
-        if ($this->can('view_all', 'password')) {
-            $rules['password'] = 'nullable|string|max:30';
-            $rules['wpa_key']  = 'nullable|string|min:22|max:63';
-        }
-
-        $data = $request->validate($rules);
-
-        $data = $this->normalizeWpaKey($data);
-
-        $userId = $this->resolveMainUserId((int) $data['member_id']);
-        if (!$userId) {
-            return back()->withInput()
-                ->withErrors(['member_id' => 'Zvolený člen nemá hlavního uživatele.']);
-        }
-        $data['user_id'] = $userId;
-        unset($data['member_id']);
-
-        // Adresa umístění: z město/ulice/číslo najdi nebo vytvoř address_point.
-        $data['address_point_id'] = app(\App\Services\AddressResolverService::class)
-            ->resolveAddressPoint(
-                $data['town_id'] ?? null,
-                $data['street_id'] ?? null,
-                $data['street_number'] ?? null
-            );
-        unset($data['town_id'], $data['street_id'], $data['street_number']);
-
-        // Přesun na jiného majitele: zachyť starého člena + subnety IP zařízení
-        // JEŠTĚ PŘED změnou user_id (allowed_subnets je per member_id a při přesunu
-        // se sám nepřepíše — IP se nemění, jen vlastník). Viz AllowedSubnetSyncService.
-        $oldMemberId = $device->user?->member_id;
-        $newMemberId = User::find($data['user_id'])?->member_id;
-        $subnetIds   = IpAddress::join('ifaces', 'ifaces.id', '=', 'ip_addresses.iface_id')
-            ->where('ifaces.device_id', $device->id)
-            ->whereNotNull('ip_addresses.subnet_id')
-            ->distinct()->pluck('ip_addresses.subnet_id')->all();
-
-        $device->update($data);
-
-        // Změnil se člen → přepiš allowed_subnets: nový majitel subnety získá
-        // (v rámci svého limitu), starý je ztratí, pokud v nich už nemá jinou IP.
-        if ($newMemberId && $oldMemberId !== $newMemberId && $subnetIds) {
-            $sync = app(AllowedSubnetSyncService::class);
-            foreach ($subnetIds as $sid) {
-                $sync->onIpAdded($newMemberId, (int) $sid);
-            }
-            if ($oldMemberId) {
-                foreach ($subnetIds as $sid) {
-                    $sync->onIpRemoved($oldMemberId, (int) $sid);
-                }
-            }
+        try {
+            $update->handle($device, $request->validated());
+        } catch (DeviceOwnerInvalid $e) {
+            return back()->withInput()->withErrors(['member_id' => $e->getMessage()]);
         }
 
         session()->flash('success', 'Zařízení bylo úspěšně upraveno.');
         return redirect()->route('devices.show', $id);
     }
 
-    public function destroy(int $id)
+    public function destroy(int $id, RemoveDeviceAction $remove)
     {
         if (!$this->can('delete_all')) {
             abort(403);
         }
 
-        $device = Device::with('ifaces.ipAddresses', 'user')->findOrFail($id);
-        $userId   = $device->user_id;
-        $memberId = $device->user?->member_id;
+        $removed = $remove->handle($id);
 
-        // Posbíráme subnety dotčené smazáním (aby ->ipAddresses()->delete()
-        // jako mass-delete bez Eloquent eventů nezamlčel dhcp_expired flag).
-        $touchedSubnetIds = [];
-        $removedIps = [];
-        foreach ($device->ifaces as $iface) {
-            foreach ($iface->ipAddresses as $ip) {
-                if ($ip->subnet_id) $touchedSubnetIds[$ip->subnet_id] = true;
-                if ($ip->ip_address) $removedIps[] = $ip->ip_address;
-            }
-        }
-
-        $deviceName = $device->name;
-        DB::transaction(function () use ($device) {
-            foreach ($device->ifaces as $iface) {
-                $iface->ip6Addresses()->delete();
-                $iface->ipAddresses()->delete();
-            }
-            $device->ifaces()->delete();
-            $device->delete();
-        });
-
-        // Trait zaloguje smazání device-centricky, ale rozhraní/IP se mažou hromadně
-        // (bez eventů) a smazané zařízení už nedohledáme přes živé ID. Proto navíc
-        // member-keyed záznam s IP adresami — aby bylo smazání vidět na kartě člena.
-        if ($memberId) {
-            \App\Services\AuditLogger::log('device_removed', 'members', $memberId, [
-                'device_id'   => $id,
-                'device_name' => $deviceName,
-                'ip_adresy'   => $removedIps,
-            ], null);
-        }
-
-        foreach (array_keys($touchedSubnetIds) as $sid) {
-            Subnet::find($sid)?->setExpired();
-        }
-
-        // Allowed subnets — pokud člen v subnetu nemá už žádnou jinou IP,
-        // subnet odebereme z allowed (sync sám zkontroluje, zda zbyla jiná).
-        if ($memberId) {
-            $sync = app(AllowedSubnetSyncService::class);
-            foreach (array_keys($touchedSubnetIds) as $sid) {
-                $sync->onIpRemoved($memberId, (int) $sid);
-            }
-        }
-
-        return redirect()->route('devices.by_user', $userId)
+        return redirect()->route('devices.by_user', $removed->userId)
             ->with('success', 'Zařízení bylo smazáno.');
     }
 
     // ── DHCP Servers overview ─────────────────────────────────────────────────
 
-    public function dhcpServers()
+    public function dhcpServers(DeviceListQuery $list)
     {
         abort_unless($this->aclCheck('view_all', 'Devices_Controller', 'devices'), 403);
 
-        // s.dhcp = 1 filtruje vypnuté subnety — bez toho zombie dhcp_expired=1 na
-        // subnetech, kde admin DHCP vypnul, drží zařízení trvale ve stavu 'Změněno'
-        // (export nikdy nezresetuje flag u subnetů s subnet.dhcp=0).
-        $devices = DB::select("
-            SELECT DISTINCT d.id, d.name, d.access_time,
-                GROUP_CONCAT(DISTINCT s.name ORDER BY s.name SEPARATOR ', ') AS subnets,
-                MAX(s.dhcp_expired) AS has_expired
-            FROM devices d
-            JOIN ifaces i ON i.device_id = d.id
-            JOIN ip_addresses ip ON ip.iface_id = i.id
-            JOIN subnets s ON s.id = ip.subnet_id
-            WHERE ip.gateway = 1 AND ip.dhcp = 1 AND s.dhcp = 1
-            GROUP BY d.id, d.name, d.access_time
-            ORDER BY d.access_time ASC
-        ");
-
-        $devices = array_map(function ($device) {
-            $device->error = $device->access_time &&
-                $device->access_time !== '0000-00-00 00:00:00' &&
-                Carbon::parse($device->access_time)->diffInMinutes(now()) > 5;
-            return $device;
-        }, $devices);
-
-        $token = Setting::get('dhcp_api_token');
-
-        return view('devices.dhcp_servers', compact('devices', 'token'));
+        return view('devices.dhcp_servers', [
+            'devices' => $list->dhcpServers(),
+            'token'   => Setting::get('dhcp_api_token'),
+        ]);
     }
 
     // ── DHCP Export ───────────────────────────────────────────────────────────
@@ -1108,95 +429,10 @@ class DeviceController extends Controller
      * jen s příslušným právem (stejně jako detail). Streamované + chunk kvůli
      * tisícům zařízení (bounded paměť). Oddělovač ';' + UTF-8 BOM (Excel/CZ).
      */
-    public function inventoryCsv(Request $request): \Symfony\Component\HttpFoundation\StreamedResponse
+    public function inventoryCsv(Request $request, DeviceInventoryCsv $csv): \Symfony\Component\HttpFoundation\StreamedResponse
     {
         abort_unless($this->can('view_all'), 403);
-        $canLogin   = $this->can('view_all', 'login');
-        $canPass    = $this->can('view_all', 'password');
-        $typeLabels = Iface::typeLabels();
 
-        $columns = [
-            'ID', 'Název', 'Typ', 'Obchodní název', 'Uživatel', 'Člen', 'Adresa umístění',
-            'Operační systém', 'Login', 'Heslo', 'WPA2 klíč', 'Poslední přístup',
-            'Cena', 'Měsíční splátka', 'Datum koupě', 'Komentář', 'Technici zařízení',
-            'Rozhraní (detail)', 'MAC adresy', 'IPv4 adresy', 'IPv6 adresy',
-        ];
-        $filename = 'zarizeni-inventar-' . now()->format('Y-m-d') . '.csv';
-
-        return response()->streamDownload(function () use ($columns, $canLogin, $canPass, $typeLabels) {
-            $out = fopen('php://output', 'w');
-            fwrite($out, "\xEF\xBB\xBF"); // UTF-8 BOM
-            fputcsv($out, $columns, ';');
-
-            Device::with([
-                'enumType', 'user.member',
-                'addressPoint.street', 'addressPoint.town',
-                'deviceEngineers.user',
-                'ifaces.ipAddresses', 'ifaces.ip6Addresses',
-            ])->orderBy('id')->chunk(200, function ($devices) use ($out, $canLogin, $canPass, $typeLabels) {
-                foreach ($devices as $d) {
-                    $ap = $d->addressPoint;
-                    $addr = $ap
-                        ? trim(trim(($ap->street->street ?? '') . ' ' . ($ap->street_number ?? ''))
-                            . ', ' . trim(($ap->town->town ?? '') . ' ' . ($ap->town->zip_code ?? '')), ' ,')
-                        : '';
-
-                    $techs = $d->deviceEngineers->map(function ($e) {
-                        $u = $e->user;
-                        if (!$u) return '#' . $e->user_id;
-                        $jm = trim(($u->name ?? '') . ' ' . ($u->surname ?? ''));
-                        return $u->login . ($jm !== '' ? " ({$jm})" : '');
-                    })->implode('; ');
-
-                    $ifaceParts = []; $macs = []; $v4 = []; $v6 = [];
-                    foreach ($d->ifaces as $if) {
-                        $ips = $if->ipAddresses->pluck('ip_address')->all();
-                        $p6  = $if->ip6Addresses->pluck('ip_address')->all();
-                        if ($if->mac) $macs[] = $if->mac;
-                        $v4 = array_merge($v4, $ips);
-                        $v6 = array_merge($v6, $p6);
-                        $ifaceParts[] = ($if->name ?? '?')
-                            . '(' . ($typeLabels[$if->type] ?? $if->type) . ')'
-                            . ' MAC=' . ($if->mac ?: '-')
-                            . ' IPv4=[' . implode(',', $ips) . ']'
-                            . ' IPv6=[' . implode(',', $p6) . ']';
-                    }
-
-                    // Credentialy jsou šifrované at-rest — dešifrování obalíme, ať
-                    // jeden vadný řádek neshodí celý export.
-                    $login = $canLogin ? ($d->login ?? '') : '';
-                    $pass = ''; $wpa = '';
-                    if ($canPass) {
-                        try { $pass = (string) ($d->password ?? ''); } catch (\Throwable $e) { $pass = '(nešlo dešifrovat)'; }
-                        try { $wpa  = (string) ($d->wpa_key ?? ''); } catch (\Throwable $e) { $wpa = '(nešlo dešifrovat)'; }
-                    }
-
-                    fputcsv($out, [
-                        $d->id,
-                        $d->name,
-                        $d->enumType->value ?? $d->type,
-                        $d->trade_name ?? '',
-                        $d->user?->full_name ?? '',
-                        $d->user?->member?->name ?? '',
-                        $addr,
-                        $d->operating_system ?? '',
-                        $login,
-                        $pass,
-                        $wpa,
-                        $d->access_time ?? '',
-                        $d->price ?? '',
-                        $d->payment_rate ?? '',
-                        ($d->buy_date && $d->buy_date !== '0000-00-00') ? $d->buy_date : '',
-                        $d->comment ?? '',
-                        $techs,
-                        implode(' || ', $ifaceParts),
-                        implode('; ', $macs),
-                        implode('; ', $v4),
-                        implode('; ', $v6),
-                    ], ';');
-                }
-            });
-            fclose($out);
-        }, $filename, ['Content-Type' => 'text/csv; charset=UTF-8']);
+        return $csv->download($this->can('view_all', 'login'), $this->can('view_all', 'password'));
     }
 }
