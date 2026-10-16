@@ -3,7 +3,8 @@
 namespace App\Domains\Billing\Listeners;
 
 use App\Domains\Billing\Events\PaymentReceived;
-use App\Services\InvoiceService;
+use App\Domains\Billing\Actions\IssueServicesInvoiceAction;
+use App\Domains\Billing\Actions\QueuePaymentConfirmationAction;
 
 /**
  * Doklad k platbě: účet služeb (payment_purpose=1) → faktura + PDF + e-mail,
@@ -11,13 +12,18 @@ use App\Services\InvoiceService;
  */
 class IssuePaymentDocument
 {
+    public function __construct(
+        private IssueServicesInvoiceAction $invoice,
+        private QueuePaymentConfirmationAction $confirmation,
+    ) {
+    }
+
     public function handle(PaymentReceived $event): void
     {
-        $invoices = new InvoiceService();
         if ((int) $event->bankAccount->payment_purpose === 1) {
-            $invoices->generateServicesInvoice($event->memberId, $event->amount, $event->bankAccount->id, [$event->bankTransferId]);
+            $this->invoice->handle($event->memberId, $event->amount, $event->bankAccount->id, [$event->bankTransferId]);
         } else {
-            $invoices->queuePaymentConfirmation($event->memberId, $event->amount, $event->bankAccount->name, [$event->bankTransferId]);
+            $this->confirmation->handle($event->memberId, $event->amount, $event->bankAccount->name, [$event->bankTransferId]);
         }
     }
 }
