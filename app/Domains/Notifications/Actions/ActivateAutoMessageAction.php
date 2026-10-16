@@ -43,11 +43,7 @@ class ActivateAutoMessageAction
         $optOut    = DB::table('members')->whereIn('id', $memberIds)
             ->get(['id', 'notification_by_redirection', 'notification_by_email', 'notification_by_sms'])->keyBy('id');
 
-        // POZOR (legacy): porovnává se s číslem dne v měsíci, ne s datem (viz charakterizace).
-        $dayOfMonth  = now()->day;
-        $whitelisted = (int) ($message->ignore_whitelist ?? 0) === 1 ? [] : DB::table('members_whitelists')
-            ->whereIn('member_id', $memberIds)->where('since', '<=', $dayOfMonth)->where('until', '>=', $dayOfMonth)
-            ->pluck('member_id')->flip()->toArray();
+        $whitelisted = (int) ($message->ignore_whitelist ?? 0) === 1 ? [] : $this->redirects->whitelisted($memberIds);
 
         if ($doRedirect) {
             $stats['deleted'] = DB::table('messages_ip_addresses')->where('message_id', $message->id)->delete();

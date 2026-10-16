@@ -19,8 +19,8 @@ use Tests\DatabaseTestCase;
  *   kanály: e-mail (placeholdery, {payment_qr} inline), SMS, přesměrování
  *   (čistý stav pro zprávu), opt-out člena, bílá listina, log_queues, report
  *
- * Zachycená CHYBA: bílá listina se porovnává s ČÍSLEM dne v měsíci
- * (since <= 16) místo data → nikdy neplatí, whitelistovaný dlužník je přesměrován.
+ * Bílá listina k dnešnímu datu vyjme z přesměrování (do 2026-10-16 se
+ * porovnávala s číslem dne v měsíci a nikdy neplatila).
  */
 class NotificationActivationTest extends DatabaseTestCase
 {
@@ -145,8 +145,14 @@ class NotificationActivationTest extends DatabaseTestCase
         $this->assertSame(0, $this->redirected(self::MSG_DEBTOR, $optOut['ips']));
         $this->assertStringContainsString('Vynecháno kvůli vlastnímu odhlášení člena: 1 e-mailů, 1 SMS, 1 přesměrování.', $this->log(self::MSG_DEBTOR)->exception_backtrace);
 
-        $this->assertSame(1, $this->redirected(self::MSG_DEBTOR, $wl['ips']), 'CHYBA: whitelist (since <= číslo dne) neplatí');
-        $this->assertStringNotContainsString('bílé listině', $this->log(self::MSG_DEBTOR)->exception_backtrace);
+        $this->assertSame(0, $this->redirected(self::MSG_DEBTOR, $wl['ips']), 'bílá listina vyjme z přesměrování');
+        $this->assertStringContainsString('Přesměrování vynecháno kvůli bílé listině: 1 členů.', $this->log(self::MSG_DEBTOR)->exception_backtrace);
+        $this->assertTrue(DB::table('email_queues')->where('to', $wl['email'])->exists(), 'e-mail dostane i tak');
+
+        // zpráva s ignore_whitelist přesměruje i whitelistovaného
+        DB::table('messages')->where('id', self::MSG_DEBTOR)->update(['ignore_whitelist' => 1]);
+        $this->run10();
+        $this->assertSame(1, $this->redirected(self::MSG_DEBTOR, $wl['ips']));
 
         $this->assertSame([0, 1], [$this->redirected(self::MSG_DEBTOR, $clen['ips']), $this->redirected(self::MSG_DEBTOR_CLEN, $clen['ips'])]);
         $this->assertFalse(DB::table('email_queues')->where('to', $clen['email'])->exists(), 'pravidlo zprávy 114 jen přesměrování');
