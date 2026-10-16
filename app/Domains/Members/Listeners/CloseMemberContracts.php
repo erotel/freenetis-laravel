@@ -3,7 +3,7 @@
 namespace App\Domains\Members\Listeners;
 
 use App\Domains\Members\Events\MembershipEnded;
-use App\Domains\Members\Repositories\MemberContractRepository;
+use App\Domains\Contracts\Repositories\ContractRepository;
 
 /**
  * Výpověď → podepsané smlouvy „Ukončená" (zůstávají jako právní dokument),
@@ -11,13 +11,13 @@ use App\Domains\Members\Repositories\MemberContractRepository;
  */
 class CloseMemberContracts
 {
-    public function __construct(private MemberContractRepository $contracts)
+    public function __construct(private ContractRepository $contracts)
     {
     }
 
     public function handle(MembershipEnded $event): void
     {
-        $event->contractsTerminated = $this->contracts->terminateSigned($event->memberId, $event->leavingDate, $event->endedBy);
-        $this->contracts->purgeUnsigned($event->memberId);
+        $event->contractsTerminated = $this->contracts->terminateSignedForMember($event->memberId, $event->leavingDate, $event->endedBy);
+        $this->contracts->purgeUnsignedForMember($event->memberId);
     }
 }

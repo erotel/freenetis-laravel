@@ -3,17 +3,17 @@
 namespace App\Domains\Members\Listeners;
 
 use App\Domains\Members\Events\MemberPurged;
-use App\Domains\Members\Repositories\MemberContractRepository;
+use App\Domains\Contracts\Repositories\ContractRepository;
 
 /** Po smazání člena smazat jeho nepodepsané smlouvy; podepsané/ukončené zůstávají jako právní dokument. */
 class PurgeMemberContracts
 {
-    public function __construct(private MemberContractRepository $contracts)
+    public function __construct(private ContractRepository $contracts)
     {
     }
 
     public function handle(MemberPurged $event): void
     {
-        $this->contracts->purgeUnsigned($event->memberId);
+        $this->contracts->purgeUnsignedForMember($event->memberId);
     }
 }
