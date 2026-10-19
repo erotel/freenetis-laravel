@@ -61,8 +61,8 @@ class MemberRepository
         ]);
     }
 
-    /** Nový člen (nepodepsaná registrace, odemčený, bez data odchodu). */
-    public function create(string $name, int|string $type, string $entranceDate, ?string $comment, ?string $ico,
+    /** Nový člen (nepodepsaná registrace, odemčený, bez data odchodu); čekající bez data vstupu. */
+    public function create(string $name, int|string $type, ?string $entranceDate, ?string $comment, ?string $ico,
                            ?string $dic, int $addressPointId): int
     {
         return (int) DB::table('members')->insertGetId([

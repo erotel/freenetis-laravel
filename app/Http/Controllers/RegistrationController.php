@@ -1,12 +1,12 @@
 <?php
 namespace App\Http\Controllers;
 
-use App\Models\EmailQueue;
-use App\Models\EmailQueueAttachment;
+use App\Domains\Members\Actions\SelfRegisterAction;
 use App\Models\Setting;
+use App\Models\Town;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\DB;
 
+/** Veřejná samoregistrace (Setting self_registration); logika v doméně Members. */
 class RegistrationController extends Controller
 {
     public function create()
@@ -15,11 +15,11 @@ class RegistrationController extends Controller
             abort(404);
         }
 
-        $towns = DB::table('towns')->orderBy('town')->get(['id', 'town', 'zip_code', 'quarter']);
+        $towns = Town::orderBy('town')->get(['id', 'town', 'zip_code', 'quarter']);
         return view('registration.create', compact('towns'));
     }
 
-    public function store(Request $request)
+    public function store(Request $request, SelfRegisterAction $register)
     {
         if (!Setting::get('self_registration', 0)) {
             abort(404);
@@ -55,177 +55,9 @@ class RegistrationController extends Controller
             'birthday.before_or_equal'          => 'Registrace je možná až od 18 let.',
         ]);
 
-        $memberId = null;
-        $userId   = null;
-
-        DB::transaction(function () use ($validated, &$memberId, &$userId) {
-            // 1. Adresní bod
-            $addressPointId = DB::table('address_points')->insertGetId([
-                'town_id'       => $validated['town_id'],
-                'street_id'     => $validated['street_id'],
-                'country_id'    => 1,
-                'street_number' => $validated['street_number'],
-            ]);
-
-            // 2. Celé jméno — ořez na 100 znaků (DB varchar limit)
-            $isOrg = (int) $validated['registration_type'] === 3;
-            $fullName = mb_substr(
-                $isOrg
-                    ? $validated['name']
-                    : trim($validated['name'] . ($validated['surname'] ? ' ' . $validated['surname'] : '')),
-                0, 100
-            );
-
-            // 3. Člen — typ 3 (org.), 17 (čekající člen) nebo 18 (čekající zákazník)
-            //    Datum vstupu se čekajícím (17/18) NEnastavuje — členem/zákazníkem
-            //    se stávají až schválením přihlášky (přechod na aktivní typ), teprve
-            //    tehdy se doplní den schválení (viz MemberController::update).
-            $regType = (int) $validated['registration_type'];
-            $isPending = in_array($regType, [17, 18], true);
-            $memberId = DB::table('members')->insertGetId([
-                'name'                        => $fullName,
-                'type'                        => $regType,
-                'entrance_date'               => $isPending ? null : now()->format('Y-m-d'),
-                'leaving_date'                => '9999-12-31',
-                'comment'                     => $validated['comment'] ?? '',
-                'organization_identifier'     => $validated['organization_identifier'] ?? '',
-                'vat_organization_identifier' => $validated['vat_organization_identifier'] ?? '',
-                'address_point_id'            => $addressPointId,
-                'locked'                      => 0,
-                'registration'                => 0,
-            ]);
-
-            // 4. Uživatelský účet
-            $userId = DB::table('users')->insertGetId([
-                'member_id'            => $memberId,
-                'name'                 => mb_substr($validated['name'], 0, 30),
-                'surname'              => $isOrg
-                    ? mb_substr(mb_substr($validated['name'], 30), 0, 60)
-                    : mb_substr($validated['surname'] ?? '', 0, 60),
-                'login'                => $validated['login'],
-                'password'             => bcrypt($validated['password']),
-                'application_password' => \Illuminate\Support\Facades\Crypt::encryptString(\App\Models\User::generateApplicationPassword()),
-                'type'                 => 1,
-                'birthday'             => $validated['birthday'],
-                'comment'              => '',
-                'settings'             => '',
-            ]);
-
-            // 5. Kreditní účet
-            $accountId = DB::table('accounts')->insertGetId([
-                'member_id'            => $memberId,
-                'account_attribute_id' => 221100,
-                'balance'              => 0,
-                'comment'              => '',
-            ]);
-
-            // 6. Variabilní symbol
-            $vs = (string)$memberId . str_pad(rand(0, 99), 2, '0', STR_PAD_LEFT);
-            DB::table('variable_symbols')->insert([
-                'account_id'      => $accountId,
-                'variable_symbol' => $vs,
-            ]);
-
-            // 7. Třída rychlosti — nenastavuje se automaticky, admin ji vyplní ručně
-            //    před vytvořením smlouvy (kontroluje ContractController::create).
-
-            // 8. Kontakty (přes users_contacts M:N, contacts nemá user_id)
-            $emailContactId = DB::table('contacts')->insertGetId([
-                'type'  => 20,
-                'value' => $validated['email'],
-            ]);
-            DB::table('users_contacts')->insert([
-                'user_id'          => $userId,
-                'contact_id'       => $emailContactId,
-                'mail_redirection' => 0,
-            ]);
-
-            $phoneContactId = DB::table('contacts')->insertGetId([
-                'type'  => 21, // CONTACT_PHONE (enum_types.id=21 = "Telefon")
-                'value' => $validated['phone'],
-            ]);
-            DB::table('users_contacts')->insert([
-                'user_id'          => $userId,
-                'contact_id'       => $phoneContactId,
-                'mail_redirection' => 0,
-            ]);
-        });
-
-        // Audit trail: veřejná samoregistrace (user_id NULL = anonymní registrace).
-        \App\Services\AuditLogger::log('created', 'members', $memberId, null, [
-            'type'  => (int) $validated['registration_type'],
-            'login' => $validated['login'],
-            'via'   => 'veřejná registrace',
-        ]);
-
-        $this->sendRegistrationSummary($userId, (int) $validated['registration_type']);
+        $register->handle($validated);
 
         return redirect()->route('registration.success');
-    }
-
-    /**
-     * Queue a registration-summary email with a PDF attachment to the new member.
-     * Silently no-op if disabled, no email on file, or attachment missing.
-     *
-     * Shrnutí je smluvní dokument pro zákazníka — neposílá se čekajícím členům
-     * (typ 17), ti dostávají přihlášku k podpisu jiným tokem.
-     */
-    private function sendRegistrationSummary(?int $userId, int $registrationType): void
-    {
-        if (!$userId || !Setting::get('registration_summary_enabled', 0)) {
-            return;
-        }
-
-        if ($registrationType === 17) {
-            return;
-        }
-
-        $pdfSetting = trim((string) Setting::get('registration_summary_pdf', ''));
-        if ($pdfSetting === '') {
-            return;
-        }
-
-        $pdfPath = str_starts_with($pdfSetting, '/')
-            ? $pdfSetting
-            : storage_path('app/private/' . ltrim($pdfSetting, '/'));
-
-        if (!is_file($pdfPath)) {
-            return;
-        }
-
-        $email = DB::table('contacts as c')
-            ->join('users_contacts as uc', 'uc.contact_id', '=', 'c.id')
-            ->where('uc.user_id', $userId)
-            ->where('c.type', 20)
-            ->orderBy('c.id')
-            ->value('c.value');
-
-        if (!$email) {
-            return;
-        }
-
-        try {
-            $emailQueue = EmailQueue::create([
-                'from'        => Setting::get('email_default_email', 'noreply@pvfree.net'),
-                'to'          => $email,
-                'subject'     => 'Shrnutí smlouvy - PVfree.net',
-                'body'        => "<p>Dobrý den,</p>"
-                    . "<p>děkujeme za registraci. V příloze posíláme shrnutí Vaší smlouvy ve formátu PDF.</p>"
-                    . "<p>S pozdravem,<br>PVfree.net, z.s.</p>",
-                'state'       => EmailQueue::STATE_NEW,
-                'access_time' => now(),
-            ]);
-
-            EmailQueueAttachment::create([
-                'email_queue_id' => $emailQueue->id,
-                'path'           => $pdfPath,
-                'name'           => 'smlouva_shrnuti.pdf',
-                'mime'           => 'application/pdf',
-                'created_at'     => now(),
-            ]);
-        } catch (\Throwable $e) {
-            // Silent: registration must succeed even if email queueing fails
-        }
     }
 
     public function success()
