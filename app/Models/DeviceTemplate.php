@@ -10,6 +10,7 @@ class DeviceTemplate extends Model
 
     public $timestamps = false;
     protected $table = 'device_templates';
+    protected $fillable = ['name', 'enum_type_id', 'default', 'values'];
     protected $casts = ['values' => 'array', 'default' => 'boolean'];
 
     public function enumType()

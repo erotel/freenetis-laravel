@@ -13,17 +13,30 @@ class DeviceTemplateController extends Controller
     const ACL_SECTION = 'Device_templates_Controller';
     const ACL_KEY     = 'device_template';
 
-    private const RULES = [
-        'name'         => 'required|string|max:80',
-        'enum_type_id' => 'required|integer|exists:enum_types,id',
-        'default'      => 'boolean',
-    ];
+    /** Rozumný strop počtu rozhraní jednoho typu (dřív neomezeno — i záporné). */
+    private const MAX_IFACES = 64;
 
     public function __construct(private DeviceTemplateRepository $templates) {}
 
     private function can(string $action): bool
     {
         return $this->aclCheck($action, self::ACL_SECTION, self::ACL_KEY);
+    }
+
+    /** Typ zařízení z číselníku zařízení; počty rozhraní 0–64. */
+    private function validated(Request $request): array
+    {
+        $rules = [
+            'name'         => 'required|string|max:80',
+            'enum_type_id' => ['required', 'integer', 'exists:enum_types,id', 'in:' . $this->templates->deviceTypes()->keys()->implode(',')],
+            'default'      => 'boolean',
+        ];
+        foreach (array_keys(Iface::typeLabels()) as $type) {
+            foreach ($type === Iface::WIRELESS ? ['min_count', 'max_count'] : ['count'] as $field) {
+                $rules["iface_{$type}_{$field}"] = 'nullable|integer|min:0|max:' . self::MAX_IFACES;
+            }
+        }
+        return $request->validate($rules, ['enum_type_id.in' => 'Vyberte typ zařízení.']);
     }
 
     private function values(Request $request, array $data): array
@@ -68,7 +81,7 @@ class DeviceTemplateController extends Controller
     public function store(Request $request)
     {
         abort_unless($this->can('new_all'), 403);
-        $template = $this->templates->create($this->values($request, $request->validate(self::RULES)));
+        $template = $this->templates->create($this->values($request, $this->validated($request)));
         if ($template->default) {
             $this->templates->clearOtherDefaults($template);
         }
@@ -89,7 +102,7 @@ class DeviceTemplateController extends Controller
     {
         abort_unless($this->can('edit_all'), 403);
         $template = $this->templates->findOrFail($id);
-        $this->templates->update($template, $this->values($request, $request->validate(self::RULES)));
+        $this->templates->update($template, $this->values($request, $this->validated($request)));
         if ($template->default) {
             $this->templates->clearOtherDefaults($template);
         }

@@ -50,15 +50,36 @@ class DeviceTemplatesTest extends DatabaseTestCase
             'iface_' . Iface::ETHERNET . '_count' => 1, 'iface_' . Iface::ETHERNET . '_names' => ['ether1']];
     }
 
-    /** CHYBA (oprava zvlášť): model nemá fillable → založení i úprava padají na 500. */
-    public function test_zalozeni_a_uprava_padaji(): void
+    public function test_zalozeni_uprava_vychozi(): void
     {
         $this->as()->get(route('device_templates.create'))->assertOk()->assertViewHas('deviceTypes', fn ($t) => isset($t[$this->deviceType]));
-        $this->as()->post(route('device_templates.store'), $this->data())->assertStatus(500);
-        $id = (int) DB::table('device_templates')->insertGetId(['name' => "Char {$this->tag}", 'enum_type_id' => $this->deviceType, 'default' => 0, 'values' => '{}']);
+        $old = (int) DB::table('device_templates')->insertGetId(['name' => 'stara', 'enum_type_id' => $this->deviceType, 'default' => 1, 'values' => '{}']);
+
+        $res = $this->as()->post(route('device_templates.store'), $this->data());
+        $id = (int) DB::table('device_templates')->where('name', "Char {$this->tag}")->value('id');
+        $res->assertRedirect(route('device_templates.show', $id))->assertSessionHas('success', 'Šablona zařízení byla úspěšně přidána.');
+        $values = json_decode(DB::table('device_templates')->where('id', $id)->value('values'), true);
+        $this->assertSame(['type' => Iface::WIRELESS, 'min_count' => 2, 'max_count' => 2, 'has_ip' => true, 'has_mac' => true, 'has_link' => true,
+            'items' => [['name' => 'wlan0'], ['name' => 'wlan1']]], $values[Iface::WIRELESS], 'max ≥ min');
+        $this->assertSame(['type' => Iface::ETHERNET, 'count' => 1, 'has_ip' => true, 'has_mac' => true, 'has_link' => true, 'items' => [['name' => 'ether1']]], $values[Iface::ETHERNET]);
+        $this->assertSame(['type' => Iface::VLAN_IFACE, 'count' => 0, 'has_ip' => false, 'has_mac' => false, 'has_link' => true, 'items' => []], $values[Iface::VLAN_IFACE]);
+        $this->assertSame(0, (int) DB::table('device_templates')->where('id', $old)->value('default'), 'jediná výchozí na typ');
+
+        $show = $this->as()->get(route('device_templates.show', $id))->assertOk()->assertViewIs('device_templates.show');
+        $this->assertNotEmpty($show->viewData('ifaceDefs'));
         $this->as()->get(route('device_templates.edit', $id))->assertOk();
-        $this->as()->put(route('device_templates.update', $id), $this->data())->assertStatus(500);
+        $this->as()->put(route('device_templates.update', $id), ['name' => "Upr {$this->tag}", 'enum_type_id' => $this->deviceType])
+            ->assertRedirect(route('device_templates.show', $id))->assertSessionHas('success', 'Šablona zařízení byla úspěšně upravena.');
+        $r = DB::table('device_templates')->where('id', $id)->first();
+        $this->assertSame(["Upr {$this->tag}", 0], [$r->name, (int) $r->default]);
+        $this->as()->put(route('device_templates.update', 999999999), $this->data())->assertNotFound();
         $this->as()->post(route('device_templates.store'), ['name' => '', 'enum_type_id' => 999999999])->assertSessionHasErrors(['name', 'enum_type_id']);
+
+        // počty rozhraní 0–64 a typ zařízení jen z číselníku zařízení
+        $other = (int) DB::table('enum_types')->where('type_id', '<>', EnumType::DEVICE_GROUP_ID)->value('id');
+        $this->as()->post(route('device_templates.store'), $this->data(['enum_type_id' => $other, 'iface_' . Iface::ETHERNET . '_count' => 100000,
+            'iface_' . Iface::WIRELESS . '_min_count' => -1]))->assertSessionHasErrors(['enum_type_id' => 'Vyberte typ zařízení.',
+            'iface_' . Iface::ETHERNET . '_count', 'iface_' . Iface::WIRELESS . '_min_count']);
     }
 
     public function test_seznam_export_smazani(): void
