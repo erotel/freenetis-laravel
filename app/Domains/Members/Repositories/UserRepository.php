@@ -7,6 +7,7 @@ use App\Models\DeviceEngineer;
 use App\Models\Member;
 use App\Models\User;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\Crypt;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 
@@ -58,11 +59,14 @@ class UserRepository
         return DeviceEngineer::where('user_id', $userId)->with('device')->get();
     }
 
-    /** Hashuje heslo, pokud je v datech. */
+    /** Nový uživatel: hash hesla, náhodné aplikační heslo (povinné), prázdné nastavení. */
     public function create(array $data): User
     {
         $data['password'] = Hash::make($data['password']);
-        return User::create($data);
+        return User::create($data + [
+            'application_password' => Crypt::encryptString(User::generateApplicationPassword()),
+            'settings'             => '',
+        ]);
     }
 
     public function update(User $user, array $data): void

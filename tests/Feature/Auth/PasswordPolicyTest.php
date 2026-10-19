@@ -14,7 +14,7 @@ use Tests\DatabaseTestCase;
  * Síla hesla (security_password_level) se dřív hlídala jen JavaScriptem
  * v prohlížeči (Kohana jquery.validate.password), server bral cokoli dost
  * dlouhého. Teď ji vynucuje StrongPassword na všech cestách, kde se heslo
- * nastavuje: registrace, nový člen, nový/upravený uživatel, změna, reset.
+ * nastavuje: registrace, nový člen, nový uživatel, změna, reset.
  */
 class PasswordPolicyTest extends DatabaseTestCase
 {
@@ -108,8 +108,10 @@ class PasswordPolicyTest extends DatabaseTestCase
 
         $this->asAdmin()->post(route('users.store'), ['login' => 'charpwd3'] + $this->pwd('abcdefgh'))->assertSessionHasErrors(['password' => self::WEAK]);
         $this->asAdmin()->post(route('users.store'), ['login' => 'charpwd3'] + $this->pwd('Silne-Heslo-2026'))->assertSessionDoesntHaveErrors('password');
-        $this->asAdmin()->put(route('users.update', $this->adminId), $this->pwd('abcdefgh'))->assertSessionHasErrors(['password' => self::WEAK]);
-        $this->asAdmin()->put(route('users.update', $this->adminId), ['password' => ''])->assertSessionDoesntHaveErrors('password');
+        // úprava uživatele heslo nemění vůbec (jen změna hesla) — pole se ignoruje
+        $before = DB::table('users')->where('id', $this->adminId)->value('password');
+        $this->asAdmin()->put(route('users.update', $this->adminId), $this->pwd('abcdefgh'))->assertSessionDoesntHaveErrors('password');
+        $this->assertSame($before, DB::table('users')->where('id', $this->adminId)->value('password'));
     }
 
     public function test_formulare_ukazuji_pozadavky(): void

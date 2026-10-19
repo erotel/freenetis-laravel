@@ -108,11 +108,20 @@ class UsersTest extends DatabaseTestCase
     public function test_zalozeni_a_uprava_s_jemnymi_pravy(): void
     {
         $this->as()->get(route('users.create', ['member_id' => $this->memberId]))->assertOk()->assertViewHas('canEditLogin', true);
-        // CHYBA (oprava zvlášť): založení padá — chybí povinné application_password / settings
         $this->as()->post(route('users.store'), ['member_id' => $this->memberId, 'login' => "{$this->tag}n", 'surname' => 'Novy', 'type' => 2] + $this->pwd('Silne-Heslo-2026'))
-            ->assertStatus(500);
+            ->assertRedirect(route('members.show', $this->memberId))->assertSessionHas('success', 'Uživatel byl úspěšně přidán.');
+        $new = DB::table('users')->where('login', "{$this->tag}n")->first();
+        $this->assertTrue(Hash::check('Silne-Heslo-2026', $new->password));
+        $this->assertSame([2, ''], [(int) $new->type, $new->settings]);
+        $this->assertNotSame('', \Illuminate\Support\Facades\Crypt::decryptString($new->application_password), 'šifrované aplikační heslo');
+
+        $this->acl(['new_all/Users_Controller/login']);
+        $this->as()->post(route('users.store'), ['member_id' => $this->memberId, 'login' => "{$this->tag}x", 'surname' => 'Bezloginu', 'type' => 2] + $this->pwd('Silne-Heslo-2026'));
+        $this->assertFalse(DB::table('users')->where('login', "{$this->tag}x")->exists(), 'login bez práva se zahodí');
+        $this->assertTrue(DB::table('users')->where('surname', 'Bezloginu')->where('member_id', $this->memberId)->whereNull('login')->exists());
+        $this->acl();
         $this->as()->post(route('users.store'), ['member_id' => $this->memberId, 'login' => '', 'surname' => '', 'type' => 3])->assertSessionHasErrors(['login', 'surname', 'type', 'password']);
-        $u = (object) ['id' => $this->user('n')];
+        $u = $new;
 
         $this->acl();
         $this->as()->get(route('users.edit', $u->id))->assertOk()->assertViewHas('canEditMember', true);
@@ -127,6 +136,17 @@ class UsersTest extends DatabaseTestCase
         $this->assertSame(['Znovu', "{$this->tag}m", 'kom', $this->memberId], [$r->surname, $r->login, $r->comment, (int) $r->member_id], 'pole bez jemného práva se ignorují');
         $this->as()->put(route('users.update', $u->id), ['surname' => '', 'type' => 3])->assertSessionHasErrors(['surname', 'type']);
         $this->as()->put(route('users.update', 999999999), ['surname' => 'x', 'type' => 1])->assertNotFound();
+    }
+
+    /** Úprava uživatele heslo nemění — jen změna hesla (právo edit_all#password / sám s aktuálním). */
+    public function test_uprava_nemeni_heslo(): void
+    {
+        $a = $this->user('a');
+        $this->acl(['edit_all/Users_Controller/password']);
+        $this->as()->put(route('users.update', $a), ['surname' => 'X', 'type' => 1, 'login' => "{$this->tag}a", 'member_id' => $this->memberId] + $this->pwd('Podvrzene-Heslo1'))
+            ->assertSessionHasNoErrors();
+        $this->assertTrue(Hash::check('Puvodni-Heslo1', DB::table('users')->where('id', $a)->value('password')));
+        $this->assertSame('X', DB::table('users')->where('id', $a)->value('surname'));
     }
 
     // ── smazání ──────────────────────────────────────────────────────────────

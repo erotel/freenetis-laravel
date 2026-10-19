@@ -230,9 +230,9 @@ class UserController extends Controller
             $rules['member_id'] = 'required|integer|exists:members,id';
         }
 
-        if ($request->filled('password')) {
-            $rules['password'] = \App\Rules\StrongPassword::rules($request->input('login', $user->login), false);
-        }
+        // Heslo se mění jen přes změnu hesla (jemné právo edit_all#password,
+        // u sebe s aktuálním heslem). Formulář úpravy pole nemá — podvržené
+        // „password" by jinak obešlo obě kontroly.
 
         $this->users->update($user, $request->validate($rules));
 
