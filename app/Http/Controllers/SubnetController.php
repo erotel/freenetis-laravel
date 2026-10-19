@@ -2,16 +2,21 @@
 
 namespace App\Http\Controllers;
 
+use App\Domains\Access\Repositories\LineIdRepository;
+use App\Domains\Network\Actions\UpdateSubnetAction;
+use App\Domains\Network\Repositories\SubnetRepository;
 use App\Http\Filters\SubnetFilter;
-use App\Models\Subnet;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
 
 class SubnetController extends Controller
 {
     private const ACL_SECTION = 'Subnets_Controller';
     private const ACL_VALUE   = 'subnet';
+
+    public function __construct(private SubnetRepository $subnets)
+    {
+    }
 
     private function can(string $action, string $value = self::ACL_VALUE): bool
     {
@@ -33,23 +38,8 @@ class SubnetController extends Controller
 
         $search = trim((string) $request->query('search', ''));
 
-        $query = Subnet::withCount('ipAddresses');
-
-        if ($search !== '') {
-            $query->where(function ($q) use ($search) {
-                $q->where('name', 'like', "%{$search}%")
-                  ->orWhere('network_address', 'like', "%{$search}%");
-            });
-        }
-
         $advancedFilters = $request->input('filters', []);
-        if (!empty($advancedFilters)) {
-            SubnetFilter::apply($query, $advancedFilters);
-        }
-
-        $subnets = $query->orderBy($sort, $dir)
-            ->paginate($perPage)
-            ->withQueryString();
+        $subnets = $this->subnets->paginate($search, $advancedFilters, $sort, $dir, $perPage);
 
         return view('subnets.index', [
             'subnets'        => $subnets,
@@ -68,24 +58,13 @@ class SubnetController extends Controller
         ]);
     }
 
-    public function show(int $id)
+    public function show(int $id, LineIdRepository $lineIds)
     {
         if (!$this->can('view_all')) {
             abort(403);
         }
 
-        // Řadíme IP číselně (INET_ATON), ne podle id/textu — jinak výpis vypadá
-        // náhodně (…139.20, …139.125, …139.16). Sloupec je varchar IPv4 (max
-        // "255.255.255.255"), takže INET_ATON je bezpečné.
-        $subnet = Subnet::with([
-            'ipAddresses' => fn($q) => $q->orderByRaw('INET_ATON(ip_address)'),
-            'ipAddresses.member',
-            'ipAddresses.iface.device',
-            'ipAddresses.iface.lineId',
-        ])->find($id);
-        if (!$subnet) {
-            abort(404);
-        }
+        $subnet = $this->subnets->findWithIpAddressesOrFail($id);
 
         // Sdílené line-idy: iface bez per-port mapování (line_ids), jehož MAC je
         // v line_id_seen na circuit-id, který vidí víc MAC → sdílený (typicky
@@ -101,49 +80,13 @@ class SubnetController extends Controller
 
         return view('subnets.show', [
             'subnet'        => $subnet,
-            'sharedLineIds' => $this->sharedCircuitByMac($macs),
+            'sharedLineIds' => $lineIds->sharedCircuitsByMac($macs),
             'canEdit'       => $this->can('edit_all'),
             'canDelete'     => $this->can('delete_all'),
             'showDhcp'      => $this->can('view_all', 'dhcp'),
             'showDns'       => $this->can('view_all', 'dns'),
             'showQos'       => $this->can('view_all', 'qos'),
         ]);
-    }
-
-    /**
-     * Pro dané MAC vrátí mapu MAC(upper) → čitelný circuit-id u těch, jejichž
-     * line_id_seen záznam je na SDÍLENÉM circuit-id (týž circuit-id hex vidí víc
-     * MAC → per-zákazník neidentifikuje, typicky bytovka). Dvě agregační query,
-     * žádný N+1. Mimo tuto množinu = buď má vlastní line-id, nebo se nenaučil.
-     */
-    private function sharedCircuitByMac(array $macs): array
-    {
-        if (empty($macs)) {
-            return [];
-        }
-        $rows = DB::table('line_id_seen')->whereIn('mac', $macs)
-            ->get(['mac', 'circuit_id_hex']);
-        if ($rows->isEmpty()) {
-            return [];
-        }
-        // Circuit-idy sdílené víc MAC (přes CELOU tabulku, ne jen tento subnet).
-        $sharedHexes = DB::table('line_id_seen')
-            ->whereIn('circuit_id_hex', $rows->pluck('circuit_id_hex')->unique()->all())
-            ->groupBy('circuit_id_hex')
-            ->havingRaw('COUNT(DISTINCT mac) > 1')
-            ->pluck('circuit_id_hex')
-            ->flip();
-
-        $out = [];
-        foreach ($rows as $r) {
-            if (!isset($sharedHexes[$r->circuit_id_hex])) {
-                continue;
-            }
-            $hex = preg_replace('/^0x/i', '', (string) $r->circuit_id_hex);
-            $circuit = (ctype_xdigit($hex) && strlen($hex) % 2 === 0) ? @hex2bin($hex) : false;
-            $out[strtoupper($r->mac)] = $circuit !== false ? $circuit : $r->circuit_id_hex;
-        }
-        return $out;
     }
 
     public function create()
@@ -167,7 +110,7 @@ class SubnetController extends Controller
 
         $data = $this->validateSubnet($request, null, 'new_all');
 
-        $subnet = Subnet::create($data);
+        $subnet = $this->subnets->create($data);
 
         session()->flash('success', 'Subnet byl úspěšně přidán.');
         return redirect()->route('subnets.show', $subnet->id);
@@ -179,10 +122,7 @@ class SubnetController extends Controller
             abort(403);
         }
 
-        $subnet = Subnet::find($id);
-        if (!$subnet) {
-            abort(404);
-        }
+        $subnet = $this->subnets->findOrFail($id);
 
         return view('subnets.edit', [
             'subnet'     => $subnet,
@@ -192,36 +132,17 @@ class SubnetController extends Controller
         ]);
     }
 
-    public function update(Request $request, int $id)
+    public function update(Request $request, int $id, UpdateSubnetAction $update)
     {
         if (!$this->can('edit_all')) {
             abort(403);
         }
 
-        $subnet = Subnet::find($id);
-        if (!$subnet) {
-            abort(404);
-        }
+        $subnet = $this->subnets->findOrFail($id);
 
         $data = $this->validateSubnet($request, $id, 'edit_all');
 
-        // Když admin vypne DHCP na subnetu, vyresetuj i dhcp_expired flag —
-        // jinak by zůstal viset na 1 (export ho resetuje jen u subnet.dhcp=1)
-        // a zařízení by se v DHCP listing tvářilo trvale jako 'Změněno'.
-        // Efektivní stav dhcp: když ho uživatel bez práva neposlal (odstraněno
-        // z $data), zůstává původní hodnota subnetu.
-        $effectiveDhcp = array_key_exists('dhcp', $data) ? $data['dhcp'] : $subnet->dhcp;
-        if (!$effectiveDhcp && $subnet->dhcp_expired) {
-            $data['dhcp_expired'] = 0;
-        }
-
-        $wasIpoe = $subnet->dhcp && $subnet->ipoe;
-        $subnet->update($data);
-
-        // Zapnutí/vypnutí IPoE (dhcp+ipoe) mění, co RADIUS vrací → Kea host-cache.
-        if ($wasIpoe !== ($subnet->dhcp && $subnet->ipoe)) {
-            \App\Domains\Access\Events\IpoeReservationsChanged::dispatch("subnet:{$subnet->id}", true);
-        }
+        $update->handle($subnet, $data);
 
         session()->flash('success', 'Subnet byl úspěšně upraven.');
         return redirect()->route('subnets.show', $id);
@@ -233,17 +154,14 @@ class SubnetController extends Controller
             abort(403);
         }
 
-        $subnet = Subnet::find($id);
-        if (!$subnet) {
-            abort(404);
-        }
+        $subnet = $this->subnets->findOrFail($id);
 
-        if ($subnet->ipAddresses()->exists()) {
+        if ($this->subnets->hasIpAddresses($subnet)) {
             session()->flash('error', 'Subnet nelze smazat, obsahuje IP adresy.');
             return redirect()->back();
         }
 
-        $subnet->delete();
+        $this->subnets->delete($subnet);
 
         session()->flash('success', 'Subnet byl úspěšně smazán.');
         return redirect()->route('subnets.index');

@@ -132,4 +132,43 @@ class LineIdRepository
         $a->last_seen         = $now;
         $a->save();
     }
+
+    /**
+     * Pro dané MAC vrátí mapu MAC(upper) → čitelný circuit-id u těch, jejichž
+     * line_id_seen záznam je na SDÍLENÉM circuit-id (týž circuit-id hex vidí víc
+     * MAC → per-zákazník neidentifikuje, typicky bytovka). Dvě agregační query,
+     * žádný N+1. Mimo tuto množinu = buď má vlastní line-id, nebo se nenaučil.
+     *
+     * @param string[] $macs
+     * @return array<string, string>
+     */
+    public function sharedCircuitsByMac(array $macs): array
+    {
+        if (empty($macs)) {
+            return [];
+        }
+        $rows = DB::table('line_id_seen')->whereIn('mac', $macs)
+            ->get(['mac', 'circuit_id_hex']);
+        if ($rows->isEmpty()) {
+            return [];
+        }
+        // Circuit-idy sdílené víc MAC (přes CELOU tabulku, ne jen zadané MAC).
+        $sharedHexes = DB::table('line_id_seen')
+            ->whereIn('circuit_id_hex', $rows->pluck('circuit_id_hex')->unique()->all())
+            ->groupBy('circuit_id_hex')
+            ->havingRaw('COUNT(DISTINCT mac) > 1')
+            ->pluck('circuit_id_hex')
+            ->flip();
+
+        $out = [];
+        foreach ($rows as $r) {
+            if (!isset($sharedHexes[$r->circuit_id_hex])) {
+                continue;
+            }
+            $hex = preg_replace('/^0x/i', '', (string) $r->circuit_id_hex);
+            $circuit = (ctype_xdigit($hex) && strlen($hex) % 2 === 0) ? @hex2bin($hex) : false;
+            $out[strtoupper($r->mac)] = $circuit !== false ? $circuit : $r->circuit_id_hex;
+        }
+        return $out;
+    }
 }

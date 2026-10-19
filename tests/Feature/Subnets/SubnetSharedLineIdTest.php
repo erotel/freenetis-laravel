@@ -2,14 +2,14 @@
 
 namespace Tests\Feature\Subnets;
 
-use App\Http\Controllers\SubnetController;
+use App\Domains\Access\Repositories\LineIdRepository;
 use Closure;
 use Illuminate\Support\Facades\DB;
 use Tests\DatabaseTestCase;
 
 /**
- * Detekce sdílených line-idů pro výpis /subnets/{id} (SubnetController::
- * sharedCircuitByMac). Sdílený circuit-id (týž hex vidí víc MAC → typicky
+ * Detekce sdílených line-idů pro výpis /subnets/{id} (LineIdRepository::
+ * sharedCircuitsByMac). Sdílený circuit-id (týž hex vidí víc MAC → typicky
  * bytovka za 1 ONT bez L2 switche) se ve výpisu odliší žlutě „sdílený" od
  * červené „chybí". Viz [[project_lineid_tr101_gotcha]].
  */
@@ -20,12 +20,7 @@ class SubnetSharedLineIdTest extends DatabaseTestCase
     protected function setUp(): void
     {
         parent::setUp();
-        $ctrl = (new \ReflectionClass(SubnetController::class))->newInstanceWithoutConstructor();
-        $this->shared = Closure::bind(
-            fn (array $macs) => $this->sharedCircuitByMac($macs),
-            $ctrl,
-            SubnetController::class
-        );
+        $this->shared = fn (array $macs) => app(LineIdRepository::class)->sharedCircuitsByMac($macs);
     }
 
     public function test_shared_detekovan_unikatni_ne(): void
