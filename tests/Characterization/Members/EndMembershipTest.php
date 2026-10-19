@@ -60,7 +60,7 @@ class EndMembershipTest extends DatabaseTestCase
         parent::tearDown();
     }
 
-    /** @return array{member:int, account:int, user:int, email:string} */
+    /** @return array{member:int, account:int, user:int, email:string, vs:string} */
     private function member(int $type, float $balance = 0, array $m = []): array
     {
         $id = (int) DB::table('members')->insertGetId($m + [
@@ -71,7 +71,11 @@ class EndMembershipTest extends DatabaseTestCase
         $acc = (int) DB::table('accounts')->insertGetId([
             'member_id' => $id, 'account_attribute_id' => 221100, 'balance' => $balance, 'name' => 'char',
         ]);
-        DB::table('variable_symbols')->insert(['account_id' => $acc, 'variable_symbol' => (string) $id]);
+        // VS = id by kolidoval s reálnými VS v kopii dat (auto-increment se rollbackem nevrací)
+        do {
+            $vs = (string) random_int(90000000, 99999999);   // varchar(10), místo na „+U"
+        } while (DB::table('variable_symbols')->where('variable_symbol', $vs)->orWhere('variable_symbol', $vs . '+U')->exists());
+        DB::table('variable_symbols')->insert(['account_id' => $acc, 'variable_symbol' => $vs]);
         $uid = (int) DB::table('users')->insertGetId([
             'member_id' => $id, 'login' => 'charend_' . uniqid(), 'password' => Hash::make('x'),
             'type' => 1, 'application_password' => 'xxxxxxxx', 'settings' => '',
@@ -80,7 +84,7 @@ class EndMembershipTest extends DatabaseTestCase
         $email = 'charend_' . uniqid() . '@example.invalid';
         $cid = (int) DB::table('contacts')->insertGetId(['type' => 20, 'value' => $email]);
         DB::table('users_contacts')->insert(['user_id' => $uid, 'contact_id' => $cid]);
-        return ['member' => $id, 'account' => $acc, 'user' => $uid, 'email' => $email];
+        return ['member' => $id, 'account' => $acc, 'user' => $uid, 'email' => $email, 'vs' => $vs];
     }
 
     private function end(int $member, int $mode = 1, ?float $refund = null, ?string $leaving = null)
@@ -138,7 +142,7 @@ class EndMembershipTest extends DatabaseTestCase
         $today = now()->format('Y-m-d');
         $this->assertSame([15, 1, $today, 0, null, 0, null],
             [(int) $m->type, (int) $m->locked, $m->leaving_date, (int) $m->payment_blocked, $m->payment_blocked_since, (int) $m->pending_termination, $m->speed_class_id]);
-        $this->assertSame($x['member'] . '+U', DB::table('variable_symbols')->where('account_id', $x['account'])->value('variable_symbol'));
+        $this->assertSame($x['vs'] . '+U', DB::table('variable_symbols')->where('account_id', $x['account'])->value('variable_symbol'));
         $this->assertSame($today, DB::table('members_fees')->where('member_id', $x['member'])->value('deactivation_date'));
 
         $audit = DB::table('audit_logs')->where('auditable_type', 'members')->where('auditable_id', $x['member'])->where('action', 'updated')->first();
