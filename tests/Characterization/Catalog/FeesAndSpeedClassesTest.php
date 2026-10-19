@@ -58,6 +58,7 @@ class FeesAndSpeedClassesTest extends CatalogTestCase
         $this->as()->from(route('fees.index'))->delete(route('fees.destroy', $ro))->assertSessionHas('error', 'Tento tarif je systémový a nelze ho smazat.');
         $this->as()->delete(route('fees.destroy', $fee->id))->assertRedirect(route('fees.index'))->assertSessionHas('success', 'Tarif byl úspěšně smazán.');
         $this->assertNull(Fee::find($fee->id));
+        $this->as()->get('/fees/' . $ro)->assertStatus(405);   // dřív routa na neexistující show() → 500
     }
 
     // ── třídy rychlosti ──────────────────────────────────────────────────────
@@ -90,6 +91,13 @@ class FeesAndSpeedClassesTest extends CatalogTestCase
         $this->assertSame([$m], $this->as()->get(route('speed_classes.members', $sc->id))->assertOk()->viewData('members')->pluck('id')->map(fn ($i) => (int) $i)->all());
         $this->as()->from(route('speed_classes.index'))->delete(route('speed_classes.destroy', $sc->id))->assertSessionHas('error', 'Třídu nelze smazat — je přiřazena 1 členům.');
         DB::table('members')->where('id', $m)->update(['speed_class_id' => null]);
+
+        // přípojné místo s vlastní rychlostí → nemazat (QoS by odkazoval na neexistující profil)
+        $subnet = (int) DB::table('subnets')->value('id');
+        DB::table('allowed_subnets')->insert(['member_id' => $m, 'subnet_id' => $subnet, 'speed_class_id' => $sc->id, 'enabled' => 1]);
+        $this->as()->from(route('speed_classes.index'))->delete(route('speed_classes.destroy', $sc->id))
+            ->assertSessionHas('error', 'Třídu nelze smazat — používá ji 1 přípojných míst a 0 nepodepsaných dodatků smlouvy.');
+        DB::table('allowed_subnets')->where('speed_class_id', $sc->id)->delete();
         $this->as()->delete(route('speed_classes.destroy', $sc->id))->assertRedirect(route('speed_classes.index'))->assertSessionHas('success', 'Třída rychlosti byla smazána.');
     }
 

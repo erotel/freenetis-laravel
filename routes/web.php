@@ -447,7 +447,7 @@ Route::middleware('auth')->group(function () {
         ->middleware('acl:view_all,Fees_Controller,fees');
     Route::post('fees/{id}/toggle-archive', [FeeController::class, 'toggleArchive'])->name('fees.toggle_archive');
     Route::get('fees/{id}/members', [FeeController::class, 'members'])->name('fees.members');
-    Route::resource('fees', FeeController::class)->except(['index']);
+    Route::resource('fees', FeeController::class)->except(['index', 'show']);
 
     Route::get('members/{memberId}/fees',        [MemberFeeController::class, 'showByMember'])->name('members_fees.by_member');
     Route::get('members/{memberId}/fees/create', [MemberFeeController::class, 'create'])->name('members_fees.create');

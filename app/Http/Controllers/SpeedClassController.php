@@ -131,6 +131,12 @@ class SpeedClassController extends Controller
         if ($speedClass->members_count > 0) {
             return back()->with('error', "Třídu nelze smazat — je přiřazena {$speedClass->members_count} členům.");
         }
+        // místo s vlastní rychlostí / nepodepsaný dodatek by odkazovaly na neexistující třídu
+        // (QoS export by místu přiřadil profil, který neexistuje)
+        ['places' => $places, 'addons' => $addons] = $this->classes->otherUsage((int) $id);
+        if ($places > 0 || $addons > 0) {
+            return back()->with('error', "Třídu nelze smazat — používá ji {$places} přípojných míst a {$addons} nepodepsaných dodatků smlouvy.");
+        }
 
         $this->classes->delete($speedClass);
 

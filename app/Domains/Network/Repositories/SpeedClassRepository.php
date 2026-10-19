@@ -39,6 +39,19 @@ class SpeedClassRepository
         $speedClass->update($values);
     }
 
+    /**
+     * Kde jinde než u členů je třída použitá: přípojná místa s vlastní
+     * rychlostí a nepodepsané dodatky ke smlouvě, které ji teprve nastaví.
+     * @return array{places: int, addons: int}
+     */
+    public function otherUsage(int $id): array
+    {
+        return [
+            'places' => DB::table('allowed_subnets')->where('speed_class_id', $id)->count(),
+            'addons' => DB::connection('contracts')->table('contract_addons')->where('new_speed_class_id', $id)->where('status', '!=', 'signed')->count(),
+        ];
+    }
+
     public function delete(SpeedClass $speedClass): void
     {
         $speedClass->delete();
