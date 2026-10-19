@@ -140,6 +140,10 @@ class DeviceWriteTest extends DatabaseTestCase
             ->assertSessionHasErrors(['iface_mac_0' => 'Tato MAC adresa je již použita.']);
         $this->as()->post(route('devices.store_template'), $this->templateData(['name' => 'jine', 'iface_mac_0' => $this->mac(9)]))
             ->assertSessionHasErrors(['iface_ip_0' => 'IP adresa 10.250.12.10 je již použita v tomto subnetu.']);
+        $this->as()->post(route('devices.store_template'), $this->templateData(['name' => 'jine', 'iface_mac_0' => $this->mac(8), 'iface_ip_0' => '10.199.0.1']))
+            ->assertSessionHasErrors(['iface_ip_0' => 'IP adresa 10.199.0.1 neleží v podsíti 10.250.12.0/24.']);
+        $this->as()->post(route('devices.store_template'), $this->templateData(['name' => 'jine', 'iface_mac_0' => $this->mac(7), 'iface_ip_0' => '2a07:9c0::1']))
+            ->assertSessionHasErrors('iface_ip_0');
         $this->assertSame(1, DB::table('devices')->where('user_id', $this->userId)->count());
     }
 

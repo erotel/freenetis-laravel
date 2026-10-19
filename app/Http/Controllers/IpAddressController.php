@@ -237,7 +237,8 @@ class IpAddressController extends Controller
                 'required',
                 'string',
                 'max:15',
-                'regex:/^\d{1,3}(\.\d{1,3}){3}$/',
+                'ipv4',
+                new \App\Rules\IpInSubnet($request->input('subnet_id')),
                 Rule::unique('ip_addresses')->where('subnet_id', $subnetId)
                     ->ignore($excludeId),
             ],
@@ -245,7 +246,7 @@ class IpAddressController extends Controller
             'gateway' => 'nullable|boolean',
             'service' => 'nullable|boolean',
         ], [
-            'ip_address.regex'  => 'Neplatný formát IP adresy.',
+            'ip_address.ipv4'   => 'Neplatný formát IP adresy.',
             'ip_address.unique' => 'Tato IP adresa je již v daném subnetu použita.',
         ]);
     }

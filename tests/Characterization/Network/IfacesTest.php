@@ -173,6 +173,8 @@ class IfacesTest extends DatabaseTestCase
             ->assertSessionHasErrors(['new_ip_address' => 'Neplatný formát IP adresy.']);
         $this->as()->from(route('ifaces.edit', $if))->put(route('ifaces.update', $if), ['name' => 'x', 'new_ip_address' => '10.247.7.8', 'new_ip_subnet' => 999999999])
             ->assertSessionHasErrors('new_ip_subnet');
+        $this->as()->from(route('ifaces.edit', $if))->put(route('ifaces.update', $if), ['name' => 'x', 'ip_address_0' => '10.200.0.5', 'ip_subnet_0' => $s])
+            ->assertSessionHasErrors(['ip_address_0' => 'IP adresa 10.200.0.5 neleží v podsíti 10.247.7.0/24.']);
         $this->assertSame(['10.247.7.5'], DB::table('ip_addresses')->where('iface_id', $if)->pluck('ip_address')->all());
         $this->assertSame('eth0', DB::table('ifaces')->where('id', $if)->value('name'));
     }

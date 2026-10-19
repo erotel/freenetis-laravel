@@ -78,6 +78,10 @@ class IpAddressesTest extends DatabaseTestCase
 
         $this->as()->post(route('ip_addresses.store'), ['subnet_id' => $a, 'ip_address' => '10.240.1.5'])->assertSessionHasErrors(['ip_address' => 'Tato IP adresa je již v daném subnetu použita.']);
         $this->as()->post(route('ip_addresses.store'), ['subnet_id' => $a, 'ip_address' => 'abc'])->assertSessionHasErrors(['ip_address' => 'Neplatný formát IP adresy.']);
+        $this->as()->post(route('ip_addresses.store'), ['subnet_id' => $a, 'ip_address' => '999.1.1.1'])->assertSessionHasErrors(['ip_address' => 'Neplatný formát IP adresy.']);
+        // IP mimo zvolenou podsíť (dřív prošla — DHCP ji pak rozdával v cizí síti)
+        $this->as()->post(route('ip_addresses.store'), ['subnet_id' => $a, 'ip_address' => '10.240.2.50'])
+            ->assertSessionHasErrors(['ip_address' => 'IP adresa 10.240.2.50 neleží v podsíti 10.240.1.0/24.']);
         $this->as()->post(route('ip_addresses.store'), ['subnet_id' => $a, 'ip_address' => '10.240.1.1', 'gateway' => 1])->assertSessionHasNoErrors();
         $this->as()->from(route('ip_addresses.create'))->post(route('ip_addresses.store'), ['subnet_id' => $a, 'ip_address' => '10.240.1.2', 'gateway' => 1])
             ->assertSessionHasErrors(['gateway' => 'V tomto subnetu již existuje gateway.']);

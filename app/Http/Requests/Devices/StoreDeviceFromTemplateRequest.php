@@ -62,7 +62,7 @@ class StoreDeviceFromTemplateRequest extends FormRequest
                 $rules["iface_mac_{$n}"] = ['nullable', 'regex:/^([0-9a-fA-F]{2}:){5}[0-9a-fA-F]{2}$/', 'unique:ifaces,mac'];
             }
             if ($def['has_ip']) {
-                $rules["iface_ip_{$n}"]     = "nullable|ip|required_with:iface_subnet_{$n}";
+                $rules["iface_ip_{$n}"]     = ['nullable', 'ipv4', "required_with:iface_subnet_{$n}", new \App\Rules\IpInSubnet($this->input("iface_subnet_{$n}"))];
                 $rules["iface_subnet_{$n}"] = "nullable|integer|exists:subnets,id|required_with:iface_ip_{$n}";
             }
         }

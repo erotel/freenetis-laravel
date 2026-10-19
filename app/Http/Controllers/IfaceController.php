@@ -92,12 +92,12 @@ class IfaceController extends Controller
             'name'           => 'required|string|max:254',
             'mac'            => ['nullable', 'string', self::MAC_REGEX, Rule::unique('ifaces', 'mac')->ignore($id)],
             'comment'        => 'nullable|string|max:254',
-            'new_ip_address' => 'nullable|ipv4',
+            'new_ip_address' => ['nullable', 'ipv4', new \App\Rules\IpInSubnet($request->input('new_ip_subnet'))],
             'new_ip_subnet'  => 'nullable|integer|exists:subnets,id',
         ];
         $messages = self::MAC_MESSAGES + ['new_ip_address.ipv4' => 'Neplatný formát IP adresy.'];
         foreach ($iface->ipAddresses as $n => $ip) {
-            $rules["ip_address_{$n}"] = 'nullable|ipv4';
+            $rules["ip_address_{$n}"] = ['nullable', 'ipv4', new \App\Rules\IpInSubnet($request->input("ip_subnet_{$n}"))];
             $rules["ip_subnet_{$n}"]  = 'nullable|integer|exists:subnets,id';
             $messages["ip_address_{$n}.ipv4"] = 'Neplatný formát IP adresy.';
         }
