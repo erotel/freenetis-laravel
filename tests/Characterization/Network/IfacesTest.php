@@ -142,6 +142,41 @@ class IfacesTest extends DatabaseTestCase
         $this->as()->put(route('ifaces.update', 999999999), ['name' => 'x'])->assertNotFound();
     }
 
+    /** Konflikt druhé IP nesmí nechat první změny napůl uložené (bez DHCP / míst). */
+    public function test_uprava_s_konfliktem_neulozi_nic(): void
+    {
+        $x = $this->device();
+        $s = $this->subnet('10.247.6.0');
+        $if = (int) DB::table('ifaces')->insertGetId(['type' => 1, 'name' => 'eth0', 'device_id' => $x['device'], 'mac' => $this->mac()]);
+        $a = (int) DB::table('ip_addresses')->insertGetId(['iface_id' => $if, 'subnet_id' => $s, 'ip_address' => '10.247.6.5']);
+        DB::table('ip6_addresses')->insert(['iface_id' => $if, 'ip_address' => '2a07:9c0:6:500::/56']);
+        DB::table('ip_addresses')->insert(['iface_id' => $if, 'subnet_id' => $s, 'ip_address' => '10.247.6.6']);
+        DB::table('ip_addresses')->insert(['subnet_id' => $s, 'ip_address' => '10.247.6.9']);
+
+        $this->as()->from(route('ifaces.edit', $if))->put(route('ifaces.update', $if), ['name' => 'prejmenovano',
+            'ip_address_0' => '10.247.6.7', 'ip_subnet_0' => $s, 'ip_address_1' => '10.247.6.9', 'ip_subnet_1' => $s])
+            ->assertSessionHasErrors(['ip_address_1' => 'IP adresa 10.247.6.9 je již použita.']);
+        $this->assertSame(['eth0', '10.247.6.5'], [DB::table('ifaces')->where('id', $if)->value('name'), DB::table('ip_addresses')->where('id', $a)->value('ip_address')]);
+        $this->assertSame(['2a07:9c0:6:500::/56'], DB::table('ip6_addresses')->where('iface_id', $if)->pluck('ip_address')->all());
+    }
+
+    public function test_uprava_odmitne_neplatnou_ip(): void
+    {
+        $x = $this->device();
+        $s = $this->subnet('10.247.7.0');
+        $if = (int) DB::table('ifaces')->insertGetId(['type' => 1, 'name' => 'eth0', 'device_id' => $x['device'], 'mac' => $this->mac()]);
+        DB::table('ip_addresses')->insert(['iface_id' => $if, 'subnet_id' => $s, 'ip_address' => '10.247.7.5']);
+
+        $this->as()->from(route('ifaces.edit', $if))->put(route('ifaces.update', $if), ['name' => 'x', 'ip_address_0' => '10.247.7.999', 'ip_subnet_0' => $s])
+            ->assertSessionHasErrors(['ip_address_0' => 'Neplatný formát IP adresy.']);
+        $this->as()->from(route('ifaces.edit', $if))->put(route('ifaces.update', $if), ['name' => 'x', 'new_ip_address' => 'abc', 'new_ip_subnet' => $s])
+            ->assertSessionHasErrors(['new_ip_address' => 'Neplatný formát IP adresy.']);
+        $this->as()->from(route('ifaces.edit', $if))->put(route('ifaces.update', $if), ['name' => 'x', 'new_ip_address' => '10.247.7.8', 'new_ip_subnet' => 999999999])
+            ->assertSessionHasErrors('new_ip_subnet');
+        $this->assertSame(['10.247.7.5'], DB::table('ip_addresses')->where('iface_id', $if)->pluck('ip_address')->all());
+        $this->assertSame('eth0', DB::table('ifaces')->where('id', $if)->value('name'));
+    }
+
     // ── smazání ──────────────────────────────────────────────────────────────
 
     public function test_smazani(): void

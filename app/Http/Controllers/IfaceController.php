@@ -87,11 +87,21 @@ class IfaceController extends Controller
         abort_unless($this->can('edit_all'), 403);
         $iface = $this->ifaces->findWithIpsOrFail($id);
 
-        $validated = $request->validate([
-            'name'    => 'required|string|max:254',
-            'mac'     => ['nullable', 'string', self::MAC_REGEX, Rule::unique('ifaces', 'mac')->ignore($id)],
-            'comment' => 'nullable|string|max:254',
-        ], self::MAC_MESSAGES);
+        // IP adresy se kontrolují všechny předem — nic se neuloží napůl.
+        $rules = [
+            'name'           => 'required|string|max:254',
+            'mac'            => ['nullable', 'string', self::MAC_REGEX, Rule::unique('ifaces', 'mac')->ignore($id)],
+            'comment'        => 'nullable|string|max:254',
+            'new_ip_address' => 'nullable|ipv4',
+            'new_ip_subnet'  => 'nullable|integer|exists:subnets,id',
+        ];
+        $messages = self::MAC_MESSAGES + ['new_ip_address.ipv4' => 'Neplatný formát IP adresy.'];
+        foreach ($iface->ipAddresses as $n => $ip) {
+            $rules["ip_address_{$n}"] = 'nullable|ipv4';
+            $rules["ip_subnet_{$n}"]  = 'nullable|integer|exists:subnets,id';
+            $messages["ip_address_{$n}.ipv4"] = 'Neplatný formát IP adresy.';
+        }
+        $validated = collect($request->validate($rules, $messages))->only(['name', 'mac', 'comment'])->all();
 
         $ipChanges = [];
         foreach ($iface->ipAddresses as $n => $ip) {

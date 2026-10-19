@@ -8,12 +8,14 @@ use App\Domains\Network\Support\Ip6Sync;
 use App\Models\Iface;
 use App\Services\AllowedSubnetSyncService;
 use App\Services\PendingCustomerRedirectService;
+use Illuminate\Support\Facades\DB;
 
 /**
  * Úprava rozhraní: jméno/MAC/komentář, změna stávajících IP (+ odvozená
  * IPv6), nová IP (vlastník = člen zařízení; čekající zákazník → přepočet
  * přesměrování). Dotčené DHCP podsítě (i ty, odkud IP odešla) expirují a
- * přípojná místa člena se srovnají (podsíť bez IP odejde).
+ * přípojná místa člena se srovnají (podsíť bez IP odejde). Vše v jedné
+ * transakci — konflikt kterékoli IP vrátí i už provedené změny.
  */
 class UpdateIfaceAction
 {
@@ -30,6 +32,11 @@ class UpdateIfaceAction
      * @throws IfaceIpRejected
      */
     public function handle(Iface $iface, array $values, array $ipChanges, array $newIp): void
+    {
+        DB::transaction(fn () => $this->apply($iface, $values, $ipChanges, $newIp));
+    }
+
+    private function apply(Iface $iface, array $values, array $ipChanges, array $newIp): void
     {
         $iface->update($values);
         $touched = [];
