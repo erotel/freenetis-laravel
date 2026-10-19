@@ -80,6 +80,24 @@ class ActivationRulesTest extends DatabaseTestCase
         $this->as()->get(route('message-auto-settings.index', 999999999))->assertNotFound();
     }
 
+    /** Atribut musí odpovídat typu — jinak se pravidlo potichu spouštělo o půlnoci (hodina 0). */
+    public function test_atribut_podle_typu(): void
+    {
+        $m = $this->debtorMsg;
+        $post = fn (int $type, ?string $attr) => $this->as()->from(route('message-auto-settings.create', $m))
+            ->post(route('message-auto-settings.store', $m), ['type' => $type, 'attribute' => $attr]);
+
+        $post(1, '25')->assertSessionHasErrors(['attribute' => 'Měsíční pravidlo potřebuje den a hodinu ve tvaru „DD/H" (den 1–31, hodina 0–23), např. 25/9.']);
+        $post(1, '32/9')->assertSessionHasErrors('attribute');
+        $post(1, '25/24')->assertSessionHasErrors('attribute');
+        $post(2, '8/9')->assertSessionHasErrors(['attribute' => 'Týdenní pravidlo potřebuje den a hodinu ve tvaru „D/H" (1 = Po … 7 = Ne, hodina 0–23), např. 1/9.']);
+        $post(3, 'abc')->assertSessionHasErrors(['attribute' => 'Pravidlo potřebuje hodinu ve tvaru „/H" (0–23), např. /9.']);
+        $post(6, '')->assertSessionHasErrors('attribute');
+        foreach ([[1, '25/9'], [2, '7/0'], [3, '/9'], [3, '0'], [4, '/23'], [6, '/1'], [5, '']] as [$type, $attr]) {
+            $post($type, $attr)->assertSessionHasNoErrors();
+        }
+    }
+
     public function test_prava(): void
     {
         $m = $this->debtorMsg;

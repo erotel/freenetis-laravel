@@ -33,4 +33,25 @@ final class ActivationRule
                 return false;
         }
     }
+
+    /**
+     * Kontrola atributu podle typu — neplatný se dřív potichu vyhodnotil jako
+     * hodina 0 (např. měsíční „25" bez hodiny = upozornění o půlnoci).
+     * @return ?string chybová hláška, null = v pořádku
+     */
+    public static function attributeError(int $type, ?string $attribute): ?string
+    {
+        $a = trim((string) $attribute);
+        $ok = match ($type) {
+            1 => preg_match('~^(\d{1,2})/(\d{1,2})$~', $a, $m) && $m[1] >= 1 && $m[1] <= 31 && $m[2] <= 23,
+            2 => preg_match('~^([1-7])/(\d{1,2})$~', $a, $m) && $m[2] <= 23,
+            3, 4, 6 => preg_match('~^/?(\d{1,2})$~', $a, $m) && $m[1] <= 23,
+            default => true,
+        };
+        return $ok ? null : match ($type) {
+            1 => 'Měsíční pravidlo potřebuje den a hodinu ve tvaru „DD/H" (den 1–31, hodina 0–23), např. 25/9.',
+            2 => 'Týdenní pravidlo potřebuje den a hodinu ve tvaru „D/H" (1 = Po … 7 = Ne, hodina 0–23), např. 1/9.',
+            default => 'Pravidlo potřebuje hodinu ve tvaru „/H" (0–23), např. /9.',
+        };
+    }
 }

@@ -1,6 +1,7 @@
 <?php
 namespace App\Http\Controllers;
 
+use App\Domains\Notifications\Activation\ActivationRule;
 use App\Domains\Notifications\Repositories\ActivationRuleRepository;
 use App\Domains\Notifications\Repositories\MessageRepository;
 use App\Services\AuditLogger;
@@ -22,6 +23,18 @@ class MessageAutoSettingController extends Controller
     ];
 
     public function __construct(private ActivationRuleRepository $rules, private MessageRepository $messages) {}
+
+    /** Validace včetně formátu atributu podle typu pravidla. */
+    private function validated(Request $request): array
+    {
+        $rules = self::RULES;
+        $rules['attribute'] = ['nullable', 'required_unless:type,5', 'string', 'max:20', function ($attr, $value, $fail) use ($request) {
+            if ($error = ActivationRule::attributeError((int) $request->input('type'), $value)) {
+                $fail($error);
+            }
+        }];
+        return $request->validate($rules, ['attribute.required_unless' => 'Vyplňte den / hodinu, kdy se má pravidlo spustit.']);
+    }
 
     /** Hodnoty pravidla z validovaného formuláře. */
     private function values(Request $request, array $v): array
@@ -81,7 +94,7 @@ class MessageAutoSettingController extends Controller
         $message = $this->messages->findOrFail($messageId);
         abort_unless(in_array($message->type, self::AUTO_TYPES), 403);
 
-        $validated = $request->validate(self::RULES);
+        $validated = $this->validated($request);
         $this->rules->create($messageId, $this->values($request, $validated));
 
         AuditLogger::log('created', 'messages_automatical_activations', $messageId, null, [
@@ -111,7 +124,7 @@ class MessageAutoSettingController extends Controller
     {
         abort_unless($this->can('edit_all'), 403);
 
-        $validated = $request->validate(self::RULES);
+        $validated = $this->validated($request);
         $this->rules->update($messageId, $id, $this->values($request, $validated));
 
         AuditLogger::log('updated', 'messages_automatical_activations', $id, null, [
