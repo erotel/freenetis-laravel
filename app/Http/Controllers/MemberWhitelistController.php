@@ -2,17 +2,26 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\Member;
-use App\Models\MemberWhitelist;
+use App\Domains\Members\Repositories\MemberRepository;
+use App\Domains\Members\Repositories\WhitelistRepository;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\DB;
 
 class MemberWhitelistController extends Controller
 {
     const ACL_SECTION = 'Members_whitelists_Controller';
     const ACL_KEY     = 'whitelist';
 
-    private function canView(): bool   { return $this->aclCheck('view_all',   self::ACL_SECTION, self::ACL_KEY); }
+    private const RULES = [
+        'permanent' => 'boolean',
+        'since'     => 'required|date',
+        'until'     => 'required|date|after_or_equal:since',
+        'comment'   => 'nullable|string|max:1000',
+    ];
+
+    public function __construct(private WhitelistRepository $whitelists, private MemberRepository $members)
+    {
+    }
+
     private function canAdd(): bool    { return $this->aclCheck('new_all',    self::ACL_SECTION, self::ACL_KEY); }
     private function canEdit(): bool   { return $this->aclCheck('edit_all',   self::ACL_SECTION, self::ACL_KEY); }
     private function canDelete(): bool { return $this->aclCheck('delete_all', self::ACL_SECTION, self::ACL_KEY); }
@@ -21,26 +30,13 @@ class MemberWhitelistController extends Controller
 
     public function index(Request $request)
     {
-        abort_unless($this->canView(), 403);
+        abort_unless($this->aclCheck('view_all', self::ACL_SECTION, self::ACL_KEY), 403);
 
         $memberId = $request->input('member_id') ? (int) $request->input('member_id') : null;
 
-        $query = DB::table('members_whitelists as mw')
-            ->join('members as m', 'm.id', '=', 'mw.member_id')
-            ->select('mw.*', 'm.name as member_name');
-
-        if ($memberId) {
-            $query->where('mw.member_id', $memberId);
-        }
-
-        $whitelists  = $query->orderByDesc('mw.id')->paginate(50)->withQueryString();
-        $memberName  = $memberId
-            ? DB::table('members')->where('id', $memberId)->value('name')
-            : null;
-
         return view('member_whitelists.index', [
-            'whitelists' => $whitelists,
-            'memberName' => $memberName,
+            'whitelists' => $this->whitelists->paginate($memberId, 50),
+            'memberName' => $memberId ? $this->members->find($memberId)?->name : null,
             'memberId'   => $memberId,
             'canAdd'     => $this->canAdd(),
             'canEdit'    => $this->canEdit(),
@@ -52,37 +48,22 @@ class MemberWhitelistController extends Controller
 
     public function create(int $memberId)
     {
-        abort_unless($this->canAdd(), 403);
-
-        $member = Member::findOrFail($memberId);
+        abort_unless($this->aclCheck('new_all', self::ACL_SECTION, self::ACL_KEY), 403);
 
         return view('member_whitelists.form', [
             'action'   => 'create',
-            'member'   => $member,
+            'member'   => $this->members->findOrFail($memberId),
             'whitelist'=> null,
         ]);
     }
 
     public function store(Request $request, int $memberId)
     {
-        abort_unless($this->canAdd(), 403);
+        abort_unless($this->aclCheck('new_all', self::ACL_SECTION, self::ACL_KEY), 403);
 
-        Member::findOrFail($memberId);
-
-        $data = $request->validate([
-            'permanent' => 'boolean',
-            'since'     => 'required|date',
-            'until'     => 'required|date|after_or_equal:since',
-            'comment'   => 'nullable|string|max:1000',
-        ]);
-
-        MemberWhitelist::create([
-            'member_id' => $memberId,
-            'permanent' => $request->boolean('permanent'),
-            'since'     => $data['since'],
-            'until'     => $request->boolean('permanent') ? '9999-12-31' : $data['until'],
-            'comment'   => $data['comment'] ?? null,
-        ]);
+        $this->members->findOrFail($memberId);
+        $data = $request->validate(self::RULES);
+        $this->whitelists->create($memberId, ['permanent' => $request->boolean('permanent')] + $data);
 
         return redirect()->route('members.show', $memberId)
             ->with('success', 'Whitelist záznam byl přidán.');
@@ -92,9 +73,9 @@ class MemberWhitelistController extends Controller
 
     public function edit(int $id)
     {
-        abort_unless($this->canEdit(), 403);
+        abort_unless($this->aclCheck('edit_all', self::ACL_SECTION, self::ACL_KEY), 403);
 
-        $whitelist = MemberWhitelist::with('member')->findOrFail($id);
+        $whitelist = $this->whitelists->findWithMemberOrFail($id);
 
         return view('member_whitelists.form', [
             'action'    => 'edit',
@@ -105,23 +86,11 @@ class MemberWhitelistController extends Controller
 
     public function update(Request $request, int $id)
     {
-        abort_unless($this->canEdit(), 403);
+        abort_unless($this->aclCheck('edit_all', self::ACL_SECTION, self::ACL_KEY), 403);
 
-        $whitelist = MemberWhitelist::findOrFail($id);
-
-        $data = $request->validate([
-            'permanent' => 'boolean',
-            'since'     => 'required|date',
-            'until'     => 'required|date|after_or_equal:since',
-            'comment'   => 'nullable|string|max:1000',
-        ]);
-
-        $whitelist->update([
-            'permanent' => $request->boolean('permanent'),
-            'since'     => $data['since'],
-            'until'     => $request->boolean('permanent') ? '9999-12-31' : $data['until'],
-            'comment'   => $data['comment'] ?? null,
-        ]);
+        $whitelist = $this->whitelists->findOrFail($id);
+        $data = $request->validate(self::RULES);
+        $this->whitelists->update($whitelist, ['permanent' => $request->boolean('permanent')] + $data);
 
         return redirect()->route('members.show', $whitelist->member_id)
             ->with('success', 'Whitelist záznam byl upraven.');
@@ -131,13 +100,12 @@ class MemberWhitelistController extends Controller
 
     public function destroy(int $id)
     {
-        abort_unless($this->canDelete(), 403);
+        abort_unless($this->aclCheck('delete_all', self::ACL_SECTION, self::ACL_KEY), 403);
 
-        $whitelist = MemberWhitelist::findOrFail($id);
-        $memberId  = $whitelist->member_id;
-        $whitelist->delete();
+        $whitelist = $this->whitelists->findOrFail($id);
+        $this->whitelists->delete($whitelist);
 
-        return redirect()->route('members.show', $memberId)
+        return redirect()->route('members.show', $whitelist->member_id)
             ->with('success', 'Whitelist záznam byl smazán.');
     }
 }
