@@ -62,8 +62,11 @@
                 <div style="display:flex;gap:6px">
                     <a class="m-link-sm" href="{{ route('public-ip-nat.edit', $row->id) }}">Upravit</a>
                     @if($row->private_ip)
-                    <a class="m-link-sm" style="color:#c0392b" href="{{ route('public-ip-nat.clear', $row->id) }}"
-                       onclick="return confirm('Opravdu vymazat mapování pro {{ $row->public_ip }}?')">Vymazat</a>
+                    <form method="POST" action="{{ route('public-ip-nat.clear', $row->id) }}" style="display:inline"
+                          onsubmit="return confirm('Opravdu vymazat mapování pro {{ $row->public_ip }}?')">
+                        @csrf
+                        <button type="submit" class="m-link-sm" style="color:#c0392b;background:none;border:0;padding:0;cursor:pointer">Vymazat</button>
+                    </form>
                     @endif
                 </div>
             </td>

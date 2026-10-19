@@ -33,19 +33,23 @@ class SmallReadersTest extends CatalogTestCase
         $r = DB::table('public_ip_nat_1to1')->where('id', $id)->first();
         $this->assertSame(['10.244.1.6', 1, $this->memberOf($this->adminId)], [$r->private_ip, (int) $r->enabled, (int) $r->modified_by]);
         $this->as()->put(route('public-ip-nat.update', $id), ['private_ip' => $pub])->assertSessionHasErrors(['private_ip' => 'Veřejná a privátní IP nesmějí být stejné.']);
-        $this->as()->put(route('public-ip-nat.update', $id), ['private_ip' => 'x'])->assertSessionHasErrors(['private_ip' => 'Neplatná privátní IPv4 adresa.']);
+        foreach (['x', '2a07:9c0::1'] as $bad) {
+            $this->as()->put(route('public-ip-nat.update', $id), ['private_ip' => $bad])->assertSessionHasErrors(['private_ip' => 'Neplatná privátní IPv4 adresa.']);
+        }
         $this->as()->put(route('public-ip-nat.update', $id), [])->assertSessionHasNoErrors();
         $this->assertSame([null, 0], [DB::table('public_ip_nat_1to1')->where('id', $id)->value('private_ip'), (int) DB::table('public_ip_nat_1to1')->where('id', $id)->value('enabled')]);
 
         DB::table('public_ip_nat_1to1')->where('id', $id)->update(['private_ip' => '10.244.1.7']);
-        $this->as()->get(route('public-ip-nat.clear', $id))->assertRedirect(route('public-ip-nat.index'))->assertSessionHas('success', 'Mapování bylo vymazáno.');
+        $this->as()->get("/public-ip-nat/{$id}/clear")->assertStatus(405);   // dřív GET bez CSRF
+        $this->assertSame('10.244.1.7', DB::table('public_ip_nat_1to1')->where('id', $id)->value('private_ip'));
+        $this->as()->post(route('public-ip-nat.clear', $id))->assertRedirect(route('public-ip-nat.index'))->assertSessionHas('success', 'Mapování bylo vymazáno.');
         $this->assertNull(DB::table('public_ip_nat_1to1')->where('id', $id)->value('private_ip'));
         $this->as()->get(route('public-ip-nat.edit', 999999999))->assertNotFound();
 
         $this->acl(['edit_all/Network_Controller/public_ip_nat']);
         $this->as()->get(route('public-ip-nat.edit', $id))->assertForbidden();
         $this->as()->put(route('public-ip-nat.update', $id), [])->assertForbidden();
-        $this->as()->get(route('public-ip-nat.clear', $id))->assertForbidden();
+        $this->as()->post(route('public-ip-nat.clear', $id))->assertForbidden();
         $this->acl(['view_all/Network_Controller/public_ip_nat']);
         $this->as()->get(route('public-ip-nat.index'))->assertForbidden();
     }

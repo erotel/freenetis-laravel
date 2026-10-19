@@ -54,10 +54,10 @@ class PublicIpNat1to1Controller extends Controller
         $record = $this->nat->findOrFail($id);
 
         $data = $request->validate([
-            'private_ip' => ['nullable', 'ip'],
+            'private_ip' => ['nullable', 'ipv4'],
             'enabled'    => ['nullable', 'boolean'],
         ], [
-            'private_ip.ip' => 'Neplatná privátní IPv4 adresa.',
+            'private_ip.ipv4' => 'Neplatná privátní IPv4 adresa.',
         ]);
 
         $privateIp = $data['private_ip'] ?? null;
