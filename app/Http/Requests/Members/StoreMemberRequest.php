@@ -4,6 +4,7 @@ namespace App\Http\Requests\Members;
 
 use App\Domains\Members\Support\NewMember;
 use App\Helpers\MemberType;
+use App\Rules\StrongPassword;
 use Illuminate\Foundation\Http\FormRequest;
 
 /** Založení člena (ACL new_all ověří authorize() ještě před validací). */
@@ -24,7 +25,7 @@ class StoreMemberRequest extends FormRequest
             'type'          => 'required|integer|in:' . implode(',', array_keys(MemberType::labels())),
             'entrance_date' => 'required|date',
             'login'         => 'required|string|min:5|max:50|unique:users,login',
-            'password'      => 'required|string|min:6|confirmed',
+            'password'      => StrongPassword::rules($this->input('login')),
             'email'         => 'required|email|max:255',
             'phone'         => 'required|string|max:40',
             'town_id'       => 'required|integer|exists:towns,id',

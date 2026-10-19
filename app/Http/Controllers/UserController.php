@@ -203,10 +203,9 @@ class UserController extends Controller
             abort(403);
         }
 
-        $minLength = (int) \App\Models\Setting::get('security_password_length', 8);
         $rules = [
             'member_id'             => 'required|integer|exists:members,id',
-            'password'              => "required|string|min:{$minLength}|confirmed",
+            'password'              => \App\Rules\StrongPassword::rules($request->input('login')),
             'name'                  => 'nullable|string|max:100',
             'middle_name'           => 'nullable|string|max:100',
             'surname'               => 'required|string|max:100',
@@ -294,8 +293,7 @@ class UserController extends Controller
         }
 
         if ($request->filled('password')) {
-            $minLength = (int) \App\Models\Setting::get('security_password_length', 8);
-            $rules['password'] = "string|min:{$minLength}|confirmed";
+            $rules['password'] = \App\Rules\StrongPassword::rules($request->input('login', $user->login), false);
         }
 
         $data = $request->validate($rules);
@@ -372,13 +370,11 @@ class UserController extends Controller
             abort(404);
         }
 
-        $minLength = (int) \App\Models\Setting::get('security_password_length', 8);
-
         // Self-change vyžaduje znalost aktuálního hesla — chrání před zneužitím
         // unesené session a před vzájemným zásahem mezi sub-uživateli členství.
         // Admin (edit_all,password) může reset bez current_password.
         $rules = [
-            'password'              => "required|string|min:{$minLength}|confirmed",
+            'password'              => \App\Rules\StrongPassword::rules($user->login),
             'password_confirmation' => 'required',
         ];
         if ($isSelf && !$isAdmin) {

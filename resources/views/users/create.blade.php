@@ -46,6 +46,7 @@
         <div class="m-form-group">
             <label class="m-form-label" for="password">Heslo <span style="color:#c0392b">*</span></label>
             <input class="m-form-input" type="password" id="password" name="password" autocomplete="new-password">
+            @include('partials.password_hint')
             @error('password') <div class="m-form-hint" style="color:#c0392b">{{ $message }}</div> @enderror
         </div>
         <div class="m-form-group">

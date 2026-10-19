@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 use App\Domains\Members\Actions\RequestPasswordResetAction;
 use App\Domains\Members\Actions\ResetPasswordAction;
 use App\Models\Setting;
+use App\Rules\StrongPassword;
 use Illuminate\Http\Request;
 
 /** Zapomenuté heslo (zapíná Setting forgotten_password); logika v doméně Members. */
@@ -56,10 +57,9 @@ class ForgottenPasswordController extends Controller
     {
         $this->ensureEnabled();
 
-        $minLength = (int) Setting::get('security_password_length', 8);
         $request->validate([
             'token'                 => 'required|string',
-            'password'              => "required|string|min:{$minLength}|confirmed",
+            'password'              => StrongPassword::rules($reset->validUser($request->input('token'))?->login),
             'password_confirmation' => 'required',
         ]);
 

@@ -30,6 +30,7 @@
         <input type="hidden" name="token" value="{{ $token }}">
         <label for="password">Nové heslo</label>
         <input type="password" id="password" name="password" autofocus>
+        @include('partials.password_hint', ['style' => 'font-size:12px;color:#666;margin:-6px 0 10px'])
         <label for="password_confirmation">Heslo znovu</label>
         <input type="password" id="password_confirmation" name="password_confirmation">
         <button type="submit">Uložit nové heslo</button>
