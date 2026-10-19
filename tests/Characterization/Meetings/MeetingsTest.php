@@ -191,6 +191,10 @@ class MeetingsTest extends DatabaseTestCase
         // uzavřená schůze: senioři = snapshot (nový senior se zpětně neobjeví)
         $z = $this->senior('Char Z');
         $this->assertArrayNotHasKey($z, $this->rows($m->id));
+
+        // opakované uzavření nepřipíše novému seniorovi zpětnou absenci
+        $this->as()->post(route('meetings.close', $m->id))->assertRedirect(route('meetings.show', $m->id));
+        $this->assertNull($this->att($m->id, $z));
     }
 
     public function test_jen_clenske_schuze_se_pocitaji(): void
