@@ -63,4 +63,16 @@ class AddressBookRepository
     {
         Street::create($data);
     }
+
+    /** Obce podle názvu (formulář člena). */
+    public function townsByName(): Collection
+    {
+        return Town::orderBy('town')->get();
+    }
+
+    /** Ulice podle názvu (formulář člena). */
+    public function streetsByName(): Collection
+    {
+        return Street::orderBy('street')->get();
+    }
 }

@@ -29,10 +29,9 @@ use App\Helpers\MemberType;
 use App\Http\Filters\MemberFilter;
 use App\Http\Requests\Members\StoreMemberRequest;
 use App\Http\Requests\Members\UpdateMemberRequest;
-use App\Models\Member;
+use App\Domains\Members\Repositories\AddressBookRepository;
+use App\Domains\Network\Repositories\SpeedClassRepository;
 use App\Models\Setting;
-use App\Models\Street;
-use App\Models\Town;
 use Illuminate\Http\Request;
 
 class MemberController extends Controller
@@ -180,7 +179,7 @@ class MemberController extends Controller
         $memberTypes = MemberType::labels();
         unset($memberTypes[MemberType::FORMER], $memberTypes[MemberType::APPLICANT]);
 
-        $towns = Town::orderBy('town')->get();
+        $towns = app(AddressBookRepository::class)->townsByName();
 
         return view('members.create', compact('memberTypes', 'towns'));
     }
@@ -199,19 +198,15 @@ class MemberController extends Controller
             abort(403);
         }
 
-        $member = Member::find($id);
-        if (!$member) {
-            abort(404);
-        }
-
+        $member = app(MemberRepository::class)->findOrFail($id);
         $member->load('addressPoint.town', 'addressPoint.street');
 
         $types   = MemberType::labels();
-        $towns   = Town::orderBy('town')->get();
-        $streets = Street::orderBy('street')->get();
+        $towns   = app(AddressBookRepository::class)->townsByName();
+        $streets = app(AddressBookRepository::class)->streetsByName();
 
-        $speedClasses      = \App\Models\SpeedClass::orderBy('name')->get();
-        $defaultSpeedClass = \App\Models\SpeedClass::where('regular_member_default', true)->first();
+        $speedClasses      = app(SpeedClassRepository::class)->allByName();
+        $defaultSpeedClass = app(SpeedClassRepository::class)->memberDefault();
         $canEditQos        = $this->aclCheck('edit_all', 'Members_Controller', 'qos_ceil');
         $canEditVoting     = $this->aclCheck('edit_all', 'Meetings_Controller', 'meeting');
 
@@ -480,7 +475,7 @@ class MemberController extends Controller
     public function myNotificationsForm()
     {
         $memberId = (int) (auth()->user()->member_id ?? 0);
-        $member   = $memberId ? Member::find($memberId) : null;
+        $member   = $memberId ? app(MemberRepository::class)->find($memberId) : null;
         abort_if(!$member, 404, 'Účet není navázán na člena.');
 
         return view('account.notifications', ['member' => $member]);
@@ -489,7 +484,7 @@ class MemberController extends Controller
     public function myNotificationsUpdate(Request $request)
     {
         $memberId = (int) (auth()->user()->member_id ?? 0);
-        $member   = $memberId ? Member::find($memberId) : null;
+        $member   = $memberId ? app(MemberRepository::class)->find($memberId) : null;
         abort_if(!$member, 404, 'Účet není navázán na člena.');
 
         app(MemberRepository::class)->setNotificationChannels($member,

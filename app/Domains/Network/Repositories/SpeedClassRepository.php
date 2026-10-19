@@ -67,4 +67,15 @@ class SpeedClassRepository
         SpeedClass::where('id', '!=', $speedClass->id)->update([$column => false]);
         $speedClass->update([$column => true]);
     }
+
+    public function allByName(): Collection
+    {
+        return SpeedClass::orderBy('name')->get();
+    }
+
+    /** Výchozí třída pro řádného člena. */
+    public function memberDefault(): ?SpeedClass
+    {
+        return SpeedClass::where('regular_member_default', true)->first();
+    }
 }
