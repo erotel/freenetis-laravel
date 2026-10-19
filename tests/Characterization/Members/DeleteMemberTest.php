@@ -53,7 +53,10 @@ class DeleteMemberTest extends DatabaseTestCase
             'payment_blocked' => 1, 'pending_termination' => 1,
         ]);
         $acc = (int) DB::table('accounts')->insertGetId(['member_id' => $id, 'account_attribute_id' => 221100, 'balance' => 50, 'name' => 'char']);
-        $vs  = (int) DB::table('variable_symbols')->insertGetId(['account_id' => $acc, 'variable_symbol' => (string) $id]);
+        do {   // VS = id by kolidoval s reálnými VS v kopii dat
+            $vsValue = (string) random_int(90000000, 99999999);
+        } while (DB::table('variable_symbols')->where('variable_symbol', $vsValue)->exists());
+        $vs  = (int) DB::table('variable_symbols')->insertGetId(['account_id' => $acc, 'variable_symbol' => $vsValue]);
         $org = (int) DB::table('accounts')->where('member_id', 1)->value('id');
         $tIn  = (int) DB::table('transfers')->insertGetId(['origin_id' => $org, 'destination_id' => $acc, 'type' => 0, 'amount' => 50, 'datetime' => '2026-01-01', 'creation_datetime' => '2026-01-01', 'text' => 'char']);
         $tOut = (int) DB::table('transfers')->insertGetId(['origin_id' => $acc, 'destination_id' => $org, 'type' => 1, 'amount' => 10, 'datetime' => '2026-01-02', 'creation_datetime' => '2026-01-02', 'text' => 'char']);
@@ -77,7 +80,7 @@ class DeleteMemberTest extends DatabaseTestCase
         $signed = (int) $c->table('contracts')->insertGetId(['member_id' => $id, 'contract_no' => 'CHARDEL-S-' . uniqid(), 'status' => 'signed']);
         $draft  = (int) $c->table('contracts')->insertGetId(['member_id' => $id, 'contract_no' => 'CHARDEL-D-' . uniqid(), 'status' => 'draft']);
 
-        return compact('id', 'acc', 'vs', 'tIn', 'tOut', 'uid', 'cid', 'dev', 'iface', 'ip', 'ip6', 'ipDirect', 'mf', 'as', 'so', 'signed', 'draft');
+        return compact('id', 'acc', 'vs', 'vsValue', 'tIn', 'tOut', 'uid', 'cid', 'dev', 'iface', 'ip', 'ip6', 'ipDirect', 'mf', 'as', 'so', 'signed', 'draft');
     }
 
     private function destroy(int $id)
@@ -161,7 +164,7 @@ class DeleteMemberTest extends DatabaseTestCase
         $this->assertSame([16, 1, $today, null], [(int) $m->type, (int) $m->locked, $m->leaving_date, $m->speed_class_id]);
         // podivnost: flagy ani VS se nemění, zařízení zůstávají
         $this->assertSame([1, 1], [(int) $m->payment_blocked, (int) $m->pending_termination]);
-        $this->assertSame((string) $x['id'], DB::table('variable_symbols')->where('id', $x['vs'])->value('variable_symbol'));
+        $this->assertSame($x['vsValue'], DB::table('variable_symbols')->where('id', $x['vs'])->value('variable_symbol'));
         $this->assertTrue($this->exists('devices', $x['dev']));
 
         $this->assertSame($today, DB::table('members_fees')->where('id', $x['mf'])->value('deactivation_date'));
