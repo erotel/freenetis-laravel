@@ -2,14 +2,14 @@
 
 namespace Tests\Feature\Meetings;
 
-use App\Http\Controllers\MeetingController;
+use App\Domains\Meetings\Support\AbsenceStreak;
 use App\Models\Meeting;
 use App\Models\MeetingAttendance;
 use Closure;
 use Tests\DatabaseTestCase;
 
 /**
- * Pravidlo degradace seniora „3× po sobě nepřítomen" (consecutiveAbsences) +
+ * Pravidlo degradace seniora „3× po sobě nepřítomen" (AbsenceStreak) +
  * účast plnou mocí se počítá jako přítomnost. Bez potřeby reálného člena —
  * logika čte jen meetings + meeting_attendances podle member_id.
  */
@@ -21,12 +21,8 @@ class MeetingPresenceTest extends DatabaseTestCase
     protected function setUp(): void
     {
         parent::setUp();
-        $ctrl = (new \ReflectionClass(MeetingController::class))->newInstanceWithoutConstructor();
-        $this->absences = Closure::bind(
-            fn (int $memberId, ?int $exclude = null) => $this->consecutiveAbsences($memberId, $exclude),
-            $ctrl,
-            MeetingController::class
-        );
+        $streak = app(AbsenceStreak::class);
+        $this->absences = fn (int $memberId, ?int $exclude = null) => $streak->count($memberId, $exclude);
     }
 
     private function closedMeeting(string $date): Meeting
