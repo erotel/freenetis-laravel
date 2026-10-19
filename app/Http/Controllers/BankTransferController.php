@@ -2,14 +2,18 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\BankAccount;
-use App\Models\BankTransfer;
-use App\Models\OutgoingPayment;
+use App\Domains\Billing\Actions\RefundUnidentifiedPaymentAction;
+use App\Domains\Billing\Exceptions\OutgoingPaymentRejected;
+use App\Domains\Billing\Repositories\BankLedgerRepository;
 use Illuminate\Http\Request;
 
 class BankTransferController extends Controller
 {
     private const ACL_SECTION = 'Accounts_Controller';
+
+    public function __construct(private BankLedgerRepository $ledger)
+    {
+    }
 
     private function can(string $action, string $value): bool
     {
@@ -20,15 +24,8 @@ class BankTransferController extends Controller
     {
         abort_unless($this->can('view_all', 'bank_transfers'), 403);
 
-        $account = BankAccount::findOrFail($bankAccountId);
-
-        // Get all statement IDs for this account
-        $statementIds = $account->bankStatements()->pluck('id');
-
-        $transfers = BankTransfer::whereIn('bank_statement_id', $statementIds)
-            ->with(['bankStatement', 'originAccount', 'destinationAccount', 'transfer'])
-            ->orderByDesc('id')
-            ->paginate(50);
+        $account   = $this->ledger->bankAccountOrFail($bankAccountId);
+        $transfers = $this->ledger->bankTransfersOfAccount($account, 50);
 
         return view('bank_transfers.show_by_account', compact('account', 'transfers'));
     }
@@ -50,25 +47,7 @@ class BankTransferController extends Controller
         }
         $to = $request->filled('to') ? $request->query('to') : null;
 
-        // Kohana logic (Bank_transfer_Model::get_unidentified_transfers):
-        //   neidentifikovaný = transfer.member_id IS NULL/0
-        //   AND origin účet je typu MEMBER_FEES (684000) — suspense účet, na který se
-        //   předúčtují příchozí bankovní platby, dokud nejsou přiřazené členovi.
-        //   Bez tohoto filtru sem padají i interní převody (banka → dodavatelé, atd.).
-        $transfers = BankTransfer::whereNotNull('bank_transfers.transfer_id')
-            ->join('transfers', 'transfers.id', '=', 'bank_transfers.transfer_id')
-            ->join('accounts as origin_acc', 'origin_acc.id', '=', 'transfers.origin_id')
-            ->where('origin_acc.account_attribute_id', 684000)
-            ->where(function ($q) {
-                $q->whereNull('transfers.member_id')->orWhere('transfers.member_id', 0);
-            })
-            ->when($from, fn($q) => $q->where('transfers.datetime', '>=', $from . ' 00:00:00'))
-            ->when($to,   fn($q) => $q->where('transfers.datetime', '<=', $to   . ' 23:59:59'))
-            ->with(['bankStatement.bankAccount', 'originAccount', 'destinationAccount', 'transfer'])
-            ->orderByDesc('transfers.datetime')
-            ->select('bank_transfers.*')
-            ->paginate(50)
-            ->withQueryString();
+        $transfers = $this->ledger->unidentified($from, $to, 50);
 
         return view('bank_transfers.unidentified', compact('transfers', 'from', 'to'));
     }
@@ -77,7 +56,7 @@ class BankTransferController extends Controller
     {
         abort_unless($this->can('edit_all', 'unidentified_transfers'), 403);
 
-        $bt = BankTransfer::with(['bankStatement.bankAccount', 'originAccount', 'transfer'])->findOrFail($id);
+        $bt = $this->ledger->bankTransferOrFail($id, ['bankStatement.bankAccount', 'originAccount', 'transfer']);
 
         // Must be unidentified (member_id null/0)
         abort_if($bt->transfer && $bt->transfer->member_id, 403);
@@ -101,11 +80,11 @@ class BankTransferController extends Controller
         return view('bank_transfers.refund_form', compact('bt', 'bankAccount', 'prefill'));
     }
 
-    public function refundStore(int $id, Request $request)
+    public function refundStore(int $id, Request $request, RefundUnidentifiedPaymentAction $refund)
     {
         abort_unless($this->can('edit_all', 'unidentified_transfers'), 403);
 
-        $bt = BankTransfer::with(['transfer', 'originAccount'])->findOrFail($id);
+        $bt = $this->ledger->bankTransferOrFail($id, ['transfer', 'originAccount']);
         abort_if($bt->transfer && $bt->transfer->member_id, 403);
 
         $validated = $request->validate([
@@ -116,53 +95,11 @@ class BankTransferController extends Controller
             'message'         => 'nullable|string|max:255',
         ]);
 
-        // Vrácení neidentifikované platby smí jít VÝHRADNĚ zpět odesílateli a
-        // NEJVÝŠ v přijaté částce. Cílový účet i jméno proto odvozujeme ze
-        // serveru (z origin účtu přijaté platby), NE z requestu — jinak by šlo
-        // poslat libovolnou částku na libovolný účet (arbitrary payout).
-        if (!$bt->transfer) {
-            return back()->with('error', 'K tomuto bankovnímu pohybu chybí účetní převod — vrácení nelze provést.');
+        try {
+            $refund->handle($bt, $validated, (int) auth()->id());
+        } catch (OutgoingPaymentRejected $e) {
+            return back()->withInput()->with('error', $e->getMessage());
         }
-        $origin = $bt->originAccount;
-        if (!$origin || !$origin->account_nr) {
-            return back()->with('error', 'Neznámý odesílatel platby — vrácení nelze bezpečně provést (chybí protiúčet).');
-        }
-
-        $maxAmount = round(abs((float) $bt->transfer->amount), 2);
-        if (round((float) $validated['amount'], 2) > $maxAmount) {
-            return back()
-                ->withInput()
-                ->with('error', 'Vrácená částka nesmí převýšit přijatou platbu (' . number_format($maxAmount, 2, ',', ' ') . ' Kč).');
-        }
-
-        $targetAccount = $origin->account_nr . '/' . $origin->bank_nr;
-        $targetName    = $origin->name ?? '';
-
-        // Check if refund already exists for this transfer
-        $existing = OutgoingPayment::where('transfer_id', $bt->transfer_id)->first();
-        if ($existing) {
-            return back()->with('error', 'Pro tento převod již existuje odchozí platba (stav: ' . $existing->status . ').');
-        }
-
-        OutgoingPayment::create([
-            'bank_account_id' => $validated['bank_account_id'],
-            'transfer_id'     => $bt->transfer_id,
-            'target_account'  => $targetAccount,
-            'target_name'     => $targetName,
-            'amount'          => $validated['amount'],
-            'currency'        => $validated['currency'],
-            'variable_symbol' => $validated['variable_symbol'] ?? '',
-            'message'         => $validated['message'] ?? '',
-            'reason'          => 'unidentified_refund',
-            'status'          => 'draft',
-            'created_by'      => auth()->id(),
-        ]);
-
-        \App\Services\AuditLogger::log('created', 'outgoing_payments', (int) $bt->transfer_id, null, [
-            'reason'         => 'unidentified_refund',
-            'amount'         => $validated['amount'],
-            'target_account' => $targetAccount,
-        ]);
 
         return redirect()->route('bank_transfers.unidentified')
             ->with('success', 'Odchozí platba (vrácení) byla vytvořena jako koncept.');

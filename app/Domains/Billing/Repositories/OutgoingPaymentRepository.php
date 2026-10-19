@@ -73,4 +73,14 @@ class OutgoingPaymentRepository
             'comment' => DB::raw("CONCAT(COALESCE(comment, ''), IF(comment IS NULL OR comment = '', '', ' | '), 'Čeká se na platbu z banky')"),
         ]);
     }
+
+    public function forTransfer(int $transferId): ?OutgoingPayment
+    {
+        return OutgoingPayment::where('transfer_id', $transferId)->first();
+    }
+
+    public function create(array $attributes): OutgoingPayment
+    {
+        return OutgoingPayment::create($attributes);
+    }
 }

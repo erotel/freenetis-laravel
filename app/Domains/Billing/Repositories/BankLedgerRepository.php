@@ -144,4 +144,42 @@ class BankLedgerRepository
         $statement->delete();
         return $count;
     }
+
+    /** Pohyby všech výpisů bankovního účtu, nejnovější první. */
+    public function bankTransfersOfAccount(BankAccount $account, int $perPage)
+    {
+        return BankTransfer::whereIn('bank_statement_id', $account->bankStatements()->pluck('id'))
+            ->with(['bankStatement', 'originAccount', 'destinationAccount', 'transfer'])
+            ->orderByDesc('id')
+            ->paginate($perPage);
+    }
+
+    /**
+     * Neidentifikované platby (Kohana Bank_transfer_Model::get_unidentified_transfers):
+     * převod bez člena (NULL/0) z účtu MEMBER_FEES (684000) — suspense účet, na který
+     * se předúčtují příchozí platby, dokud nejsou přiřazené členovi. Bez filtru
+     * na 684000 by sem padaly i interní převody (banka → dodavatelé…).
+     */
+    public function unidentified(?string $from, ?string $to, int $perPage)
+    {
+        return BankTransfer::whereNotNull('bank_transfers.transfer_id')
+            ->join('transfers', 'transfers.id', '=', 'bank_transfers.transfer_id')
+            ->join('accounts as origin_acc', 'origin_acc.id', '=', 'transfers.origin_id')
+            ->where('origin_acc.account_attribute_id', self::MEMBER_FEES)
+            ->where(function ($q) {
+                $q->whereNull('transfers.member_id')->orWhere('transfers.member_id', 0);
+            })
+            ->when($from, fn ($q) => $q->where('transfers.datetime', '>=', $from . ' 00:00:00'))
+            ->when($to,   fn ($q) => $q->where('transfers.datetime', '<=', $to   . ' 23:59:59'))
+            ->with(['bankStatement.bankAccount', 'originAccount', 'destinationAccount', 'transfer'])
+            ->orderByDesc('transfers.datetime')
+            ->select('bank_transfers.*')
+            ->paginate($perPage)
+            ->withQueryString();
+    }
+
+    public function bankTransferOrFail(int $id, array $with = []): BankTransfer
+    {
+        return BankTransfer::with($with)->findOrFail($id);
+    }
 }
