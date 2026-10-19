@@ -171,4 +171,29 @@ class LineIdRepository
         }
         return $out;
     }
+
+    /** Anomálie (nejzávažnější, pak nejčerstvější); bez vyřešených, pokud nechceme. */
+    public function anomalies(string $severity, bool $withResolved, int $perPage)
+    {
+        return LineIdAnomaly::with([
+                'expectedIface.device.user.member',
+                'seenIface.device.user.member',
+            ])
+            ->when(!$withResolved, fn ($q) => $q->whereNull('resolved_at'))
+            ->when($severity !== '', fn ($q) => $q->where('severity', $severity))
+            ->orderByRaw("FIELD(severity,'critical','high','warning')")
+            ->orderByDesc('last_seen')
+            ->paginate($perPage)
+            ->withQueryString();
+    }
+
+    public function openCriticalAnomalies(): int
+    {
+        return LineIdAnomaly::whereNull('resolved_at')->where('severity', 'critical')->count();
+    }
+
+    public function resolveAnomaly(int $id): void
+    {
+        LineIdAnomaly::whereKey($id)->update(['resolved_at' => now()]);
+    }
 }

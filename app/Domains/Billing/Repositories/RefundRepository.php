@@ -129,4 +129,20 @@ class RefundRepository
             'status'              => 'new',
         ]);
     }
+
+    /** Fronta vratek k exportu do Pohody, nejnovější první; volitelně podle stavu. */
+    public function pohodaQueue(string $status, int $perPage)
+    {
+        return DB::table('pohoda_refund_queue as q')
+            ->join('members as m', 'm.id', '=', 'q.member_id')
+            ->select(
+                'q.id', 'q.member_id', 'q.doc_number', 'q.refund_account',
+                'q.amount', 'q.currency', 'q.reason', 'q.note',
+                'q.status', 'q.created_at', 'q.exported_at',
+                'm.name as member_name'
+            )
+            ->when($status !== '', fn ($q) => $q->where('q.status', $status))
+            ->orderByDesc('q.id')
+            ->paginate($perPage)->withQueryString();
+    }
 }

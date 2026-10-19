@@ -2,7 +2,7 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\LineIdAnomaly;
+use App\Domains\Access\Repositories\LineIdRepository;
 use Illuminate\Http\Request;
 
 /**
@@ -13,6 +13,10 @@ class LineIdAnomalyController extends Controller
 {
     private const ACL_SECTION = 'Subnets_Controller';
     private const ACL_VALUE   = 'dhcp';
+
+    public function __construct(private LineIdRepository $lineIds)
+    {
+    }
 
     private function can(string $action): bool
     {
@@ -26,23 +30,14 @@ class LineIdAnomalyController extends Controller
         $severity     = (string) $request->input('severity', '');
         $showResolved = $request->boolean('resolved');
 
-        $items = LineIdAnomaly::with([
-                'expectedIface.device.user.member',
-                'seenIface.device.user.member',
-            ])
-            ->when(!$showResolved, fn ($q) => $q->whereNull('resolved_at'))
-            ->when($severity !== '', fn ($q) => $q->where('severity', $severity))
-            ->orderByRaw("FIELD(severity,'critical','high','warning')")
-            ->orderByDesc('last_seen')
-            ->paginate(50)
-            ->withQueryString();
+        $items = $this->lineIds->anomalies($severity, $showResolved, 50);
 
         return view('line_id_anomalies.index', [
             'items'        => $items,
             'severity'     => $severity,
             'showResolved' => $showResolved,
             'canResolve'   => $this->can('edit_all'),
-            'openCritical' => LineIdAnomaly::whereNull('resolved_at')->where('severity', 'critical')->count(),
+            'openCritical' => $this->lineIds->openCriticalAnomalies(),
         ]);
     }
 
@@ -50,7 +45,7 @@ class LineIdAnomalyController extends Controller
     {
         abort_unless($this->can('edit_all'), 403);
 
-        LineIdAnomaly::whereKey($id)->update(['resolved_at' => now()]);
+        $this->lineIds->resolveAnomaly($id);
 
         return back()->with('success', 'Anomálie označena jako vyřešená.');
     }
