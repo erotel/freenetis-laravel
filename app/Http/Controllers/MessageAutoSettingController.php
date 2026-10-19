@@ -1,12 +1,41 @@
 <?php
 namespace App\Http\Controllers;
 
-use App\Models\Message;
+use App\Domains\Notifications\Repositories\ActivationRuleRepository;
+use App\Domains\Notifications\Repositories\MessageRepository;
+use App\Services\AuditLogger;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\DB;
 
+/** Pravidla automatické aktivace upozornění (dlužník / upomínka); data v doméně Notifications. */
 class MessageAutoSettingController extends Controller
 {
+    /** Automaticky aktivovat jde jen dlužník a upomínka (zákazník 5, 6; člen 25, 26). */
+    private const AUTO_TYPES = [5, 6, 25, 26];
+
+    private const RULES = [
+        'type'                     => 'required|integer|in:1,2,3,4,5,6',
+        'attribute'                => 'nullable|string|max:20',
+        'redirection_enabled'      => 'boolean',
+        'email_enabled'            => 'boolean',
+        'sms_enabled'              => 'boolean',
+        'send_activation_to_email' => 'nullable|email|max:255',
+    ];
+
+    public function __construct(private ActivationRuleRepository $rules, private MessageRepository $messages) {}
+
+    /** Hodnoty pravidla z validovaného formuláře. */
+    private function values(Request $request, array $v): array
+    {
+        return [
+            'type'                     => $v['type'],
+            'attribute'                => $v['attribute'] ?? '',
+            'redirection_enabled'      => $request->boolean('redirection_enabled') ? 1 : 0,
+            'email_enabled'            => $request->boolean('email_enabled') ? 1 : 0,
+            'sms_enabled'              => $request->boolean('sms_enabled') ? 1 : 0,
+            'send_activation_to_email' => $v['send_activation_to_email'] ?? '',
+        ];
+    }
+
     private const ACL_SECTION = 'Messages_Controller';
     private const ACL_VALUE   = 'message';
 
@@ -27,18 +56,18 @@ class MessageAutoSettingController extends Controller
     public function index(int $messageId)
     {
         abort_unless($this->can('view_all'), 403);
-        $message    = Message::findOrFail($messageId);
-        $rules      = DB::table('messages_automatical_activations')
-            ->where('message_id', $messageId)->get();
-        $typeLabels = self::TYPE_LABELS;
-        return view('message_auto_settings.index', compact('message', 'rules', 'typeLabels'));
+        return view('message_auto_settings.index', [
+            'message'    => $this->messages->findOrFail($messageId),
+            'rules'      => $this->rules->forMessage($messageId),
+            'typeLabels' => self::TYPE_LABELS,
+        ]);
     }
 
     public function create(int $messageId)
     {
         abort_unless($this->can('new_all'), 403);
-        $message = Message::findOrFail($messageId);
-        abort_unless(in_array($message->type, [5, 6, 25, 26]), 403,
+        $message = $this->messages->findOrFail($messageId);
+        abort_unless(in_array($message->type, self::AUTO_TYPES), 403,
             'Tento typ zprávy nelze automaticky aktivovat.');
         return view('message_auto_settings.create', [
             'message'    => $message,
@@ -49,29 +78,13 @@ class MessageAutoSettingController extends Controller
     public function store(Request $request, int $messageId)
     {
         abort_unless($this->can('new_all'), 403);
-        $message = Message::findOrFail($messageId);
-        abort_unless(in_array($message->type, [5, 6, 25, 26]), 403);
+        $message = $this->messages->findOrFail($messageId);
+        abort_unless(in_array($message->type, self::AUTO_TYPES), 403);
 
-        $validated = $request->validate([
-            'type'                     => 'required|integer|in:1,2,3,4,5,6',
-            'attribute'                => 'nullable|string|max:20',
-            'redirection_enabled'      => 'boolean',
-            'email_enabled'            => 'boolean',
-            'sms_enabled'              => 'boolean',
-            'send_activation_to_email' => 'nullable|email|max:255',
-        ]);
+        $validated = $request->validate(self::RULES);
+        $this->rules->create($messageId, $this->values($request, $validated));
 
-        DB::table('messages_automatical_activations')->insert([
-            'message_id'               => $messageId,
-            'type'                     => $validated['type'],
-            'attribute'                => $validated['attribute'] ?? '',
-            'redirection_enabled'      => $request->boolean('redirection_enabled') ? 1 : 0,
-            'email_enabled'            => $request->boolean('email_enabled') ? 1 : 0,
-            'sms_enabled'              => $request->boolean('sms_enabled') ? 1 : 0,
-            'send_activation_to_email' => $validated['send_activation_to_email'] ?? '',
-        ]);
-
-        \App\Services\AuditLogger::log('created', 'messages_automatical_activations', $messageId, null, [
+        AuditLogger::log('created', 'messages_automatical_activations', $messageId, null, [
             'message_id' => $messageId,
             'type'       => $validated['type'],
             'attribute'  => $validated['attribute'] ?? '',
@@ -84,10 +97,8 @@ class MessageAutoSettingController extends Controller
     public function edit(int $messageId, int $id)
     {
         abort_unless($this->can('edit_all'), 403);
-        $message = Message::findOrFail($messageId);
-        $rule    = DB::table('messages_automatical_activations')
-            ->where('id', $id)->where('message_id', $messageId)
-            ->first();
+        $message = $this->messages->findOrFail($messageId);
+        $rule    = $this->rules->find($messageId, $id);
         abort_if(!$rule, 404);
         return view('message_auto_settings.edit', [
             'message'    => $message,
@@ -100,27 +111,10 @@ class MessageAutoSettingController extends Controller
     {
         abort_unless($this->can('edit_all'), 403);
 
-        $validated = $request->validate([
-            'type'                     => 'required|integer|in:1,2,3,4,5,6',
-            'attribute'                => 'nullable|string|max:20',
-            'redirection_enabled'      => 'boolean',
-            'email_enabled'            => 'boolean',
-            'sms_enabled'              => 'boolean',
-            'send_activation_to_email' => 'nullable|email|max:255',
-        ]);
+        $validated = $request->validate(self::RULES);
+        $this->rules->update($messageId, $id, $this->values($request, $validated));
 
-        DB::table('messages_automatical_activations')
-            ->where('id', $id)->where('message_id', $messageId)
-            ->update([
-                'type'                     => $validated['type'],
-                'attribute'                => $validated['attribute'] ?? '',
-                'redirection_enabled'      => $request->boolean('redirection_enabled') ? 1 : 0,
-                'email_enabled'            => $request->boolean('email_enabled') ? 1 : 0,
-                'sms_enabled'              => $request->boolean('sms_enabled') ? 1 : 0,
-                'send_activation_to_email' => $validated['send_activation_to_email'] ?? '',
-            ]);
-
-        \App\Services\AuditLogger::log('updated', 'messages_automatical_activations', $id, null, [
+        AuditLogger::log('updated', 'messages_automatical_activations', $id, null, [
             'message_id' => $messageId,
             'type'       => $validated['type'],
             'attribute'  => $validated['attribute'] ?? '',
@@ -133,10 +127,8 @@ class MessageAutoSettingController extends Controller
     public function destroy(int $messageId, int $id)
     {
         abort_unless($this->can('delete_all'), 403);
-        DB::table('messages_automatical_activations')
-            ->where('id', $id)->where('message_id', $messageId)
-            ->delete();
-        \App\Services\AuditLogger::log('deleted', 'messages_automatical_activations', $id, [
+        $this->rules->delete($messageId, $id);
+        AuditLogger::log('deleted', 'messages_automatical_activations', $id, [
             'message_id' => $messageId,
         ], null);
         return redirect()->route('messages.show', $messageId)
