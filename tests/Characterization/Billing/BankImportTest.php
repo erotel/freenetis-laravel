@@ -65,7 +65,9 @@ class BankImportTest extends DatabaseTestCase
         $id = (int) DB::table('members')->insertGetId($m + ['name' => 'Char Platce', 'type' => $type, 'registration' => 1, 'locked' => 0,
             'address_point_id' => $apId, 'entrance_date' => '2020-01-01', 'leaving_date' => '9999-12-31']);
         $acc = (int) DB::table('accounts')->insertGetId(['member_id' => $id, 'account_attribute_id' => 221100, 'balance' => $balance, 'name' => 'c']);
-        $vs = '9' . $id;
+        do {   // '9' . id občas kolidoval s reálným VS v kopii dat → platba jinému členovi
+            $vs = (string) random_int(90000000, 99999999);
+        } while (DB::table('variable_symbols')->where('variable_symbol', $vs)->orWhere('variable_symbol', $vs . '+U')->exists());
         DB::table('variable_symbols')->insert(['account_id' => $acc, 'variable_symbol' => $vs]);
         $uid = (int) DB::table('users')->insertGetId(['member_id' => $id, 'login' => 'charbank_' . uniqid(), 'password' => Hash::make('x'), 'type' => 1,
             'application_password' => 'x', 'settings' => '', 'name' => 'C', 'surname' => 'P', 'comment' => '']);
