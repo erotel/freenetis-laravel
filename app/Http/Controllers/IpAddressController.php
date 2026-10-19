@@ -2,18 +2,17 @@
 
 namespace App\Http\Controllers;
 
-use App\Http\Controllers\Concerns\SyncsIp6Address;
-use App\Models\Iface;
-use App\Models\IpAddress;
-use App\Models\Member;
-use App\Models\Subnet;
-use App\Services\AllowedSubnetSyncService;
+use App\Domains\Network\Actions\AddIpAddressAction;
+use App\Domains\Network\Actions\RemoveIpAddressAction;
+use App\Domains\Network\Actions\UpdateIpAddressAction;
+use App\Domains\Network\Repositories\IpAddressRepository;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
 
+/** IPv4 adresy (rozhraní / přímo členovi); logika v doméně Network. */
 class IpAddressController extends Controller
 {
-    use SyncsIp6Address;
+    public function __construct(private IpAddressRepository $ips) {}
     private const ACL_SECTION = 'Ip_addresses_Controller';
     private const ACL_VALUE   = 'ip_address';
 
@@ -37,15 +36,7 @@ class IpAddressController extends Controller
 
         $search = trim((string) $request->query('search', ''));
 
-        $query = IpAddress::with(['subnet', 'member', 'iface.device']);
-
-        if ($search !== '') {
-            $query->where('ip_address', 'like', "%{$search}%");
-        }
-
-        $ipAddresses = $query->orderBy($sort, $dir)
-            ->paginate($perPage)
-            ->withQueryString();
+        $ipAddresses = $this->ips->paginate($search, $sort, $dir, $perPage);
 
         return view('ip_addresses.index', [
             'ipAddresses' => $ipAddresses,
@@ -65,7 +56,7 @@ class IpAddressController extends Controller
             abort(403);
         }
 
-        $ip = IpAddress::with(['subnet', 'member', 'iface.device'])->find($id);
+        $ip = $this->ips->findForDetail($id);
         if (!$ip) {
             abort(404);
         }
@@ -111,7 +102,7 @@ class IpAddressController extends Controller
         ));
     }
 
-    public function store(Request $request)
+    public function store(Request $request, AddIpAddressAction $add)
     {
         if (!$this->can('new_all')) {
             abort(403);
@@ -125,18 +116,7 @@ class IpAddressController extends Controller
                 ->withErrors(['gateway' => 'V tomto subnetu již existuje gateway.']);
         }
 
-        $ip = IpAddress::create($data);
-        $this->syncIp6Add($ip->iface_id, $ip->ip_address);
-        $ip->subnet?->setExpired();
-        $this->syncAllowedSubnetOnAdd($ip);
-
-        // Pokud IP patří čekajícímu zákazníkovi (type=18), okamžitě aktivovat
-        // přesměrování — admin nemusí čekat na hodinový cron.
-        $memberId = $ip->member_id
-            ?? Iface::find($ip->iface_id)?->device?->user?->member_id;
-        if ($memberId) {
-            app(\App\Services\PendingCustomerRedirectService::class)->refreshForMember((int) $memberId);
-        }
+        $ip = $add->handle($data);
 
         session()->flash('success', 'IP adresa byla úspěšně přidána.');
         return redirect()->route('ip_addresses.show', $ip->id);
@@ -148,7 +128,7 @@ class IpAddressController extends Controller
             abort(403);
         }
 
-        $ip = IpAddress::find($id);
+        $ip = $this->ips->find($id);
         if (!$ip) {
             abort(404);
         }
@@ -158,13 +138,13 @@ class IpAddressController extends Controller
         return view('ip_addresses.edit', compact('ip', 'ifaces', 'subnets', 'members'));
     }
 
-    public function update(Request $request, int $id)
+    public function update(Request $request, int $id, UpdateIpAddressAction $update)
     {
         if (!$this->can('edit_all')) {
             abort(403);
         }
 
-        $ip = IpAddress::find($id);
+        $ip = $this->ips->find($id);
         if (!$ip) {
             abort(404);
         }
@@ -178,42 +158,24 @@ class IpAddressController extends Controller
                 ->withErrors(['gateway' => 'V tomto subnetu již existuje gateway.']);
         }
 
-        $oldSubnetId = $ip->subnet_id;
-        $this->syncIp6Delete($ip->ip_address);
-        $ip->update($data);
-        $this->syncIp6Add($ip->iface_id, $ip->ip_address);
-
-        $ip->subnet?->setExpired();
-        if ($oldSubnetId !== $ip->subnet_id) {
-            $oldSubnet = Subnet::find($oldSubnetId);
-            $oldSubnet?->setExpired();
-        }
-        $this->syncAllowedSubnetOnUpdate($ip, $oldSubnetId);
+        $update->handle($ip, $data);
 
         session()->flash('success', 'IP adresa byla úspěšně upravena.');
         return redirect()->route('ip_addresses.show', $id);
     }
 
-    public function destroy(int $id)
+    public function destroy(int $id, RemoveIpAddressAction $remove)
     {
         if (!$this->can('delete_all')) {
             abort(403);
         }
 
-        $ip = IpAddress::find($id);
+        $ip = $this->ips->find($id);
         if (!$ip) {
             abort(404);
         }
 
-        $subnet      = $ip->subnet;
-        $subnetId    = $ip->subnet_id;
-        $memberId    = $this->memberIdOfIp($ip);
-        $this->syncIp6Delete($ip->ip_address);
-        $ip->delete();
-        $subnet?->setExpired();
-        if ($memberId && $subnetId) {
-            app(AllowedSubnetSyncService::class)->onIpRemoved($memberId, $subnetId);
-        }
+        $remove->handle($ip);
 
         session()->flash('success', 'IP adresa byla úspěšně smazána.');
         return redirect()->route('ip_addresses.index');
@@ -237,36 +199,14 @@ class IpAddressController extends Controller
         return $data;
     }
 
-    private function memberIdOfIp(IpAddress $ip): ?int
-    {
-        // member_id na ip_addresses je nullable (gateway/service IP); pro
-        // allowed_subnets potřebujeme membera vlastnícího device přes ifaces.
-        $ip->loadMissing('iface.device.user');
-        return (int) ($ip->iface?->device?->user?->member_id ?? 0) ?: null;
-    }
 
-    private function syncAllowedSubnetOnAdd(IpAddress $ip): void
-    {
-        $memberId = $this->memberIdOfIp($ip);
-        if ($memberId && $ip->subnet_id) {
-            app(AllowedSubnetSyncService::class)->onIpAdded($memberId, (int) $ip->subnet_id);
-        }
-    }
 
-    private function syncAllowedSubnetOnUpdate(IpAddress $ip, ?int $oldSubnetId): void
-    {
-        $memberId = $this->memberIdOfIp($ip);
-        if ($memberId && $ip->subnet_id) {
-            app(AllowedSubnetSyncService::class)
-                ->onIpMoved($memberId, $oldSubnetId, (int) $ip->subnet_id);
-        }
-    }
 
     private function formData(?int $deviceId = null, ?int $ifaceId = null): array
     {
-        $ifaces  = Iface::with('device')->orderBy('name')->get();
-        $subnets = Subnet::orderBy('network_address')->get();
-        $members = Member::orderBy('name')->get();
+        $ifaces  = $this->ips->ifacesForSelect();
+        $subnets = $this->ips->subnetsForSelect();
+        $members = $this->ips->membersForSelect();
 
         $preselectedIfaceId  = $ifaceId;
         $preselectedMemberId = null;
@@ -312,13 +252,7 @@ class IpAddressController extends Controller
 
     private function gatewayExistsInSubnet(int $subnetId, ?int $excludeId = null): bool
     {
-        $query = IpAddress::where('subnet_id', $subnetId)->where('gateway', 1);
-
-        if ($excludeId) {
-            $query->where('id', '!=', $excludeId);
-        }
-
-        return $query->exists();
+        return $this->ips->gatewayExists($subnetId, $excludeId);
     }
 
     /**
