@@ -7,6 +7,7 @@ use App\Domains\Billing\Repositories\OutgoingPaymentRepository;
 use App\Models\BankTransfer;
 use App\Models\OutgoingPayment;
 use App\Services\AuditLogger;
+use Illuminate\Support\Facades\Cache;
 
 /**
  * Vrácení neidentifikované platby jako koncept odchozí platby.
@@ -42,6 +43,21 @@ class RefundUnidentifiedPaymentAction
 
         $targetAccount = $origin->account_nr . '/' . $origin->bank_nr;
 
+        // dvojí odeslání formuláře nesmí založit dvě vrácení téže platby
+        $lock = Cache::lock('unidentified-refund:' . $bt->transfer_id, 30);
+        if (!$lock->get()) {
+            throw new OutgoingPaymentRejected('Vrácení této platby se právě zakládá — zkontrolujte odchozí platby.');
+        }
+        try {
+            return $this->create($bt, $data, $userId, $targetAccount, (string) ($origin->name ?? ''));
+        } finally {
+            $lock->release();
+        }
+    }
+
+    /** @throws OutgoingPaymentRejected */
+    private function create(BankTransfer $bt, array $data, int $userId, string $targetAccount, string $targetName): OutgoingPayment
+    {
         if ($existing = $this->payments->forTransfer((int) $bt->transfer_id)) {
             throw new OutgoingPaymentRejected('Pro tento převod již existuje odchozí platba (stav: ' . $existing->status . ').');
         }
@@ -50,7 +66,7 @@ class RefundUnidentifiedPaymentAction
             'bank_account_id' => $data['bank_account_id'],
             'transfer_id'     => $bt->transfer_id,
             'target_account'  => $targetAccount,
-            'target_name'     => $origin->name ?? '',
+            'target_name'     => $targetName,
             'amount'          => $data['amount'],
             'currency'        => $data['currency'],
             'variable_symbol' => $data['variable_symbol'] ?? '',

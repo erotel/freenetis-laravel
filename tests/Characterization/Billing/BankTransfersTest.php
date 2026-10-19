@@ -95,6 +95,20 @@ class BankTransfersTest extends CatalogTestCase
         $this->as()->get(route('bank-transfers.refund.form', 999999999))->assertNotFound();
     }
 
+    /** Souběžné druhé odeslání (zámek drží první) nezaloží druhé vrácení. */
+    public function test_vraceni_soubezne(): void
+    {
+        $bt = $this->payment(now()->toDateTimeString());
+        $tr = (int) DB::table('bank_transfers')->where('id', $bt)->value('transfer_id');
+        $held = \Illuminate\Support\Facades\Cache::lock("unidentified-refund:{$tr}", 30);
+        $this->assertTrue($held->get());
+        $this->as()->from(route('bank-transfers.refund.form', $bt))->post(route('bank-transfers.refund.store', $bt), ['bank_account_id' => $this->org, 'amount' => '1', 'currency' => 'CZK'])
+            ->assertSessionHas('error', 'Vrácení této platby se právě zakládá — zkontrolujte odchozí platby.');
+        $this->assertSame(0, DB::table('outgoing_payments')->where('transfer_id', $tr)->count());
+        $held->release();
+        $this->as()->post(route('bank-transfers.refund.store', $bt), ['bank_account_id' => $this->org, 'amount' => '1', 'currency' => 'CZK'])->assertSessionHas('success');
+    }
+
     public function test_prava(): void
     {
         $bt = $this->payment(now()->toDateTimeString());
