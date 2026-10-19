@@ -608,7 +608,7 @@ Route::middleware('auth')->group(function () {
     Route::post('public-port-forwards',          [PublicPortForwardController::class, 'store'])->name('public-port-forwards.store');
     Route::get('public-port-forwards/{id}/edit', [PublicPortForwardController::class, 'edit'])->name('public-port-forwards.edit');
     Route::put('public-port-forwards/{id}',      [PublicPortForwardController::class, 'update'])->name('public-port-forwards.update');
-    Route::get('public-port-forwards/{id}/delete',[PublicPortForwardController::class, 'destroy'])->name('public-port-forwards.destroy');
+    Route::delete('public-port-forwards/{id}',   [PublicPortForwardController::class, 'destroy'])->name('public-port-forwards.destroy');
 
     // ── SMTP Exceptions ───────────────────────────────────────────────────────
     Route::get('smtp-exceptions', [\App\Http\Controllers\SmtpExceptionController::class, 'index'])->name('smtp-exceptions.index')
@@ -617,7 +617,7 @@ Route::middleware('auth')->group(function () {
     Route::post('smtp-exceptions',           [\App\Http\Controllers\SmtpExceptionController::class, 'store'])->name('smtp-exceptions.store');
     Route::get('smtp-exceptions/{id}/edit',  [\App\Http\Controllers\SmtpExceptionController::class, 'edit'])->name('smtp-exceptions.edit');
     Route::put('smtp-exceptions/{id}',       [\App\Http\Controllers\SmtpExceptionController::class, 'update'])->name('smtp-exceptions.update');
-    Route::get('smtp-exceptions/{id}/delete',[\App\Http\Controllers\SmtpExceptionController::class, 'destroy'])->name('smtp-exceptions.destroy');
+    Route::delete('smtp-exceptions/{id}',    [\App\Http\Controllers\SmtpExceptionController::class, 'destroy'])->name('smtp-exceptions.destroy');
 
     // ── Membership interrupts ─────────────────────────────────────────────────
     Route::get('members/{memberId}/membership-interrupts/create', [MembershipInterruptController::class, 'create'])->name('membership-interrupts.create');

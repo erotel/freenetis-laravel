@@ -72,7 +72,10 @@ class PortForwardsTest extends CatalogTestCase
         $this->as()->get(route('public-port-forwards.index'))->assertForbidden();
 
         $this->acl();
-        $this->as()->get(route('public-port-forwards.destroy', $id))->assertRedirect(route('public-port-forwards.index'))->assertSessionHas('success', 'Port forward byl smazán.');
+        // dřív GET …/delete → stačil podvržený odkaz / <img> (bez CSRF); teď jen DELETE s tokenem
+        $this->as()->get("/public-port-forwards/{$id}/delete")->assertNotFound();
+        $this->assertTrue(DB::table('public_port_forwards')->where('id', $id)->exists());
+        $this->as()->delete(route('public-port-forwards.destroy', $id))->assertRedirect(route('public-port-forwards.index'))->assertSessionHas('success', 'Port forward byl smazán.');
         $this->assertFalse(DB::table('public_port_forwards')->where('id', $id)->exists());
     }
 }

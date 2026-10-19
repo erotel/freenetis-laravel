@@ -36,8 +36,11 @@
             <td>
                 <div style="display:flex;gap:6px">
                     <a class="m-link-sm" href="{{ route('smtp-exceptions.edit', $row->id) }}">Upravit</a>
-                    <a class="m-link-sm" style="color:#c0392b" href="{{ route('smtp-exceptions.destroy', $row->id) }}"
-                       onclick="return confirm('Opravdu smazat SMTP výjimku #{{ $row->id }} ({{ $row->intip }})?')">Smazat</a>
+                    <form method="POST" action="{{ route('smtp-exceptions.destroy', $row->id) }}" style="display:inline"
+                          onsubmit="return confirm('Opravdu smazat SMTP výjimku #{{ $row->id }} ({{ $row->intip }})?')">
+                        @csrf @method('DELETE')
+                        <button type="submit" class="m-link-sm" style="color:#c0392b;background:none;border:0;padding:0;cursor:pointer">Smazat</button>
+                    </form>
                 </div>
             </td>
             @endif

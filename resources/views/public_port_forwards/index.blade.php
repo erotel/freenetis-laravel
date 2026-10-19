@@ -74,8 +74,11 @@
             <td>
                 <div style="display:flex;gap:6px">
                     <a class="m-link-sm" href="{{ route('public-port-forwards.edit', $row->id) }}">Upravit</a>
-                    <a class="m-link-sm" style="color:#c0392b" href="{{ route('public-port-forwards.destroy', $row->id) }}"
-                       onclick="return confirm('Opravdu smazat port forward #{{ $row->id }}?')">Smazat</a>
+                    <form method="POST" action="{{ route('public-port-forwards.destroy', $row->id) }}" style="display:inline"
+                          onsubmit="return confirm('Opravdu smazat port forward #{{ $row->id }}?')">
+                        @csrf @method('DELETE')
+                        <button type="submit" class="m-link-sm" style="color:#c0392b;background:none;border:0;padding:0;cursor:pointer">Smazat</button>
+                    </form>
                 </div>
             </td>
             @endif
