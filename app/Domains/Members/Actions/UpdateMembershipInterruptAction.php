@@ -9,8 +9,9 @@ use Illuminate\Support\Facades\DB;
 
 /**
  * Úprava přerušení. „Konec po přerušení" nastaví leaving_date na konec
- * přerušení (jen pokud odchod není v minulosti); bez něj se budoucí
- * leaving_date nuluje.
+ * přerušení (jen pokud odchod není v minulosti). Bez něj se vrací jen
+ * odchod, který nastavilo toto přerušení (= jeho dosavadní konec), na
+ * „bez odchodu" 9999-12-31 — jiný budoucí odchod (výpovědní lhůta) zůstává.
  */
 class UpdateMembershipInterruptAction
 {
@@ -30,8 +31,8 @@ class UpdateMembershipInterruptAction
                 if (!$leaving || $leaving === '0000-00-00' || $leaving > $today) {
                     $this->interrupts->setLeavingDate((int) $interrupt->member_id, $to->toDateString());
                 }
-            } elseif ($leaving && $leaving > $today) {
-                $this->interrupts->setLeavingDate((int) $interrupt->member_id, null);
+            } elseif ($interrupt->end_after_interrupt_end && $leaving === $interrupt->deactivation_date && $leaving > $today) {
+                $this->interrupts->setLeavingDate((int) $interrupt->member_id, MembershipInterruptRepository::NO_LEAVING);
             }
         });
 

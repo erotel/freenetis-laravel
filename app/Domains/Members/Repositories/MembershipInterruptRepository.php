@@ -12,6 +12,9 @@ class MembershipInterruptRepository
 {
     private const INTERRUPT_SPECIAL_TYPE = 1;
 
+    /** members.leaving_date „bez odchodu" (sloupec je NOT NULL). */
+    public const NO_LEAVING = '9999-12-31';
+
     /** members_fees.id přerušení aktivního k datu, nebo null. */
     public function activeInterruptFeeId(int $memberId, string $date): ?int
     {
@@ -101,7 +104,7 @@ class MembershipInterruptRepository
         return DB::table('members')->where('id', $memberId)->value('leaving_date');
     }
 
-    public function setLeavingDate(int $memberId, ?string $date): void
+    public function setLeavingDate(int $memberId, string $date): void
     {
         DB::table('members')->where('id', $memberId)->update(['leaving_date' => $date]);
     }

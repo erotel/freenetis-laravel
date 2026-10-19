@@ -60,6 +60,18 @@ class MembershipInterruptTest extends DatabaseTestCase
             ->map(fn ($r) => (array) $r)->all();
     }
 
+    /**
+     * Datum z ukázkového kalendáře (listopad 2026 = příští měsíc) posunuté tak,
+     * aby test zůstal „v budoucnosti"; poslední den měsíce zůstává posledním.
+     */
+    private function d(string $ymd): string
+    {
+        $c      = \Carbon\Carbon::parse($ymd);
+        $shift  = (int) \Carbon\Carbon::parse('2026-11-01')->diffInMonths(now()->startOfMonth()->addMonth());
+        $target = $c->copy()->startOfMonth()->addMonths($shift);
+        return $target->day($c->day === $c->daysInMonth ? $target->daysInMonth : $c->day)->toDateString();
+    }
+
     private function leaving(int $member): string
     {
         return (string) DB::table('members')->where('id', $member)->value('leaving_date');
@@ -79,19 +91,19 @@ class MembershipInterruptTest extends DatabaseTestCase
             ->assertViewHas('action', 'create')->assertViewHas('record', null)->assertViewHas('member', fn ($x) => (int) $x->id === $m);
         $this->as()->get(route('membership-interrupts.create', 999999999))->assertNotFound();
 
-        $this->as()->post(route('membership-interrupts.store', $m), ['from' => '2026-11-01', 'to' => '2027-02-28', 'comment' => '  cesta  '])
+        $this->as()->post(route('membership-interrupts.store', $m), ['from' => $this->d('2026-11-01'), 'to' => $this->d('2027-02-28'), 'comment' => '  cesta  '])
             ->assertRedirect(route('members.show', $m))->assertSessionHas('success', 'Přerušení členství bylo přidáno.');
         $rows = $this->interrupts($m);
         $this->assertCount(1, $rows);
-        $this->assertSame(['cesta', 0, $this->feeId, $m, '2026-11-01', '2027-02-28', 0, ''], [$rows[0]['comment'], (int) $rows[0]['end_after_interrupt_end'],
+        $this->assertSame(['cesta', 0, $this->feeId, $m, $this->d('2026-11-01'), $this->d('2027-02-28'), 0, ''], [$rows[0]['comment'], (int) $rows[0]['end_after_interrupt_end'],
             (int) $rows[0]['fee_id'], (int) $rows[0]['member_id'], $rows[0]['activation_date'], $rows[0]['deactivation_date'], (int) $rows[0]['priority'], $rows[0]['fee_comment']]);
         $this->assertSame('9999-12-31', $this->leaving($m));
         $a = $this->lastAudit();
-        $this->assertSame(['created', $m, ['from' => '2026-11-01', 'to' => '2027-02-28', 'end_after' => false]], [$a->action, (int) $a->auditable_id, json_decode($a->new_values, true)]);
+        $this->assertSame(['created', $m, ['from' => $this->d('2026-11-01'), 'to' => $this->d('2027-02-28'), 'end_after' => false]], [$a->action, (int) $a->auditable_id, json_decode($a->new_values, true)]);
 
         $m2 = $this->member();
-        $this->as()->post(route('membership-interrupts.store', $m2), ['from' => '2026-11-01', 'to' => '2027-01-31', 'comment' => 'konec', 'end_after_interrupt_end' => '1']);
-        $this->assertSame('2027-01-31', $this->leaving($m2), 'konec po přerušení');
+        $this->as()->post(route('membership-interrupts.store', $m2), ['from' => $this->d('2026-11-01'), 'to' => $this->d('2027-01-31'), 'comment' => 'konec', 'end_after_interrupt_end' => '1']);
+        $this->assertSame($this->d('2027-01-31'), $this->leaving($m2), 'konec po přerušení');
         $this->assertSame(1, (int) $this->interrupts($m2)[0]['end_after_interrupt_end']);
     }
 
@@ -101,19 +113,19 @@ class MembershipInterruptTest extends DatabaseTestCase
         $post = fn (array $d) => $this->as()->from(route('membership-interrupts.create', $m))->post(route('membership-interrupts.store', $m), $d + ['comment' => 'c']);
 
         $post(['from' => '', 'to' => 'x', 'comment' => ''])->assertSessionHasErrors(['from', 'to', 'comment']);
-        $post(['from' => '2027-01-01', 'to' => '2026-12-01'])->assertRedirect(route('membership-interrupts.create', $m))
+        $post(['from' => $this->d('2027-01-01'), 'to' => $this->d('2026-12-01')])->assertRedirect(route('membership-interrupts.create', $m))
             ->assertSessionHasErrors(['from' => 'Datum od musí být menší než datum do.']);
 
         Setting::set('membership_interrupt_minimum', 3);
-        $post(['from' => '2026-11-01', 'to' => '2027-01-15'])->assertSessionHasErrors(['from' => 'Minimální délka přerušení je 3 měsíců.']);
+        $post(['from' => $this->d('2026-11-01'), 'to' => $this->d('2027-01-15')])->assertSessionHasErrors(['from' => 'Minimální délka přerušení je 3 měsíců.']);
         Setting::set('membership_interrupt_minimum', 0);
         Setting::set('membership_interrupt_maximum', 6);
-        $post(['from' => '2026-11-01', 'to' => '2027-06-01'])->assertSessionHasErrors(['from' => 'Maximální délka přerušení je 6 měsíců.']);
+        $post(['from' => $this->d('2026-11-01'), 'to' => $this->d('2027-06-01')])->assertSessionHasErrors(['from' => 'Maximální délka přerušení je 6 měsíců.']);
         Setting::set('membership_interrupt_maximum', 0);
 
-        $post(['from' => '2026-11-01', 'to' => '2027-01-31'])->assertSessionHasNoErrors();
-        $post(['from' => '2027-01-31', 'to' => '2027-03-31'])->assertSessionHasErrors(['from' => 'Interval přerušení se překrývá s jiným přerušením tohoto člena.']);
-        $post(['from' => '2027-02-01', 'to' => '2027-03-31'])->assertSessionHasNoErrors();
+        $post(['from' => $this->d('2026-11-01'), 'to' => $this->d('2027-01-31')])->assertSessionHasNoErrors();
+        $post(['from' => $this->d('2027-01-31'), 'to' => $this->d('2027-03-31')])->assertSessionHasErrors(['from' => 'Interval přerušení se překrývá s jiným přerušením tohoto člena.']);
+        $post(['from' => $this->d('2027-02-01'), 'to' => $this->d('2027-03-31')])->assertSessionHasNoErrors();
         $this->assertCount(2, $this->interrupts($m));
     }
 
@@ -122,55 +134,77 @@ class MembershipInterruptTest extends DatabaseTestCase
     public function test_uprava(): void
     {
         $m = $this->member();
-        $this->as()->post(route('membership-interrupts.store', $m), ['from' => '2026-11-01', 'to' => '2027-01-31', 'comment' => 'a', 'end_after_interrupt_end' => '1']);
-        $this->as()->post(route('membership-interrupts.store', $m), ['from' => '2027-03-01', 'to' => '2027-04-30', 'comment' => 'b']);
+        $this->as()->post(route('membership-interrupts.store', $m), ['from' => $this->d('2026-11-01'), 'to' => $this->d('2027-01-31'), 'comment' => 'a', 'end_after_interrupt_end' => '1']);
+        $this->as()->post(route('membership-interrupts.store', $m), ['from' => $this->d('2027-03-01'), 'to' => $this->d('2027-04-30'), 'comment' => 'b']);
         [$first, $second] = $this->interrupts($m);
 
         $this->as()->get(route('membership-interrupts.edit', $first['id']))->assertOk()->assertViewHas('action', 'edit')
-            ->assertViewHas('record', fn ($r) => (int) $r->id === (int) $first['id'] && $r->activation_date === '2026-11-01');
+            ->assertViewHas('record', fn ($r) => (int) $r->id === (int) $first['id'] && $r->activation_date === $this->d('2026-11-01'));
         $this->as()->get(route('membership-interrupts.edit', 999999999))->assertNotFound();
 
         // vlastní interval se nepočítá jako překryv; posunutí konce přepíše leaving_date
-        $this->as()->put(route('membership-interrupts.update', $first['id']), ['from' => '2026-11-01', 'to' => '2027-02-15', 'comment' => ' a2 ', 'end_after_interrupt_end' => '1'])
+        $this->as()->put(route('membership-interrupts.update', $first['id']), ['from' => $this->d('2026-11-01'), 'to' => $this->d('2027-02-15'), 'comment' => ' a2 ', 'end_after_interrupt_end' => '1'])
             ->assertRedirect(route('members.show', $m))->assertSessionHas('success', 'Přerušení členství bylo upraveno.');
-        $this->assertSame(['a2', '2027-02-15', '2027-02-15'], [$this->interrupts($m)[0]['comment'], $this->interrupts($m)[0]['deactivation_date'], $this->leaving($m)]);
+        $this->assertSame(['a2', $this->d('2027-02-15'), $this->d('2027-02-15')], [$this->interrupts($m)[0]['comment'], $this->interrupts($m)[0]['deactivation_date'], $this->leaving($m)]);
         $a = $this->lastAudit();
-        $this->assertSame(['updated', $m, ['interrupt_id' => (int) $first['id'], 'from' => '2026-11-01', 'to' => '2027-02-15', 'end_after' => true]],
+        $this->assertSame(['updated', $m, ['interrupt_id' => (int) $first['id'], 'from' => $this->d('2026-11-01'), 'to' => $this->d('2027-02-15'), 'end_after' => true]],
             [$a->action, (int) $a->auditable_id, json_decode($a->new_values, true)]);
 
-        $this->as()->from(route('membership-interrupts.edit', $first['id']))->put(route('membership-interrupts.update', $first['id']), ['from' => '2026-11-01', 'to' => '2027-03-15', 'comment' => 'x'])
+        $this->as()->from(route('membership-interrupts.edit', $first['id']))->put(route('membership-interrupts.update', $first['id']), ['from' => $this->d('2026-11-01'), 'to' => $this->d('2027-03-15'), 'comment' => 'x'])
             ->assertSessionHasErrors(['from' => 'Interval přerušení se překrývá s jiným přerušením tohoto člena.']);
 
         // minulé leaving_date se při end_after nepřepíše
         $past = $this->member('2020-06-30');
-        $this->as()->post(route('membership-interrupts.store', $past), ['from' => '2026-11-01', 'to' => '2027-01-31', 'comment' => 'p']);
-        $this->as()->put(route('membership-interrupts.update', $this->interrupts($past)[0]['id']), ['from' => '2026-11-01', 'to' => '2027-01-31', 'comment' => 'p', 'end_after_interrupt_end' => '1']);
+        $this->as()->post(route('membership-interrupts.store', $past), ['from' => $this->d('2026-11-01'), 'to' => $this->d('2027-01-31'), 'comment' => 'p']);
+        $this->as()->put(route('membership-interrupts.update', $this->interrupts($past)[0]['id']), ['from' => $this->d('2026-11-01'), 'to' => $this->d('2027-01-31'), 'comment' => 'p', 'end_after_interrupt_end' => '1']);
         $this->assertSame('2020-06-30', $this->leaving($past));
     }
 
     /**
-     * Vypnutí „konec po přerušení" / úprava bez něj nuluje BUDOUCÍ leaving_date —
-     * sloupec je NOT NULL a strict mode → výjimka (oprava zvlášť).
+     * Bez „konce po přerušení" se vrací jen odchod nastavený tímto přerušením
+     * (dřív se nuloval jakýkoli budoucí → NOT NULL výjimka).
      */
-    public function test_uprava_bez_konce_s_budoucim_odchodem_selze(): void
+    public function test_uprava_bez_konce_vraci_jen_vlastni_odchod(): void
     {
         $m = $this->member();
-        $this->as()->post(route('membership-interrupts.store', $m), ['from' => '2026-11-01', 'to' => '2027-01-31', 'comment' => 'a']);
+        $this->as()->post(route('membership-interrupts.store', $m), ['from' => $this->d('2026-11-01'), 'to' => $this->d('2027-01-31'), 'comment' => 'a']);
         $id = $this->interrupts($m)[0]['id'];
+        $this->as()->put(route('membership-interrupts.update', $id), ['from' => $this->d('2026-11-01'), 'to' => $this->d('2027-02-28'), 'comment' => 'b'])
+            ->assertSessionHas('success', 'Přerušení členství bylo upraveno.');
+        $this->assertSame(['9999-12-31', 'b'], [$this->leaving($m), $this->interrupts($m)[0]['comment']], 'běžný člen beze změny');
 
-        $this->withoutExceptionHandling();
-        try {
-            $this->as()->put(route('membership-interrupts.update', $id), ['from' => '2026-11-01', 'to' => '2027-02-28', 'comment' => 'b']);
-            $this->fail('očekávána výjimka');
-        } catch (\Illuminate\Database\QueryException $e) {
-            $this->assertStringContainsString('leaving_date', $e->getMessage());
-        }
+        $this->as()->put(route('membership-interrupts.update', $id), ['from' => $this->d('2026-11-01'), 'to' => $this->d('2027-02-28'), 'comment' => 'c', 'end_after_interrupt_end' => '1']);
+        $this->assertSame($this->d('2027-02-28'), $this->leaving($m));
+        $this->as()->put(route('membership-interrupts.update', $id), ['from' => $this->d('2026-11-01'), 'to' => $this->d('2027-02-28'), 'comment' => 'd']);
+        $this->assertSame('9999-12-31', $this->leaving($m), 'vypnutí konce vrátí vlastní odchod');
+
+        // jiný budoucí odchod (výpověď) zůstává
+        $notice = $this->member($this->d('2027-06-30'));
+        $this->as()->post(route('membership-interrupts.store', $notice), ['from' => $this->d('2026-11-01'), 'to' => $this->d('2027-01-31'), 'comment' => 'n']);
+        $this->as()->put(route('membership-interrupts.update', $this->interrupts($notice)[0]['id']), ['from' => $this->d('2026-11-01'), 'to' => $this->d('2027-02-28'), 'comment' => 'n2']);
+        $this->assertSame($this->d('2027-06-30'), $this->leaving($notice));
+    }
+
+    public function test_smazani_s_koncem_vrati_odchod(): void
+    {
+        $m = $this->member();
+        $this->as()->post(route('membership-interrupts.store', $m), ['from' => $this->d('2026-11-01'), 'to' => $this->d('2027-01-31'), 'comment' => 'a', 'end_after_interrupt_end' => '1']);
+        $this->assertSame($this->d('2027-01-31'), $this->leaving($m));
+        $this->as()->delete(route('membership-interrupts.destroy', $this->interrupts($m)[0]['id']))->assertSessionHas('success', 'Přerušení členství bylo smazáno.');
+        $this->assertSame('9999-12-31', $this->leaving($m));
+
+        // odchod mezitím změněný jinak (výpověď) smazání nepřepíše
+        $n = $this->member();
+        $this->as()->post(route('membership-interrupts.store', $n), ['from' => $this->d('2026-11-01'), 'to' => $this->d('2027-01-31'), 'comment' => 'a', 'end_after_interrupt_end' => '1']);
+        DB::table('members')->where('id', $n)->update(['leaving_date' => $this->d('2026-12-31')]);
+        $this->as()->delete(route('membership-interrupts.destroy', $this->interrupts($n)[0]['id']));
+        $this->assertSame($this->d('2026-12-31'), $this->leaving($n));
     }
 
     public function test_smazani(): void
     {
         $m = $this->member();
-        $this->as()->post(route('membership-interrupts.store', $m), ['from' => '2026-11-01', 'to' => '2027-01-31', 'comment' => 'a']);
+        $this->as()->post(route('membership-interrupts.store', $m), ['from' => $this->d('2026-11-01'), 'to' => $this->d('2027-01-31'), 'comment' => 'a']);
         $row = $this->interrupts($m)[0];
 
         $this->as()->delete(route('membership-interrupts.destroy', $row['id']))
@@ -188,14 +222,14 @@ class MembershipInterruptTest extends DatabaseTestCase
     public function test_prava(): void
     {
         $m = $this->member();
-        $this->as()->post(route('membership-interrupts.store', $m), ['from' => '2026-11-01', 'to' => '2027-01-31', 'comment' => 'a']);
+        $this->as()->post(route('membership-interrupts.store', $m), ['from' => $this->d('2026-11-01'), 'to' => $this->d('2027-01-31'), 'comment' => 'a']);
         $id = $this->interrupts($m)[0]['id'];
 
         $this->acl(['new_all/Members_Controller/membership_interrupts', 'edit_all/Members_Controller/membership_interrupts', 'delete_all/Members_Controller/membership_interrupts']);
         $this->as()->get(route('membership-interrupts.create', $m))->assertForbidden();
-        $this->as()->post(route('membership-interrupts.store', $m), ['from' => '2027-06-01', 'to' => '2027-07-31', 'comment' => 'x'])->assertForbidden();
+        $this->as()->post(route('membership-interrupts.store', $m), ['from' => $this->d('2027-06-01'), 'to' => $this->d('2027-07-31'), 'comment' => 'x'])->assertForbidden();
         $this->as()->get(route('membership-interrupts.edit', $id))->assertForbidden();
-        $this->as()->put(route('membership-interrupts.update', $id), ['from' => '2026-11-01', 'to' => '2027-01-31', 'comment' => 'x'])->assertForbidden();
+        $this->as()->put(route('membership-interrupts.update', $id), ['from' => $this->d('2026-11-01'), 'to' => $this->d('2027-01-31'), 'comment' => 'x'])->assertForbidden();
         $this->as()->delete(route('membership-interrupts.destroy', $id))->assertForbidden();
         $this->assertCount(1, $this->interrupts($m));
         $this->as()->get(route('membership-interrupts.edit', 999999999))->assertNotFound('neexistující → 404 dřív než ACL');

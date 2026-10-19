@@ -6,7 +6,10 @@ use App\Domains\Members\Repositories\MembershipInterruptRepository;
 use App\Services\AuditLogger;
 use Illuminate\Support\Facades\DB;
 
-/** Smaže přerušení i jeho poplatek; s „konec po přerušení" nuluje budoucí leaving_date. */
+/**
+ * Smaže přerušení i jeho poplatek. Budoucí odchod, který nastavilo („konec
+ * po přerušení", leaving_date = konec přerušení), vrátí na 9999-12-31.
+ */
 class DeleteMembershipInterruptAction
 {
     public function __construct(private MembershipInterruptRepository $interrupts)
@@ -19,8 +22,8 @@ class DeleteMembershipInterruptAction
 
         DB::transaction(function () use ($interrupt, $today) {
             $leaving = $this->interrupts->leavingDate((int) $interrupt->member_id);
-            if ($interrupt->end_after_interrupt_end && $leaving && $leaving > $today) {
-                $this->interrupts->setLeavingDate((int) $interrupt->member_id, null);
+            if ($interrupt->end_after_interrupt_end && $leaving === $interrupt->deactivation_date && $leaving > $today) {
+                $this->interrupts->setLeavingDate((int) $interrupt->member_id, MembershipInterruptRepository::NO_LEAVING);
             }
             $this->interrupts->delete($interrupt);
         });
