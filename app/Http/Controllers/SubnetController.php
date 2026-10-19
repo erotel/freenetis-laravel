@@ -160,6 +160,11 @@ class SubnetController extends Controller
             session()->flash('error', 'Subnet nelze smazat, obsahuje IP adresy.');
             return redirect()->back();
         }
+        // smazání by kaskádou (FK) smazalo i žádosti o připojení
+        if ($count = $this->subnets->connectionRequestCount($subnet)) {
+            session()->flash('error', "Subnet nelze smazat, odkazuje na něj {$count} žádostí o připojení.");
+            return redirect()->back();
+        }
 
         $this->subnets->delete($subnet);
 
@@ -202,10 +207,21 @@ class SubnetController extends Controller
         $network = $data['network_address'];
         $mask    = $data['netmask'];
 
-        if ((ip2long($network) & ip2long($mask)) !== ip2long($network)) {
+        // maska souvislá (255.0.255.0 regex pustí)
+        $hostBits = ~ip2long($mask) & 0xFFFFFFFF;
+        if ((($hostBits + 1) & $hostBits) !== 0) {
+            back()->withInput()->withErrors(['netmask' => 'Neplatný formát masky sítě.'])->throwResponse();
+        }
+
+        if (ip2long($network) === false || (ip2long($network) & ip2long($mask)) !== ip2long($network)) {
             return back()->withInput()
                 ->withErrors(['network_address' => 'Síťová adresa neodpovídá zadané masce.'])
                 ->throwResponse();
+        }
+
+        // změna sítě / masky nesmí nechat existující IP mimo rozsah
+        if ($excludeId && ($outside = $this->subnets->ipAddressesOutside($excludeId, $network, $mask))) {
+            back()->withInput()->withErrors(['netmask' => 'Po změně by ' . count($outside) . ' IP adres leželo mimo podsíť (např. ' . implode(', ', array_slice($outside, 0, 3)) . ').'])->throwResponse();
         }
 
         // Jemná práva: dhcp/dns/qos smí nastavit jen kdo má odpovídající právo

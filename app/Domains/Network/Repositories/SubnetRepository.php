@@ -5,6 +5,7 @@ namespace App\Domains\Network\Repositories;
 use App\Http\Filters\SubnetFilter;
 use App\Models\Subnet;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
+use Illuminate\Support\Facades\DB;
 
 /** Podsítě (subnets): přehled s počty IP, detail s IP adresami, CRUD. */
 class SubnetRepository
@@ -60,6 +61,19 @@ class SubnetRepository
     public function hasIpAddresses(Subnet $subnet): bool
     {
         return $subnet->ipAddresses()->exists();
+    }
+
+    public function connectionRequestCount(Subnet $subnet): int
+    {
+        return DB::table('connection_requests')->where('subnet_id', $subnet->id)->count();
+    }
+
+    /** IP adresy podsítě, které by s jinou sítí / maskou ležely mimo ni. @return string[] */
+    public function ipAddressesOutside(int $subnetId, string $network, string $netmask): array
+    {
+        return DB::table('ip_addresses')->where('subnet_id', $subnetId)
+            ->whereRaw('(INET_ATON(ip_address) & INET_ATON(?)) <> INET_ATON(?)', [$netmask, $network])
+            ->orderByRaw('INET_ATON(ip_address)')->pluck('ip_address')->all();
     }
 
     public function delete(Subnet $subnet): void

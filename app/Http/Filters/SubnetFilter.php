@@ -9,7 +9,6 @@ class SubnetFilter
         return [
             ['key' => 'name',            'label' => 'Název',           'type' => 'text'],
             ['key' => 'network_address',  'label' => 'Síťová adresa',   'type' => 'text'],
-            ['key' => 'vlan',            'label' => 'VLAN',            'type' => 'text'],
             ['key' => 'dhcp',            'label' => 'DHCP',            'type' => 'select', 'values' => ['' => '— vše —', '1' => 'Ano', '0' => 'Ne']],
         ];
     }
@@ -29,9 +28,6 @@ class SubnetFilter
                     break;
                 case 'network_address':
                     self::text($query, 'subnets.network_address', $op, $value);
-                    break;
-                case 'vlan':
-                    $query->whereHas('vlan', fn($q) => self::text($q, 'vlans.name', $op, $value));
                     break;
                 case 'dhcp':
                     if ($value !== '') {

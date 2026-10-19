@@ -127,6 +127,35 @@ class SubnetsTest extends CatalogTestCase
         $this->assertSame([1, 1, 1], [$this->row($id)['dhcp'], $this->row($id)['dns'], $this->row($id)['qos']]);
     }
 
+    /** Opravy: odškrtnutí DHCP/DNS/QoS ve formuláři, nesouvislá maska, IP mimo rozsah po změně, kaskáda žádostí, filtr VLAN. */
+    public function test_opravy(): void
+    {
+        $id = $this->subnet(['dhcp' => 1, 'dns' => 1, 'qos' => 1]);
+        $edit = $this->as()->get(route('subnets.edit', $id))->assertOk();
+        foreach (['dhcp', 'dns', 'qos', 'ipoe'] as $f) {
+            $edit->assertSee('<input type="hidden" name="' . $f . '" value="0">', false);
+        }
+
+        $this->as()->post(route('subnets.store'), ['network_address' => '10.0.0.0', 'netmask' => '255.0.255.0'])->assertSessionHasErrors(['netmask' => 'Neplatný formát masky sítě.']);
+        $this->as()->post(route('subnets.store'), ['network_address' => '999.1.1.0', 'netmask' => '255.255.255.0'])->assertSessionHasErrors('network_address');
+
+        DB::table('ip_addresses')->insert([['ip_address' => "{$this->net}.200", 'subnet_id' => $id], ['ip_address' => "{$this->net}.5", 'subnet_id' => $id]]);
+        $this->as()->put(route('subnets.update', $id), ['network_address' => "{$this->net}.0", 'netmask' => '255.255.255.128'])
+            ->assertSessionHasErrors(['netmask' => "Po změně by 1 IP adres leželo mimo podsíť (např. {$this->net}.200)."]);
+        $this->assertSame('255.255.255.0', $this->row($id)['netmask']);
+        DB::table('ip_addresses')->where('ip_address', "{$this->net}.200")->delete();
+        $this->as()->put(route('subnets.update', $id), ['network_address' => "{$this->net}.0", 'netmask' => '255.255.255.128'])->assertSessionHasNoErrors();
+        $this->assertSame(['255.255.255.128', 1], [$this->row($id)['netmask'], $this->row($id)['dhcp_expired']], 'jiný rozsah DHCP podsítě → ke stažení');
+
+        $empty = $this->subnet(['network_address' => "{$this->net}.128", 'netmask' => '255.255.255.128']);
+        DB::table('connection_requests')->insert(['subnet_id' => $empty, 'member_id' => 1, 'created_at' => now()]);
+        $this->as()->from(route('subnets.show', $empty))->delete(route('subnets.destroy', $empty))
+            ->assertSessionHas('error', 'Subnet nelze smazat, odkazuje na něj 1 žádostí o připojení.');
+        $this->assertTrue(DB::table('connection_requests')->where('subnet_id', $empty)->exists());
+
+        $this->as()->get(route('subnets.index', ['filters' => [['active' => 1, 'field' => 'vlan', 'op' => 'contains', 'value' => 'x']]]))->assertOk();
+    }
+
     public function test_prava(): void
     {
         $id = $this->subnet();

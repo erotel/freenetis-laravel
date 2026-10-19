@@ -26,7 +26,13 @@ class UpdateSubnetAction
         }
 
         $wasIpoe = $subnet->dhcp && $subnet->ipoe;
+        $rangeChanged = $data['network_address'] !== $subnet->network_address || $data['netmask'] !== $subnet->netmask;
         $this->subnets->update($subnet, $data);
+
+        // jiná síť / maska = jiná konfigurace DHCP serveru → ke stažení
+        if ($rangeChanged && $subnet->dhcp) {
+            $subnet->setExpired();
+        }
 
         // Zapnutí/vypnutí IPoE (dhcp+ipoe) mění, co RADIUS vrací → Kea host-cache.
         if ($wasIpoe !== ($subnet->dhcp && $subnet->ipoe)) {
