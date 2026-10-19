@@ -2,439 +2,190 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\AroGroup;
-use App\Services\AclService;
+use App\Domains\Acl\Actions\AddUserToGroupAction;
+use App\Domains\Acl\Actions\AssignRuleToGroupAction;
+use App\Domains\Acl\Actions\CreateGroupAction;
+use App\Domains\Acl\Actions\DeleteAclRuleAction;
+use App\Domains\Acl\Actions\DeleteGroupAction;
+use App\Domains\Acl\Actions\RemoveUserFromGroupAction;
+use App\Domains\Acl\Actions\SaveAclRuleAction;
+use App\Domains\Acl\Actions\SetGroupMfaRequiredAction;
+use App\Domains\Acl\Actions\UnassignRuleFromGroupAction;
+use App\Domains\Acl\Actions\UpdateGroupAction;
+use App\Domains\Acl\Exceptions\GroupNotDeletable;
+use App\Domains\Acl\Queries\GroupCardQuery;
+use App\Domains\Acl\Repositories\AclRuleRepository;
+use App\Domains\Acl\Repositories\AroGroupRepository;
+use App\Domains\Acl\Support\GroupTree;
+use App\Http\Requests\Acl\AddGroupUserRequest;
+use App\Http\Requests\Acl\AssignGroupRuleRequest;
+use App\Http\Requests\Acl\SaveAclRuleRequest;
+use App\Http\Requests\Acl\SaveGroupRequest;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\DB;
 
+/**
+ * Správa ACL: skupiny (strom), jejich členové a pravidla, MFA povinnost
+ * skupiny. Logika v app/Domains/Acl; vyhodnocení práv AclService.
+ */
 class AroGroupController extends Controller
 {
     private const ACL_SECTION = 'Aro_groups_Controller';
     private const ACL_VALUE   = 'aro_group';
 
-    public function __construct(private AclService $acl) {}
+    public function __construct(private AroGroupRepository $groups) {}
 
     private function can(string $action): bool
     {
         return $this->aclCheck($action, self::ACL_SECTION, self::ACL_VALUE);
     }
 
-    public function index()
+    private function toGroup(int $id, string $message)
     {
-        $groups = AroGroup::with('parent')->orderBy('lft')->get();
-        $tree   = $this->buildTree($groups);
-
-        return view('aro_groups.index', compact('groups', 'tree'));
+        return redirect()->route('aro-groups.show', $id)->with('success', $message);
     }
 
-    public function show(int $id)
+    private function toIndex(string $message)
+    {
+        return redirect()->route('aro-groups.index')->with('success', $message);
+    }
+
+    // ── skupiny ──────────────────────────────────────────────────────────────
+
+    public function index()
+    {
+        $groups = $this->groups->all();
+        return view('aro_groups.index', ['groups' => $groups, 'tree' => GroupTree::build($groups)]);
+    }
+
+    public function show(int $id, GroupCardQuery $card)
     {
         abort_unless($this->can('view_all'), 403);
-
-        $group = AroGroup::with(['parent', 'children'])->findOrFail($id);
-
-        // axo_map has (acl_id, section_value, value) — no axo_id FK, no join to axo needed
-        // aco_map has (acl_id, value) where value is the action (view_all, edit_all, etc.)
-        $aclRules = DB::table('aro_groups_map as agm')
-            ->join('acl', 'acl.id', '=', 'agm.acl_id')
-            ->join('axo_map', 'axo_map.acl_id', '=', 'acl.id')
-            ->where('agm.group_id', $id)
-            ->select(
-                'acl.id as acl_id',
-                'acl.note',
-                'axo_map.section_value as section',
-                'axo_map.value as resource'
-            )
-            ->orderBy('axo_map.section_value')
-            ->orderBy('axo_map.value')
-            ->get()
-            ->groupBy('acl_id');
-
-        $users = DB::table('groups_aro_map as gam')
-            ->join('users', 'users.id', '=', 'gam.aro_id')
-            ->where('gam.group_id', $id)
-            ->select('users.id', 'users.login')
-            ->orderBy('users.login')
-            ->get();
-
-        $assignedUserIds = $users->pluck('id')->toArray();
-        $allUsers = DB::table('users')
-            ->whereNotIn('id', $assignedUserIds)
-            ->select('id', 'login')
-            ->orderBy('login')
-            ->get();
-
-        $assignedAclIds = $aclRules->keys()->toArray();
-        $allAcls = DB::table('acl')
-            ->whereNotIn('id', $assignedAclIds)
-            ->select('id', 'note')
-            ->orderBy('id')
-            ->get();
-
-        $mfaRequired = app(\App\Services\MfaEnforcementService::class)->isGroupRequired($id);
-        $canEdit     = $this->can('edit_all');
-
-        return view('aro_groups.show', compact('group', 'aclRules', 'users', 'allUsers', 'allAcls', 'mfaRequired', 'canEdit'));
+        return view('aro_groups.show', $card->find($id) + ['canEdit' => $this->can('edit_all')]);
     }
 
     /** MFA fáze B: přepnout, zda skupina vyžaduje dvoufázové přihlášení. */
-    public function toggleMfaRequired(Request $request, int $id)
+    public function toggleMfaRequired(Request $request, int $id, SetGroupMfaRequiredAction $setMfa)
     {
         abort_unless($this->can('edit_all'), 403);
-        AroGroup::findOrFail($id);
+        $this->groups->findOrFail($id);
 
         $required = $request->boolean('required');
-        app(\App\Services\MfaEnforcementService::class)->setGroupRequired($id, $required);
+        $setMfa->handle($id, $required);
 
-        \App\Services\AuditLogger::log('updated', 'mfa_required_groups', $id, null, [
-            'group_id' => $id, 'required' => $required,
-        ]);
-
-        return redirect()->route('aro-groups.show', $id)
-            ->with('success', $required
-                ? 'Skupina teď vyžaduje dvoufázové přihlášení. Členové budou při dalším přihlášení vyzváni k nastavení.'
-                : 'Povinné dvoufázové přihlášení pro skupinu vypnuto.');
+        return $this->toGroup($id, $required
+            ? 'Skupina teď vyžaduje dvoufázové přihlášení. Členové budou při dalším přihlášení vyzváni k nastavení.'
+            : 'Povinné dvoufázové přihlášení pro skupinu vypnuto.');
     }
 
     public function create()
     {
         abort_unless($this->can('new_all'), 403);
-        $groups = AroGroup::orderBy('lft')->get();
-        return view('aro_groups.create', compact('groups'));
+        return view('aro_groups.create', ['groups' => $this->groups->forSelect()]);
     }
 
-    public function store(Request $request)
+    public function store(SaveGroupRequest $request, CreateGroupAction $create)
     {
-        abort_unless($this->can('new_all'), 403);
-
-        $validated = $request->validate([
-            'name'      => 'required|string|max:50',
-            'parent_id' => 'required|integer|exists:aro_groups,id',
-        ]);
-
-        AroGroup::create([
-            'name'      => $validated['name'],
-            'parent_id' => $validated['parent_id'],
-            'lft'       => 0,
-            'rgt'       => 0,
-            'value'     => strtolower(str_replace(' ', '_', $validated['name'])),
-        ]);
-
-        return redirect()->route('aro-groups.index')
-            ->with('success', 'Skupina byla vytvořena.');
+        $create->handle($request->validated('name'), (int) $request->validated('parent_id'));
+        return $this->toIndex('Skupina byla vytvořena.');
     }
 
     public function edit(int $id)
     {
         abort_unless($this->can('edit_all'), 403);
-        $group  = AroGroup::findOrFail($id);
-        $groups = AroGroup::where('id', '!=', $id)->orderBy('lft')->get();
-        return view('aro_groups.edit', compact('group', 'groups'));
+        return view('aro_groups.edit', ['group' => $this->groups->findOrFail($id), 'groups' => $this->groups->forSelect($id)]);
     }
 
-    public function update(Request $request, int $id)
+    public function update(SaveGroupRequest $request, int $id, UpdateGroupAction $update)
     {
-        abort_unless($this->can('edit_all'), 403);
-
-        $group = AroGroup::findOrFail($id);
-
-        $validated = $request->validate([
-            'name'      => 'required|string|max:50',
-            'parent_id' => 'required|integer|exists:aro_groups,id',
-        ]);
-
-        $group->update($validated);
-        $this->acl->flushAllCache();
-
-        return redirect()->route('aro-groups.show', $id)
-            ->with('success', 'Skupina byla upravena.');
+        $update->handle($this->groups->findOrFail($id), $request->validated('name'), (int) $request->validated('parent_id'));
+        return $this->toGroup($id, 'Skupina byla upravena.');
     }
 
-    public function destroy(int $id)
+    public function destroy(int $id, DeleteGroupAction $delete)
     {
         abort_unless($this->can('delete_all'), 403);
 
-        $group = AroGroup::findOrFail($id);
-
-        if ($group->children()->count() > 0) {
-            return back()->with('error', 'Nelze smazat skupinu, která má podskupiny.');
+        try {
+            $delete->handle($this->groups->findOrFail($id));
+        } catch (GroupNotDeletable $e) {
+            return back()->with('error', $e->getMessage());
         }
-
-        if (DB::table('groups_aro_map')->where('group_id', $id)->count() > 0) {
-            return back()->with('error', 'Nelze smazat skupinu, která má přiřazené uživatele.');
-        }
-
-        DB::table('aro_groups_map')->where('group_id', $id)->delete();
-        $group->delete();
-        $this->acl->flushAllCache();
-
-        return redirect()->route('aro-groups.index')
-            ->with('success', 'Skupina byla smazána.');
+        return $this->toIndex('Skupina byla smazána.');
     }
 
-    public function addUser(Request $request, int $id)
+    // ── členové a pravidla skupiny ───────────────────────────────────────────
+
+    public function addUser(AddGroupUserRequest $request, int $id, AddUserToGroupAction $add)
+    {
+        $add->handle($id, (int) $request->validated('user_id'));
+        return $this->toGroup($id, 'Uživatel byl přidán do skupiny.');
+    }
+
+    public function removeUser(int $id, int $userId, RemoveUserFromGroupAction $remove)
     {
         abort_unless($this->can('edit_all'), 403);
-
-        $validated = $request->validate([
-            'user_id' => 'required|integer|exists:users,id',
-        ]);
-
-        $exists = DB::table('groups_aro_map')
-            ->where('group_id', $id)
-            ->where('aro_id', $validated['user_id'])
-            ->exists();
-
-        if (!$exists) {
-            DB::table('groups_aro_map')->insert([
-                'group_id' => $id,
-                'aro_id'   => $validated['user_id'],
-            ]);
-            \App\Services\AuditLogger::log('created', 'groups_aro_map', $id, null, [
-                'group_id' => $id,
-                'user_id'  => (int) $validated['user_id'],
-            ]);
-            $this->acl->flushUserCache((int) $validated['user_id']);
-        }
-
-        return redirect()->route('aro-groups.show', $id)
-            ->with('success', 'Uživatel byl přidán do skupiny.');
+        $remove->handle($id, $userId);
+        return $this->toGroup($id, 'Uživatel byl odebrán ze skupiny.');
     }
 
-    public function removeUser(int $id, int $userId)
+    public function addAcl(AssignGroupRuleRequest $request, int $id, AssignRuleToGroupAction $assign)
+    {
+        $assign->handle($id, (int) $request->validated('acl_id'));
+        return $this->toGroup($id, 'ACL pravidlo bylo přiřazeno skupině.');
+    }
+
+    public function removeAcl(int $id, int $aclId, UnassignRuleFromGroupAction $unassign)
     {
         abort_unless($this->can('edit_all'), 403);
-
-        DB::table('groups_aro_map')
-            ->where('group_id', $id)
-            ->where('aro_id', $userId)
-            ->delete();
-        \App\Services\AuditLogger::log('deleted', 'groups_aro_map', $id, [
-            'group_id' => $id,
-            'user_id'  => $userId,
-        ], null);
-        $this->acl->flushUserCache($userId);
-
-        return redirect()->route('aro-groups.show', $id)
-            ->with('success', 'Uživatel byl odebrán ze skupiny.');
+        $unassign->handle($id, $aclId);
+        return $this->toGroup($id, 'ACL pravidlo bylo odebráno skupině.');
     }
 
-    public function addAcl(Request $request, int $id)
+    // ── pravidla ─────────────────────────────────────────────────────────────
+
+    private function aclFormData(AclRuleRepository $rules): array
     {
-        abort_unless($this->can('edit_all'), 403);
-
-        $validated = $request->validate([
-            'acl_id' => 'required|integer|exists:acl,id',
-        ]);
-
-        $exists = DB::table('aro_groups_map')
-            ->where('group_id', $id)
-            ->where('acl_id', $validated['acl_id'])
-            ->exists();
-
-        if (!$exists) {
-            DB::table('aro_groups_map')->insert([
-                'group_id' => $id,
-                'acl_id'   => $validated['acl_id'],
-            ]);
-            \App\Services\AuditLogger::log('created', 'aro_groups_map', $id, null, [
-                'group_id' => $id,
-                'acl_id'   => (int) $validated['acl_id'],
-            ]);
-            $this->acl->flushAllCache();
-        }
-
-        return redirect()->route('aro-groups.show', $id)
-            ->with('success', 'ACL pravidlo bylo přiřazeno skupině.');
+        return [
+            'actions' => AclRuleRepository::ACTIONS,
+            'axo'     => $rules->objects(),
+            'groups'  => $this->groups->forSelect(null, ['id', 'name']),
+        ];
     }
 
-    public function removeAcl(int $id, int $aclId)
-    {
-        abort_unless($this->can('edit_all'), 403);
-
-        DB::table('aro_groups_map')
-            ->where('group_id', $id)
-            ->where('acl_id', $aclId)
-            ->delete();
-        \App\Services\AuditLogger::log('deleted', 'aro_groups_map', $id, [
-            'group_id' => $id,
-            'acl_id'   => $aclId,
-        ], null);
-        $this->acl->flushAllCache();
-
-        return redirect()->route('aro-groups.show', $id)
-            ->with('success', 'ACL pravidlo bylo odebráno skupině.');
-    }
-
-    private function aclFormData(): array
-    {
-        $actions = ['view_all', 'edit_all', 'new_all', 'delete_all',
-                    'view_own', 'edit_own', 'new_own', 'delete_own'];
-
-        $axo = DB::table('axo')
-            ->orderBy('section_value')
-            ->orderBy('name')
-            ->get(['id', 'section_value', 'value', 'name']);
-
-        $groups = AroGroup::orderBy('lft')->get(['id', 'name']);
-
-        return compact('actions', 'axo', 'groups');
-    }
-
-    public function aclCreate()
+    public function aclCreate(AclRuleRepository $rules)
     {
         abort_unless($this->can('new_all'), 403);
-        return view('aro_groups.acl_form', $this->aclFormData() + ['acl' => null, 'selected' => []]);
+        return view('aro_groups.acl_form', $this->aclFormData($rules) + ['acl' => null, 'selected' => []]);
     }
 
-    public function aclStore(Request $request)
+    public function aclStore(SaveAclRuleRequest $request, SaveAclRuleAction $save)
     {
-        abort_unless($this->can('new_all'), 403);
-
-        $validated = $request->validate([
-            'note'        => 'required|string|max:255',
-            'actions'     => 'required|array|min:1',
-            'actions.*'   => 'string',
-            'axo_ids'     => 'required|array|min:1',
-            'axo_ids.*'   => 'integer|exists:axo,id',
-            'group_ids'   => 'nullable|array',
-            'group_ids.*' => 'integer|exists:aro_groups,id',
-        ]);
-
-        $aclId = DB::table('acl')->insertGetId(['note' => $validated['note']]);
-
-        foreach ($validated['actions'] as $action) {
-            DB::table('aco_map')->insert(['acl_id' => $aclId, 'value' => $action]);
-        }
-
-        $axoRows = DB::table('axo')->whereIn('id', $validated['axo_ids'])->get(['section_value', 'value']);
-        foreach ($axoRows as $axo) {
-            DB::table('axo_map')->insert([
-                'acl_id'        => $aclId,
-                'section_value' => $axo->section_value,
-                'value'         => $axo->value,
-            ]);
-        }
-
-        foreach ($validated['group_ids'] ?? [] as $groupId) {
-            DB::table('aro_groups_map')->insert(['acl_id' => $aclId, 'group_id' => $groupId]);
-        }
-
-        \App\Services\AuditLogger::log('created', 'acl', $aclId, null, [
-            'note'      => $validated['note'],
-            'actions'   => $validated['actions'],
-            'axo_ids'   => $validated['axo_ids'],
-            'group_ids' => $validated['group_ids'] ?? [],
-        ]);
-
-        $this->acl->flushAllCache();
-
-        return redirect()->route('aro-groups.index')
-            ->with('success', 'ACL pravidlo bylo vytvořeno.');
+        $v = $request->validated();
+        $save->handle(null, $v['note'], $v['actions'], $v['axo_ids'], $v['group_ids'] ?? []);
+        return $this->toIndex('ACL pravidlo bylo vytvořeno.');
     }
 
-    public function aclEdit(int $id)
+    public function aclEdit(int $id, AclRuleRepository $rules)
     {
         abort_unless($this->can('edit_all'), 403);
 
-        $acl = DB::table('acl')->where('id', $id)->first();
+        $acl = $rules->find($id);
         abort_if($acl === null, 404);
 
-        $selected = [
-            'actions'   => DB::table('aco_map')->where('acl_id', $id)->pluck('value')->toArray(),
-            'axo_ids'   => DB::table('axo')
-                ->join('axo_map', function ($j) use ($id) {
-                    $j->on('axo.section_value', '=', 'axo_map.section_value')
-                      ->on('axo.value', '=', 'axo_map.value')
-                      ->where('axo_map.acl_id', $id);
-                })
-                ->pluck('axo.id')->toArray(),
-            'group_ids' => DB::table('aro_groups_map')->where('acl_id', $id)->pluck('group_id')->toArray(),
-        ];
-
-        return view('aro_groups.acl_form', $this->aclFormData() + compact('acl', 'selected'));
+        return view('aro_groups.acl_form', $this->aclFormData($rules) + ['acl' => $acl, 'selected' => $rules->selection($id)]);
     }
 
-    public function aclUpdate(Request $request, int $id)
+    public function aclUpdate(SaveAclRuleRequest $request, int $id, SaveAclRuleAction $save)
     {
-        abort_unless($this->can('edit_all'), 403);
-
-        $validated = $request->validate([
-            'note'        => 'required|string|max:255',
-            'actions'     => 'required|array|min:1',
-            'actions.*'   => 'string',
-            'axo_ids'     => 'required|array|min:1',
-            'axo_ids.*'   => 'integer|exists:axo,id',
-            'group_ids'   => 'nullable|array',
-            'group_ids.*' => 'integer|exists:aro_groups,id',
-        ]);
-
-        $aclOld = DB::table('acl')->where('id', $id)->value('note');
-        DB::table('acl')->where('id', $id)->update(['note' => $validated['note']]);
-
-        \App\Services\AuditLogger::log('updated', 'acl', $id, [
-            'note' => $aclOld,
-        ], [
-            'note'      => $validated['note'],
-            'actions'   => $validated['actions'],
-            'axo_ids'   => $validated['axo_ids'],
-            'group_ids' => $validated['group_ids'] ?? [],
-        ]);
-
-        DB::table('aco_map')->where('acl_id', $id)->delete();
-        foreach ($validated['actions'] as $action) {
-            DB::table('aco_map')->insert(['acl_id' => $id, 'value' => $action]);
-        }
-
-        DB::table('axo_map')->where('acl_id', $id)->delete();
-        $axoRows = DB::table('axo')->whereIn('id', $validated['axo_ids'])->get(['section_value', 'value']);
-        foreach ($axoRows as $axo) {
-            DB::table('axo_map')->insert([
-                'acl_id'        => $id,
-                'section_value' => $axo->section_value,
-                'value'         => $axo->value,
-            ]);
-        }
-
-        DB::table('aro_groups_map')->where('acl_id', $id)->delete();
-        foreach ($validated['group_ids'] ?? [] as $groupId) {
-            DB::table('aro_groups_map')->insert(['acl_id' => $id, 'group_id' => $groupId]);
-        }
-
-        $this->acl->flushAllCache();
-
-        return redirect()->route('aro-groups.index')
-            ->with('success', 'ACL pravidlo bylo upraveno.');
+        $v = $request->validated();
+        $save->handle($id, $v['note'], $v['actions'], $v['axo_ids'], $v['group_ids'] ?? []);
+        return $this->toIndex('ACL pravidlo bylo upraveno.');
     }
 
-    public function aclDestroy(int $id)
+    public function aclDestroy(int $id, DeleteAclRuleAction $delete)
     {
         abort_unless($this->can('delete_all'), 403);
-
-        $aclOld = DB::table('acl')->where('id', $id)->value('note');
-        DB::table('aco_map')->where('acl_id', $id)->delete();
-        DB::table('axo_map')->where('acl_id', $id)->delete();
-        DB::table('aro_groups_map')->where('acl_id', $id)->delete();
-        DB::table('acl')->where('id', $id)->delete();
-        \App\Services\AuditLogger::log('deleted', 'acl', $id, ['note' => $aclOld], null);
-        $this->acl->flushAllCache();
-
-        return redirect()->route('aro-groups.index')
-            ->with('success', 'ACL pravidlo bylo smazáno.');
-    }
-
-    private function buildTree($groups, $parentId = null, $depth = 0): array
-    {
-        $tree = [];
-        foreach ($groups as $group) {
-            if ($group->parent_id == $parentId) {
-                $tree[] = [
-                    'group'    => $group,
-                    'depth'    => $depth,
-                    'children' => $this->buildTree($groups, $group->id, $depth + 1),
-                ];
-            }
-        }
-        return $tree;
+        $delete->handle($id);
+        return $this->toIndex('ACL pravidlo bylo smazáno.');
     }
 }

@@ -18,7 +18,7 @@ app/Domains/<Doména>/
     <Doména>ServiceProvider.php   registrace eventů/listenerů domény
 ```
 
-Plánované domény: `Members`, `Billing`, `Network`, `Access` (PPPoE/IPoE/RADIUS),
+Plánované domény: `Members`, `Billing`, `Network`, `Access` (PPPoE/IPoE/RADIUS), `Acl` (skupiny a pravidla oprávnění),
 `Contracts`, `Notifications`, `Audit`.
 
 ## Konvence
