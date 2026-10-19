@@ -62,6 +62,38 @@ class StatsTest extends DatabaseTestCase
         $this->assertSame($before->viewData('growthData')[$i] + 2, $after->viewData('growthData')[$i], 'oba aktivní v tomto měsíci');
     }
 
+    /** Aktivní je i člen s legacy leaving_date 0000-00-00 (= bez odchodu; IS NULL na něj v MariaDB sedí také). */
+    public function test_aktivni_vcetne_legacy_bez_odchodu(): void
+    {
+        $i = 23;
+        $before = $this->as()->get(route('stats.index'))->viewData('growthData')[$i];
+        $id = $this->member(2, '2020-01-01', '9999-12-31');
+        $mode = DB::selectOne('SELECT @@SESSION.sql_mode AS m')->m;   // legacy nulové datum strict mode nepustí
+        DB::statement("SET SESSION sql_mode = ''");
+        DB::table('members')->where('id', $id)->update(['leaving_date' => '0000-00-00']);
+        DB::statement('SET SESSION sql_mode = ?', [$mode]);
+        $this->assertSame($before + 1, $this->as()->get(route('stats.index'))->viewData('growthData')[$i]);
+    }
+
+    /** Přijaté platby = jen příchozí platby členů (684000 → banka), ne interní převody ani srážky. */
+    public function test_prijate_platby_jen_od_clenu(): void
+    {
+        $bank = (int) DB::table('accounts')->where('account_attribute_id', 221000)->value('id');
+        $income = (int) DB::table('accounts')->where('account_attribute_id', 684000)->value('id');
+        $credit = (int) DB::table('accounts')->where('account_attribute_id', 221100)->value('id');
+        if (!$bank || !$income || !$credit) {
+            $this->markTestSkipped('chybí účty 221000 / 684000 / 221100');
+        }
+        $m = (int) now()->format('n') - 1;
+        $before = $this->as()->get(route('stats.index'))->viewData('payData')[$m];
+        $t = fn (int $from, int $to, ?int $type, float $amount) => DB::table('transfers')->insert(['origin_id' => $from, 'destination_id' => $to, 'type' => $type,
+            'amount' => $amount, 'datetime' => now(), 'creation_datetime' => now(), 'text' => 'char']);
+        $t($income, $bank, null, 500);      // platba člena na banku
+        $t($bank, $credit, null, 500);      // podvojný protizápis na kredit — nepočítat
+        $t($credit, $bank, 1, 300);         // srážka poplatku — nepočítat
+        $this->assertEqualsWithDelta($before + 500, $this->as()->get(route('stats.index'))->viewData('payData')[$m], 0.001);
+    }
+
     public function test_cashflow_strzene_poplatky(): void
     {
         $c = $this->member(2, '2020-01-01', '9999-12-31');

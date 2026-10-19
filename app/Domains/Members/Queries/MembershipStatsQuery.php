@@ -40,7 +40,8 @@ class MembershipStatsQuery
         return array_map(fn ($m) => DB::table('members')
             ->where('entrance_date', '<=', $m . '-31')
             ->where(function ($q) use ($m) {
-                $q->where('leaving_date', '>=', $m . '-01')->orWhere('leaving_date', '9999-12-31')->orWhereNull('leaving_date');
+                // 0000-00-00 = bez odchodu (legacy; IS NULL na něj v MariaDB sedí také, tady explicitně)
+                $q->where('leaving_date', '>=', $m . '-01')->orWhereIn('leaving_date', ['9999-12-31', '0000-00-00'])->orWhereNull('leaving_date');
             })
             ->count(), $months);
     }

@@ -10,13 +10,21 @@ class PaymentStatsQuery
     /** member_fee, entrance_fee, device_fee */
     private const DEDUCT_TYPES = [1, 2, 5];
 
-    /** @param string[] $months @return float[] přijaté platby v měsících roku */
+    /**
+     * Přijaté platby od členů v měsících roku = převody z „Přijaté členské
+     * příspěvky" (684000) na bankovní účet (221000). Ne všechny kladné
+     * převody — ty zahrnují i podvojný protizápis na kredit člena, platby
+     * dodavatelům a stržené poplatky.
+     * @param string[] $months @return float[]
+     */
     public function payments(int $year, array $months): array
     {
         $map = collect(DB::select("
-            SELECT SUBSTR(datetime,1,7) AS month, ROUND(SUM(amount),2) AS total
-            FROM transfers
-            WHERE YEAR(datetime) = ? AND amount > 0
+            SELECT SUBSTR(t.datetime,1,7) AS month, ROUND(SUM(t.amount),2) AS total
+            FROM transfers t
+            JOIN accounts o ON o.id = t.origin_id AND o.account_attribute_id = 684000
+            JOIN accounts d ON d.id = t.destination_id AND d.account_attribute_id = 221000
+            WHERE YEAR(t.datetime) = ? AND t.amount > 0
             GROUP BY month ORDER BY month
         ", [$year]))->pluck('total', 'month')->toArray();
         return array_map(fn ($m) => (float) ($map[$m] ?? 0), $months);
