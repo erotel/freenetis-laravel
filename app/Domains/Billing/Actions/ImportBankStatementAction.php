@@ -9,6 +9,8 @@ use App\Domains\Billing\Repositories\BankLedgerRepository as Ledger;
 use App\Models\BankAccount;
 use App\Models\BankTransfer;
 use App\Services\AuditLogger;
+use Illuminate\Contracts\Cache\LockTimeoutException;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 
@@ -27,6 +29,9 @@ use Illuminate\Support\Facades\Log;
  */
 class ImportBankStatementAction
 {
+    /** Jak dlouho čekat na doběhnutí jiného importu téhož účtu. */
+    public int $lockWaitSeconds = 120;
+
     public function __construct(
         private Ledger $ledger,
         private PaymentMatcher $matcher,
@@ -34,8 +39,26 @@ class ImportBankStatementAction
     ) {
     }
 
-    /** @return array{0:int, 1:int} [importováno, přeskočeno duplicit] */
+    /**
+     * Importy jednoho bankovního účtu běží po sobě (zámek): deduplikace podle
+     * kódu pohybu čte bez zámku a kód nemá UNIQUE index — souběžný ruční import
+     * a plánovač (:55) by jinak tutéž platbu připsaly dvakrát.
+     *
+     * @return array{0:int, 1:int} [importováno, přeskočeno duplicit]
+     * @throws \RuntimeException když jiný import účtu neskončí včas
+     */
     public function handle(BankAccount $account, array $header, array $rows, string $source, int $userId): array
+    {
+        try {
+            return Cache::lock('bank-import:' . $account->id, 600)
+                ->block($this->lockWaitSeconds, fn () => $this->import($account, $header, $rows, $source, $userId));
+        } catch (LockTimeoutException) {
+            throw new \RuntimeException('Na tomto účtu právě běží jiný import výpisu — zkuste to za chvíli znovu.');
+        }
+    }
+
+    /** @return array{0:int, 1:int} */
+    private function import(BankAccount $account, array $header, array $rows, string $source, int $userId): array
     {
         $imported = 0;
         $skipped  = 0;

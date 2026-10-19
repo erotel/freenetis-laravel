@@ -262,6 +262,22 @@ class BankImportTest extends DatabaseTestCase
 
     // ── chyby a ostatní cesty ────────────────────────────────────────────────
 
+    /** Souběžný import téhož účtu (zámek drží jiný) nic nezapíše — jinak by se platby připsaly dvakrát. */
+    public function test_soubezny_import_uctu(): void
+    {
+        $action = app(\App\Domains\Billing\Actions\ImportBankStatementAction::class);
+        $action->lockWaitSeconds = 0;
+        $this->app->instance(\App\Domains\Billing\Actions\ImportBankStatementAction::class, $action);
+        $held = \Illuminate\Support\Facades\Cache::lock('bank-import:' . $this->bankAccountId, 60);
+        $this->assertTrue($held->get());
+        $before = DB::table('bank_statements')->where('bank_account_id', $this->bankAccountId)->count();
+
+        $this->upload([['castka' => 10]])->assertSessionHas('error', 'Na tomto účtu právě běží jiný import výpisu — zkuste to za chvíli znovu.');
+        $this->assertSame($before, DB::table('bank_statements')->where('bank_account_id', $this->bankAccountId)->count());
+        $held->release();
+        $this->upload([['castka' => 10]])->assertSessionHas('success');
+    }
+
     public function test_chyby_a_prava(): void
     {
         $as = $this->actingAs(User::find($this->adminId))->from(route('import.upload_bank_file', $this->bankAccountId));

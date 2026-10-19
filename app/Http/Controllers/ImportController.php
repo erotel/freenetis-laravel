@@ -66,7 +66,11 @@ class ImportController extends Controller
             return back()->with('error', 'CSV neobsahuje žádné záznamy.');
         }
 
-        [$imported, $skipped] = $import->handle($account, $header, $rows, 'FIO CSV importer', auth()->id() ?? 1);
+        try {
+            [$imported, $skipped] = $import->handle($account, $header, $rows, 'FIO CSV importer', auth()->id() ?? 1);
+        } catch (\RuntimeException $e) {
+            return back()->with('error', $e->getMessage());
+        }
 
         return redirect()
             ->route('bank_accounts.show', $bankAccountId)
