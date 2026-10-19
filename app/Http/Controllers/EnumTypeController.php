@@ -59,7 +59,12 @@ class EnumTypeController extends Controller
             return back()->with('error', 'Tento typ je systémový a nelze ho upravit.');
         }
 
-        $this->types->update($enumType, $request->validate(self::RULES));
+        $data = $request->validate(self::RULES);
+        if ((int) $data['type_id'] !== (int) $enumType->type_id && ($used = $this->types->usageCount($id))) {
+            return back()->withInput()->with('error', "Typ používá {$used} záznamů — nelze ho přesunout do jiné skupiny.");
+        }
+
+        $this->types->update($enumType, $data);
 
         return redirect()->route('enum-types.index')
             ->with('success', 'Typ byl upraven.');
@@ -73,6 +78,10 @@ class EnumTypeController extends Controller
 
         if ($enumType->read_only) {
             return back()->with('error', 'Tento typ je systémový a nelze ho smazat.');
+        }
+
+        if ($used = $this->types->usageCount($id)) {
+            return back()->with('error', "Typ používá {$used} záznamů — nelze ho smazat.");
         }
 
         $this->types->delete($enumType);

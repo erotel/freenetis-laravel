@@ -55,6 +55,26 @@ class EnumTypesTest extends CatalogTestCase
         $this->assertSame("Char {$this->tag}", DB::table('enum_types')->where('id', $id)->value('value'));
     }
 
+    /** Používaný typ nejde smazat ani přesunout do jiné skupiny (dřív osiřely odkazy, šablony zařízení se smazaly kaskádou). */
+    public function test_pouzivany_typ(): void
+    {
+        $id = $this->type(EnumType::DEVICE_GROUP_ID);
+        $dev = (int) DB::table('devices')->insertGetId(['name' => 'char-enum', 'type' => $id, 'user_id' => $this->adminId]);
+        DB::table('device_templates')->insert(['name' => 'char', 'enum_type_id' => $id, 'default' => 0, 'values' => '{}']);
+
+        $this->as()->from(route('enum-types.index'))->delete(route('enum-types.destroy', $id))
+            ->assertRedirect(route('enum-types.index'))->assertSessionHas('error', 'Typ používá 2 záznamů — nelze ho smazat.');
+        $this->assertTrue(DB::table('device_templates')->where('enum_type_id', $id)->exists());
+        $this->as()->from(route('enum-types.edit', $id))->put(route('enum-types.update', $id), ['type_id' => EnumType::CONTACT_GROUP_ID, 'value' => 'x'])
+            ->assertSessionHas('error', 'Typ používá 2 záznamů — nelze ho přesunout do jiné skupiny.');
+        $this->as()->put(route('enum-types.update', $id), ['type_id' => EnumType::DEVICE_GROUP_ID, 'value' => "Přejm {$this->tag}"])->assertSessionHas('success');
+        $this->assertSame([EnumType::DEVICE_GROUP_ID, "Přejm {$this->tag}"], [(int) DB::table('enum_types')->where('id', $id)->value('type_id'), DB::table('enum_types')->where('id', $id)->value('value')]);
+
+        DB::table('device_templates')->where('enum_type_id', $id)->delete();
+        DB::table('devices')->where('id', $dev)->delete();
+        $this->as()->delete(route('enum-types.destroy', $id))->assertSessionHas('success', 'Typ byl smazán.');
+    }
+
     public function test_prava(): void
     {
         $id = $this->type(EnumType::CONTACT_GROUP_ID);
