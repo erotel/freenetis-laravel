@@ -50,6 +50,23 @@ class BankStatementsAndSymbolsTest extends CatalogTestCase
         $this->as()->delete(route('bank_statements.destroy', $old))->assertNotFound();
     }
 
+    /** Výpis se zaúčtovanými platbami nejde smazat (kredity by zůstaly, import by je připsal znovu). */
+    public function test_vypis_se_zauctovanymi_platbami(): void
+    {
+        $ba = $this->bankAccount();
+        $st = $this->statement($ba, '2026-01-01');
+        $tr = (int) DB::table('transfers')->insertGetId(['origin_id' => null, 'destination_id' => null, 'amount' => 100, 'datetime' => now(), 'creation_datetime' => now(), 'text' => 'char']);
+        DB::table('bank_transfers')->insert([['bank_statement_id' => $st, 'transfer_id' => $tr], ['bank_statement_id' => $st, 'transfer_id' => null]]);
+
+        $this->as()->delete(route('bank_statements.destroy', $st))->assertRedirect(route('bank_statements.by_account', $ba))
+            ->assertSessionHas('error', 'Výpis nelze smazat — 1 jeho plateb je zaúčtovaných na účtech. Smazáním by se kredity nevrátily a nový import by je připsal znovu.');
+        $this->assertTrue(DB::table('bank_statements')->where('id', $st)->exists());
+        $this->assertSame(0, DB::table('bank_transfers')->where('bank_statement_id', $st)->whereNotNull('deleted_at')->count());
+
+        DB::table('transfers')->where('id', $tr)->delete();
+        $this->as()->delete(route('bank_statements.destroy', $st))->assertSessionHas('success', 'Výpis byl smazán.');
+    }
+
     public function test_variabilni_symboly(): void
     {
         $acc = (int) DB::table('accounts')->insertGetId(['member_id' => 1, 'name' => 'c', 'account_attribute_id' => 221100, 'balance' => 0]);

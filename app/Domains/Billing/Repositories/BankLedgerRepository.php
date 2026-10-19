@@ -128,6 +128,14 @@ class BankLedgerRepository
         return BankStatement::with('bankTransfers')->findOrFail($id);
     }
 
+    /** Kolik pohybů výpisu je zaúčtovaných (navázaný převod v transfers stále existuje). */
+    public function postedTransferCount(BankStatement $statement): int
+    {
+        return BankTransfer::where('bank_statement_id', $statement->id)
+            ->whereIn('transfer_id', DB::table('transfers')->select('id'))
+            ->count();
+    }
+
     /** Smaže výpis; jeho bankovní pohyby soft-delete. @return int počet smazaných pohybů */
     public function deleteStatement(BankStatement $statement): int
     {

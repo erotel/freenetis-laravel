@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Domains\Billing\Actions\DeleteBankStatementAction;
+use App\Domains\Billing\Exceptions\BankStatementRejected;
 use App\Domains\Billing\Repositories\BankLedgerRepository;
 
 class BankStatementController extends Controller
@@ -34,7 +35,11 @@ class BankStatementController extends Controller
         abort_unless($this->can('delete'), 403);
 
         $stmt = $this->ledger->statementWithTransfersOrFail($id);
-        $delete->handle($stmt);
+        try {
+            $delete->handle($stmt);
+        } catch (BankStatementRejected $e) {
+            return redirect()->route('bank_statements.by_account', $stmt->bank_account_id)->with('error', $e->getMessage());
+        }
 
         return redirect()
             ->route('bank_statements.by_account', $stmt->bank_account_id)
