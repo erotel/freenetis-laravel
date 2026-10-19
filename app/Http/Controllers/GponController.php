@@ -2,8 +2,7 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\Member;
-use App\Models\Ont;
+use App\Domains\Access\Repositories\OntRepository;
 use App\Services\GponService;
 use Illuminate\Http\Request;
 
@@ -12,7 +11,7 @@ class GponController extends Controller
     private const ACL_SECTION = 'Gpon_Controller';
     private const ACL_VALUE   = 'gpon';
 
-    public function __construct(private GponService $gponService) {}
+    public function __construct(private GponService $gponService, private OntRepository $onts) {}
 
     private function can(string $action): bool
     {
@@ -24,19 +23,8 @@ class GponController extends Controller
         abort_unless($this->can('view_all'), 403);
         $status = $request->input('status');
 
-        $query = Ont::with(['member', 'addedBy'])->orderByDesc('created_at');
-
-        if ($status && in_array($status, ['new', 'registered', 'removed'])) {
-            $query->where('reg_status', $status);
-        }
-
-        $onts = $query->paginate(50)->withQueryString();
-
-        $counts = [
-            'new'        => Ont::newOnts()->count(),
-            'registered' => Ont::registered()->count(),
-            'removed'    => Ont::removed()->count(),
-        ];
+        $onts   = $this->onts->paginate($status, 50);
+        $counts = $this->onts->countsByStatus();
 
         return view('gpon.index', compact('onts', 'counts', 'status'));
     }
@@ -44,7 +32,7 @@ class GponController extends Controller
     public function show(int $id)
     {
         abort_unless($this->can('view_all'), 403);
-        $ont     = Ont::with(['member', 'device', 'addedBy'])->findOrFail($id);
+        $ont     = $this->onts->findWithRelationsOrFail($id);
         $details = null;
 
         if ($ont->reg_status === 'registered') {
@@ -55,9 +43,7 @@ class GponController extends Controller
             }
         }
 
-        $customers = Member::whereIn('type', [2, 18])
-            ->orderBy('name')
-            ->get(['id', 'name']);
+        $customers = $this->onts->customers();
 
         return view('gpon.show', compact('ont', 'details', 'customers'));
     }
@@ -69,9 +55,7 @@ class GponController extends Controller
             'member_id' => 'nullable|integer|exists:members,id',
         ]);
 
-        $ont = Ont::findOrFail($id);
-        $ont->member_id = $request->input('member_id') ?: null;
-        $ont->save();
+        $this->onts->setMember($this->onts->findOrFail($id), $request->input('member_id') ? (int) $request->input('member_id') : null);
 
         return redirect()->route('gpon.show', $id)->with('success', 'Zákazník upraven.');
     }
@@ -104,7 +88,7 @@ class GponController extends Controller
             $this->gponService->registerOntById($id, $houseNo, $userName);
 
             if ($memberId) {
-                Ont::findOrFail($id)->update(['member_id' => $memberId, 'user_name' => null]);
+                $this->onts->assignRegisteredMember($id, $memberId);
             }
 
             return redirect()->route('gpon.show', $id)->with('success', 'ONT byla úspěšně zaregistrována.');
@@ -127,13 +111,13 @@ class GponController extends Controller
     public function destroy(int $id)
     {
         abort_unless($this->can('delete_all'), 403);
-        $ont = Ont::findOrFail($id);
+        $ont = $this->onts->findOrFail($id);
 
         if ($ont->reg_status !== 'removed') {
             return redirect()->route('gpon.show', $id)->with('error', 'ONT lze smazat pouze ve stavu Odebrána.');
         }
 
-        $ont->delete();
+        $this->onts->delete($ont);
 
         return redirect()->route('gpon.index')->with('success', 'ONT byla smazána z evidence.');
     }
@@ -141,10 +125,7 @@ class GponController extends Controller
     public function map()
     {
         abort_unless($this->can('view_all'), 403);
-        $onts = \App\Models\Ont::whereNotNull('gps_lat')
-            ->whereNotNull('gps_lng')
-            ->where('reg_status', 'registered')
-            ->get(['id', 'serial', 'house_no', 'user_name', 'gps_lat', 'gps_lng', 'gpon_port', 'port_index', 'ont_id', 'olt_ip']);
+        $onts = $this->onts->mapped();
 
         $onlineStatus = $this->gponService->getBatchOnlineStatus($onts);
 
