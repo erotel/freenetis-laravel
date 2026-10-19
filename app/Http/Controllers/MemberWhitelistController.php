@@ -14,7 +14,7 @@ class MemberWhitelistController extends Controller
     private const RULES = [
         'permanent' => 'boolean',
         'since'     => 'required|date',
-        'until'     => 'required|date|after_or_equal:since',
+        'until'     => 'required_unless:permanent,1|nullable|date|after_or_equal:since',   // trvalá: formulář pole „Do" skryje a vyprázdní
         'comment'   => 'nullable|string|max:1000',
     ];
 

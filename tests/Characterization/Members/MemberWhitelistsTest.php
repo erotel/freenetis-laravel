@@ -68,6 +68,18 @@ class MemberWhitelistsTest extends CatalogTestCase
         $this->as()->delete(route('member_whitelists.destroy', $id))->assertNotFound();
     }
 
+    /** Trvalá bílá listina z formuláře (pole „Do" skryté a prázdné) — dřív neprošla validací. */
+    public function test_trvala_bez_data_do(): void
+    {
+        $m = $this->member();
+        $this->as()->post(route('member_whitelists.store', $m), ['permanent' => '1', 'since' => '2026-01-01', 'until' => ''])->assertSessionHasNoErrors();
+        $this->assertSame([[1, '2026-01-01', '9999-12-31', null]], $this->rows($m));
+        $id = (int) DB::table('members_whitelists')->where('member_id', $m)->value('id');
+        $this->as()->put(route('member_whitelists.update', $id), ['permanent' => '1', 'since' => '2026-02-01', 'until' => ''])->assertSessionHasNoErrors();
+        $this->assertSame('2026-02-01', $this->rows($m)[0][1]);
+        $this->as()->post(route('member_whitelists.store', $m), ['since' => '2026-01-01', 'until' => ''])->assertSessionHasErrors(['until']);
+    }
+
     public function test_prava(): void
     {
         $m = $this->member();
