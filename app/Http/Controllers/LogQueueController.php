@@ -2,12 +2,15 @@
 
 namespace App\Http\Controllers;
 
+use App\Domains\Audit\Repositories\LogQueueRepository;
 use App\Models\LogQueue;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\DB;
 
+/** Fronta systémových záznamů k vyřízení; data v doméně Audit. */
 class LogQueueController extends Controller
 {
+    public function __construct(private LogQueueRepository $logs) {}
+
     // ACL: Log_queues_Controller / log_queue
     private function canView(): bool
     {
@@ -43,18 +46,7 @@ class LogQueueController extends Controller
         $filterType  = $request->input('type', '');
         $filterState = $request->input('state', '');
 
-        $query = DB::table('log_queues as lq')
-            ->leftJoin('users as u', 'u.id', '=', 'lq.closed_by_user_id')
-            ->select('lq.*', DB::raw("CONCAT(u.name, ' ', u.surname) AS closed_by_name"));
-
-        if ($filterType !== '') {
-            $query->where('lq.type', (int) $filterType);
-        }
-        if ($filterState !== '') {
-            $query->where('lq.state', (int) $filterState);
-        }
-
-        $logs = $query->orderBy('lq.id', 'desc')->paginate(50)->withQueryString();
+        $logs = $this->logs->paginate((string) $filterType, (string) $filterState, 50);
 
         return view('log_queues.index', [
             'logs'        => $logs,
@@ -73,26 +65,10 @@ class LogQueueController extends Controller
     {
         abort_unless($this->canView(), 403);
 
-        $log = LogQueue::find($id);
+        $log = $this->logs->find($id);
         abort_if(!$log, 404);
-
-        $closedByUser = null;
-        if ($log->closed_by_user_id) {
-            $closedByUser = DB::table('users')
-                ->where('id', $log->closed_by_user_id)
-                ->select('id', 'name', 'surname', 'login')
-                ->first();
-        }
-
-        $comments = collect();
-        if ($log->comments_thread_id) {
-            $comments = DB::table('comments as c')
-                ->join('users as u', 'u.id', '=', 'c.user_id')
-                ->where('c.comments_thread_id', $log->comments_thread_id)
-                ->select('c.*', DB::raw("CONCAT(u.name, ' ', u.surname) AS user_name"), 'u.id AS uid')
-                ->orderBy('c.datetime')
-                ->get();
-        }
+        $closedByUser = $this->logs->closedBy($log->closed_by_user_id);
+        $comments     = $this->logs->comments($log->comments_thread_id);
 
         return view('log_queues.show', [
             'log'              => $log,
@@ -111,7 +87,7 @@ class LogQueueController extends Controller
     {
         abort_unless($this->canEdit(), 403);
 
-        $log = LogQueue::find($id);
+        $log = $this->logs->find($id);
         abort_if(!$log, 404);
 
         if ($log->state === LogQueue::STATE_CLOSED) {
@@ -119,10 +95,7 @@ class LogQueueController extends Controller
                 ->with('error', 'Záznam je již uzavřen.');
         }
 
-        $log->state             = LogQueue::STATE_CLOSED;
-        $log->closed_at         = now();
-        $log->closed_by_user_id = auth()->id();
-        $log->save();
+        $this->logs->close($log, auth()->id());
 
         return redirect()->route('log_queues.show', $id)
             ->with('success', 'Záznam byl uzavřen.');
@@ -137,16 +110,7 @@ class LogQueueController extends Controller
         $filterType  = $request->input('type', '');
         $filterState = $request->input('state', '');
 
-        $query = DB::table('log_queues')->where('state', LogQueue::STATE_NEW);
-        if ($filterType !== '') {
-            $query->where('type', (int) $filterType);
-        }
-
-        $count = $query->update([
-            'state'             => LogQueue::STATE_CLOSED,
-            'closed_at'         => now(),
-            'closed_by_user_id' => auth()->id(),
-        ]);
+        $count = $this->logs->closeAllNew((string) $filterType, auth()->id());
 
         $params = array_filter(['type' => $filterType, 'state' => $filterState], fn($v) => $v !== '');
 
