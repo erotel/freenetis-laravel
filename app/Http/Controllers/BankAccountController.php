@@ -2,14 +2,17 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\BankAccount;
-use App\Models\Setting;
+use App\Domains\Billing\Repositories\BankAccountRepository;
 use Illuminate\Http\Request;
 
 class BankAccountController extends Controller
 {
     private const ACL_SECTION = 'Accounts_Controller';
     private const ACL_VALUE   = 'bank_accounts';
+
+    public function __construct(private BankAccountRepository $accounts)
+    {
+    }
 
     private function can(string $action): bool
     {
@@ -20,24 +23,7 @@ class BankAccountController extends Controller
     {
         $q = trim((string) $request->query('q', ''));
 
-        $query = BankAccount::with('member')->orderBy('id');
-
-        if ($q !== '') {
-            $like = '%' . str_replace(['%', '_'], ['\\%', '\\_'], $q) . '%';
-            $query->where(function ($w) use ($like, $q) {
-                $w->where('name', 'like', $like)
-                  ->orWhere('account_nr', 'like', $like)
-                  ->orWhere('bank_nr',    'like', $like)
-                  ->orWhere('IBAN',       'like', $like)
-                  ->orWhereHas('member', fn ($m) => $m->where('name', 'like', $like));
-                if (ctype_digit($q)) {
-                    $w->orWhere('id', (int) $q)
-                      ->orWhere('member_id', (int) $q);
-                }
-            });
-        }
-
-        $all = $query->get();
+        $all = $this->accounts->search($q);
 
         $associationAccounts = $all->where('member_id', 1)->values();
         $memberAccounts      = $all->where('member_id', '!=', 1)->values();
@@ -48,9 +34,7 @@ class BankAccountController extends Controller
         $autoDownFlags = [];
         if ($canManageAutoDown) {
             foreach ($associationAccounts as $account) {
-                $hasRules = \Illuminate\Support\Facades\DB::table('bank_accounts_automatical_downloads')
-                    ->where('bank_account_id', $account->id)->exists();
-                $autoDownFlags[$account->id] = $hasRules;
+                $autoDownFlags[$account->id] = $this->accounts->hasDownloadRules($account->id);
             }
         }
 
@@ -63,12 +47,12 @@ class BankAccountController extends Controller
     {
         abort_unless($this->can('view_all'), 403);
 
-        $account = BankAccount::with('member')->findOrFail($id);
+        $account = $this->accounts->findWithMemberOrFail($id);
 
         $canViewTransfers    = $this->aclCheck('view_all', self::ACL_SECTION, 'bank_transfers');
         $canViewStatements   = $this->aclCheck('view_all', self::ACL_SECTION, 'bank_statements');
         $canEdit             = $this->can('edit_all');
-        $hasFioToken         = !empty(Setting::get('fio_api_token_bank_account_' . $account->id));
+        $hasFioToken         = $this->accounts->fioToken($account->id) !== '';
         $canManageAutoDown   = $this->aclCheck('view_all', self::ACL_SECTION, 'bank_account_auto_down_config');
 
         return view('bank_accounts.show', compact('account', 'canViewTransfers', 'canViewStatements', 'canEdit', 'hasFioToken', 'canManageAutoDown'));
@@ -78,8 +62,8 @@ class BankAccountController extends Controller
     {
         abort_unless($this->can('edit_all'), 403);
 
-        $account  = BankAccount::findOrFail($id);
-        $fioToken = Setting::get('fio_api_token_bank_account_' . $id, '');
+        $account  = $this->accounts->findOrFail($id);
+        $fioToken = $this->accounts->fioToken($id);
 
         return view('bank_accounts.edit', compact('account', 'fioToken'));
     }
@@ -88,7 +72,7 @@ class BankAccountController extends Controller
     {
         abort_unless($this->can('edit_all'), 403);
 
-        $account = BankAccount::findOrFail($id);
+        $account = $this->accounts->findOrFail($id);
 
         $data = $request->validate([
             'IBAN'      => ['nullable', 'string', 'max:34'],
@@ -96,11 +80,8 @@ class BankAccountController extends Controller
             'fio_token' => ['nullable', 'string', 'max:200'],
         ]);
 
-        $account->IBAN  = $data['IBAN']  ?? null;
-        $account->SWIFT = $data['SWIFT'] ?? null;
-        $account->save();
-
-        Setting::set('fio_api_token_bank_account_' . $id, $data['fio_token'] ?? '');
+        $this->accounts->setIbanSwift($account, $data['IBAN'] ?? null, $data['SWIFT'] ?? null);
+        $this->accounts->setFioToken($id, $data['fio_token'] ?? '');
 
         return redirect()->route('bank_accounts.show', $id)->with('success', 'Bankovní účet byl uložen.');
     }

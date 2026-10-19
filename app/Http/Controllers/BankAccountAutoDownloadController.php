@@ -2,7 +2,7 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\BankAccount;
+use App\Domains\Billing\Repositories\BankAccountRepository;
 use App\Models\BankAccountAutoDownload;
 use Illuminate\Http\Request;
 
@@ -10,6 +10,10 @@ class BankAccountAutoDownloadController extends Controller
 {
     const ACL_SECTION = 'Accounts_Controller';
     const ACL_KEY     = 'bank_account_auto_down_config';
+
+    public function __construct(private BankAccountRepository $accounts)
+    {
+    }
 
     private function canView(): bool
     {
@@ -32,10 +36,8 @@ class BankAccountAutoDownloadController extends Controller
     {
         abort_unless($this->canView(), 403);
 
-        $account = BankAccount::findOrFail($bankAccountId);
-        $rules   = BankAccountAutoDownload::where('bank_account_id', $bankAccountId)
-            ->orderBy('id')
-            ->get();
+        $account = $this->accounts->findOrFail($bankAccountId);
+        $rules   = $this->accounts->downloadRules($bankAccountId);
 
         return view('bank_accounts.auto_downloads', [
             'account'    => $account,
@@ -53,7 +55,7 @@ class BankAccountAutoDownloadController extends Controller
     {
         abort_unless($this->canAdd(), 403);
 
-        $account = BankAccount::findOrFail($bankAccountId);
+        $this->accounts->findOrFail($bankAccountId);
 
         $type = (int) $request->input('type');
         $defs = BankAccountAutoDownload::typeAttributes()[$type] ?? null;
@@ -68,20 +70,12 @@ class BankAccountAutoDownloadController extends Controller
         }
         $request->validate($rules);
 
-        // Build attribute string (e.g. "13" or "26/13")
         $attrParts = [];
         foreach ($defs as $i => $def) {
             $attrParts[] = (int) ($attrValues[$i] ?? 0);
         }
-        $attribute = count($attrParts) ? implode('/', $attrParts) : null;
 
-        BankAccountAutoDownload::create([
-            'bank_account_id' => $bankAccountId,
-            'type'            => $type,
-            'attribute'       => $attribute,
-            'email_enabled'   => $request->boolean('email_enabled'),
-            'sms_enabled'     => $request->boolean('sms_enabled'),
-        ]);
+        $this->accounts->createDownloadRule($bankAccountId, $type, $attrParts, $request->boolean('email_enabled'), $request->boolean('sms_enabled'));
 
         return redirect()->route('bank_accounts.auto_downloads', $bankAccountId)
             ->with('success', 'Pravidlo bylo přidáno.');
@@ -93,9 +87,9 @@ class BankAccountAutoDownloadController extends Controller
     {
         abort_unless($this->canDelete(), 403);
 
-        $rule = BankAccountAutoDownload::findOrFail($id);
+        $rule = $this->accounts->findDownloadRuleOrFail($id);
         $bankAccountId = $rule->bank_account_id;
-        $rule->delete();
+        $this->accounts->deleteDownloadRule($rule);
 
         return redirect()->route('bank_accounts.auto_downloads', $bankAccountId)
             ->with('success', 'Pravidlo bylo smazáno.');
