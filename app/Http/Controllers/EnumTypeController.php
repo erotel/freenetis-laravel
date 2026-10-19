@@ -2,8 +2,7 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\EnumType;
-use App\Models\EnumTypeName;
+use App\Domains\Members\Repositories\EnumTypeRepository;
 use Illuminate\Http\Request;
 
 class EnumTypeController extends Controller
@@ -11,37 +10,31 @@ class EnumTypeController extends Controller
     private const ACL_SECTION = 'Enum_types_Controller';
     private const ACL_VALUE   = 'enum_types';
 
-    private function can(string $action): bool
+    private const RULES = [
+        'type_id' => 'required|integer|exists:enum_type_names,id',
+        'value'   => 'required|string|max:100',
+    ];
+
+    public function __construct(private EnumTypeRepository $types)
     {
-        return $this->aclCheck($action, self::ACL_SECTION, self::ACL_VALUE);
     }
 
     public function index()
     {
-        $groups = EnumTypeName::with(['enumTypes' => function ($q) {
-            $q->orderBy('value');
-        }])->orderBy('type_name')->get();
-
-        return view('enum_types.index', compact('groups'));
+        return view('enum_types.index', ['groups' => $this->types->groups()]);
     }
 
     public function create()
     {
-        abort_unless($this->can('new_all'), 403);
-        $typeNames = EnumTypeName::orderBy('type_name')->get();
-        return view('enum_types.create', compact('typeNames'));
+        abort_unless($this->aclCheck('new_all', self::ACL_SECTION, self::ACL_VALUE), 403);
+        return view('enum_types.create', ['typeNames' => $this->types->typeNames()]);
     }
 
     public function store(Request $request)
     {
-        abort_unless($this->can('new_all'), 403);
+        abort_unless($this->aclCheck('new_all', self::ACL_SECTION, self::ACL_VALUE), 403);
 
-        $validated = $request->validate([
-            'type_id' => 'required|integer|exists:enum_type_names,id',
-            'value'   => 'required|string|max:100',
-        ]);
-
-        EnumType::create($validated);
+        $this->types->create($request->validate(self::RULES));
 
         return redirect()->route('enum-types.index')
             ->with('success', 'Typ byl přidán.');
@@ -49,28 +42,24 @@ class EnumTypeController extends Controller
 
     public function edit(int $id)
     {
-        abort_unless($this->can('edit_all'), 403);
-        $enumType  = EnumType::with('typeName')->findOrFail($id);
-        $typeNames = EnumTypeName::orderBy('type_name')->get();
-        return view('enum_types.edit', compact('enumType', 'typeNames'));
+        abort_unless($this->aclCheck('edit_all', self::ACL_SECTION, self::ACL_VALUE), 403);
+        return view('enum_types.edit', [
+            'enumType'  => $this->types->findWithTypeNameOrFail($id),
+            'typeNames' => $this->types->typeNames(),
+        ]);
     }
 
     public function update(Request $request, int $id)
     {
-        abort_unless($this->can('edit_all'), 403);
+        abort_unless($this->aclCheck('edit_all', self::ACL_SECTION, self::ACL_VALUE), 403);
 
-        $enumType = EnumType::findOrFail($id);
+        $enumType = $this->types->findOrFail($id);
 
         if ($enumType->read_only) {
             return back()->with('error', 'Tento typ je systémový a nelze ho upravit.');
         }
 
-        $validated = $request->validate([
-            'type_id' => 'required|integer|exists:enum_type_names,id',
-            'value'   => 'required|string|max:100',
-        ]);
-
-        $enumType->update($validated);
+        $this->types->update($enumType, $request->validate(self::RULES));
 
         return redirect()->route('enum-types.index')
             ->with('success', 'Typ byl upraven.');
@@ -78,15 +67,15 @@ class EnumTypeController extends Controller
 
     public function destroy(int $id)
     {
-        abort_unless($this->can('delete_all'), 403);
+        abort_unless($this->aclCheck('delete_all', self::ACL_SECTION, self::ACL_VALUE), 403);
 
-        $enumType = EnumType::findOrFail($id);
+        $enumType = $this->types->findOrFail($id);
 
         if ($enumType->read_only) {
             return back()->with('error', 'Tento typ je systémový a nelze ho smazat.');
         }
 
-        $enumType->delete();
+        $this->types->delete($enumType);
 
         return redirect()->route('enum-types.index')
             ->with('success', 'Typ byl smazán.');
