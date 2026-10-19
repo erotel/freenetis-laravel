@@ -2,14 +2,19 @@
 
 namespace App\Http\Controllers;
 
+use App\Domains\Notifications\Actions\QueueSmsAction;
+use App\Domains\Notifications\Repositories\SmsRepository;
 use App\Models\Setting;
-use App\Models\SmsMessage;
 use Illuminate\Http\Request;
 
 class SmsMessageController extends Controller
 {
     const ACL_SECTION = 'Sms_Controller';
     const ACL_KEY     = 'sms';
+
+    public function __construct(private SmsRepository $sms)
+    {
+    }
 
     public function index(Request $request)
     {
@@ -18,30 +23,12 @@ class SmsMessageController extends Controller
         // Hledání dle tel. čísla: normalizuj na číslice (uživatel může zadat +420…, mezery…)
         $phone = preg_replace('/[^0-9]/', '', (string) $request->input('phone', ''));
 
-        $query = SmsMessage::with('user')->select('sms_messages.*');
-
-        if ($phone !== '') {
-            // Prohledej CELOU historii (ne jen posledních 200) v odesílateli i příjemci.
-            $query->where(function ($q) use ($phone) {
-                $q->where('sms_messages.receiver', 'like', "%{$phone}%")
-                  ->orWhere('sms_messages.sender', 'like', "%{$phone}%");
-            });
-        } else {
-            // Výchozí výpis: jen posledních 200 zpráv.
-            $last200 = SmsMessage::select('id')->orderByDesc('id')->limit(200);
-            $query->joinSub($last200, 'last200', fn($j) => $j->on('sms_messages.id', '=', 'last200.id'));
-        }
-
-        $query->orderByDesc('sms_messages.id');
-
-        if ($request->filled('type') && $request->type !== '') {
-            $query->where('sms_messages.type', (int) $request->type);
-        }
-        if ($request->filled('state') && $request->state !== '') {
-            $query->where('sms_messages.state', (int) $request->state);
-        }
-
-        $items = $query->paginate(50)->withQueryString();
+        $items = $this->sms->search(
+            $phone,
+            $request->filled('type') && $request->type !== '' ? (int) $request->type : null,
+            $request->filled('state') && $request->state !== '' ? (int) $request->state : null,
+            50
+        );
 
         return view('sms_messages.index', [
             'items'       => $items,
@@ -57,14 +44,8 @@ class SmsMessageController extends Controller
     {
         abort_unless($this->aclCheck('view_all', self::ACL_SECTION, self::ACL_KEY), 403);
 
-        $sms = SmsMessage::with('user')->findOrFail($id);
-
-        // Mark received unread as read
-        if ((int) $sms->type === SmsMessage::TYPE_RECEIVED
-            && (int) $sms->state === SmsMessage::STATE_RECEIVED_UNREAD) {
-            $sms->state = SmsMessage::STATE_RECEIVED_READ;
-            $sms->save();
-        }
+        $sms = $this->sms->findWithUserOrFail($id);
+        $this->sms->markRead($sms);
 
         return view('sms_messages.show', ['sms' => $sms]);
     }
@@ -78,7 +59,7 @@ class SmsMessageController extends Controller
         ]);
     }
 
-    public function store(Request $request)
+    public function store(Request $request, QueueSmsAction $queue)
     {
         abort_unless($this->aclCheck('new_all', self::ACL_SECTION, self::ACL_KEY), 403);
 
@@ -88,26 +69,7 @@ class SmsMessageController extends Controller
             'send_date' => ['required', 'date'],
         ]);
 
-        $receiver = preg_replace('/\s+/', '', $data['receiver']);
-        if (strlen($receiver) === 9) {
-            $receiver = '420' . $receiver;
-        }
-
-        $text = iconv('UTF-8', 'ASCII//TRANSLIT//IGNORE', $data['text']);
-
-        SmsMessage::create([
-            'user_id'        => auth()->id(),
-            'sms_message_id' => null,
-            'stamp'          => now(),
-            'send_date'      => $data['send_date'],
-            'text'           => $text,
-            'sender'         => Setting::get('sms_sender_number', ''),
-            'receiver'       => $receiver,
-            'driver'         => (int) Setting::get('sms_driver', 3),
-            'type'           => SmsMessage::TYPE_SENT,
-            'state'          => SmsMessage::STATE_SENT_UNSENT,
-            'message'        => null,
-        ]);
+        $queue->handle((int) auth()->id(), $data['receiver'], $data['text'], $data['send_date']);
 
         return redirect()->route('sms_messages.index')
             ->with('success', 'SMS zpráva byla přidána do fronty.');
@@ -117,12 +79,9 @@ class SmsMessageController extends Controller
     {
         abort_unless($this->aclCheck('delete_all', self::ACL_SECTION, self::ACL_KEY), 403);
 
-        SmsMessage::where('type', SmsMessage::TYPE_SENT)
-            ->where('state', SmsMessage::STATE_SENT_UNSENT)
-            ->delete();
+        $this->sms->deleteUnsent();
 
         return redirect()->route('sms_messages.index')
             ->with('success', 'Neodeslané SMS byly smazány.');
     }
-
 }
