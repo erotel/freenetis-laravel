@@ -17,14 +17,14 @@ use App\Domains\Contracts\Actions\TerminateContractAction;
 use App\Domains\Contracts\Actions\UpdateServiceAddressAction;
 use App\Domains\Contracts\Queries\ContractCardQuery;
 use App\Domains\Contracts\Queries\ContractListQuery;
+use App\Domains\Contracts\Repositories\ContractAddonRepository;
 use App\Domains\Contracts\Repositories\ContractRepository;
+use App\Domains\Members\Repositories\MemberRepository;
 use App\Domains\Contracts\Support\AddonType;
 use App\Domains\Contracts\Support\ContractPreconditions;
 use App\Domains\Contracts\Support\ContractStorage;
 use App\Domains\Contracts\Support\SignLinkKind;
-use App\Models\Contract;
 use App\Models\ContractAddon;
-use App\Models\Member;
 use App\Models\User;
 use App\Services\Contracts\PdfService;
 use Illuminate\Http\RedirectResponse;
@@ -63,7 +63,7 @@ class ContractController extends Controller
         $isAdmin = $canEdit || $this->can('view_all');
         abort_unless($isAdmin || $isOwn, 403);
 
-        $member = Member::findOrFail($memberId);
+        $member = app(MemberRepository::class)->findOrFail($memberId);
 
         return view('contracts.show', ['member' => $member, 'canEdit' => $canEdit, 'isAdmin' => $isAdmin,
             // Výběr cílového tarifu do dodatku jen s jemným právem qos_ceil.
@@ -75,8 +75,8 @@ class ContractController extends Controller
     {
         abort_unless($this->can('edit_all'), 403);
 
-        $member = Member::with(['users.contacts.enumType', 'accounts.variableSymbols', 'addressPoint.street', 'addressPoint.town', 'speedClass'])
-            ->findOrFail($memberId);
+        $member = app(MemberRepository::class)->findOrFail($memberId)
+            ->load(['users.contacts.enumType', 'accounts.variableSymbols', 'addressPoint.street', 'addressPoint.town', 'speedClass']);
         $existing = $this->contracts->forMember($memberId);
 
         switch (ContractPreconditions::whyNotCreatable($member, $existing)) {
@@ -235,7 +235,7 @@ class ContractController extends Controller
     {
         abort_unless($this->can('edit_all'), 403);
 
-        $contract = Contract::findOrFail($contractId);
+        $contract = $this->contracts->findOrFail($contractId);
         if ($contract->addon_signed) {
             return redirect()->back()->with('error', 'Podepsaný dodatek nelze smazat.');
         }
@@ -247,7 +247,7 @@ class ContractController extends Controller
 
     public function downloadAddon(int $contractId): BinaryFileResponse|RedirectResponse
     {
-        $contract = Contract::findOrFail($contractId);
+        $contract = $this->contracts->findOrFail($contractId);
 
         $isOwn = (auth()->user()?->member_id == $contract->member_id);
         abort_unless($this->can('view_all') || $isOwn, 403);
@@ -426,7 +426,7 @@ class ContractController extends Controller
     /** Dodatek podle id (typ se ve správě historicky nekontroluje) nebo 404. */
     private function addonOrFail(int $addonId): ContractAddon
     {
-        $addon = ContractAddon::find($addonId);
+        $addon = app(ContractAddonRepository::class)->findAny($addonId);
         if (!$addon) abort(404);
         return $addon;
     }
@@ -477,7 +477,7 @@ class ContractController extends Controller
             return $this->back($memberId, 'error', "Odkaz k podpisu je jen pro přidání {$what}. Zrušení vydává poskytovatel bez podpisu zákazníka.");
         }
 
-        $typed = ContractAddon::where('type', $type->value)->find($addon->id);
+        $typed = app(ContractAddonRepository::class)->find((int) $addon->id, $type);
         if (!$typed) {
             return $this->back($memberId, 'error', 'Odkaz se nepodařilo vygenerovat.');
         }
@@ -512,7 +512,7 @@ class ContractController extends Controller
      */
     public function preview(int $contractId, PdfService $pdf): Response|BinaryFileResponse|RedirectResponse
     {
-        $contract = Contract::findOrFail($contractId);
+        $contract = $this->contracts->findOrFail($contractId);
 
         $isOwn = (auth()->user()?->member_id == $contract->member_id);
         abort_unless($this->can('view_all') || $isOwn, 403);
@@ -538,7 +538,7 @@ class ContractController extends Controller
 
     public function download(int $contractId): BinaryFileResponse|RedirectResponse
     {
-        $contract = Contract::findOrFail($contractId);
+        $contract = $this->contracts->findOrFail($contractId);
 
         $isOwn = (auth()->user()?->member_id == $contract->member_id);
         abort_unless($this->can('view_all') || $isOwn, 403);

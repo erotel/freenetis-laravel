@@ -12,6 +12,11 @@ use Illuminate\Support\Facades\Log;
 class ContractRepository
 {
     /** Poslední smlouva člena (jeden člen = jedna smlouva; zrušené návrhy se mažou). */
+    public function findOrFail(int $id): Contract
+    {
+        return Contract::findOrFail($id);
+    }
+
     public function forMember(int $memberId): ?Contract
     {
         return Contract::where('member_id', $memberId)->orderByDesc('id')->first();

@@ -18,6 +18,12 @@ class ContractAddonRepository
             ->get();
     }
 
+    /** Dodatek libovolného typu. */
+    public function findAny(int $id): ?ContractAddon
+    {
+        return ContractAddon::find($id);
+    }
+
     public function find(int $id, AddonType $type): ?ContractAddon
     {
         return ContractAddon::where('type', $type->value)->find($id);
