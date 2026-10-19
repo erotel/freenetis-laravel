@@ -38,13 +38,21 @@
         @endforelse
     </div>
 
-    <button type="button" id="wa-add" class="m-btn" style="margin-top:16px;display:none">＋ Přidat zařízení</button>
+    <form id="wa-add-form" class="m-card" style="margin-top:16px;padding:14px 16px;display:none" autocomplete="off">
+        <div style="font-weight:600;margin-bottom:8px">Přidat toto zařízení</div>
+        <label class="m-form-label" for="wa-name">Název zařízení</label>
+        <input class="m-form-input" id="wa-name" placeholder="např. iPhone Pavla, Pixel 7" maxlength="100">
+        <label class="m-form-label" for="wa-password" style="margin-top:8px">Vaše heslo (pro potvrzení)</label>
+        <input class="m-form-input" id="wa-password" type="password" autocomplete="current-password" required>
+        <button type="submit" id="wa-add" class="m-btn" style="margin-top:12px">＋ Přidat zařízení</button>
+    </form>
 </div>
 
 @include('webauthn._scripts')
 <script>
 (function () {
     var addBtn = document.getElementById('wa-add');
+    var addForm = document.getElementById('wa-add-form');
     var msg = document.getElementById('wa-msg');
 
     function showMsg(text, ok) {
@@ -56,16 +64,18 @@
     if (!FNWebAuthn.supported()) {
         document.getElementById('wa-insecure').style.display = 'block';
     } else {
-        addBtn.style.display = 'inline-block';
-        addBtn.addEventListener('click', async function () {
-            var name = prompt('Název zařízení (např. "iPhone Pavla", "Pixel 7"):', '');
-            if (name === null) return;
+        addForm.style.display = 'block';
+        addForm.addEventListener('submit', async function (ev) {
+            ev.preventDefault();
+            var pwd = document.getElementById('wa-password');
+            if (!pwd.value) { pwd.focus(); return; }
             addBtn.disabled = true;
             try {
-                await FNWebAuthn.register(name);
+                await FNWebAuthn.register(document.getElementById('wa-name').value, pwd.value);
                 location.reload();
             } catch (e) {
                 showMsg(e.message || 'Registrace selhala.', false);
+                pwd.value = '';
                 addBtn.disabled = false;
             }
         });

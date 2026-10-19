@@ -142,14 +142,13 @@ Route::prefix('field')->name('field.')->group(function () {
 
 // ── WebAuthn / biometrické přihlášení ───────────────────────────────────────
 // Veřejné (login flow) — bez auth, ale v 'web' skupině kvůli session + CSRF.
-Route::post('/webauthn/check',         [WebAuthnController::class, 'check'])->name('webauthn.check')->middleware('throttle:30,1');
 Route::post('/webauthn/login/options', [WebAuthnController::class, 'loginOptions'])->name('webauthn.login.options')->middleware('throttle:30,1');
 Route::post('/webauthn/login',         [WebAuthnController::class, 'login'])->name('webauthn.login')->middleware('throttle:30,1');
 
 // Správa vlastních zařízení (přihlášený uživatel, libovolná role).
 Route::middleware('auth')->group(function () {
     Route::get('/account/passkeys',            [WebAuthnController::class, 'index'])->name('webauthn.index');
-    Route::post('/webauthn/register/options',  [WebAuthnController::class, 'registerOptions'])->name('webauthn.register.options');
+    Route::post('/webauthn/register/options',  [WebAuthnController::class, 'registerOptions'])->name('webauthn.register.options')->middleware('throttle:5,1');
     Route::post('/webauthn/register',          [WebAuthnController::class, 'register'])->name('webauthn.register');
     Route::delete('/webauthn/credential/{id}', [WebAuthnController::class, 'destroy'])->name('webauthn.credential.destroy')->whereNumber('id');
 });

@@ -33,7 +33,7 @@ class PasskeysTest extends DatabaseTestCase
             'address_point_id' => (int) DB::table('members')->whereNotNull('address_point_id')->value('address_point_id'),
             'entrance_date' => '2020-01-01', 'leaving_date' => '9999-12-31']);
         $this->login  = 'charpk_' . uniqid();
-        $this->userId = (int) DB::table('users')->insertGetId(['member_id' => $this->memberId, 'login' => $this->login, 'password' => Hash::make('x'),
+        $this->userId = (int) DB::table('users')->insertGetId(['member_id' => $this->memberId, 'login' => $this->login, 'password' => Hash::make('Spravne-heslo1'),
             'type' => 1, 'application_password' => 'x', 'settings' => '', 'name' => 'Char', 'surname' => 'Passkey', 'comment' => '']);
 
         $this->wa = Mockery::mock(WebAuthn::class);
@@ -64,9 +64,9 @@ class PasskeysTest extends DatabaseTestCase
             ->with((string) $this->userId, $this->login, 'Char Passkey', 60, true, true, null, ['existujici'])
             ->andReturn((object) ['publicKey' => ['rp' => 'x']]);
 
-        $opt = $this->asUser()->postJson(route('webauthn.register.options'))->assertOk()->json();
+        $opt = $this->asUser()->postJson(route('webauthn.register.options'), ['password' => 'Spravne-heslo1'])->assertOk()->json();
         $this->assertSame(['rp' => 'x'], $opt['publicKey']);
-        $this->assertSame(base64_encode('challenge-bytes'), cache('webauthn:' . $opt['state']));
+        $this->assertSame(['challenge' => base64_encode('challenge-bytes'), 'purpose' => 'register:' . $this->userId], cache('webauthn:' . $opt['state']));
 
         $this->wa->shouldReceive('processCreate')->once()
             ->with('CDJ', 'ATT', Mockery::on(fn ($b) => $b->getBinaryString() === 'challenge-bytes'), true, true, false)
@@ -95,12 +95,12 @@ class PasskeysTest extends DatabaseTestCase
             return (object) ['credentialId' => 'dup', 'credentialPublicKey' => 'PEM', 'signatureCounter' => null];
         });
 
-        $state = $this->asUser()->postJson(route('webauthn.register.options'))->json('state');
+        $state = $this->asUser()->postJson(route('webauthn.register.options'), ['password' => 'Spravne-heslo1'])->json('state');
         $this->asUser()->postJson(route('webauthn.register'), ['state' => $state, 'clientDataJSON' => 'eA==', 'attestationObject' => 'eA=='])
             ->assertOk()->assertExactJson(['ok' => true, 'message' => 'Toto zařízení už je registrované.']);
         $this->assertSame(1, DB::table('webauthn_credentials')->where('credential_id', base64_encode('dup'))->count());
 
-        $state = $this->asUser()->postJson(route('webauthn.register.options'))->json('state');
+        $state = $this->asUser()->postJson(route('webauthn.register.options'), ['password' => 'Spravne-heslo1'])->json('state');
         $this->asUser()->postJson(route('webauthn.register'), ['state' => $state, 'clientDataJSON' => 'eA==', 'attestationObject' => 'eA=='])
             ->assertStatus(422)->assertExactJson(['error' => 'Registraci se nepodařilo ověřit: bad attestation']);
     }
@@ -125,20 +125,34 @@ class PasskeysTest extends DatabaseTestCase
 
     // ── přihlášení ───────────────────────────────────────────────────────────
 
-    public function test_kontrola_a_volby_prihlaseni(): void
+    public function test_volby_prihlaseni_vzdy_bez_loginu(): void
     {
-        $this->postJson(route('webauthn.check'), ['login' => $this->login])->assertExactJson(['hasCredentials' => false]);
+        // dřív: /webauthn/check a cílená výzva prozradily, zda login existuje a má passkey
+        $this->postJson('/webauthn/check', ['login' => $this->login])->assertNotFound();
         $this->cred('k1');
-        $this->postJson(route('webauthn.check'), ['login' => " {$this->login} "])->assertExactJson(['hasCredentials' => true]);
-        $this->postJson(route('webauthn.check'), ['login' => ''])->assertExactJson(['hasCredentials' => false]);
-        $this->postJson(route('webauthn.check'), ['login' => 'neexistuje_' . uniqid()])->assertExactJson(['hasCredentials' => false]);
+        $this->wa->shouldReceive('getGetArgs')->times(3)->with([], 60, true, true, true, true, true, true)->andReturn((object) ['publicKey' => ['a' => 2]]);
+        $known   = $this->postJson(route('webauthn.login.options'), ['login' => $this->login])->assertOk()->json();
+        $unknown = $this->postJson(route('webauthn.login.options'), ['login' => 'neexistuje_' . uniqid()])->assertOk()->json();
+        $none    = $this->postJson(route('webauthn.login.options'))->assertOk()->json();
+        $this->assertSame([['a' => 2], ['a' => 2], ['a' => 2]], [$known['publicKey'], $unknown['publicKey'], $none['publicKey']]);
+    }
 
-        $this->wa->shouldReceive('getGetArgs')->once()->with(['k1'], 60, true, true, true, true, true, true)->andReturn((object) ['publicKey' => ['a' => 1]]);
-        $this->wa->shouldReceive('getGetArgs')->once()->with([], 60, true, true, true, true, true, true)->andReturn((object) ['publicKey' => ['a' => 2]]);
-        $this->assertSame(['a' => 1], $this->postJson(route('webauthn.login.options'), ['login' => $this->login])->assertOk()->json('publicKey'));
-        $this->assertSame(['a' => 2], $this->postJson(route('webauthn.login.options'))->assertOk()->json('publicKey'), 'bez loginu = discoverable');
-        $this->postJson(route('webauthn.login.options'), ['login' => 'neexistuje_' . uniqid()])
-            ->assertStatus(422)->assertExactJson(['error' => 'Pro tento účet není registrované žádné biometrické zařízení.']);
+    public function test_pridani_passkey_vyzaduje_heslo(): void
+    {
+        $this->wa->shouldReceive('getCreateArgs')->andReturn((object) ['publicKey' => []]);
+        $this->asUser()->postJson(route('webauthn.register.options'), ['password' => 'spatne'])->assertStatus(422)->assertExactJson(['error' => 'Nesprávné heslo.']);
+        $this->asUser()->postJson(route('webauthn.register.options'))->assertStatus(422);
+        $this->asUser()->postJson(route('webauthn.register.options'), ['password' => 'Spravne-heslo1'])->assertOk();
+    }
+
+    public function test_vyzva_z_prihlaseni_neposlouzi_k_registraci(): void
+    {
+        $this->wa->shouldReceive('getGetArgs')->andReturn((object) ['publicKey' => []]);
+        $this->wa->shouldReceive('processCreate')->never();
+        $loginState = $this->postJson(route('webauthn.login.options'))->json('state');
+        $this->asUser()->postJson(route('webauthn.register'), ['state' => $loginState, 'clientDataJSON' => 'eA==', 'attestationObject' => 'eA=='])
+            ->assertStatus(422)->assertExactJson(['error' => 'Vypršela platnost výzvy. Zkuste to znovu.']);
+        $this->assertSame(0, DB::table('webauthn_credentials')->where('user_id', $this->userId)->count());
     }
 
     private function loginPayload(string $state, string $rawId, ?string $context = null): array

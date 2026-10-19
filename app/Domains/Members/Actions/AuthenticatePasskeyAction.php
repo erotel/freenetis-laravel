@@ -24,7 +24,7 @@ class AuthenticatePasskeyAction
     /** @throws PasskeyRejected */
     public function handle(string $credentialIdB64, string $state, string $clientDataJson, string $authenticatorData, string $signature, ?string $ip): User
     {
-        $challenge = WebAuthnChallenges::pop($state);
+        $challenge = WebAuthnChallenges::pop($state, 'login');
         if (!$challenge) {
             throw new PasskeyRejected('Vypršela platnost výzvy. Zkuste to znovu.');
         }

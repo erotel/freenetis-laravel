@@ -44,8 +44,8 @@ window.FNWebAuthn = (function () {
         } catch (e) {}
     }
 
-    async function register(deviceName) {
-        var res = await post('{{ route("webauthn.register.options") }}', {});
+    async function register(deviceName, password) {
+        var res = await post('{{ route("webauthn.register.options") }}', { password: password });
         if (!res.ok) throw new Error((res.data && res.data.error) || 'Chyba serveru');
         var pk = res.data.publicKey, state = res.data.state;
         pk.challenge = b64uToBuf(pk.challenge);

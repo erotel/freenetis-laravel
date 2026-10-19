@@ -22,16 +22,6 @@ class PasskeyRepository
             ->map(fn ($b64) => base64_decode($b64))->filter()->values()->all();
     }
 
-    public function userByLogin(string $login): ?User
-    {
-        return User::where('login', $login)->first();
-    }
-
-    public function hasAny(int $userId): bool
-    {
-        return WebauthnCredential::where('user_id', $userId)->exists();
-    }
-
     public function exists(string $credentialIdB64): bool
     {
         return WebauthnCredential::where('credential_id', $credentialIdB64)->exists();

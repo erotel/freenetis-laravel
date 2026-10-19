@@ -12,6 +12,7 @@ use App\Services\WebAuthnService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Hash;
 
 /**
  * WebAuthn (biometrické přihlášení / passkeys) pro klasické i Field UI.
@@ -39,10 +40,19 @@ class WebAuthnController extends Controller
         return view('webauthn.index', ['credentials' => $this->passkeys->forUser((int) Auth::id())]);
     }
 
-    public function registerOptions(): JsonResponse
+    /**
+     * Přidání passkey vyžaduje aktuální heslo — jinak by si kdokoli s cizí
+     * (ukradenou) session přidal vlastní klíč a ten by přežil i reset hesla.
+     */
+    public function registerOptions(Request $request): JsonResponse
     {
         $user = Auth::user();
         abort_if(!$user, 401);
+
+        if (!Hash::check((string) $request->input('password', ''), (string) $user->getAuthPassword())) {
+            logger()->warning('auth.webauthn.register_bad_password', ['user_id' => $user->id, 'ip' => $request->ip()]);
+            return response()->json(['error' => 'Nesprávné heslo.'], 422);
+        }
 
         $webAuthn = $this->svc->make();
         $args = $webAuthn->getCreateArgs(
@@ -56,7 +66,7 @@ class WebAuthnController extends Controller
             $this->passkeys->rawIds((int) $user->id)   // zákaz dvojí registrace
         );
 
-        return response()->json(['publicKey' => $args->publicKey, 'state' => WebAuthnChallenges::stash($webAuthn->getChallenge()->getBinaryString())]);
+        return response()->json(['publicKey' => $args->publicKey, 'state' => WebAuthnChallenges::stash($webAuthn->getChallenge()->getBinaryString(), WebAuthnChallenges::forRegistration((int) $user->id))]);
     }
 
     public function register(Request $request, RegisterPasskeyAction $register): JsonResponse
@@ -90,35 +100,17 @@ class WebAuthnController extends Controller
 
     // ── Login flow (host) ────────────────────────────────────────────────────────
 
-    public function check(Request $request): JsonResponse
-    {
-        $login = trim((string) $request->input('login', ''));
-        $user  = $login !== '' ? $this->passkeys->userByLogin($login) : null;
-
-        return response()->json(['hasCredentials' => $user !== null && $this->passkeys->hasAny((int) $user->id)]);
-    }
-
     /**
-     * S `login` omezí allowCredentials na klíče toho uživatele; bez něj prázdné
-     * allowCredentials → prohlížeč nabídne uložené passkeys (discoverable).
+     * Výzva k přihlášení je vždy bez loginu (discoverable passkeys — prohlížeč
+     * nabídne uložené klíče). Parametr `login` se ignoruje: cílená výzva by
+     * prozradila, zda účet existuje a má passkey (enumerace účtů).
      */
     public function loginOptions(Request $request): JsonResponse
     {
-        $login = trim((string) $request->input('login', ''));
-
-        $credIds = [];
-        if ($login !== '') {
-            $user    = $this->passkeys->userByLogin($login);
-            $credIds = $user ? $this->passkeys->rawIds((int) $user->id) : [];
-            if (empty($credIds)) {
-                return response()->json(['error' => 'Pro tento účet není registrované žádné biometrické zařízení.'], 422);
-            }
-        }
-
         $webAuthn = $this->svc->make();
-        $args = $webAuthn->getGetArgs($credIds, 60, true, true, true, true, true, $this->uvRequired());
+        $args = $webAuthn->getGetArgs([], 60, true, true, true, true, true, $this->uvRequired());
 
-        return response()->json(['publicKey' => $args->publicKey, 'state' => WebAuthnChallenges::stash($webAuthn->getChallenge()->getBinaryString())]);
+        return response()->json(['publicKey' => $args->publicKey, 'state' => WebAuthnChallenges::stash($webAuthn->getChallenge()->getBinaryString(), 'login')]);
     }
 
     public function login(Request $request, AuthenticatePasskeyAction $authenticate): JsonResponse

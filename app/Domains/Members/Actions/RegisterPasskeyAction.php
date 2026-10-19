@@ -21,7 +21,7 @@ class RegisterPasskeyAction
      */
     public function handle(int $userId, string $state, string $clientDataJson, string $attestationObject, ?string $deviceName): ?string
     {
-        $challenge = WebAuthnChallenges::pop($state);
+        $challenge = WebAuthnChallenges::pop($state, WebAuthnChallenges::forRegistration($userId));
         if (!$challenge) {
             throw new PasskeyRejected('Vypršela platnost výzvy. Zkuste to znovu.');
         }
