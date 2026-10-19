@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Domains\Network\Repositories\VlanRepository;
 use App\Models\Vlan;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
@@ -10,6 +11,10 @@ class VlanController extends Controller
 {
     private const ACL_SECTION = 'Vlans_Controller';
     private const ACL_VALUE   = 'vlan';
+
+    public function __construct(private VlanRepository $vlans)
+    {
+    }
 
     private function can(string $action, string $section = self::ACL_SECTION, string $value = self::ACL_VALUE): bool
     {
@@ -31,26 +36,8 @@ class VlanController extends Controller
 
         $q = trim((string) $request->query('q', ''));
 
-        $query = Vlan::withCount('ifaces');
-
-        if ($q !== '') {
-            $like = '%' . str_replace(['%', '_'], ['\\%', '\\_'], $q) . '%';
-            $query->where(function ($w) use ($like, $q) {
-                $w->where('name', 'like', $like)
-                  ->orWhere('comment', 'like', $like);
-                if (ctype_digit($q)) {
-                    $w->orWhere('id', (int) $q)
-                      ->orWhere('tag_802_1q', (int) $q);
-                }
-            });
-        }
-
-        $vlans = $query->orderBy($sort, $dir)
-            ->paginate($perPage)
-            ->withQueryString();
-
         return view('vlans.index', [
-            'vlans'     => $vlans,
+            'vlans'     => $this->vlans->paginate($q, $sort, $dir, $perPage),
             'sort'      => $sort,
             'dir'       => $dir,
             'perPage'   => $perPage,
@@ -67,10 +54,7 @@ class VlanController extends Controller
             abort(403);
         }
 
-        $vlan = Vlan::with(['ifaces.device'])->find($id);
-        if (!$vlan) {
-            abort(404);
-        }
+        $vlan = $this->vlans->findWithIfacesOrFail($id);
 
         return view('vlans.show', [
             'vlan'           => $vlan,
@@ -96,7 +80,7 @@ class VlanController extends Controller
         }
 
         $data = $this->validateVlan($request);
-        $vlan = Vlan::create($data);
+        $vlan = $this->vlans->create($data);
 
         session()->flash('success', 'VLAN byla úspěšně přidána.');
         return redirect()->route('vlans.show', $vlan->id);
@@ -108,10 +92,7 @@ class VlanController extends Controller
             abort(403);
         }
 
-        $vlan = Vlan::find($id);
-        if (!$vlan) {
-            abort(404);
-        }
+        $vlan = $this->vlans->findOrFail($id);
 
         return view('vlans.edit', ['vlan' => $vlan]);
     }
@@ -122,13 +103,10 @@ class VlanController extends Controller
             abort(403);
         }
 
-        $vlan = Vlan::find($id);
-        if (!$vlan) {
-            abort(404);
-        }
+        $vlan = $this->vlans->findOrFail($id);
 
         $data = $this->validateVlan($request, $id);
-        $vlan->update($data);
+        $this->vlans->update($vlan, $data);
 
         session()->flash('success', 'VLAN byla úspěšně upravena.');
         return redirect()->route('vlans.show', $id);
@@ -140,22 +118,19 @@ class VlanController extends Controller
             abort(403);
         }
 
-        $vlan = Vlan::find($id);
-        if (!$vlan) {
-            abort(404);
-        }
+        $vlan = $this->vlans->findOrFail($id);
 
         if ($vlan->tag_802_1q === Vlan::DEFAULT_VLAN_TAG) {
             session()->flash('error', 'Výchozí VLAN nelze smazat.');
             return redirect()->back();
         }
 
-        if ($vlan->ifaces()->exists()) {
+        if ($this->vlans->hasIfaces($vlan)) {
             session()->flash('error', 'VLAN nelze smazat, má přiřazená rozhraní.');
             return redirect()->back();
         }
 
-        $vlan->delete();
+        $this->vlans->delete($vlan);
 
         session()->flash('success', 'VLAN byla úspěšně smazána.');
         return redirect()->route('vlans.index');
