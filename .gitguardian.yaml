@@ -1,0 +1,7 @@
+# GitGuardian / ggshield: testy obsahují jen vymyšlená hesla a tokeny
+# (fixtures, __selftest_ hodnoty) — nehlásit je jako uniklá tajemství.
+# Skutečná tajemství patří do .env (není v gitu), nikdy do testů.
+version: 2
+secret:
+  ignored_paths:
+    - "tests/**"
