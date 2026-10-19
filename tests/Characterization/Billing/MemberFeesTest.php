@@ -109,6 +109,51 @@ class MemberFeesTest extends CatalogTestCase
         $this->as()->post(route('members_fees.store', $c), ['fee_id' => $this->fee(Fee::TYPE_REGULAR), 'activation_date' => '2026-01-01'])->assertSessionHas('success');
     }
 
+    /** Úprava historického přiřazení (archivovaný / systémový tarif) — dřív ho formulář nenabízel a nešlo uložit. */
+    public function test_jen_priraditelne_tarify_a_uprava_historickych(): void
+    {
+        $m = $this->member();
+        $archived = $this->fee(Fee::TYPE_REGULAR, ['archived' => 1]);
+        $interrupt = $this->fee(Fee::TYPE_REGULAR, ['readonly' => 1, 'special_type_id' => Fee::SPECIAL_INTERRUPT]);
+        $feeFree = $this->fee(Fee::TYPE_REGULAR, ['readonly' => 1, 'special_type_id' => Fee::SPECIAL_FEE_FREE]);
+        $msg = 'Tento tarif nelze přiřadit (archivovaný nebo systémový).';
+
+        foreach ([$archived, $interrupt] as $fee) {
+            $this->as()->post(route('members_fees.store', $m), ['fee_id' => $fee, 'activation_date' => '2026-01-01'])->assertSessionHasErrors(['fee_id' => $msg]);
+        }
+        $this->as()->post(route('members_fees.store', $m), ['fee_id' => $feeFree, 'activation_date' => '2026-01-01'])->assertSessionHasNoErrors();
+        $this->assertSame([$feeFree], array_column($this->rows($m), 0));
+
+        $old = (int) DB::table('members_fees')->insertGetId(['fee_id' => $archived, 'member_id' => $m, 'activation_date' => '2020-01-01',
+            'deactivation_date' => '9999-12-31', 'priority' => 1, 'comment' => '']);
+        $this->assertTrue($this->as()->get(route('members_fees.edit', $old))->viewData('fees')->contains('id', $archived), 'stávající tarif v nabídce');
+        $this->as()->put(route('members_fees.update', $old), ['fee_id' => $archived, 'activation_date' => '2020-01-01', 'deactivation_date' => '2025-12-31'])
+            ->assertSessionHasNoErrors()->assertSessionHas('success', 'Tarif byl úspěšně upraven.');
+        $this->assertSame('2025-12-31', DB::table('members_fees')->where('id', $old)->value('deactivation_date'));
+        $this->as()->put(route('members_fees.update', $old), ['fee_id' => $interrupt, 'activation_date' => '2020-01-01'])->assertSessionHasErrors(['fee_id' => $msg]);
+    }
+
+    /** Dodatečnou službu nejde smluvnímu členovi podstrčit ani úpravou existujícího přiřazení. */
+    public function test_dodatecna_sluzba_nejde_obejit_upravou(): void
+    {
+        $c = $this->member();
+        $regular = $this->fee(Fee::TYPE_REGULAR);
+        $service = $this->fee(Fee::TYPE_ADDITIONAL_SERVICE);
+        $id = (int) DB::table('members_fees')->insertGetId(['fee_id' => $regular, 'member_id' => $c, 'activation_date' => '2020-01-01',
+            'deactivation_date' => '9999-12-31', 'priority' => 1, 'comment' => '']);
+        DB::connection('contracts')->table('contracts')->insert(['member_id' => $c, 'contract_no' => "SML-{$this->tag}", 'status' => 'signed',
+            'phone' => '777000000', 'created_at' => '2026-01-01 00:00:00']);
+
+        $this->as()->put(route('members_fees.update', $id), ['fee_id' => $service, 'activation_date' => '2020-01-01'])
+            ->assertRedirect(route('contracts.show', $c))->assertSessionHas('error');
+        $this->assertSame($regular, (int) DB::table('members_fees')->where('id', $id)->value('fee_id'));
+
+        // už přiřazenou službu (dodatkem) jde dál upravovat — např. ukončit
+        DB::table('members_fees')->where('id', $id)->update(['fee_id' => $service]);
+        $this->as()->put(route('members_fees.update', $id), ['fee_id' => $service, 'activation_date' => '2020-01-01', 'deactivation_date' => '2026-12-31'])
+            ->assertSessionHas('success');
+    }
+
     public function test_prava(): void
     {
         $m = $this->member();

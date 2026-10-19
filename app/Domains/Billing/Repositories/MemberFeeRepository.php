@@ -39,6 +39,18 @@ class MemberFeeRepository
         return Fee::assignable()->orderBy('type_id')->orderBy('name')->get();
     }
 
+    /** Přiřaditelné + aktuální tarif upravovaného přiřazení (i když je mezitím archivovaný / systémový). */
+    public function feesForEdit(MemberFee $memberFee): Collection
+    {
+        return Fee::where(fn ($q) => $q->assignable()->orWhere('id', $memberFee->fee_id))
+            ->orderBy('type_id')->orderBy('name')->get();
+    }
+
+    public function isAssignable(int $feeId): bool
+    {
+        return Fee::assignable()->whereKey($feeId)->exists();
+    }
+
     public function create(array $data): MemberFee
     {
         return MemberFee::create($data);
