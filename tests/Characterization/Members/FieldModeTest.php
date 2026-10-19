@@ -139,8 +139,9 @@ class FieldModeTest extends DatabaseTestCase
         $this->assertSame("10.252.77.9 · Alfa {$this->tag}", $res[0]['detail'], 'podle jména → první IP');
         $this->assertSame(['device', 'member'], collect($res)->pluck('kind')->all());
 
-        // CHYBA (oprava zvlášť): bez shody člena končí hledání dřív, než dojde na zařízení → IPv6 nenajde nic
-        $this->assertSame([], $this->search('2a07:9c0:fc:4d00'), 'IPv6');
+        $res = $this->search('2a07:9c0:fc:4d00');
+        $this->assertSame(['kind' => 'device', 'id' => $dev, 'name' => "ap-{$this->tag}", 'detail' => "2a07:9c0:fc:4d00::1 · Alfa {$this->tag}"], $res[0], 'IPv6');
+        $this->assertSame([$a['id']], collect($res)->where('kind', 'member')->pluck('id')->all(), 'vlastník přes IPv6 zařízení');
 
         Setting::set('networks_enabled', 0);
         $this->assertSame([], $this->search('10.252.77.10'), 'bez sítí ani IP, ani zařízení');

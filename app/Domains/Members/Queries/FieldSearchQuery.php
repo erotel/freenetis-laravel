@@ -26,13 +26,12 @@ class FieldSearchQuery
             return collect();
         }
 
-        $like = '%' . $query . '%';
-        $ids  = $this->candidateIds($query, $like, $networks);
-        if ($ids->isEmpty()) {
-            return collect();
-        }
+        $like    = '%' . $query . '%';
+        $ids     = $this->candidateIds($query, $like, $networks);
+        $members = $ids->isEmpty() ? collect() : $this->members($ids, $query);
 
-        return $this->matchingDevices($query, $like, $networks)->concat($this->members($ids, $query))->values();
+        // zařízení i bez shody člena (např. IP zařízení bez vlastníka)
+        return $this->matchingDevices($query, $like, $networks)->concat($members)->values();
     }
 
     private function candidateIds(string $query, string $like, bool $networks): Collection
@@ -106,9 +105,18 @@ class FieldSearchQuery
                     ->whereNotNull('member_id')
                     ->limit(40)->pluck('member_id')
             );
-            // … i přes zařízení (ip → iface → device → user → member).
+            // … i přes zařízení (ip / ip6 → iface → device → user → member).
             $ids = $ids->merge(
                 DB::table('ip_addresses as ip')
+                    ->join('ifaces as i', 'i.id', '=', 'ip.iface_id')
+                    ->join('devices as d', 'd.id', '=', 'i.device_id')
+                    ->join('users as u', 'u.id', '=', 'd.user_id')
+                    ->where('ip.ip_address', 'LIKE', $like)
+                    ->whereNotNull('u.member_id')
+                    ->limit(40)->pluck('u.member_id')
+            );
+            $ids = $ids->merge(
+                DB::table('ip6_addresses as ip')
                     ->join('ifaces as i', 'i.id', '=', 'ip.iface_id')
                     ->join('devices as d', 'd.id', '=', 'i.device_id')
                     ->join('users as u', 'u.id', '=', 'd.user_id')
