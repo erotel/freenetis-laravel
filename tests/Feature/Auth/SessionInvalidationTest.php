@@ -24,13 +24,13 @@ class SessionInvalidationTest extends DatabaseTestCase
         Setting::set('forgotten_password', 1);
         $memberId = (int) DB::table('members')->where('locked', 0)->where('type', 2)->where('leaving_date', '9999-12-31')->value('id');
         $this->login  = 'charsess_' . uniqid();
-        $this->userId = (int) DB::table('users')->insertGetId(['member_id' => $memberId, 'login' => $this->login, 'password' => Hash::make('Puvodni-heslo1'),
+        $this->userId = (int) DB::table('users')->insertGetId(['member_id' => $memberId, 'login' => $this->login, 'password' => Hash::make(\Tests\Support\Fake::secret('puvodniheslo')),
             'type' => 1, 'application_password' => 'x', 'settings' => '', 'name' => 'C', 'surname' => 'S', 'comment' => '']);
     }
 
     private function loggedIn(): void
     {
-        $this->post('/login', ['login' => $this->login, 'password' => 'Puvodni-heslo1']);
+        $this->post('/login', ['login' => $this->login, 'password' => \Tests\Support\Fake::secret('puvodniheslo')]);
         $this->assertAuthenticated();
         $this->get(route('dashboard'))->assertRedirect();     // session drží hash hesla
         $this->assertAuthenticated();
@@ -45,7 +45,7 @@ class SessionInvalidationTest extends DatabaseTestCase
     public function test_zmena_hesla_odhlasi_existujici_session(): void
     {
         $this->loggedIn();
-        DB::table('users')->where('id', $this->userId)->update(['password' => Hash::make('Nove-heslo-123')]);
+        DB::table('users')->where('id', $this->userId)->update(['password' => Hash::make(\Tests\Support\Fake::secret('noveheslo'))]);
         $this->nextRequest();
 
         $this->get(route('dashboard'))->assertRedirect(route('login'));
@@ -59,7 +59,7 @@ class SessionInvalidationTest extends DatabaseTestCase
         DB::table('users')->where('id', $this->userId)->update(['password_request' => hash('sha256', $token), 'password_request_expires_at' => now()->addMinutes(10)]);
 
         // reset z jiného zařízení (formulář je jen pro nepřihlášené)
-        $this->assertTrue(app(\App\Domains\Members\Actions\ResetPasswordAction::class)->handle($token, 'Nove-heslo-123'));
+        $this->assertTrue(app(\App\Domains\Members\Actions\ResetPasswordAction::class)->handle($token, \Tests\Support\Fake::secret('noveheslo')));
         $this->nextRequest();
         $this->get(route('dashboard'))->assertRedirect(route('login'));
         $this->assertGuest();

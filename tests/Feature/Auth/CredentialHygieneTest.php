@@ -51,7 +51,7 @@ class CredentialHygieneTest extends DatabaseTestCase
         $this->assertNotSame($raw, $stored);
         $this->assertSame(hash('sha256', $raw), $stored);
 
-        $new = 'NoveHeslo123';
+        $new = \Tests\Support\Fake::secret('noveheslo');
         $r = $this->post('/forgotten-password/reset', [
             'token' => $raw, 'password' => $new, 'password_confirmation' => $new,
         ]);
@@ -73,7 +73,7 @@ class CredentialHygieneTest extends DatabaseTestCase
         ]);
 
         $this->post('/forgotten-password/reset', [
-            'token' => $raw, 'password' => 'NoveHeslo123', 'password_confirmation' => 'NoveHeslo123',
+            'token' => $raw, 'password' => \Tests\Support\Fake::secret('noveheslo'), 'password_confirmation' => \Tests\Support\Fake::secret('noveheslo'),
         ]);
 
         $u = DB::table('users')->where('id', $this->userId)->first();

@@ -16,12 +16,11 @@ use Tests\DatabaseTestCase;
  */
 class GatewayExportTest extends DatabaseTestCase
 {
-    private const TOKEN = '__selftest_gw_token_0123456789abcdef';
 
     protected function setUp(): void
     {
         parent::setUp();
-        Setting::set('web_interface_api_token', self::TOKEN);
+        Setting::set('web_interface_api_token', \Tests\Support\Fake::secret('selftestgwtoke'));
         Setting::set('redirection_enabled', '1');
         Setting::set('ipv6_prefix', '2a07:9c0');
         Setting::set('ipv6_mask', '56');
@@ -29,7 +28,7 @@ class GatewayExportTest extends DatabaseTestCase
 
     private function gw(string $path, array $q = [])
     {
-        return $this->withHeader('Authorization', 'Bearer ' . self::TOKEN)->get('/web-interface/' . $path . ($q ? '?' . http_build_query($q) : ''));
+        return $this->withHeader('Authorization', 'Bearer ' . \Tests\Support\Fake::secret('selftestgwtoke'))->get('/web-interface/' . $path . ($q ? '?' . http_build_query($q) : ''));
     }
 
     private function lines($res): array
@@ -100,7 +99,7 @@ class GatewayExportTest extends DatabaseTestCase
 
         $this->assertNotEmpty(Setting::get('redirection_state'));
         foreach (['/web_interface/allowed_ip_addresses', '/en/web_interface/allowed_ip_addresses'] as $legacy) {
-            $this->assertContains('10.251.10.5', $this->lines($this->withHeader('Authorization', 'Bearer ' . self::TOKEN)->get($legacy)), "legacy alias {$legacy}");
+            $this->assertContains('10.251.10.5', $this->lines($this->withHeader('Authorization', 'Bearer ' . \Tests\Support\Fake::secret('selftestgwtoke'))->get($legacy)), "legacy alias {$legacy}");
         }
 
         Setting::set('redirection_enabled', '0');

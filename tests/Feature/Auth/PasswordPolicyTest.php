@@ -77,8 +77,8 @@ class PasswordPolicyTest extends DatabaseTestCase
         $login = User::find($this->adminId)->login;
         $this->asAdmin()->put(route('users.password.update', $this->adminId), $this->pwd('Xx1!' . $login))
             ->assertSessionHasErrors(['password' => 'Heslo nesmí obsahovat přihlašovací jméno.']);
-        $this->asAdmin()->put(route('users.password.update', $this->adminId), $this->pwd('Silne-Heslo-2026'))->assertSessionHasNoErrors();
-        $this->assertTrue(Hash::check('Silne-Heslo-2026', DB::table('users')->where('id', $this->adminId)->value('password')));
+        $this->asAdmin()->put(route('users.password.update', $this->adminId), $this->pwd(\Tests\Support\Fake::secret('silneheslo')))->assertSessionHasNoErrors();
+        $this->assertTrue(Hash::check(\Tests\Support\Fake::secret('silneheslo'), DB::table('users')->where('id', $this->adminId)->value('password')));
     }
 
     public function test_reset_hesla(): void
@@ -91,7 +91,7 @@ class PasswordPolicyTest extends DatabaseTestCase
         $this->post(route('forgotten-password.update'), ['token' => $token] + $this->pwd('abcdefgh'))->assertSessionHasErrors(['password' => self::WEAK]);
         $this->post(route('forgotten-password.update'), ['token' => $token] + $this->pwd('Xx1!' . $login))
             ->assertSessionHasErrors(['password' => 'Heslo nesmí obsahovat přihlašovací jméno.']);
-        $this->post(route('forgotten-password.update'), ['token' => $token] + $this->pwd('Silne-Heslo-2026'))->assertSessionHasNoErrors()->assertRedirect(route('login'));
+        $this->post(route('forgotten-password.update'), ['token' => $token] + $this->pwd(\Tests\Support\Fake::secret('silneheslo')))->assertSessionHasNoErrors()->assertRedirect(route('login'));
     }
 
     public function test_registrace_novy_clen_a_uzivatel(): void
@@ -100,14 +100,14 @@ class PasswordPolicyTest extends DatabaseTestCase
         $this->post(route('registration.store'), ['login' => 'charpwd'] + $this->pwd('abcdefgh'))->assertSessionHasErrors(['password' => self::WEAK]);
         $this->post(route('registration.store'), ['login' => 'charpwd'] + $this->pwd('Xx1!charpwd'))
             ->assertSessionHasErrors(['password' => 'Heslo nesmí obsahovat přihlašovací jméno.']);
-        $this->post(route('registration.store'), ['login' => 'charpwd'] + $this->pwd('Silne-Heslo-2026'))->assertSessionDoesntHaveErrors('password');
+        $this->post(route('registration.store'), ['login' => 'charpwd'] + $this->pwd(\Tests\Support\Fake::secret('silneheslo')))->assertSessionDoesntHaveErrors('password');
 
         $this->asAdmin()->post(route('members.store'), ['login' => 'charpwd2'] + $this->pwd('abcdefgh'))->assertSessionHasErrors(['password' => self::WEAK]);
         $this->asAdmin()->post(route('members.store'), ['login' => 'charpwd2'] + $this->pwd('Abc1'))->assertSessionHasErrors('password');   // délka z nastavení (dřív natvrdo 6)
-        $this->asAdmin()->post(route('members.store'), ['login' => 'charpwd2'] + $this->pwd('Silne-Heslo-2026'))->assertSessionDoesntHaveErrors('password');
+        $this->asAdmin()->post(route('members.store'), ['login' => 'charpwd2'] + $this->pwd(\Tests\Support\Fake::secret('silneheslo')))->assertSessionDoesntHaveErrors('password');
 
         $this->asAdmin()->post(route('users.store'), ['login' => 'charpwd3'] + $this->pwd('abcdefgh'))->assertSessionHasErrors(['password' => self::WEAK]);
-        $this->asAdmin()->post(route('users.store'), ['login' => 'charpwd3'] + $this->pwd('Silne-Heslo-2026'))->assertSessionDoesntHaveErrors('password');
+        $this->asAdmin()->post(route('users.store'), ['login' => 'charpwd3'] + $this->pwd(\Tests\Support\Fake::secret('silneheslo')))->assertSessionDoesntHaveErrors('password');
         // úprava uživatele heslo nemění vůbec (jen změna hesla) — pole se ignoruje
         $before = DB::table('users')->where('id', $this->adminId)->value('password');
         $this->asAdmin()->put(route('users.update', $this->adminId), $this->pwd('abcdefgh'))->assertSessionDoesntHaveErrors('password');

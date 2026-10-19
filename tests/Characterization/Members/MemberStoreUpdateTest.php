@@ -48,7 +48,7 @@ class MemberStoreUpdateTest extends DatabaseTestCase
     {
         return $over + [
             'name' => 'Char', 'surname' => 'Novy', 'type' => 2, 'entrance_date' => '2026-10-01',
-            'login' => 'charnew_' . substr(uniqid(), -8), 'password' => 'heslo123', 'password_confirmation' => 'heslo123',
+            'login' => 'charnew_' . substr(uniqid(), -8), 'password' => \Tests\Support\Fake::secret('heslo'), 'password_confirmation' => \Tests\Support\Fake::secret('heslo'),
             'email' => 'charnew@example.invalid', 'phone' => '+420777000111',
             'town_id' => $this->townId, 'street_id' => $this->streetId, 'street_number' => '12a',
             'organization_identifier' => '12345678', 'vat_organization_identifier' => 'CZ12345678',
@@ -82,7 +82,7 @@ class MemberStoreUpdateTest extends DatabaseTestCase
         $this->assertSame([$this->townId, $this->streetId, '12a', 1], [(int) $ap->town_id, (int) $ap->street_id, $ap->street_number, (int) $ap->country_id]);
 
         $this->assertSame(['Char', 'Novy', 1, '1990-05-04', '', ''], [$user->name, $user->surname, (int) $user->type, $user->birthday, $user->comment, $user->settings]);
-        $this->assertTrue(Hash::check('heslo123', $user->password));
+        $this->assertTrue(Hash::check(\Tests\Support\Fake::secret('heslo'), $user->password));
         $this->assertNotSame('', Crypt::decryptString($user->application_password));
 
         $acc = DB::table('accounts')->where('member_id', $id)->first();

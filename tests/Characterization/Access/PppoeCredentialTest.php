@@ -78,12 +78,12 @@ class PppoeCredentialTest extends DatabaseTestCase
     {
         [$memberId, $ifaceId] = $this->connection();
         DB::table('pppoe_secrets')->where('username', (string) $memberId)->delete();
-        PppoeSecret::create(['iface_id' => $ifaceId, 'username' => 'stary-' . $memberId, 'secret' => 'puvodniHeslo2345', 'enabled' => true]);
+        PppoeSecret::create(['iface_id' => $ifaceId, 'username' => 'stary-' . $memberId, 'secret' => \Tests\Support\Fake::secret('puvodniheslo'), 'enabled' => true]);
 
         $s = $this->svc()->ensureForIface(Iface::find($ifaceId));
 
         $this->assertSame((string) $memberId, $s->username);
-        $this->assertSame('puvodniHeslo2345', PppoeSecret::find($ifaceId)->secret);
+        $this->assertSame(\Tests\Support\Fake::secret('puvodniheslo'), PppoeSecret::find($ifaceId)->secret);
     }
 
     public function test_rotace_bez_credentialu_ho_vytvori(): void

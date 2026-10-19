@@ -50,7 +50,7 @@ class DeviceStoreCredentialsAclTest extends DatabaseTestCase
             'name'      => $this->devName,
             'type'      => $this->deviceType,
             'login'     => 'tajny_login',
-            'password'  => 'tajne_heslo',
+            'password'  => \Tests\Support\Fake::secret('tajneheslo'),
         ]);
     }
 
@@ -76,6 +76,6 @@ class DeviceStoreCredentialsAclTest extends DatabaseTestCase
         $dev = \App\Models\Device::where('name', $this->devName)->first();
         $this->assertNotNull($dev);
         $this->assertSame('tajny_login', $dev->login);
-        $this->assertSame('tajne_heslo', $dev->password);
+        $this->assertSame(\Tests\Support\Fake::secret('tajneheslo'), $dev->password);
     }
 }

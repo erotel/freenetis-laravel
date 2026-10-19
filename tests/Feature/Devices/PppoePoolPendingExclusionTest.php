@@ -77,7 +77,7 @@ class PppoePoolPendingExclusionTest extends DatabaseTestCase
             'created_at'     => now(),
             'ip_address'     => $freeIp,
             'pppoe_username' => '__selftest_excl',
-            'pppoe_secret'   => 'placeholderpwd12',
+            'pppoe_secret'   => \Tests\Support\Fake::secret('placeholderpwd'),
         ]);
 
         // Znovu — IP musí z ranges zmizet.
@@ -111,7 +111,7 @@ class PppoePoolPendingExclusionTest extends DatabaseTestCase
             'created_at'     => now(),
             'ip_address'     => $freeIp,
             'pppoe_username' => '__selftest_excl2',
-            'pppoe_secret'   => 'placeholderpwd12',
+            'pppoe_secret'   => \Tests\Support\Fake::secret('placeholderpwd'),
         ]);
 
         // Modul vypnutý → žádost pool neovlivní (IP zůstává v ranges).

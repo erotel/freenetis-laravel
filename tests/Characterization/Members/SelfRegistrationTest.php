@@ -36,7 +36,7 @@ class SelfRegistrationTest extends DatabaseTestCase
     {
         return $over + [
             'registration_type' => 18, 'name' => 'Jana', 'surname' => 'Nováková', 'birthday' => '1990-05-04',
-            'login' => $this->tag, 'password' => 'Silne-Heslo-2026', 'password_confirmation' => 'Silne-Heslo-2026',
+            'login' => $this->tag, 'password' => \Tests\Support\Fake::secret('silneheslo'), 'password_confirmation' => \Tests\Support\Fake::secret('silneheslo'),
             'email' => "{$this->tag}@example.invalid", 'phone' => '+420777000111',
             'town_id' => $this->townId, 'street_id' => $this->streetId, 'street_number' => 'ev. č. 12a',
             'organization_identifier' => '', 'vat_organization_identifier' => '', 'comment' => 'pozn',
@@ -64,7 +64,7 @@ class SelfRegistrationTest extends DatabaseTestCase
 
         $u = $this->user();
         $this->assertSame(['Jana', 'Nováková', 1, '1990-05-04', '', ''], [$u->name, $u->surname, (int) $u->type, $u->birthday, $u->comment, $u->settings]);
-        $this->assertTrue(Hash::check('Silne-Heslo-2026', $u->password));
+        $this->assertTrue(Hash::check(\Tests\Support\Fake::secret('silneheslo'), $u->password));
         $this->assertNotSame('', (string) $u->application_password);
 
         $m = DB::table('members')->where('id', $u->member_id)->first();

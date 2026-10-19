@@ -67,7 +67,7 @@ class DeviceFromConnectionRequestTest extends DatabaseTestCase
         ]);
         $this->crId = (int) DB::table('connection_requests')->insertGetId([
             'member_id' => $this->memberId, 'state' => ConnectionRequest::STATE_UNDECIDED, 'created_at' => now(),
-            'pppoe_username' => 'char_cr_' . $this->tag, 'pppoe_secret' => 'sekret-ze-zadosti',
+            'pppoe_username' => 'char_cr_' . $this->tag, 'pppoe_secret' => \Tests\Support\Fake::secret('sekretzezadost'),
         ]);
     }
 
@@ -130,7 +130,7 @@ class DeviceFromConnectionRequestTest extends DatabaseTestCase
         $s = $this->secrets();
 
         $this->assertSame('char_cr_' . $this->tag, $s['ether1']->username);
-        $this->assertSame('sekret-ze-zadosti', $s['ether1']->secret);
+        $this->assertSame(\Tests\Support\Fake::secret('sekretzezadost'), $s['ether1']->secret);
         $this->assertSame(1, (int) $s['ether1']->enabled);
 
         $this->assertNotNull($s['ether2']);

@@ -105,7 +105,7 @@ class PppoeSecretServiceTest extends DatabaseTestCase
         PppoeSecret::create([
             'iface_id' => $otherIfaceId,
             'username' => (string) $row->vs,
-            'secret'   => 'placeholderpwd123',
+            'secret'   => \Tests\Support\Fake::secret('placeholderpwd'),
             'enabled'  => true,
         ]);
 

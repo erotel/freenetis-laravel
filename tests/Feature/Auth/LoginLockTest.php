@@ -45,7 +45,7 @@ class LoginLockTest extends DatabaseTestCase
 
     private function failLogin(): void
     {
-        $this->post('/login', ['login' => $this->login, 'password' => 'spatne-heslo']);
+        $this->post('/login', ['login' => $this->login, 'password' => \Tests\Support\Fake::secret('spatneheslo')]);
     }
 
     private function lock(): LoginLockService

@@ -30,7 +30,6 @@ use Tests\DatabaseTestCase;
  */
 class DhcpExportTest extends DatabaseTestCase
 {
-    private const TOKEN = 'char-dhcp-token-xyz';
 
     private int $deviceId;
     private int $memberId;
@@ -48,7 +47,7 @@ class DhcpExportTest extends DatabaseTestCase
         }
 
         foreach ([
-            'dhcp_api_token'        => self::TOKEN,
+            'dhcp_api_token'        => \Tests\Support\Fake::secret('chardhcptokenx'),
             'dns_servers'           => '10.133.37.37,10.133.37.38',
             'dhcp_lease_time'       => '3600',
             'pppoe_enabled'         => '1',
@@ -125,7 +124,7 @@ class DhcpExportTest extends DatabaseTestCase
     private function export(string $format = 'mikrotik-ip-dhcp-server', array $query = [], ?int $deviceId = null)
     {
         $url = route('devices.export', ['id' => $deviceId ?? $this->deviceId, 'format' => $format]);
-        return $this->get($url . '?' . http_build_query($query + ['token' => self::TOKEN]));
+        return $this->get($url . '?' . http_build_query($query + ['token' => \Tests\Support\Fake::secret('chardhcptokenx')]));
     }
 
     private function comment(string $device = 'char-cpe'): string
@@ -340,7 +339,7 @@ class DhcpExportTest extends DatabaseTestCase
     public function test_token_v_bearer_hlavicce(): void
     {
         $url = route('devices.export', ['id' => $this->deviceId, 'format' => 'mikrotik-ip-dhcp-server']);
-        $this->withHeader('Authorization', 'Bearer ' . self::TOKEN)->get($url . '?forced=1')->assertOk();
+        $this->withHeader('Authorization', 'Bearer ' . \Tests\Support\Fake::secret('chardhcptokenx'))->get($url . '?forced=1')->assertOk();
     }
 
     public function test_prihlaseny_s_acl_bez_tokenu_nic_nezapise(): void
@@ -378,7 +377,7 @@ class DhcpExportTest extends DatabaseTestCase
 
     public function test_legacy_kohana_url(): void
     {
-        $this->get("/index.php/en/devices/export/{$this->deviceId}/mikrotik-ip-dhcp-server-lease/text?forced=1&token=" . self::TOKEN)
+        $this->get("/index.php/en/devices/export/{$this->deviceId}/mikrotik-ip-dhcp-server-lease/text?forced=1&token=" . \Tests\Support\Fake::secret('chardhcptokenx'))
             ->assertOk()
             ->assertSee('remove [find server="IPoE B"]', false);
     }

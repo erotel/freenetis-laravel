@@ -68,7 +68,7 @@ class DeviceExportAuthTest extends DatabaseTestCase
     public function test_spatny_token_403(): void
     {
         $r = $this->withServerVariables(['REMOTE_ADDR' => $this->deviceIp])
-            ->get($this->exportUrl(['token' => 'wrong-token', 'forced' => 1]));
+            ->get($this->exportUrl(['token' => \Tests\Support\Fake::secret('wrongtoken'), 'forced' => 1]));
 
         $r->assertForbidden();
     }

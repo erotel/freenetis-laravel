@@ -62,7 +62,7 @@ class PppoeCaptiveOnboardingTest extends DatabaseTestCase
             'state'          => ConnectionRequest::STATE_UNDECIDED,
             'created_at'     => now(),
             'pppoe_username' => $this->vs,
-            'pppoe_secret'   => 'placeholderpwd12',
+            'pppoe_secret'   => \Tests\Support\Fake::secret('placeholderpwd'),
         ]);
 
         $c = $this->svc()->buildCredential($this->memberId);

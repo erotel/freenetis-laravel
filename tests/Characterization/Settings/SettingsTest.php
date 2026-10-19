@@ -242,13 +242,13 @@ class SettingsTest extends DatabaseTestCase
 
     public function test_regenerace_tokenu(): void
     {
-        Setting::set('dhcp_api_token', '__selftest_old_dhcp');
-        Setting::set('web_interface_api_token', '__selftest_old_wi');
+        Setting::set('dhcp_api_token', \Tests\Support\Fake::secret('selftestolddhc'));
+        Setting::set('web_interface_api_token', \Tests\Support\Fake::secret('selftestoldwi'));
 
         $this->as()->post(route('settings.regenerate-dhcp-token'))
             ->assertRedirect(route('settings.index', ['tab' => 'network']))->assertSessionHas('success', 'DHCP API token byl regenerován.');
         $this->assertSame(32, strlen(Setting::get('dhcp_api_token')));
-        $this->assertNotSame('__selftest_old_dhcp', Setting::get('dhcp_api_token'));
+        $this->assertNotSame(\Tests\Support\Fake::secret('selftestolddhc'), Setting::get('dhcp_api_token'));
 
         $before = (int) DB::table('audit_logs')->max('id');
         $this->as()->post(route('settings.regenerate-web-interface-token'))
@@ -264,8 +264,8 @@ class SettingsTest extends DatabaseTestCase
     public function test_smlouvy_tajne_hodnoty_a_uploady(): void
     {
         Storage::fake('local');
-        Setting::set('otp_pepper', '__selftest_pepper');
-        Setting::set('pdf_sign_pass', '__selftest_pass');
+        Setting::set('otp_pepper', \Tests\Support\Fake::secret('selftestpepper'));
+        Setting::set('pdf_sign_pass', \Tests\Support\Fake::secret('selftestpass'));
 
         $this->save('settings.update-smlouvy', ['otp_ttl_min' => 7, 'otp_test_mode' => '1', 'pdf_sign_name' => 'Spolek', 'otp_pepper' => '',
             'pdf_sign_cert_file' => UploadedFile::fake()->create('Můj cert.P12', 2),
@@ -273,14 +273,14 @@ class SettingsTest extends DatabaseTestCase
             'contract_email_pricelist_pdf' => 'storage/app/private/x.pdf'])
             ->assertRedirect(route('settings.index', ['tab' => 'smlouvy']))->assertSessionHas('success', 'Nastavení smluv bylo uloženo.');
 
-        $this->assertSame(['7', '', '1', '0', 'Spolek', '__selftest_pepper', '__selftest_pass', 'storage/app/private/certs/M_j_cert.p12',
+        $this->assertSame(['7', '', '1', '0', 'Spolek', \Tests\Support\Fake::secret('selftestpepper'), \Tests\Support\Fake::secret('selftestpass'), 'storage/app/private/certs/M_j_cert.p12',
             'storage/app/private/contract-attachments/VOP_2026.pdf', 'storage/app/private/x.pdf'], array_map(fn ($k) => Setting::get($k),
             ['otp_ttl_min', 'otp_max_attempts', 'otp_test_mode', 'contract_email_attachments_enabled', 'pdf_sign_name', 'otp_pepper', 'pdf_sign_pass',
              'pdf_sign_cert', 'contract_email_vop_pdf', 'contract_email_pricelist_pdf']));
         Storage::disk('local')->assertExists(['certs/M_j_cert.p12', 'contract-attachments/VOP_2026.pdf']);
 
-        $this->save('settings.update-smlouvy', ['otp_pepper' => '__selftest_new', 'pdf_sign_pass' => '__selftest_newpass', 'contract_email_attachments_enabled' => 'on']);
-        $this->assertSame(['__selftest_new', '__selftest_newpass', '1', '', '0'], array_map(fn ($k) => Setting::get($k),
+        $this->save('settings.update-smlouvy', ['otp_pepper' => \Tests\Support\Fake::secret('selftestnew'), 'pdf_sign_pass' => \Tests\Support\Fake::secret('selftestnewpas'), 'contract_email_attachments_enabled' => 'on']);
+        $this->assertSame([\Tests\Support\Fake::secret('selftestnew'), \Tests\Support\Fake::secret('selftestnewpas'), '1', '', '0'], array_map(fn ($k) => Setting::get($k),
             ['otp_pepper', 'pdf_sign_pass', 'contract_email_attachments_enabled', 'pdf_sign_cert', 'otp_test_mode']));
 
         $this->save('settings.update-smlouvy', ['otp_ttl_min' => 61, 'pdf_sign_cert_file' => UploadedFile::fake()->create('a.exe', 1)])
@@ -291,12 +291,12 @@ class SettingsTest extends DatabaseTestCase
 
     public function test_sledovanitv_ulozeni_a_sync(): void
     {
-        Setting::set('sledovanitv_password', '__selftest_tv');
+        Setting::set('sledovanitv_password', \Tests\Support\Fake::secret('selftesttvx'));
         $this->save('settings.update-sledovanitv', ['sledovanitv_enabled' => '1', 'sledovanitv_partner' => '  pvfree  ', 'sledovanitv_password' => ''])
             ->assertRedirect(route('settings.index', ['tab' => 'sledovanitv']))->assertSessionHas('success', 'Nastavení SledovaniTV bylo uloženo.');
-        $this->assertSame(['1', 'pvfree', '__selftest_tv'], array_map(fn ($k) => Setting::get($k), ['sledovanitv_enabled', 'sledovanitv_partner', 'sledovanitv_password']));
-        $this->save('settings.update-sledovanitv', ['sledovanitv_password' => '__selftest_tv2']);
-        $this->assertSame(['0', '', '__selftest_tv2'], array_map(fn ($k) => Setting::get($k), ['sledovanitv_enabled', 'sledovanitv_partner', 'sledovanitv_password']));
+        $this->assertSame(['1', 'pvfree', \Tests\Support\Fake::secret('selftesttvx')], array_map(fn ($k) => Setting::get($k), ['sledovanitv_enabled', 'sledovanitv_partner', 'sledovanitv_password']));
+        $this->save('settings.update-sledovanitv', ['sledovanitv_password' => \Tests\Support\Fake::secret('selftesttv')]);
+        $this->assertSame(['0', '', \Tests\Support\Fake::secret('selftesttv')], array_map(fn ($k) => Setting::get($k), ['sledovanitv_enabled', 'sledovanitv_partner', 'sledovanitv_password']));
         $this->save('settings.update-sledovanitv', ['sledovanitv_partner' => str_repeat('x', 51)])->assertSessionHasErrors('sledovanitv_partner');
 
         $svc = $this->mock(SledovaniTvService::class);
@@ -329,14 +329,14 @@ class SettingsTest extends DatabaseTestCase
         $this->save('settings.update-gpon', []);
         $this->assertSame('0', Setting::get('gpon_enabled'));
 
-        $olt = ['name' => 'Char OLT', 'ip' => '192.0.2.77', 'snmp_user' => 'u', 'snmp_auth_pass' => '__selftest_a', 'snmp_priv_pass' => '__selftest_p',
+        $olt = ['name' => 'Char OLT', 'ip' => '192.0.2.77', 'snmp_user' => 'u', 'snmp_auth_pass' => \Tests\Support\Fake::secret('selftesta'), 'snmp_priv_pass' => \Tests\Support\Fake::secret('selftestp'),
             'snmp_auth_proto' => 'SHA', 'snmp_priv_proto' => 'AES', 'line_prof' => 'lp', 'service_prof' => 'sp', 'traffic_table' => 'tt', 'gpon_port' => '0/1/0',
             'base_vlan' => 100, 'vlan_map' => '{"0/1/0":101}'];
         $this->as()->post(route('settings.gpon-olts.store'), $olt)
             ->assertRedirect(route('settings.index', ['tab' => 'gpon']))->assertSessionHas('success', 'OLT byl přidán.');
         $m = GponOlt::where('ip', '192.0.2.77')->firstOrFail();
-        $this->assertSame([['0/1/0' => 101], 100, '__selftest_a'], [$m->vlan_map, $m->base_vlan, $m->snmp_auth_pass]);
-        $this->assertNotSame('__selftest_a', DB::table('gpon_olts')->where('id', $m->id)->value('snmp_auth_pass'), 'šifrováno');
+        $this->assertSame([['0/1/0' => 101], 100, \Tests\Support\Fake::secret('selftesta')], [$m->vlan_map, $m->base_vlan, $m->snmp_auth_pass]);
+        $this->assertNotSame(\Tests\Support\Fake::secret('selftesta'), DB::table('gpon_olts')->where('id', $m->id)->value('snmp_auth_pass'), 'šifrováno');
 
         $this->as()->post(route('settings.gpon-olts.store'), $olt)->assertSessionHasErrors('ip');
         $this->as()->post(route('settings.gpon-olts.store'), ['snmp_auth_proto' => 'X'] + $olt)->assertSessionHasErrors(['ip', 'snmp_auth_proto']);

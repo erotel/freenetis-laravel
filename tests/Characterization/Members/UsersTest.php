@@ -46,8 +46,9 @@ class UsersTest extends DatabaseTestCase
         return $this->actingAs(User::find($id ?? $this->adminId));
     }
 
-    private function user(string $suffix, int $type = 1, string $password = 'Puvodni-Heslo1'): int
+    private function user(string $suffix, int $type = 1, ?string $password = null): int
     {
+        $password ??= \Tests\Support\Fake::secret('puvodniheslo');
         return (int) DB::table('users')->insertGetId(['member_id' => $this->memberId, 'login' => "{$this->tag}{$suffix}", 'password' => Hash::make($password),
             'type' => $type, 'application_password' => 'x', 'settings' => '', 'name' => 'Jan', 'surname' => "Novak{$this->tag}", 'comment' => '']);
     }
@@ -108,15 +109,15 @@ class UsersTest extends DatabaseTestCase
     public function test_zalozeni_a_uprava_s_jemnymi_pravy(): void
     {
         $this->as()->get(route('users.create', ['member_id' => $this->memberId]))->assertOk()->assertViewHas('canEditLogin', true);
-        $this->as()->post(route('users.store'), ['member_id' => $this->memberId, 'login' => "{$this->tag}n", 'surname' => 'Novy', 'type' => 2] + $this->pwd('Silne-Heslo-2026'))
+        $this->as()->post(route('users.store'), ['member_id' => $this->memberId, 'login' => "{$this->tag}n", 'surname' => 'Novy', 'type' => 2] + $this->pwd(\Tests\Support\Fake::secret('silneheslo')))
             ->assertRedirect(route('members.show', $this->memberId))->assertSessionHas('success', 'Uživatel byl úspěšně přidán.');
         $new = DB::table('users')->where('login', "{$this->tag}n")->first();
-        $this->assertTrue(Hash::check('Silne-Heslo-2026', $new->password));
+        $this->assertTrue(Hash::check(\Tests\Support\Fake::secret('silneheslo'), $new->password));
         $this->assertSame([2, ''], [(int) $new->type, $new->settings]);
         $this->assertNotSame('', \Illuminate\Support\Facades\Crypt::decryptString($new->application_password), 'šifrované aplikační heslo');
 
         $this->acl(['new_all/Users_Controller/login']);
-        $this->as()->post(route('users.store'), ['member_id' => $this->memberId, 'login' => "{$this->tag}x", 'surname' => 'Bezloginu', 'type' => 2] + $this->pwd('Silne-Heslo-2026'));
+        $this->as()->post(route('users.store'), ['member_id' => $this->memberId, 'login' => "{$this->tag}x", 'surname' => 'Bezloginu', 'type' => 2] + $this->pwd(\Tests\Support\Fake::secret('silneheslo')));
         $this->assertFalse(DB::table('users')->where('login', "{$this->tag}x")->exists(), 'login bez práva se zahodí');
         $this->assertTrue(DB::table('users')->where('surname', 'Bezloginu')->where('member_id', $this->memberId)->whereNull('login')->exists());
         $this->acl();
@@ -143,9 +144,9 @@ class UsersTest extends DatabaseTestCase
     {
         $a = $this->user('a');
         $this->acl(['edit_all/Users_Controller/password']);
-        $this->as()->put(route('users.update', $a), ['surname' => 'X', 'type' => 1, 'login' => "{$this->tag}a", 'member_id' => $this->memberId] + $this->pwd('Podvrzene-Heslo1'))
+        $this->as()->put(route('users.update', $a), ['surname' => 'X', 'type' => 1, 'login' => "{$this->tag}a", 'member_id' => $this->memberId] + $this->pwd(\Tests\Support\Fake::secret('podvrzeneheslo')))
             ->assertSessionHasNoErrors();
-        $this->assertTrue(Hash::check('Puvodni-Heslo1', DB::table('users')->where('id', $a)->value('password')));
+        $this->assertTrue(Hash::check(\Tests\Support\Fake::secret('puvodniheslo'), DB::table('users')->where('id', $a)->value('password')));
         $this->assertSame('X', DB::table('users')->where('id', $a)->value('surname'));
     }
 
@@ -172,15 +173,15 @@ class UsersTest extends DatabaseTestCase
     {
         $a = $this->user('a');
         $this->as($a)->get(route('users.password', $a))->assertOk()->assertViewHas('isSelf', true)->assertViewHas('isAdmin', false);
-        $this->as($a)->put(route('users.password.update', $a), $this->pwd('Nove-Heslo-2026'))->assertSessionHasErrors('current_password');
-        $this->as($a)->put(route('users.password.update', $a), ['current_password' => 'Puvodni-Heslo1'] + $this->pwd('Nove-Heslo-2026'))
+        $this->as($a)->put(route('users.password.update', $a), $this->pwd(\Tests\Support\Fake::secret('noveheslo')))->assertSessionHasErrors('current_password');
+        $this->as($a)->put(route('users.password.update', $a), ['current_password' => \Tests\Support\Fake::secret('puvodniheslo')] + $this->pwd(\Tests\Support\Fake::secret('noveheslo')))
             ->assertRedirect(route('members.show', $this->memberId))->assertSessionHas('success', 'Heslo bylo úspěšně změněno.');
-        $this->assertTrue(Hash::check('Nove-Heslo-2026', DB::table('users')->where('id', $a)->value('password')));
+        $this->assertTrue(Hash::check(\Tests\Support\Fake::secret('noveheslo'), DB::table('users')->where('id', $a)->value('password')));
 
         $b = $this->user('b');
         $this->as($a)->get(route('users.password', $b))->assertForbidden();
-        $this->as()->put(route('users.password.update', $b), $this->pwd('Admin-Heslo-2026'))->assertSessionHasNoErrors();
-        $this->assertTrue(Hash::check('Admin-Heslo-2026', DB::table('users')->where('id', $b)->value('password')), 'admin bez aktuálního hesla');
+        $this->as()->put(route('users.password.update', $b), $this->pwd(\Tests\Support\Fake::secret('adminheslo')))->assertSessionHasNoErrors();
+        $this->assertTrue(Hash::check(\Tests\Support\Fake::secret('adminheslo'), DB::table('users')->where('id', $b)->value('password')), 'admin bez aktuálního hesla');
         $this->as()->get(route('users.password', 999999999))->assertNotFound();
     }
 

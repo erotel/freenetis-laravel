@@ -34,7 +34,7 @@ class ForgottenPasswordTest extends DatabaseTestCase
             'address_point_id' => (int) DB::table('members')->whereNotNull('address_point_id')->value('address_point_id'),
             'entrance_date' => '2020-01-01', 'leaving_date' => '9999-12-31']);
         $login = 'charfp_' . uniqid();
-        $u = (int) DB::table('users')->insertGetId(['member_id' => $m, 'login' => $login, 'password' => Hash::make('stare-heslo'), 'type' => 1,
+        $u = (int) DB::table('users')->insertGetId(['member_id' => $m, 'login' => $login, 'password' => Hash::make(\Tests\Support\Fake::secret('stareheslo')), 'type' => 1,
             'application_password' => 'x', 'settings' => '', 'name' => 'C', 'surname' => 'F', 'comment' => '']);
         $email = $email === 'auto' ? $login . '@example.invalid' : $email;
         if ($email !== null) {
@@ -144,19 +144,19 @@ class ForgottenPasswordTest extends DatabaseTestCase
         $this->get(route('forgotten-password.reset'))->assertRedirect(route('login'));
 
         $this->post(route('forgotten-password.update'), ['token' => $token, 'password' => 'kratke', 'password_confirmation' => 'kratke'])->assertSessionHasErrors('password');
-        $this->post(route('forgotten-password.update'), ['token' => $token, 'password' => 'NoveHeslo123', 'password_confirmation' => 'jine'])->assertSessionHasErrors('password');
+        $this->post(route('forgotten-password.update'), ['token' => $token, 'password' => \Tests\Support\Fake::secret('noveheslo'), 'password_confirmation' => 'jine'])->assertSessionHasErrors('password');
 
-        $this->post(route('forgotten-password.update'), ['token' => $token, 'password' => 'NoveHeslo123', 'password_confirmation' => 'NoveHeslo123'])
+        $this->post(route('forgotten-password.update'), ['token' => $token, 'password' => \Tests\Support\Fake::secret('noveheslo'), 'password_confirmation' => \Tests\Support\Fake::secret('noveheslo')])
             ->assertRedirect(route('login'))->assertSessionHas('success', 'Heslo bylo úspěšně změněno. Nyní se můžete přihlásit.');
         $row = $this->userRow($x['user']);
-        $this->assertTrue(Hash::check('NoveHeslo123', $row->password));
+        $this->assertTrue(Hash::check(\Tests\Support\Fake::secret('noveheslo'), $row->password));
         $this->assertSame([null, null], [$row->password_request, $row->password_request_expires_at]);
         $a = DB::table('audit_logs')->where('auditable_type', 'users')->where('auditable_id', $x['user'])->orderByDesc('id')->first();
         $this->assertSame(['password' => '***', 'password_reset' => true], json_decode($a->new_values, true));
 
-        $this->post(route('forgotten-password.update'), ['token' => $token, 'password' => 'JineHeslo123', 'password_confirmation' => 'JineHeslo123'])
+        $this->post(route('forgotten-password.update'), ['token' => $token, 'password' => \Tests\Support\Fake::secret('jineheslo'), 'password_confirmation' => \Tests\Support\Fake::secret('jineheslo')])
             ->assertRedirect(route('login'))->assertSessionHas('error', 'Odkaz pro reset hesla je neplatný nebo vypršel.');
-        $this->assertTrue(Hash::check('NoveHeslo123', $this->userRow($x['user'])->password), 'token jednorázový');
+        $this->assertTrue(Hash::check(\Tests\Support\Fake::secret('noveheslo'), $this->userRow($x['user'])->password), 'token jednorázový');
     }
 
     public function test_expirace_a_legacy_token(): void
