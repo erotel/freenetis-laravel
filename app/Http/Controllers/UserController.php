@@ -2,18 +2,23 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\DeviceAdmin;
-use App\Models\DeviceEngineer;
-use App\Models\Member;
-use App\Models\User;
+use App\Domains\Members\Actions\RemoveUserAction;
+use App\Domains\Members\Actions\ResetUserMfaAction;
+use App\Domains\Members\Actions\UnlockUserLoginAction;
+use App\Domains\Members\Exceptions\UserNotDeletable;
+use App\Domains\Members\Queries\UserListQuery;
+use App\Domains\Members\Repositories\UserRepository;
+use App\Services\LoginLockService;
+use App\Services\MfaService;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Hash;
 
+/** Uživatelé členů; data a akce v doméně Members. Jemná práva (login, komentář, člen, heslo) vynucuje i zápis. */
 class UserController extends Controller
 {
     private const ACL_SECTION = 'Users_Controller';
     private const ACL_VALUE   = 'users';
+
+    public function __construct(private UserRepository $users) {}
 
     private function can(string $action, string $value = self::ACL_VALUE): bool
     {
@@ -36,43 +41,7 @@ class UserController extends Controller
         $search    = trim((string) $request->query('search', ''));
         $memberId  = $request->query('member_id');
 
-        $query = User::with('member')->select('users.*');
-
-        if ($search !== '') {
-            // Stejná pole jako SearchController — login, jméno (i přes mezeru),
-            // kontakt (email/telefon), aby odkaz „Otevřít všechny v seznamu" z /search seděl.
-            $like   = '%' . $search . '%';
-            $tokens = preg_split('/\s+/', $search, -1, PREG_SPLIT_NO_EMPTY);
-            $multi  = count($tokens) > 1;
-
-            $query->where(function ($q) use ($like, $tokens, $multi) {
-                $q->where('users.login', 'like', $like)
-                  ->orWhere(DB::raw("CONCAT(users.name, ' ', users.surname)"), 'like', $like);
-
-                $q->orWhereExists(function ($sub) use ($like) {
-                    $sub->from('users_contacts as uc')
-                        ->join('contacts as c', 'c.id', '=', 'uc.contact_id')
-                        ->whereColumn('uc.user_id', 'users.id')
-                        ->where('c.value', 'like', $like);
-                });
-
-                if ($multi) {
-                    $q->orWhere(function ($qq) use ($tokens) {
-                        foreach ($tokens as $t) {
-                            $qq->where(DB::raw("CONCAT(users.name, ' ', users.surname)"), 'like', '%' . $t . '%');
-                        }
-                    });
-                }
-            });
-        }
-
-        if ($memberId) {
-            $query->where('users.member_id', (int) $memberId);
-        }
-
-        $users = $query->orderBy('users.' . $sort, $dir)
-            ->paginate($perPage)
-            ->withQueryString();
+        $users = app(UserListQuery::class)->paginate($search, $memberId, $sort, $dir, $perPage);
 
         return view('users.index', [
             'users'    => $users,
@@ -102,25 +71,16 @@ class UserController extends Controller
             abort(403);
         }
 
-        $user = User::with('member')->find($id);
+        $user = $this->users->findWithMember($id);
         if (!$user) {
             abort(404);
         }
 
-        $aroGroups = DB::table('groups_aro_map')
-            ->join('aro_groups', 'aro_groups.id', '=', 'groups_aro_map.group_id')
-            ->where('groups_aro_map.aro_id', $user->id)
-            ->select('aro_groups.id', 'aro_groups.name')
-            ->get();
-
-        $deviceAdmins    = DeviceAdmin::where('user_id', $user->id)->with('device')->get();
-        $deviceEngineers = DeviceEngineer::where('user_id', $user->id)->with('device')->get();
-
         return view('users.show', [
             'user'                 => $user,
-            'aroGroups'            => $aroGroups,
-            'deviceAdmins'         => $deviceAdmins,
-            'deviceEngineers'      => $deviceEngineers,
+            'aroGroups'            => $this->users->aclGroups((int) $user->id),
+            'deviceAdmins'         => $this->users->deviceAdmins((int) $user->id),
+            'deviceEngineers'      => $this->users->deviceEngineers((int) $user->id),
             'canEdit'              => $this->can('edit_all'),
             'canChangePassword'    => $this->can('edit_all', 'password'),
             'canViewAppPwd'        => $this->can('view_all', 'application_password'),
@@ -131,9 +91,9 @@ class UserController extends Controller
             'canDeleteContact'     => $this->aclCheck('delete_all', 'Users_Controller', 'additional_contacts'),
             'canViewDevices'       => $this->aclCheck('view_all', 'Devices_Controller',    'devices'),
             'canViewLoginLogs'     => $this->aclCheck('view_all', 'Login_logs_Controller', 'logs'),
-            'mfaEnabled'           => app(\App\Services\MfaService::class)->isEnabled((int) $user->id),
+            'mfaEnabled'           => app(MfaService::class)->isEnabled((int) $user->id),
             'canResetMfa'          => $this->can('edit_all'),
-            'loginLock'            => app(\App\Services\LoginLockService::class)->status((int) $user->id),
+            'loginLock'            => app(LoginLockService::class)->status((int) $user->id),
             'canUnlockLogin'       => $this->can('edit_all'),
         ]);
     }
@@ -142,19 +102,10 @@ class UserController extends Controller
      * Ruční odemčení účtu zamčeného po opakovaných neúspěšných přihlášeních.
      * Auditováno.
      */
-    public function unlockLogin(int $id)
+    public function unlockLogin(int $id, UnlockUserLoginAction $unlock)
     {
         abort_unless($this->can('edit_all'), 403);
-
-        $user = User::findOrFail($id);
-        app(\App\Services\LoginLockService::class)->unlock((int) $user->id);
-
-        \App\Services\AuditLogger::log('login_unlock', 'users', (int) $user->id, null, [
-            'by_user_id' => auth()->id(),
-        ]);
-        logger()->info('auth.account.admin_unlock', [
-            'user_id' => $user->id, 'by' => auth()->id(), 'ip' => request()->ip(),
-        ]);
+        $unlock->handle((int) $this->users->findOrFail($id)->id, auth()->id(), request()->ip());
 
         return back()->with('success', 'Účet byl odemčen.');
     }
@@ -164,19 +115,10 @@ class UserController extends Controller
      * Smaže jeho TOTP i záložní kódy; při dalším přihlášení už MFA nebude
      * vyžadováno a může si ho zřídit znovu. Auditováno.
      */
-    public function resetMfa(int $id)
+    public function resetMfa(int $id, ResetUserMfaAction $reset)
     {
         abort_unless($this->can('edit_all'), 403);
-
-        $user = User::findOrFail($id);
-        app(\App\Services\MfaService::class)->disable((int) $user->id);
-
-        \App\Services\AuditLogger::log('mfa_reset', 'users', (int) $user->id, null, [
-            'by_user_id' => auth()->id(),
-        ]);
-        logger()->warning('auth.mfa.admin_reset', [
-            'user_id' => $user->id, 'by' => auth()->id(), 'ip' => request()->ip(),
-        ]);
+        $reset->handle((int) $this->users->findOrFail($id)->id, auth()->id(), request()->ip());
 
         return back()->with('success', 'Dvoufázové přihlášení uživatele bylo resetováno.');
     }
@@ -187,8 +129,8 @@ class UserController extends Controller
             abort(403);
         }
 
-        $member  = $request->has('member_id') ? Member::find($request->member_id) : null;
-        $members = $member ? collect() : Member::orderBy('name')->get();
+        $member  = $request->has('member_id') ? $this->users->member((int) $request->member_id) : null;
+        $members = $member ? collect() : $this->users->membersByName();
 
         return view('users.create', [
             'members'      => $members,
@@ -223,10 +165,7 @@ class UserController extends Controller
             $rules['login'] = 'required|string|max:100|unique:users,login';
         }
 
-        $data = $request->validate($rules);
-        $data['password'] = Hash::make($data['password']);
-
-        $user = User::create($data);
+        $user = $this->users->create($request->validate($rules));
 
         session()->flash('success', 'Uživatel byl úspěšně přidán.');
 
@@ -243,12 +182,11 @@ class UserController extends Controller
             abort(403);
         }
 
-        $user    = User::find($id);
+        $user = $this->users->find($id);
         if (!$user) {
             abort(404);
         }
-
-        $members = Member::orderBy('name')->get();
+        $members = $this->users->membersByName();
 
         return view('users.edit', [
             'user'             => $user,
@@ -265,7 +203,7 @@ class UserController extends Controller
             abort(403);
         }
 
-        $user = User::find($id);
+        $user = $this->users->find($id);
         if (!$user) {
             abort(404);
         }
@@ -296,47 +234,30 @@ class UserController extends Controller
             $rules['password'] = \App\Rules\StrongPassword::rules($request->input('login', $user->login), false);
         }
 
-        $data = $request->validate($rules);
-
-        if (isset($data['password'])) {
-            $data['password'] = Hash::make($data['password']);
-        }
-
-        $user->update($data);
+        $this->users->update($user, $request->validate($rules));
 
         session()->flash('success', 'Uživatel byl úspěšně upraven.');
 
         return redirect()->route('users.show', $id);
     }
 
-    public function destroy(int $id)
+    public function destroy(int $id, RemoveUserAction $remove)
     {
         if (!$this->can('delete_all')) {
             abort(403);
         }
 
-        $user = User::find($id);
+        $user = $this->users->find($id);
         if (!$user) {
             abort(404);
         }
 
-        if ($user->id === auth()->id()) {
-            session()->flash('error', 'Nelze smazat vlastní účet.');
+        try {
+            $remove->handle($user, auth()->id());
+        } catch (UserNotDeletable $e) {
+            session()->flash('error', $e->getMessage());
             return redirect()->back();
         }
-
-        if ($user->devices()->exists()) {
-            session()->flash('error', 'Uživatele nelze smazat, má přiřazená zařízení.');
-            return redirect()->back();
-        }
-
-        $memberUserCount = User::where('member_id', $user->member_id)->count();
-        if ($memberUserCount <= 1) {
-            session()->flash('error', 'Uživatele nelze smazat, je jediným uživatelem člena.');
-            return redirect()->back();
-        }
-
-        $user->delete();
 
         session()->flash('success', 'Uživatel byl úspěšně smazán.');
 
@@ -349,12 +270,11 @@ class UserController extends Controller
         $isAdmin = $this->can('edit_all', 'password');
         abort_unless($isSelf || $isAdmin, 403);
 
-        $user = User::find($id);
+        $user = $this->users->find($id);
         if (!$user) {
             abort(404);
         }
-
-        $member = DB::table('members')->where('id', $user->member_id)->first();
+        $member = $this->users->memberRow($user->member_id);
 
         return view('users.change_password', compact('user', 'member', 'isAdmin', 'isSelf'));
     }
@@ -365,7 +285,7 @@ class UserController extends Controller
         $isAdmin = $this->can('edit_all', 'password');
         abort_unless($isSelf || $isAdmin, 403);
 
-        $user = User::find($id);
+        $user = $this->users->find($id);
         if (!$user) {
             abort(404);
         }
@@ -382,8 +302,7 @@ class UserController extends Controller
         }
         $request->validate($rules);
 
-        $user->password = Hash::make($request->input('password'));
-        $user->save();
+        $this->users->setPassword($user, (string) $request->input('password'));
 
         session()->flash('success', 'Heslo bylo úspěšně změněno.');
 
@@ -392,11 +311,7 @@ class UserController extends Controller
 
     public function toggleDarkMode(Request $request): \Illuminate\Http\JsonResponse
     {
-        $user = auth()->user();
-        $settings = json_decode($user->settings ?? '{}', true) ?: [];
-        $settings['dark_mode'] = $request->input('dark_mode', 0) ? 1 : 0;
-        $user->settings = json_encode($settings);
-        $user->save();
+        $this->users->setDarkMode(auth()->user(), (bool) $request->input('dark_mode', 0));
         return response()->json(['ok' => true]);
     }
 }
