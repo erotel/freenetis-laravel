@@ -39,7 +39,9 @@ class ResetPasswordAction
 
         $this->resets->setPassword((int) $user->id, bcrypt($password));
         AuditLogger::log('updated', 'users', (int) $user->id, null, ['password' => '***', 'password_reset' => true]);
-        // Kdo už byl přihlášen, musí se přihlásit znovu (útočník se session).
+        // Kdo už byl přihlášen, musí se přihlásit znovu (útočník se session):
+        // obecně řeší AuthenticateSession (změněný hash hesla), tady navíc
+        // úklid DB sessions, pokud je SESSION_DRIVER=database.
         $this->resets->deleteDatabaseSessions((int) $user->id);
 
         return true;

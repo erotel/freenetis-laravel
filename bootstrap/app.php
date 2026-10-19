@@ -25,6 +25,9 @@ return Application::configure(basePath: dirname(__DIR__))
         // v DB, přesměruj všechny non-setup requesty na /setup. Po dokončení wizardu
         // se token soubor smaže a middleware je trvale no-op.
         $middleware->web(append: [
+            // Změna / reset hesla odhlásí ostatní přihlášení (hash hesla v session).
+            // Nezávislé na úložišti sessions — produkce má SESSION_DRIVER=file.
+            \Illuminate\Session\Middleware\AuthenticateSession::class,
             \App\Http\Middleware\EnsureSetupComplete::class,
             \App\Http\Middleware\EnableDebugForAdmins::class,
             \App\Http\Middleware\SecurityHeaders::class,

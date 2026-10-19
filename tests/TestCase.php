@@ -2,6 +2,7 @@
 
 namespace Tests;
 
+use Illuminate\Contracts\Auth\Authenticatable;
 use Illuminate\Foundation\Testing\TestCase as BaseTestCase;
 use RuntimeException;
 
@@ -20,5 +21,19 @@ abstract class TestCase extends BaseTestCase
                 throw new RuntimeException("Testy běží jen proti DB s příponou _test, ne „{$db}“ ({$conn}, viz phpunit.xml).");
             }
         }
+    }
+
+    /**
+     * Session v testu přežívá mezi requesty (i hash hesla, který si ukládá
+     * AuthenticateSession). Přepnutí actingAs na jiného uživatele by pak
+     * vypadalo jako změna hesla → odhlášení. V reálu má každý uživatel
+     * svou session, proto hash při přepnutí zapomeneme.
+     */
+    public function be(Authenticatable $user, $guard = null)
+    {
+        if ($this->app->bound('session.store')) {
+            $this->app['session.store']->forget('password_hash_' . $this->app['auth']->getDefaultDriver());
+        }
+        return parent::be($user, $guard);
     }
 }
