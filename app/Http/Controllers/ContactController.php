@@ -2,14 +2,16 @@
 
 namespace App\Http\Controllers;
 
+use App\Domains\Members\Repositories\ContactRepository;
 use App\Models\Contact;
-use App\Models\EnumType;
 use App\Models\User;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\DB;
 
+/** Kontakty uživatele (e-mail, telefon, …); data v doméně Members. */
 class ContactController extends Controller
 {
+    public function __construct(private ContactRepository $contacts) {}
+
     private const ACL_SECTION = 'Users_Controller';
     private const ACL_VALUE   = 'additional_contacts';
 
@@ -20,7 +22,7 @@ class ContactController extends Controller
 
     private function loadUser(int $userId): User
     {
-        $user = User::find($userId);
+        $user = $this->contacts->user($userId);
         if (!$user) {
             abort(404);
         }
@@ -40,7 +42,7 @@ class ContactController extends Controller
             abort(403);
         }
 
-        $contacts = $user->contacts()->with('enumType')->get();
+        $contacts = $this->contacts->forUser($user);
 
         return view('contacts.show_by_user', [
             'user'      => $user,
@@ -61,10 +63,7 @@ class ContactController extends Controller
         // Při zakládání nového kontaktu schováme zastaralé protokoly
         // (ICQ/MSN/Jabber/Skype). Existující záznamy s těmito typy zůstávají
         // v UI viditelné — deprecated řeší jen nový vstup.
-        $contactTypes = EnumType::where('type_id', EnumType::CONTACT_GROUP_ID)
-            ->notDeprecated()
-            ->orderBy('id')
-            ->pluck('value', 'id');
+        $contactTypes = $this->contacts->newContactTypes();
 
         return view('contacts.create', [
             'user'         => $user,
@@ -95,25 +94,12 @@ class ContactController extends Controller
         $data = $request->validate($rules);
 
         // Duplicate: same type+value already linked to this user
-        $alreadyLinked = Contact::where('type', $data['type'])
-            ->where('value', $data['value'])
-            ->whereHas('users', fn($q) => $q->where('users.id', $userId))
-            ->exists();
-
-        if ($alreadyLinked) {
+        if ($this->contacts->linked($userId, (int) $data['type'], $data['value'])) {
             return back()->withInput()
                 ->withErrors(['value' => 'Tento kontakt je již přiřazen tomuto uživateli.']);
         }
 
-        DB::transaction(function () use ($data, $user) {
-            $contact = Contact::firstOrCreate(
-                ['type' => $data['type'], 'value' => $data['value']]
-            );
-
-            if (!$contact->users()->where('users.id', $user->id)->exists()) {
-                $contact->users()->attach($user->id, ['mail_redirection' => 0]);
-            }
-        });
+        $this->contacts->attach((int) $user->id, (int) $data['type'], $data['value']);
 
         session()->flash('success', 'Kontakt byl úspěšně přidán.');
         return redirect()->route('users.show', $userId);
@@ -127,9 +113,7 @@ class ContactController extends Controller
 
         $user = $this->loadUser($userId);
 
-        $contact = Contact::with('enumType')
-            ->whereHas('users', fn($q) => $q->where('users.id', $userId))
-            ->find($contactId);
+        $contact = $this->contacts->ofUser($userId, $contactId, true);
 
         if (!$contact) {
             abort(404);
@@ -149,8 +133,7 @@ class ContactController extends Controller
 
         $this->loadUser($userId);
 
-        $contact = Contact::whereHas('users', fn($q) => $q->where('users.id', $userId))
-            ->find($contactId);
+        $contact = $this->contacts->ofUser($userId, $contactId);
 
         if (!$contact) {
             abort(404);
@@ -166,29 +149,7 @@ class ContactController extends Controller
 
         $data = $request->validate($rules);
 
-        // Legacy Kohana data sdílí jeden řádek v `contacts` mezi víc uživateli přes
-        // pivot `users_contacts` (typicky stejný email u rodinných příslušníků).
-        // Přímý UPDATE by změnil hodnotu všem napojeným uživatelům. Pokud je řádek
-        // sdílený, "forkujeme": odpojíme od tohoto usera a napojíme ho na vlastní
-        // (existující nebo nový) contact řádek s novou hodnotou.
-        $sharedUserCount = $contact->users()->count();
-
-        if ($sharedUserCount > 1) {
-            DB::transaction(function () use ($contact, $userId, $data) {
-                $contact->users()->detach($userId);
-
-                $target = Contact::firstOrCreate(
-                    ['type' => $contact->type, 'value' => $data['value']]
-                );
-
-                if (!$target->users()->where('users.id', $userId)->exists()) {
-                    $target->users()->attach($userId, ['mail_redirection' => 0]);
-                }
-            });
-        } else {
-            $contact->value = $data['value'];
-            $contact->save();
-        }
+        $this->contacts->change($contact, $userId, $data['value']);
 
         session()->flash('success', 'Kontakt byl úspěšně upraven.');
         return redirect()->route('users.show', $userId);
@@ -202,8 +163,7 @@ class ContactController extends Controller
 
         $user = $this->loadUser($userId);
 
-        $contact = Contact::whereHas('users', fn($q) => $q->where('users.id', $userId))
-            ->find($contactId);
+        $contact = $this->contacts->ofUser($userId, $contactId);
 
         if (!$contact) {
             abort(404);
@@ -212,7 +172,7 @@ class ContactController extends Controller
         // Block deleting the last email/phone unless admin_delete privilege
         if (!$this->can('delete_all', 'additional_contacts_admin_delete')) {
             if (in_array($contact->type, [Contact::TYPE_EMAIL, Contact::TYPE_PHONE], true)) {
-                $count = $user->contacts()->where('type', $contact->type)->count();
+                $count = $this->contacts->countOfType($user, (int) $contact->type);
                 if ($count <= 1) {
                     session()->flash('error', 'Nelze smazat poslední kontakt tohoto typu.');
                     return redirect()->route('users.show', $userId);
@@ -220,13 +180,7 @@ class ContactController extends Controller
             }
         }
 
-        DB::transaction(function () use ($contact, $user) {
-            $contact->users()->detach($user->id);
-
-            if ($contact->users()->count() === 0) {
-                $contact->delete();
-            }
-        });
+        $this->contacts->detach($contact, (int) $user->id);
 
         session()->flash('success', 'Kontakt byl úspěšně smazán.');
         return redirect()->route('users.show', $userId);

@@ -2,14 +2,15 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\PublicIp;
-use App\Models\PublicPortForward;
+use App\Domains\Network\Repositories\PublicPortForwardRepository;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
-use Illuminate\Support\Facades\DB;
 
+/** Port forwardy z veřejných IP; data v doméně Network. */
 class PublicPortForwardController extends Controller
 {
+    public function __construct(private PublicPortForwardRepository $forwards) {}
+
     private function can(string $action = 'view_all'): bool
     {
         return $this->aclCheck($action, 'Network_Controller', 'public_ports');
@@ -21,48 +22,8 @@ class PublicPortForwardController extends Controller
 
         $q = trim((string) $request->query('q', ''));
 
-        $query = DB::table('public_port_forwards AS p')
-            ->leftJoin('ip_addresses AS ip', DB::raw('ip.ip_address COLLATE utf8mb3_uca1400_ai_ci'), '=', 'p.private_ip')
-            ->leftJoin('ifaces AS i', 'i.id', '=', 'ip.iface_id')
-            ->leftJoin('devices AS d', 'd.id', '=', 'i.device_id')
-            ->leftJoin('users AS u', 'u.id', '=', 'd.user_id')
-            ->leftJoin('members AS om', 'om.id', '=', 'u.member_id')
-            ->leftJoin('members AS mm', 'mm.id', '=', 'p.modified_by')
-            ->leftJoin('members AS mc', 'mc.id', '=', 'p.created_by')
-            ->select(
-                'p.id', 'p.public_ip', 'p.public_port_from', 'p.public_port_to',
-                'p.private_ip', 'p.private_port_from', 'p.private_port_to',
-                'p.protocol', 'p.enabled', 'p.created', 'p.modified',
-                'om.name AS owner_member_name',
-                'mm.name AS modified_by_name',
-                'mc.name AS created_by_name'
-            )
-            ->orderByRaw('INET_ATON(p.public_ip) ASC, p.protocol ASC, p.public_port_from ASC');
-
-        if ($q !== '') {
-            $like = '%' . str_replace(['%', '_'], ['\\%', '\\_'], $q) . '%';
-            $query->where(function ($w) use ($like, $q) {
-                $w->where('p.public_ip', 'like', $like)
-                  ->orWhere('p.private_ip', 'like', $like)
-                  ->orWhere('p.protocol', 'like', $like)
-                  ->orWhere('om.name', 'like', $like);
-                if (ctype_digit($q)) {
-                    $port = (int) $q;
-                    $w->orWhere('p.id', $port)
-                      ->orWhere(function ($pp) use ($port) {
-                          $pp->where('p.public_port_from', '<=', $port)
-                             ->where('p.public_port_to',   '>=', $port);
-                      })
-                      ->orWhere(function ($pp) use ($port) {
-                          $pp->where('p.private_port_from', '<=', $port)
-                             ->where('p.private_port_to',   '>=', $port);
-                      });
-                }
-            });
-        }
-
         return view('public_port_forwards.index', [
-            'rows'    => $query->get(),
+            'rows'    => $this->forwards->search($q),
             'q'       => $q,
             'canEdit' => $this->can('edit_all'),
         ]);
@@ -72,7 +33,7 @@ class PublicPortForwardController extends Controller
     {
         abort_unless($this->can('edit_all'), 403);
 
-        $publicIps = PublicIp::allowedIps();
+        $publicIps = $this->forwards->allowedPublicIps();
 
         return view('public_port_forwards.form', [
             'action'    => 'create',
@@ -89,20 +50,7 @@ class PublicPortForwardController extends Controller
 
         $this->checkPortCollision($data);
 
-        $memberId = Auth::user()?->member_id;
-
-        PublicPortForward::create([
-            'public_ip'        => $data['public_ip'],
-            'public_port_from' => $data['public_port_from'],
-            'public_port_to'   => $data['public_port_to'],
-            'private_ip'       => $data['private_ip'],
-            'private_port_from'=> $data['private_port_from'],
-            'private_port_to'  => $data['private_port_to'],
-            'protocol'         => $data['protocol'],
-            'enabled'          => $data['enabled'],
-            'created'          => now(),
-            'created_by'       => $memberId,
-        ]);
+        $this->forwards->create($data, Auth::user()?->member_id);
 
         session()->flash('success', 'Port forward byl uložen.');
         return redirect()->route('public-port-forwards.index');
@@ -112,8 +60,8 @@ class PublicPortForwardController extends Controller
     {
         abort_unless($this->can('edit_all'), 403);
 
-        $record    = PublicPortForward::findOrFail($id);
-        $publicIps = PublicIp::allowedIps();
+        $record    = $this->forwards->findOrFail($id);
+        $publicIps = $this->forwards->allowedPublicIps();
 
         return view('public_port_forwards.form', [
             'action'    => 'edit',
@@ -126,25 +74,12 @@ class PublicPortForwardController extends Controller
     {
         abort_unless($this->can('edit_all'), 403);
 
-        $record = PublicPortForward::findOrFail($id);
+        $record = $this->forwards->findOrFail($id);
         $data   = $this->validateForward($request);
 
         $this->checkPortCollision($data, $id);
 
-        $memberId = Auth::user()?->member_id;
-
-        $record->update([
-            'public_ip'        => $data['public_ip'],
-            'public_port_from' => $data['public_port_from'],
-            'public_port_to'   => $data['public_port_to'],
-            'private_ip'       => $data['private_ip'],
-            'private_port_from'=> $data['private_port_from'],
-            'private_port_to'  => $data['private_port_to'],
-            'protocol'         => $data['protocol'],
-            'enabled'          => $data['enabled'],
-            'modified'         => now(),
-            'modified_by'      => $memberId,
-        ]);
+        $this->forwards->update($record, $data, Auth::user()?->member_id);
 
         session()->flash('success', 'Port forward byl uložen.');
         return redirect()->route('public-port-forwards.index');
@@ -154,7 +89,7 @@ class PublicPortForwardController extends Controller
     {
         abort_unless($this->can('edit_all'), 403);
 
-        PublicPortForward::findOrFail($id)->delete();
+        $this->forwards->delete($this->forwards->findOrFail($id));
 
         session()->flash('success', 'Port forward byl smazán.');
         return redirect()->route('public-port-forwards.index');
@@ -164,7 +99,7 @@ class PublicPortForwardController extends Controller
 
     private function validateForward(Request $request): array
     {
-        $allowedIps = PublicIp::allowedIps();
+        $allowedIps = $this->forwards->allowedPublicIps();
 
         $publicIp  = trim((string) $request->input('public_ip', ''));
         $privateIp = trim((string) $request->input('private_ip', ''));
@@ -226,16 +161,7 @@ class PublicPortForwardController extends Controller
 
     private function checkPortCollision(array $data, int $ignoreId = 0): void
     {
-        $exists = DB::table('public_port_forwards')
-            ->where('public_ip', $data['public_ip'])
-            ->where('protocol', $data['protocol'])
-            ->where('enabled', 1)
-            ->where('id', '!=', $ignoreId)
-            ->where('public_port_from', '<=', $data['public_port_to'])
-            ->where('public_port_to', '>=', $data['public_port_from'])
-            ->exists();
-
-        if ($exists) {
+        if ($this->forwards->collides($data, $ignoreId)) {
             back()->withInput()->withErrors(['public_port_from' => 'Kolize portů — tento rozsah je již obsazen.'])->throwResponse();
         }
     }

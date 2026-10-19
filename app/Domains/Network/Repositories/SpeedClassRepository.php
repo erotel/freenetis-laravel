@@ -1,0 +1,57 @@
+<?php
+
+namespace App\Domains\Network\Repositories;
+
+use App\Models\SpeedClass;
+use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\DB;
+
+/** Třídy rychlosti (speed_classes): QoS rate/ceil, ceníková cena, výchozí pro člena / žadatele. */
+class SpeedClassRepository
+{
+    public function allWithMemberCounts(): Collection
+    {
+        return SpeedClass::withCount('members')->get();
+    }
+
+    public function findOrFail(int $id): SpeedClass
+    {
+        return SpeedClass::findOrFail($id);
+    }
+
+    public function findWithMemberCountOrFail(int $id): SpeedClass
+    {
+        return SpeedClass::withCount('members')->findOrFail($id);
+    }
+
+    public function members(int $id): Collection
+    {
+        return DB::table('members as m')->where('m.speed_class_id', $id)->orderBy('m.name')->get(['m.id', 'm.name', 'm.type']);
+    }
+
+    public function create(array $values): void
+    {
+        SpeedClass::create($values + ['regular_member_default' => false, 'applicant_default' => false]);
+    }
+
+    public function update(SpeedClass $speedClass, array $values): void
+    {
+        $speedClass->update($values);
+    }
+
+    public function delete(SpeedClass $speedClass): void
+    {
+        $speedClass->delete();
+    }
+
+    /** Přepne výchozí třídu ($column regular_member_default / applicant_default) — jediná na sloupec. */
+    public function toggleDefault(SpeedClass $speedClass, string $column): void
+    {
+        if ($speedClass->$column) {
+            $speedClass->update([$column => false]);
+            return;
+        }
+        SpeedClass::where('id', '!=', $speedClass->id)->update([$column => false]);
+        $speedClass->update([$column => true]);
+    }
+}

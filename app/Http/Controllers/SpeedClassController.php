@@ -2,12 +2,31 @@
 
 namespace App\Http\Controllers;
 
+use App\Domains\Network\Repositories\SpeedClassRepository;
 use App\Models\SpeedClass;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\DB;
 
+/** Třídy rychlosti (tarify QoS); data v doméně Network. */
 class SpeedClassController extends Controller
 {
+    private const MESSAGES = [
+        'name.required'     => 'Jméno je povinné.',
+        'name.unique'       => 'Třída rychlosti s tímto jménem již existuje.',
+        'qos_ceil.required' => 'Max. rychlost (ceil) je povinná.',
+        'qos_rate.required' => 'Min. rychlost (rate) je povinná.',
+    ];
+
+    public function __construct(private SpeedClassRepository $classes) {}
+
+    /** QoS a cena z validovaného formuláře. */
+    private function values(Request $request, array $v): array
+    {
+        [$d_ceil, $u_ceil] = SpeedClass::parseSlash($v['qos_ceil']);
+        [$d_rate, $u_rate] = SpeedClass::parseSlash($v['qos_rate']);
+        return ['name' => $v['name'], 'd_ceil' => $d_ceil, 'u_ceil' => $u_ceil, 'd_rate' => $d_rate, 'u_rate' => $u_rate,
+            'price' => $this->normalizePrice($request->input('price'))];
+    }
+
     private function can(string $action): bool
     {
         return $this->aclCheck($action, 'Speed_classes_Controller', 'speed_classes');
@@ -24,7 +43,7 @@ class SpeedClassController extends Controller
 
     public function index()
     {
-        $speedClasses = SpeedClass::withCount('members')->get();
+        $speedClasses = $this->classes->allWithMemberCounts();
         $canEdit = $this->can('edit_all');
         $canNew  = $this->can('new_all');
         $canDel  = $this->can('delete_all');
@@ -37,12 +56,8 @@ class SpeedClassController extends Controller
     {
         abort_unless($this->can('view_all'), 403);
 
-        $speedClass = SpeedClass::findOrFail($id);
-
-        $members = DB::table('members as m')
-            ->where('m.speed_class_id', $id)
-            ->orderBy('m.name')
-            ->get(['m.id', 'm.name', 'm.type']);
+        $speedClass = $this->classes->findOrFail($id);
+        $members    = $this->classes->members($id);
 
         return view('speed_classes.members', [
             'speedClass' => $speedClass,
@@ -68,26 +83,8 @@ class SpeedClassController extends Controller
             'qos_ceil' => 'required|string|max:30',
             'qos_rate' => 'required|string|max:30',
             'price'    => 'nullable|string|max:20',
-        ], [
-            'name.required'     => 'Jméno je povinné.',
-            'name.unique'       => 'Třída rychlosti s tímto jménem již existuje.',
-            'qos_ceil.required' => 'Max. rychlost (ceil) je povinná.',
-            'qos_rate.required' => 'Min. rychlost (rate) je povinná.',
-        ]);
-
-        [$d_ceil, $u_ceil] = SpeedClass::parseSlash($validated['qos_ceil']);
-        [$d_rate, $u_rate] = SpeedClass::parseSlash($validated['qos_rate']);
-
-        SpeedClass::create([
-            'name'                   => $validated['name'],
-            'd_ceil'                 => $d_ceil,
-            'u_ceil'                 => $u_ceil,
-            'd_rate'                 => $d_rate,
-            'u_rate'                 => $u_rate,
-            'price'                  => $this->normalizePrice($request->input('price')),
-            'regular_member_default' => false,
-            'applicant_default'      => false,
-        ]);
+        ], self::MESSAGES);
+        $this->classes->create($this->values($request, $validated));
 
         return redirect()->route('speed_classes.index')
             ->with('success', 'Třída rychlosti byla přidána.');
@@ -103,9 +100,7 @@ class SpeedClassController extends Controller
         if (!$this->can('edit_all'))
             abort(403);
 
-        $speedClass = SpeedClass::findOrFail($id);
-
-        return view('speed_classes.edit', compact('speedClass'));
+        return view('speed_classes.edit', ['speedClass' => $this->classes->findOrFail((int) $id)]);
     }
 
     public function update(Request $request, $id)
@@ -113,31 +108,14 @@ class SpeedClassController extends Controller
         if (!$this->can('edit_all'))
             abort(403);
 
-        $speedClass = SpeedClass::findOrFail($id);
-
+        $speedClass = $this->classes->findOrFail((int) $id);
         $validated = $request->validate([
             'name'     => 'required|string|max:50|unique:speed_classes,name,' . $id,
             'qos_ceil' => 'required|string|max:30',
             'qos_rate' => 'required|string|max:30',
             'price'    => 'nullable|string|max:20',
-        ], [
-            'name.required'     => 'Jméno je povinné.',
-            'name.unique'       => 'Třída rychlosti s tímto jménem již existuje.',
-            'qos_ceil.required' => 'Max. rychlost (ceil) je povinná.',
-            'qos_rate.required' => 'Min. rychlost (rate) je povinná.',
-        ]);
-
-        [$d_ceil, $u_ceil] = SpeedClass::parseSlash($validated['qos_ceil']);
-        [$d_rate, $u_rate] = SpeedClass::parseSlash($validated['qos_rate']);
-
-        $speedClass->update([
-            'name'   => $validated['name'],
-            'd_ceil' => $d_ceil,
-            'u_ceil' => $u_ceil,
-            'd_rate' => $d_rate,
-            'u_rate' => $u_rate,
-            'price'  => $this->normalizePrice($request->input('price')),
-        ]);
+        ], self::MESSAGES);
+        $this->classes->update($speedClass, $this->values($request, $validated));
 
         return redirect()->route('speed_classes.index')
             ->with('success', 'Třída rychlosti byla upravena.');
@@ -148,13 +126,13 @@ class SpeedClassController extends Controller
         if (!$this->can('delete_all'))
             abort(403);
 
-        $speedClass = SpeedClass::withCount('members')->findOrFail($id);
+        $speedClass = $this->classes->findWithMemberCountOrFail((int) $id);
 
         if ($speedClass->members_count > 0) {
             return back()->with('error', "Třídu nelze smazat — je přiřazena {$speedClass->members_count} členům.");
         }
 
-        $speedClass->delete();
+        $this->classes->delete($speedClass);
 
         return redirect()->route('speed_classes.index')
             ->with('success', 'Třída rychlosti byla smazána.');
@@ -168,17 +146,7 @@ class SpeedClassController extends Controller
         if (!in_array($type, ['member', 'applicant'], true))
             abort(404);
 
-        $speedClass = SpeedClass::findOrFail($id);
-        $col = $type === 'member' ? 'regular_member_default' : 'applicant_default';
-
-        if ($speedClass->$col) {
-            // currently default → unset
-            $speedClass->update([$col => false]);
-        } else {
-            // set this as default, unset all others
-            SpeedClass::where('id', '!=', $id)->update([$col => false]);
-            $speedClass->update([$col => true]);
-        }
+        $this->classes->toggleDefault($this->classes->findOrFail((int) $id), $type === 'member' ? 'regular_member_default' : 'applicant_default');
 
         return back()->with('success', 'Výchozí třída byla nastavena.');
     }

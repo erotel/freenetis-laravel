@@ -2,14 +2,15 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\Street;
-use App\Models\Town;
+use App\Domains\Members\Repositories\AddressBookRepository;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
 
+/** Ulice (číselník adres); data v doméně Members. */
 class StreetController extends Controller
 {
+    public function __construct(private AddressBookRepository $addresses) {}
+
     private const ACL_SECTION = 'Address_points_Controller';
     private const ACL_VALUE   = 'street';
 
@@ -31,10 +32,7 @@ class StreetController extends Controller
             $perPage = 50;
         }
 
-        $streets = Street::with('town')
-            ->orderBy($sort, $dir)
-            ->paginate($perPage)
-            ->withQueryString();
+        $streets = $this->addresses->streets($sort, $dir, $perPage);
 
         return view('streets.index', [
             'streets'   => $streets,
@@ -53,21 +51,12 @@ class StreetController extends Controller
             abort(403);
         }
 
-        $street = Street::with('town')->find($id);
+        $street = $this->addresses->street($id, true);
         if (!$street) {
             abort(404);
         }
 
-        $apTotal  = DB::table('address_points')->where('street_id', $id)->count();
-        $apOrphan = DB::table('address_points')->where('street_id', $id)
-            ->whereNotExists(fn($q) => $q->from('members')->whereColumn('members.address_point_id', 'address_points.id'))
-            ->whereNotExists(fn($q) => $q->from('devices')->whereColumn('devices.address_point_id', 'address_points.id'))
-            ->whereNotExists(fn($q) => $q->from('members_domiciles')->whereColumn('members_domiciles.address_point_id', 'address_points.id'))
-            ->count();
-        $memberCount = DB::table('members')
-            ->join('address_points as ap', 'ap.id', '=', 'members.address_point_id')
-            ->where('ap.street_id', $id)
-            ->count();
+        [$apTotal, $apOrphan, $memberCount] = $this->addresses->addressPointStats('street_id', $id);
 
         return view('streets.show', [
             'street'      => $street,
@@ -84,7 +73,7 @@ class StreetController extends Controller
             abort(403);
         }
 
-        $towns = Town::orderBy('town')->orderBy('quarter')->orderBy('zip_code')->get();
+        $towns = $this->addresses->townsForSelect();
 
         return view('streets.create', ['towns' => $towns]);
     }
@@ -103,7 +92,7 @@ class StreetController extends Controller
             ],
         ], ['street.unique' => 'Tato ulice v daném městě již existuje.']);
 
-        Street::create($data);
+        $this->addresses->createStreet($data);
 
         session()->flash('success', 'Ulice byla úspěšně přidána.');
 
@@ -116,12 +105,12 @@ class StreetController extends Controller
             abort(403);
         }
 
-        $street = Street::find($id);
+        $street = $this->addresses->street($id);
         if (!$street) {
             abort(404);
         }
 
-        $towns = Town::orderBy('town')->orderBy('quarter')->orderBy('zip_code')->get();
+        $towns = $this->addresses->townsForSelect();
 
         return view('streets.edit', ['street' => $street, 'towns' => $towns]);
     }
@@ -132,7 +121,7 @@ class StreetController extends Controller
             abort(403);
         }
 
-        $street = Street::find($id);
+        $street = $this->addresses->street($id);
         if (!$street) {
             abort(404);
         }
@@ -158,7 +147,7 @@ class StreetController extends Controller
             abort(403);
         }
 
-        $street = Street::find($id);
+        $street = $this->addresses->street($id);
         if (!$street) {
             abort(404);
         }

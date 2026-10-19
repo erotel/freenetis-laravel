@@ -2,59 +2,34 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\SavedFilter;
+use App\Domains\Members\Repositories\SavedFilterRepository;
 use Illuminate\Http\Request;
 
+/** Uložené filtry seznamů (jen vlastní); data v doméně Members. */
 class SavedFilterController extends Controller
 {
+    public function __construct(private SavedFilterRepository $filters) {}
+
     public function index(Request $request)
     {
-        $page = $request->query('page', '');
-        $filters = SavedFilter::where('user_id', auth()->id())
-            ->where('page', $page)
-            ->orderBy('name')
-            ->get(['id', 'name', 'filters'])
-            ->map(fn($f) => ['id' => $f->id, 'name' => $f->name, 'filters' => $f->filters]);
-
-        return response()->json($filters);
+        return response()->json($this->filters->forPage((int) auth()->id(), (string) $request->query('page', '')));
     }
 
     public function store(Request $request)
     {
-        $validated = $request->validate([
+        $v = $request->validate([
             'name'    => 'required|string|max:100',
             'page'    => 'required|string|max:50',
             'filters' => 'required|array',
         ]);
-
-        $existing = SavedFilter::where('user_id', auth()->id())
-            ->where('page', $validated['page'])
-            ->where('name', $validated['name'])
-            ->first();
-
-        if ($existing) {
-            $existing->update(['filters' => $validated['filters']]);
-            $saved = $existing;
-        } else {
-            $saved = SavedFilter::create([
-                'user_id' => auth()->id(),
-                'name'    => $validated['name'],
-                'page'    => $validated['page'],
-                'filters' => $validated['filters'],
-            ]);
-        }
+        $saved = $this->filters->save((int) auth()->id(), $v['page'], $v['name'], $v['filters']);
 
         return response()->json(['id' => $saved->id, 'name' => $saved->name]);
     }
 
     public function destroy(int $id)
     {
-        $filter = SavedFilter::where('id', $id)
-            ->where('user_id', auth()->id())
-            ->firstOrFail();
-
-        $filter->delete();
-
+        $this->filters->deleteOwnOrFail((int) auth()->id(), $id);
         return response()->json(['ok' => true]);
     }
 }

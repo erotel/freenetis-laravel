@@ -2,12 +2,14 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\Town;
+use App\Domains\Members\Repositories\AddressBookRepository;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\DB;
 
+/** Obce (číselník adres); data v doméně Members. */
 class TownController extends Controller
 {
+    public function __construct(private AddressBookRepository $addresses) {}
+
     private const ACL_SECTION = 'Address_points_Controller';
     private const ACL_VALUE   = 'town';
 
@@ -29,7 +31,7 @@ class TownController extends Controller
             $perPage = 50;
         }
 
-        $towns = Town::orderBy($sort, $dir)->paginate($perPage)->withQueryString();
+        $towns = $this->addresses->towns($sort, $dir, $perPage);
 
         return view('towns.index', [
             'towns'   => $towns,
@@ -48,25 +50,14 @@ class TownController extends Controller
             abort(403);
         }
 
-        $town = Town::find($id);
+        $town = $this->addresses->town($id);
         if (!$town) {
             abort(404);
         }
 
         $streets = $town->streets()->orderBy('street')->get();
 
-        // AP celkem + počet, kolik z nich obsazuje aspoň jeden člen/zařízení/domicil.
-        // „Prázdné AP" = AP v této obci bez jakékoli reference (kandidáti na úklid).
-        $apTotal  = DB::table('address_points')->where('town_id', $id)->count();
-        $apOrphan = DB::table('address_points')->where('town_id', $id)
-            ->whereNotExists(fn($q) => $q->from('members')->whereColumn('members.address_point_id', 'address_points.id'))
-            ->whereNotExists(fn($q) => $q->from('devices')->whereColumn('devices.address_point_id', 'address_points.id'))
-            ->whereNotExists(fn($q) => $q->from('members_domiciles')->whereColumn('members_domiciles.address_point_id', 'address_points.id'))
-            ->count();
-        $memberCount = DB::table('members')
-            ->join('address_points as ap', 'ap.id', '=', 'members.address_point_id')
-            ->where('ap.town_id', $id)
-            ->count();
+        [$apTotal, $apOrphan, $memberCount] = $this->addresses->addressPointStats('town_id', $id);
 
         return view('towns.show', [
             'town'        => $town,
@@ -108,7 +99,7 @@ class TownController extends Controller
             }),
         ], ['town.unique' => 'Tato kombinace města, čtvrti a PSČ již existuje.']);
 
-        Town::create($data);
+        $this->addresses->createTown($data);
 
         session()->flash('success', 'Město bylo úspěšně přidáno.');
 
@@ -121,7 +112,7 @@ class TownController extends Controller
             abort(403);
         }
 
-        $town = Town::find($id);
+        $town = $this->addresses->town($id);
         if (!$town) {
             abort(404);
         }
@@ -135,7 +126,7 @@ class TownController extends Controller
             abort(403);
         }
 
-        $town = Town::find($id);
+        $town = $this->addresses->town($id);
         if (!$town) {
             abort(404);
         }
@@ -167,7 +158,7 @@ class TownController extends Controller
             abort(403);
         }
 
-        $town = Town::find($id);
+        $town = $this->addresses->town($id);
         if (!$town) {
             abort(404);
         }
