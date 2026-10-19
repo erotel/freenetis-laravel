@@ -162,6 +162,25 @@ class OutgoingPaymentsTest extends DatabaseTestCase
         $this->assertSame('approved', $q->fresh()->status, 'při chybě zůstává schválená');
     }
 
+    public function test_soubezny_export_neodesle_platby_dvakrat(): void
+    {
+        Setting::set('fio_api_token_bank_account_' . $this->accountId, '__selftest_fio_token');
+        $p = $this->payment(OutgoingPayment::STATUS_APPROVED);
+        $fio = $this->mock(FioApiService::class);
+        $fio->shouldReceive('importPayments')->once()->andReturn('ok');
+
+        $running = \Illuminate\Support\Facades\Cache::lock('outgoing-payments-export:' . $this->accountId, 60);
+        $this->assertTrue($running->get(), 'jiný export právě běží');
+        $this->as()->post(route('outgoing_payments.export', $this->accountId))
+            ->assertSessionHas('error', 'Export plateb z tohoto účtu právě probíhá. Počkejte chvíli a obnovte stránku.');
+        $this->assertSame('approved', $p->fresh()->status);
+        $running->release();
+
+        $this->as()->post(route('outgoing_payments.export', $this->accountId))->assertSessionHas('success');
+        $this->as()->post(route('outgoing_payments.export', $this->accountId))->assertSessionHas('error', 'Žádné schválené platby k exportu pro tento účet.');
+        $this->assertSame('exported', $p->fresh()->status);
+    }
+
     // ── ACL ──────────────────────────────────────────────────────────────────
 
     public function test_prava(): void

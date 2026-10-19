@@ -8,15 +8,22 @@ use App\Domains\Billing\Repositories\OutgoingPaymentRepository;
 use App\Models\BankAccount;
 use App\Models\OutgoingPayment;
 use App\Services\FioApiService;
+use Illuminate\Support\Facades\Cache;
 
 /**
  * Export schválených odchozích plateb účtu: s FIO tokenem rovnou do FIO API
  * (odpověď se uloží k platbám), jinak XML ke stažení (jméno souboru k
  * platbám). Platby → exported; spárovaný bankovní převod dostane poznámku
  * „Čeká se na platbu z banky". Chyba FIO API = nic se nemění.
+ *
+ * Export účtu běží pod zámkem: dvojklik / druhá záložka by jinak stihla
+ * načíst tytéž schválené platby dřív, než první export změní stav, a poslat
+ * je do FIO podruhé (dvojí odeslání peněz).
  */
 class ExportOutgoingPaymentsAction
 {
+    private const LOCK_SECONDS = 300;
+
     public function __construct(private OutgoingPaymentRepository $payments, private FioApiService $fio)
     {
     }
@@ -26,6 +33,19 @@ class ExportOutgoingPaymentsAction
      * @throws OutgoingPaymentRejected
      */
     public function handle(BankAccount $bankAccount): array
+    {
+        $lock = Cache::lock('outgoing-payments-export:' . $bankAccount->id, self::LOCK_SECONDS);
+        if (!$lock->get()) {
+            throw new OutgoingPaymentRejected('Export plateb z tohoto účtu právě probíhá. Počkejte chvíli a obnovte stránku.');
+        }
+        try {
+            return $this->export($bankAccount);
+        } finally {
+            $lock->release();
+        }
+    }
+
+    private function export(BankAccount $bankAccount): array
     {
         $payments = $this->payments->approvedFor((int) $bankAccount->id);
         if ($payments->isEmpty()) {
