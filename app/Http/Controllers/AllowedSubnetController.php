@@ -2,286 +2,150 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\AllowedSubnet;
-use App\Models\AllowedSubnetsCount;
-use App\Models\Member;
-use App\Models\Setting;
-use App\Models\SpeedClass;
-use App\Models\Subnet;
+use App\Domains\Network\Actions\AddAllowedSubnetAction;
+use App\Domains\Network\Actions\SetAllowedSubnetBillingAction;
+use App\Domains\Network\Actions\SetAllowedSubnetSpeedAction;
+use App\Domains\Network\Actions\ToggleAllowedSubnetAction;
+use App\Domains\Network\Exceptions\PlaceBillingRejected;
+use App\Domains\Network\Queries\AllowedSubnetsCardQuery;
+use App\Domains\Network\Repositories\AllowedSubnetRepository;
+use App\Domains\Members\Repositories\MemberRepository;
 use Illuminate\Http\Request;
 
+/**
+ * Povolené podsítě / přípojná místa člena. Člen má self-service: vidí své
+ * místa a přepíná je on/off; limit, přidání, rychlost, účtování a smazání
+ * jen admin. Logika v app/Domains/Network.
+ */
 class AllowedSubnetController extends Controller
 {
     private const ACL_SECTION = 'Allowed_subnets_Controller';
     private const ACL_VALUE   = 'allowed_subnet';
+
+    public function __construct(private AllowedSubnetRepository $places, private MemberRepository $members) {}
 
     private function can(string $action): bool
     {
         return $this->aclCheck($action, self::ACL_SECTION, self::ACL_VALUE);
     }
 
-    /**
-     * Člen má self-service přístup k vlastnímu záznamu allowed_subnets:
-     *  - prohlížet seznam (showByMember)
-     *  - přepínat existující podsítě on/off (toggle)
-     * Změna limitu počtu, přidání nové podsítě a smazání zůstává adminům.
-     */
     private function isOwner(int $memberId): bool
     {
         return auth()->check() && (int) auth()->user()->member_id === $memberId;
     }
 
-    /**
-     * Limit pro daného člena: per-member z `allowed_subnets_counts`, jinak fallback
-     * na globální `allowed_subnets_default_count` (Kohana výchozí 1). Vrací 0 =
-     * neomezeno, jak očekává volající kód (`if ($maxCount > 0)`).
-     */
-    private function maxCount(int $memberId): int
+    private function toMember(int $memberId, string $flash, string $message)
     {
-        $row = AllowedSubnetsCount::firstWhere('member_id', $memberId);
-        if ($row) {
-            return (int) $row->count;
-        }
-        return (int) Setting::get('allowed_subnets_default_count', 1);
+        return redirect()->route('allowed_subnets.by_member', $memberId)->with($flash, $message);
     }
 
-    public function showByMember(int $memberId)
+    public function showByMember(int $memberId, AllowedSubnetsCardQuery $card)
     {
         $isAdmin = $this->can('view_all');
         if (!$isAdmin && !$this->isOwner($memberId)) {
             abort(403);
         }
 
-        $member = Member::with('speedClass')->findOrFail($memberId);
-
-        // Stabilní pořadí podle id — ať se řádky při přepnutí on/off nepřehazují
-        // (dřív se podle `enabled` vypnutá podsíť přesouvala dolů, což mátlo).
-        $allowedSubnets = AllowedSubnet::where('member_id', $memberId)
-            ->with(['subnet', 'speedClass'])
-            ->orderBy('id')
-            ->get();
-
-        // Nabídka rychlostí pro per-podsíť výběr (jen admin). Prázdná volba =
-        // „zdědit rychlost člena".
-        $speedClasses = $isAdmin ? SpeedClass::orderByDesc('d_ceil')->get() : collect();
-
-        // Členové bez admin oprávnění nepotřebují seznam dostupných podsítí
-        // (nemůžou je stejně přidávat), tak ho ani nenačítáme.
-        $availableSubnets = $isAdmin
-            ? Subnet::whereNotIn('id', $allowedSubnets->pluck('subnet_id'))
-                ->orderBy('name')
-                ->get()
-            : collect();
-
-        $hasOwnLimit  = AllowedSubnetsCount::where('member_id', $memberId)->exists();
-        $maxCount     = $this->maxCount($memberId);
-        $globalCount  = (int) Setting::get('allowed_subnets_default_count', 1);
-
-        return view('allowed_subnets.show_by_member', [
-            'member'           => $member,
-            'allowedSubnets'   => $allowedSubnets,
-            'availableSubnets' => $availableSubnets,
-            'maxCount'         => $maxCount,
-            'hasOwnLimit'      => $hasOwnLimit,
-            'globalCount'      => $globalCount,
-            // Toggle smí člen sám (self-service), zbytek jen admin
-            'canToggle'        => $isAdmin || $this->isOwner($memberId),
-            // Detail podsítě (subnets.show) je admin-only — zákazníkovi ho
-            // ukážeme jako text, ne jako proklik (jinak by dostal 403).
+        return view('allowed_subnets.show_by_member', $card->find($memberId, $isAdmin) + [
+            'canToggle'           => $isAdmin || $this->isOwner($memberId),
+            // detail podsítě je admin-only — zákazníkovi jen text, ne proklik
             'canViewSubnetDetail' => $this->aclCheck('view_all', 'Subnets_Controller', 'subnet'),
-            'canEditCount'     => $this->can('edit_all'),
-            'canNew'           => $this->can('new_all'),
-            'canDelete'        => $this->can('delete_all'),
-            // Rychlost per podsíť smí měnit jen admin (edit_all).
-            'canEditSpeed'     => $this->can('edit_all'),
-            'speedClasses'     => $speedClasses,
-            'memberSpeed'      => $member->speedClass,
+            'canEditCount'        => $this->can('edit_all'),
+            'canNew'              => $this->can('new_all'),
+            'canDelete'           => $this->can('delete_all'),
+            'canEditSpeed'        => $this->can('edit_all'),
         ]);
     }
 
-    /**
-     * Nastavení vlastní rychlosti přípojného místa (povolené podsítě).
-     * Prázdná hodnota = zdědit rychlost člena (members.speed_class_id).
-     * Vlastní rychlost se pak promítne do QoS exportu per IP té podsítě.
-     */
-    public function updateSpeed(int $id, Request $request)
+    /** Vlastní rychlost přípojného místa; prázdná = zdědit rychlost člena. */
+    public function updateSpeed(int $id, Request $request, SetAllowedSubnetSpeedAction $setSpeed)
     {
-        $as = AllowedSubnet::findOrFail($id);
-
+        $as = $this->places->findOrFail($id);
         if (!$this->can('edit_all')) {
             abort(403);
         }
 
-        $validated = $request->validate([
-            'speed_class_id' => 'nullable|integer|exists:speed_classes,id',
-        ]);
+        $validated = $request->validate(['speed_class_id' => 'nullable|integer|exists:speed_classes,id']);
+        $speedId   = $validated['speed_class_id'] ?? null;
+        $setSpeed->handle($as, $speedId !== null ? (int) $speedId : null);
 
-        $speedId = $validated['speed_class_id'] ?? null;
-        // Zděděná rychlost (bez vlastní) nejde účtovat → při zdědění zrušíme charged.
-        $update = ['speed_class_id' => $speedId];
-        if ($speedId === null) {
-            $update['charged'] = false;
-        }
-        $as->update($update);
-
-        return redirect()->route('allowed_subnets.by_member', $as->member_id)
-            ->with('success', $as->speed_class_id
-                ? 'Rychlost přípojného místa byla nastavena.'
-                : 'Rychlost přípojného místa se nově dědí od člena (účtování zrušeno).');
+        return $this->toMember((int) $as->member_id, 'success', $as->speed_class_id
+            ? 'Rychlost přípojného místa byla nastavena.'
+            : 'Rychlost přípojného místa se nově dědí od člena (účtování zrušeno).');
     }
 
-    /**
-     * Nastavení platby za přípojné místo: zda se účtuje (charged). Cena se bere
-     * vždy z vlastní rychlosti místa; účtovat lze jen místo s vlastní rychlostí
-     * (zděděná rychlost se neúčtuje). Jen admin.
-     */
-    public function updateBilling(int $id, Request $request)
+    /** Účtování přípojného místa (cena podle jeho rychlosti). */
+    public function updateBilling(int $id, Request $request, SetAllowedSubnetBillingAction $setBilling)
     {
-        $as = AllowedSubnet::findOrFail($id);
-
+        $as = $this->places->findOrFail($id);
         if (!$this->can('edit_all')) {
             abort(403);
         }
 
-        $request->validate([
-            'charged' => 'nullable|boolean',
-        ]);
-
+        $request->validate(['charged' => 'nullable|boolean']);
         $charged = (bool) $request->input('charged', false);
-        if ($charged && !$as->speed_class_id) {
-            return redirect()->route('allowed_subnets.by_member', $as->member_id)
-                ->with('error', 'Účtovat lze jen místo s vlastní rychlostí. Nejprve mu nastavte rychlost (ne „zdědit").');
+
+        try {
+            $setBilling->handle($as, $charged);
+        } catch (PlaceBillingRejected $e) {
+            return $e->viaContract
+                ? redirect()->route('contracts.show', $as->member_id)->with('error', $e->getMessage())
+                : $this->toMember((int) $as->member_id, 'error', $e->getMessage());
         }
 
-        // Účtování NOVÉHO placeného místa u člena s podepsanou smlouvou nelze zapnout
-        // přímo — musí projít dodatkem, který místo zpoplatní až po podpisu
-        // (apply-on-sign). Vypnutí (charged=false) povoleno (snižuje závazek).
-        if ($charged) {
-            $contract = app(\App\Services\ContractService::class)->getByMemberId((int) $as->member_id);
-            if ($contract && $contract->status === 'signed') {
-                return redirect()->route('contracts.show', $as->member_id)
-                    ->with('error', 'Zpoplatnění přípojného místa u člena s podepsanou smlouvou zapni dodatkem ke smlouvě (začne účtovat po podpisu), ne přímo v podsítích.');
-            }
-        }
-
-        $as->update(['charged' => $charged]);
-
-        return redirect()->route('allowed_subnets.by_member', $as->member_id)
-            ->with('success', $charged
-                ? 'Přípojné místo se nově účtuje (cena podle rychlosti).'
-                : 'Přípojné místo se nově neúčtuje.');
+        return $this->toMember((int) $as->member_id, 'success', $charged
+            ? 'Přípojné místo se nově účtuje (cena podle rychlosti).'
+            : 'Přípojné místo se nově neúčtuje.');
     }
 
-    public function store(Request $request, int $memberId)
+    public function store(Request $request, int $memberId, AddAllowedSubnetAction $add)
     {
         if (!$this->can('new_all')) {
             abort(403);
         }
-
-        $member = Member::findOrFail($memberId);
+        $this->members->findOrFail($memberId);
 
         $request->validate([
-            'subnet_id' => [
-                'required',
-                'integer',
-                'exists:subnets,id',
-                function ($attr, $value, $fail) use ($memberId) {
-                    if (AllowedSubnet::where('member_id', $memberId)->where('subnet_id', $value)->exists()) {
-                        $fail('Tato podsíť je již v seznamu povolených.');
-                    }
-                },
-            ],
+            'subnet_id' => ['required', 'integer', 'exists:subnets,id', function ($attr, $value, $fail) use ($memberId) {
+                if ($this->places->exists($memberId, (int) $value)) {
+                    $fail('Tato podsíť je již v seznamu povolených.');
+                }
+            }],
         ]);
+        $add->handle($memberId, (int) $request->subnet_id);
 
-        $as = AllowedSubnet::create([
-            'member_id' => $memberId,
-            'subnet_id' => $request->subnet_id,
-            'enabled'   => true,
-        ]);
-
-        // Rebalance: if over limit, disable oldest enabled subnets (not the one just added)
-        $maxCount = $this->maxCount($memberId);
-        if ($maxCount > 0) {
-            $enabledCount = AllowedSubnet::where('member_id', $memberId)
-                ->where('enabled', true)->count();
-
-            while ($enabledCount > $maxCount) {
-                $oldest = AllowedSubnet::where('member_id', $memberId)
-                    ->where('enabled', true)
-                    ->where('id', '!=', $as->id)
-                    ->orderBy('id', 'asc')
-                    ->first();
-                if (!$oldest) break;
-                $oldest->update(['enabled' => false]);
-                $enabledCount--;
-            }
-        }
-
-        return redirect()->route('allowed_subnets.by_member', $memberId)
-            ->with('success', 'Podsíť byla přidána.');
+        return $this->toMember($memberId, 'success', 'Podsíť byla přidána.');
     }
 
+    /** Limit zapnutých míst člena; „use_global" vrátí na globální výchozí. */
     public function updateCount(Request $request, int $memberId)
     {
         if (!$this->can('edit_all')) {
             abort(403);
         }
-
-        Member::findOrFail($memberId);
+        $this->members->findOrFail($memberId);
         $request->validate([
             'allowed_subnets_count' => 'nullable|integer|min:0',
             'use_global'            => 'nullable|in:1',
         ]);
 
-        // 'use_global' checkbox smaže per-member řádek → vrátí na globální default.
         if ($request->boolean('use_global')) {
-            AllowedSubnetsCount::where('member_id', $memberId)->delete();
+            $this->places->clearLimit($memberId);
             return back()->with('success', 'Limit vrácen na globální default.');
         }
-
-        AllowedSubnetsCount::updateOrCreate(
-            ['member_id' => $memberId],
-            ['count'     => (int) $request->input('allowed_subnets_count', 0)]
-        );
+        $this->places->setLimit($memberId, (int) $request->input('allowed_subnets_count', 0));
 
         return back()->with('success', 'Maximum povolených podsítí bylo uloženo.');
     }
 
-    public function toggle(int $id)
+    public function toggle(int $id, ToggleAllowedSubnetAction $toggle)
     {
-        $as = AllowedSubnet::with('member')->findOrFail($id);
-        $member = $as->member;
-
+        $as = $this->places->findOrFail($id);
         if (!$this->can('edit_all') && !$this->isOwner((int) $as->member_id)) {
             abort(403);
         }
-        $maxCount = $this->maxCount($member->id);
 
-        if ($as->enabled) {
-            // Disable — always allowed
-            $as->update(['enabled' => false]);
-            return redirect()->route('allowed_subnets.by_member', $member->id)
-                ->with('success', 'Podsíť byla vypnuta.');
-        } else {
-            // Enable — check limit, displace oldest if at max
-            if ($maxCount > 0) {
-                $enabledCount = AllowedSubnet::where('member_id', $member->id)
-                    ->where('enabled', true)->count();
-
-                if ($enabledCount >= $maxCount) {
-                    $oldest = AllowedSubnet::where('member_id', $member->id)
-                        ->where('enabled', true)
-                        ->orderBy('id', 'asc')
-                        ->first();
-                    if ($oldest) {
-                        $oldest->update(['enabled' => false]);
-                    }
-                }
-            }
-            $as->update(['enabled' => true]);
-            return redirect()->route('allowed_subnets.by_member', $member->id)
-                ->with('success', 'Podsíť byla zapnuta.');
-        }
+        return $this->toMember((int) $as->member_id, 'success', $toggle->handle($as) ? 'Podsíť byla zapnuta.' : 'Podsíť byla vypnuta.');
     }
 
     public function destroy(int $id)
@@ -289,12 +153,9 @@ class AllowedSubnetController extends Controller
         if (!$this->can('delete_all')) {
             abort(403);
         }
+        $as = $this->places->findOrFail($id);
+        $this->places->delete($as);
 
-        $allowedSubnet = AllowedSubnet::findOrFail($id);
-        $memberId = $allowedSubnet->member_id;
-        $allowedSubnet->delete();
-
-        return redirect()->route('allowed_subnets.by_member', $memberId)
-            ->with('success', 'Podsíť byla odebrána.');
+        return $this->toMember((int) $as->member_id, 'success', 'Podsíť byla odebrána.');
     }
 }
