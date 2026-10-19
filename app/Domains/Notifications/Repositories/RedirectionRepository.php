@@ -96,4 +96,43 @@ class RedirectionRepository
             ->where('c.type', $type)
             ->pluck('c.value');
     }
+
+    /** Řádek IP adresy (cíl ručního přesměrování), nebo null. */
+    public function ip(int $ipId): ?object
+    {
+        return DB::table('ip_addresses')->where('id', $ipId)->first();
+    }
+
+    /** IP člena přímo přidělené (ip_addresses.member_id) i přes jeho zařízení. */
+    public function memberAllIpIds(int $memberId): Collection
+    {
+        return DB::table('ip_addresses as ip')
+            ->leftJoin('ifaces as i', 'i.id', '=', 'ip.iface_id')
+            ->leftJoin('devices as d', 'd.id', '=', 'i.device_id')
+            ->leftJoin('users as u', 'u.id', '=', 'd.user_id')
+            ->where(function ($q) use ($memberId) {
+                $q->where('ip.member_id', $memberId)->orWhere('u.member_id', $memberId);
+            })
+            ->pluck('ip.id')
+            ->unique();
+    }
+
+    /** Přesměrování člena (přímé IP i přes zařízení) seskupená podle zprávy, nejnovější první. */
+    public function memberRedirections(int $memberId): Collection
+    {
+        return DB::table('messages_ip_addresses as mia')
+            ->join('ip_addresses as ip', 'ip.id', '=', 'mia.ip_address_id')
+            ->join('messages as msg', 'msg.id', '=', 'mia.message_id')
+            ->leftJoin('ifaces as i', 'i.id', '=', 'ip.iface_id')
+            ->leftJoin('devices as d', 'd.id', '=', 'i.device_id')
+            ->leftJoin('users as u', 'u.id', '=', 'd.user_id')
+            ->where(function ($q) use ($memberId) {
+                $q->where('ip.member_id', $memberId)->orWhere('u.member_id', $memberId);
+            })
+            ->select('mia.message_id', 'mia.ip_address_id', 'mia.comment', 'mia.datetime',
+                     'ip.ip_address', 'msg.name as msg_name', 'msg.type as msg_type')
+            ->orderByDesc('mia.datetime')
+            ->get()
+            ->groupBy('message_id');
+    }
 }

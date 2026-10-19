@@ -4,7 +4,7 @@ namespace App\Domains\Members\Queries;
 
 use App\Domains\Billing\Fees\FeePolicy;
 use App\Domains\Members\Repositories\MembershipInterruptRepository;
-use App\Http\Controllers\RedirectController;
+use App\Domains\Notifications\Repositories\RedirectionRepository;
 use App\Models\AccountAttribute;
 use App\Models\Fee;
 use App\Models\Member;
@@ -97,7 +97,7 @@ class MemberCardQuery
             'lanAccess'               => MemberLanAccess::where('member_id', $id)->orderBy('destination')->get(),
             'lanIsInfra'              => app(LanIsolationService::class)->isInfraMember($id),
             'lanNetwork'              => app(LanIsolationService::class)->networkCidr(),
-            'memberRedirections'      => RedirectController::getMemberRedirections($id),
+            'memberRedirections'      => app(RedirectionRepository::class)->memberRedirections($id),
             'expirationDate'          => $creditAccount?->getExpirationDate(),
             'memberContract'          => app(ContractService::class)->getByMemberId($id),
             'paymentInfo'             => app(PaymentQrService::class)->paymentInfoForMember($id),
