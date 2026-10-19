@@ -107,4 +107,19 @@ class DeviceRepository
     {
         DeviceEngineer::where('device_id', $deviceId)->where('user_id', $userId)->delete();
     }
+
+    public function findOrFail(int $id): Device
+    {
+        return Device::findOrFail($id);
+    }
+
+    public function findWithAddressOrFail(int $id): Device
+    {
+        return Device::with(['addressPoint.street', 'addressPoint.town'])->findOrFail($id);
+    }
+
+    public function ifaceWithDeviceOrFail(int $ifaceId): Iface
+    {
+        return Iface::with('device.user')->findOrFail($ifaceId);
+    }
 }

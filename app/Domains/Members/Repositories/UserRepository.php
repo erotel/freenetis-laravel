@@ -24,6 +24,12 @@ class UserRepository
         return User::with('member')->find($id);
     }
 
+    /** Nejstarší (hlavní) uživatel člena. */
+    public function firstOfMember(int $memberId): ?User
+    {
+        return User::where('member_id', $memberId)->orderBy('id')->first();
+    }
+
     public function findOrFail(int $id): User
     {
         return User::findOrFail($id);

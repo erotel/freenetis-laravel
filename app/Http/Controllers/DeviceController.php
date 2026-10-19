@@ -20,11 +20,11 @@ use App\Http\Filters\DeviceFilter;
 use App\Http\Requests\Devices\StoreDeviceFromTemplateRequest;
 use App\Http\Requests\Devices\StoreDeviceRequest;
 use App\Http\Requests\Devices\UpdateDeviceRequest;
-use App\Models\ConnectionRequest;
+use App\Domains\Access\Repositories\ConnectionRequestRepository;
+use App\Domains\Members\Repositories\UserRepository;
 use App\Models\Device;
 use App\Models\Iface;
 use App\Models\Setting;
-use App\Models\User;
 use Illuminate\Http\Request;
 
 class DeviceController extends Controller
@@ -88,10 +88,7 @@ class DeviceController extends Controller
             abort(403);
         }
 
-        $user = User::find($userId);
-        if (!$user) {
-            abort(404);
-        }
+        $user = app(UserRepository::class)->findOrFail($userId);
 
         $sort = in_array(request('sort'), DeviceListQuery::USER_SORTS, true) ? request('sort') : 'name';
         $dir  = request('dir') === 'desc' ? 'desc' : 'asc';
@@ -193,7 +190,7 @@ class DeviceController extends Controller
      */
     private function pppoeIface(int $ifaceId): Iface
     {
-        $iface = Iface::with('device.user')->findOrFail($ifaceId);
+        $iface = app(DeviceRepository::class)->ifaceWithDeviceOrFail($ifaceId);
         abort_if(!$iface->device, 404);
         abort_unless($this->can('view_all') || $this->isOwnUser($iface->device->user_id), 403);
         return $iface;
@@ -205,7 +202,7 @@ class DeviceController extends Controller
     {
         abort_unless($this->can('new_all', 'engineer'), 403);
 
-        Device::findOrFail($deviceId);
+        $devices->findOrFail($deviceId);
         $data = $request->validate(['user_id' => 'required|integer|exists:users,id']);
         $devices->addEngineer($deviceId, (int) $data['user_id']);
 
@@ -227,7 +224,7 @@ class DeviceController extends Controller
     {
         abort_unless($this->can('new_all'), 403);
 
-        $user = $userId ? User::findOrFail($userId) : null;
+        $user = $userId ? app(UserRepository::class)->findOrFail($userId) : null;
         // Preselect: primárně ?member_id= (po reloadu formuláře), jinak člen
         // hlavního uživatele z URL (legacy „/devices/add/{userId}").
         $preselectedMemberId = $request->filled('member_id') ? (int) $request->query('member_id') : $user?->member_id;
@@ -240,14 +237,14 @@ class DeviceController extends Controller
     {
         abort_unless($this->can('new_all'), 403);
 
-        $cr = ConnectionRequest::with(['member', 'deviceTemplate', 'deviceType'])->findOrFail($crId);
+        $cr = app(ConnectionRequestRepository::class)->findOrFail($crId, ['member', 'deviceTemplate', 'deviceType']);
 
         // Admin může typ/šablonu ze žádosti přepsat (reloadWithTemplate()).
         $typeId     = (int) $request->query('type_id', $cr->device_type_id) ?: $cr->device_type_id;
         $templateId = (int) $request->query('template_id', $cr->device_template_id) ?: $cr->device_template_id;
 
         return view('devices.add', [
-            'user'                => User::where('member_id', $cr->member_id)->orderBy('id')->first(),
+            'user'                => app(UserRepository::class)->firstOfMember((int) $cr->member_id),
             'preselectedMemberId' => $cr->member_id,
             'preselectedMac'      => $cr->mac_address,
             'preselectedIp'       => $cr->ip_address,
@@ -312,10 +309,7 @@ class DeviceController extends Controller
             abort(403);
         }
 
-        $device = Device::with(['addressPoint.street', 'addressPoint.town'])->find($id);
-        if (!$device) {
-            abort(404);
-        }
+        $device = $devices->findWithAddressOrFail($id);
         $ap = $device->addressPoint;
 
         return view('devices.edit', [
@@ -335,10 +329,7 @@ class DeviceController extends Controller
 
     public function update(UpdateDeviceRequest $request, int $id, UpdateDeviceAction $update)
     {
-        $device = Device::find($id);
-        if (!$device) {
-            abort(404);
-        }
+        $device = app(DeviceRepository::class)->findOrFail($id);
 
         try {
             $update->handle($device, $request->validated());
