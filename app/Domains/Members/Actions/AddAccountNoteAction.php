@@ -2,27 +2,27 @@
 
 namespace App\Domains\Members\Actions;
 
-use App\Domains\Members\Repositories\AccountNoteRepository;
+use App\Domains\Members\Repositories\CommentRepository;
 use App\Services\AuditLogger;
 
 /** Poznámka technika ke kreditnímu účtu člena (Field Mode) + audit. */
 class AddAccountNoteAction
 {
-    public function __construct(private AccountNoteRepository $notes)
+    public function __construct(private CommentRepository $comments)
     {
     }
 
     /** @return ?int id komentáře, null = člen nemá kreditní účet */
     public function handle(int $memberId, string $text, ?int $userId, string $via): ?int
     {
-        $account = $this->notes->creditAccount($memberId);
-        if (!$account) {
+        $accountId = $this->comments->creditAccountId($memberId);
+        if (!$accountId) {
             return null;
         }
 
         $text      = trim($text);
-        $threadId  = $this->notes->threadFor($account);
-        $commentId = $this->notes->addComment($threadId, $userId, $text);
+        $threadId  = $this->comments->ensureThread('account', $accountId);
+        $commentId = $this->comments->add($threadId, $userId, $text);
 
         AuditLogger::log('created', 'comments', $commentId, null, [
             'thread_id' => $threadId,
