@@ -158,10 +158,6 @@ class LoginService
         Auth::login($user);
         $request->session()->regenerate();
 
-        DB::table('login_logs')->insert([
-            'user_id'    => $user->id,
-            'time'       => now(),
-            'IP_address' => $request->ip(),
-        ]);
+        app(\App\Domains\Members\Repositories\LoginLogRepository::class)->record((int) $user->id, $request->ip());
     }
 }

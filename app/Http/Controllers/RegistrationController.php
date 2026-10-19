@@ -2,8 +2,8 @@
 namespace App\Http\Controllers;
 
 use App\Domains\Members\Actions\SelfRegisterAction;
+use App\Domains\Members\Repositories\AddressBookRepository;
 use App\Models\Setting;
-use App\Models\Town;
 use Illuminate\Http\Request;
 
 /** Veřejná samoregistrace (Setting self_registration); logika v doméně Members. */
@@ -15,7 +15,7 @@ class RegistrationController extends Controller
             abort(404);
         }
 
-        $towns = Town::orderBy('town')->get(['id', 'town', 'zip_code', 'quarter']);
+        $towns = app(AddressBookRepository::class)->townsForRegistration();
         return view('registration.create', compact('towns'));
     }
 

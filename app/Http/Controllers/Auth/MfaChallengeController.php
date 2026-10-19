@@ -2,12 +2,12 @@
 
 namespace App\Http\Controllers\Auth;
 
+use App\Domains\Members\Repositories\LoginLogRepository;
+use App\Domains\Members\Repositories\UserRepository;
 use App\Http\Controllers\Controller;
-use App\Models\User;
 use App\Services\MfaService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\RateLimiter;
 
 /**
@@ -74,7 +74,7 @@ class MfaChallengeController extends Controller
 
         // Úspěch — dokončit přihlášení.
         RateLimiter::clear($key);
-        $user = User::find($userId);
+        $user = app(UserRepository::class)->find((int) $userId);
         if (!$user) {
             $this->clearPending($request);
             return redirect()->route('login')->withErrors(['login' => 'Účet nenalezen.']);
@@ -85,11 +85,7 @@ class MfaChallengeController extends Controller
         $request->session()->regenerate();
         $request->session()->put('mfa_passed', true);
 
-        DB::table('login_logs')->insert([
-            'user_id'    => $user->id,
-            'time'       => now(),
-            'IP_address' => $request->ip(),
-        ]);
+        app(LoginLogRepository::class)->record((int) $user->id, $request->ip());
 
         if ($mode === 'recovery') {
             $left = $this->mfa->unusedRecoveryCount($userId);

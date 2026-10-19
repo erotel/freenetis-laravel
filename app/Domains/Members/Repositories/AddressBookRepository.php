@@ -64,6 +64,12 @@ class AddressBookRepository
         Street::create($data);
     }
 
+    /** Obce pro samoregistraci (jen sloupce, které formulář potřebuje). */
+    public function townsForRegistration(): Collection
+    {
+        return Town::orderBy('town')->get(['id', 'town', 'zip_code', 'quarter']);
+    }
+
     /** Obce podle názvu (formulář člena). */
     public function townsByName(): Collection
     {

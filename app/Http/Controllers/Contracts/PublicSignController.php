@@ -8,6 +8,7 @@ use App\Domains\Contracts\Actions\GenerateTerminationAction;
 use App\Domains\Contracts\Actions\SignAddonAction;
 use App\Domains\Contracts\Exceptions\ContractSigningFailed;
 use App\Domains\Contracts\Repositories\ContractAddonRepository;
+use App\Domains\Contracts\Repositories\ContractRepository;
 use App\Domains\Contracts\Repositories\DownloadTokenRepository;
 use App\Domains\Contracts\Support\AddonType;
 use App\Domains\Contracts\Support\PostSignEmails;
@@ -15,7 +16,6 @@ use App\Domains\Contracts\Support\SignLinkToken;
 use App\Http\Controllers\Controller;
 use App\Models\Contract;
 use App\Models\ContractAddon;
-use App\Models\ContractParty;
 use App\Services\Contracts\OtpService;
 use App\Services\Contracts\PdfService;
 use Illuminate\Http\JsonResponse;
@@ -48,7 +48,7 @@ class PublicSignController extends Controller
         $contract = $this->resolveContract($request);
         if (!$contract) return $this->unauthorizedJson();
 
-        $party = ContractParty::where('contract_id', $contract->id)->orderByDesc('id')->first();
+        $party = app(ContractRepository::class)->latestParty((int) $contract->id);
 
         return response()->json([
             'id'          => (int) $contract->id,
@@ -162,7 +162,7 @@ class PublicSignController extends Controller
             return response('Odkaz není platný z této IP.', 403);
         }
 
-        $contract = Contract::find($row->contract_id);
+        $contract = app(ContractRepository::class)->find((int) $row->contract_id);
         if (!$contract) return response('Contract not found', 404);
 
         $path = match ($row->file_type) {
@@ -170,7 +170,7 @@ class PublicSignController extends Controller
             'addon'       => $contract->addon_pdf_path,
             'termination' => $this->terminationPath($contract->id),
             'tariff_addon', 'service_addon', 'connection_point_addon'
-                          => ($row->addon_id ?? null) ? ContractAddon::find($row->addon_id)?->pdf_path : null,
+                          => ($row->addon_id ?? null) ? app(ContractAddonRepository::class)->findAny((int) $row->addon_id)?->pdf_path : null,
             default       => null,
         };
         if (!$path || !is_file($path)) return response('PDF nedostupné.', 404);
@@ -258,7 +258,7 @@ class PublicSignController extends Controller
         if (!$addon) return $this->unauthorizedJson();
 
         $contract = $addon->contract;
-        $party    = ContractParty::where('contract_id', $addon->contract_id)->orderByDesc('id')->first();
+        $party    = app(ContractRepository::class)->latestParty((int) $addon->contract_id);
 
         return response()->json([
             'contract_no'     => $contract?->contract_no,
@@ -341,7 +341,7 @@ class PublicSignController extends Controller
         if ($token === '') return null;
         $cid = app(SignLinkToken::class)->contractId($token);
         if (!$cid) return null;
-        return Contract::find($cid);
+        return app(ContractRepository::class)->find((int) $cid);
     }
 
     /** Úspěšný podpis: otisk + jednorázový odkaz ke stažení (24 h). */

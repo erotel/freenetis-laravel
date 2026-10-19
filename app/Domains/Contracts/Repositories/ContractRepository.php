@@ -4,6 +4,7 @@ namespace App\Domains\Contracts\Repositories;
 
 use App\Helpers\MemberType;
 use App\Models\Contract;
+use App\Models\ContractParty;
 use App\Models\ContractEvent;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -12,6 +13,17 @@ use Illuminate\Support\Facades\Log;
 class ContractRepository
 {
     /** Poslední smlouva člena (jeden člen = jedna smlouva; zrušené návrhy se mažou). */
+    public function find(int $id): ?Contract
+    {
+        return Contract::find($id);
+    }
+
+    /** Aktuální snímek smluvní strany (poslední záznam). */
+    public function latestParty(int $contractId): ?ContractParty
+    {
+        return ContractParty::where('contract_id', $contractId)->orderByDesc('id')->first();
+    }
+
     public function findOrFail(int $id): Contract
     {
         return Contract::findOrFail($id);

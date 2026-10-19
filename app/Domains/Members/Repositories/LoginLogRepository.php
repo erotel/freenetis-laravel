@@ -32,4 +32,10 @@ class LoginLogRepository
     {
         return LoginLog::where('user_id', $userId)->orderBy('time', 'desc')->paginate($perPage);
     }
+
+    /** Záznam úspěšného přihlášení. */
+    public function record(int $userId, ?string $ip): void
+    {
+        DB::table('login_logs')->insert(['user_id' => $userId, 'time' => now(), 'IP_address' => $ip]);
+    }
 }
