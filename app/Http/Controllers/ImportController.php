@@ -5,7 +5,7 @@ namespace App\Http\Controllers;
 use App\Domains\Billing\Actions\FetchFioStatementAction;
 use App\Domains\Billing\Actions\ImportBankStatementAction;
 use App\Domains\Billing\Actions\ImportNewFioPaymentsAction;
-use App\Models\BankAccount;
+use App\Domains\Billing\Repositories\BankAccountRepository;
 use App\Services\FioCsvParser;
 use Illuminate\Http\Request;
 
@@ -17,6 +17,10 @@ class ImportController extends Controller
 
     private const NO_TOKEN = 'Není nastaven FIO API token pro tento účet. Nastavte ho v editaci bankovního účtu.';
 
+    public function __construct(private BankAccountRepository $accounts)
+    {
+    }
+
     private function can(string $action): bool
     {
         return $this->aclCheck($action, self::ACL_SECTION, self::ACL_VALUE);
@@ -26,7 +30,7 @@ class ImportController extends Controller
     {
         abort_unless($this->can('new_all'), 403);
 
-        $account = BankAccount::findOrFail($bankAccountId);
+        $account = $this->accounts->findOrFail($bankAccountId);
 
         return view('import.bank_file', compact('account'));
     }
@@ -35,7 +39,7 @@ class ImportController extends Controller
     {
         abort_unless($this->can('new_all'), 403);
 
-        $account = BankAccount::findOrFail($bankAccountId);
+        $account = $this->accounts->findOrFail($bankAccountId);
 
         $request->validate([
             'csv_file' => ['required', 'file', 'mimes:csv,txt', 'max:4096'],
@@ -81,7 +85,7 @@ class ImportController extends Controller
     {
         abort_unless($this->can('new_all'), 403);
 
-        $account = BankAccount::findOrFail($bankAccountId);
+        $account = $this->accounts->findOrFail($bankAccountId);
         $token   = FetchFioStatementAction::token($bankAccountId);
         if (empty($token)) {
             return back()->withErrors(['token' => self::NO_TOKEN]);
@@ -108,7 +112,7 @@ class ImportController extends Controller
     {
         abort_unless($this->can('new_all'), 403);
 
-        $account = BankAccount::findOrFail($bankAccountId);
+        $account = $this->accounts->findOrFail($bankAccountId);
         $token   = FetchFioStatementAction::token($bankAccountId);
         if (empty($token)) {
             return back()->withErrors(['token' => self::NO_TOKEN]);
