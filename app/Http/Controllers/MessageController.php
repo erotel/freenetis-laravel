@@ -99,28 +99,6 @@ class MessageController extends Controller
             ->with('success', 'Zpráva byla smazána.');
     }
 
-    public function activate(Request $request, int $id)
-    {
-        abort_unless($this->can('edit_all'), 403);
-
-        $this->messages->findOrFail($id);
-
-        $validated = $request->validate([
-            'ip_address_ids'   => 'required|array|min:1',
-            'ip_address_ids.*' => 'integer|exists:ip_addresses,id',
-            'comment'          => 'nullable|string|max:255',
-        ]);
-
-        $this->redirects->addAuto($id, $validated['ip_address_ids'], (int) auth()->id(), $validated['comment'] ?? '');
-
-        AuditLogger::log('created', 'messages_ip_addresses', $id, null, [
-            'message_id' => $id,
-            'ip_count'   => count($validated['ip_address_ids']),
-        ]);
-
-        return back()->with('success', 'Zpráva byla aktivována pro ' . count($validated['ip_address_ids']) . ' IP adres.');
-    }
-
     public function deactivate(int $id, int $ipAddressId)
     {
         abort_unless($this->can('edit_all'), 403);

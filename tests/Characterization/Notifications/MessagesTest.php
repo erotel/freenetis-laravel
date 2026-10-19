@@ -113,4 +113,15 @@ class MessagesTest extends DatabaseTestCase
         $this->as()->delete(route('messages.deactivate', [$id, 1]))->assertForbidden();
         $this->assertTrue(DB::table('messages')->where('id', $id)->exists());
     }
+
+    /**
+     * Ruční aktivace jde jen přes správu přesměrování (jen zprávy z nabídky).
+     * Nepoužívaný POST messages/{id}/activate ji obcházel — i pro systémové zprávy.
+     */
+    public function test_aktivace_mimo_spravu_presmerovani_neexistuje(): void
+    {
+        $system = (int) DB::table('messages')->where('type', 4)->value('id');
+        $this->as()->post("/messages/{$system}/activate", ['ip_address_ids' => [$this->ip()]])->assertNotFound();
+        $this->assertFalse(\Illuminate\Support\Facades\Route::has('messages.activate'));
+    }
 }

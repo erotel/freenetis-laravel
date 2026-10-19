@@ -570,7 +570,6 @@ Route::middleware('auth')->group(function () {
     Route::get('messages/{id}/edit', [MessageController::class, 'edit'])->name('messages.edit');
     Route::put('messages/{id}', [MessageController::class, 'update'])->name('messages.update');
     Route::delete('messages/{id}', [MessageController::class, 'destroy'])->name('messages.destroy');
-    Route::post('messages/{id}/activate', [MessageController::class, 'activate'])->name('messages.activate');
     Route::delete('messages/{id}/deactivate/{ipAddressId}', [MessageController::class, 'deactivate'])->name('messages.deactivate');
 
     Route::get('messages/{messageId}/auto-settings',          [MessageAutoSettingController::class, 'index'])->name('message-auto-settings.index');
