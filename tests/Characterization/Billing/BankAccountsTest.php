@@ -38,13 +38,29 @@ class BankAccountsTest extends CatalogTestCase
         $this->as()->get(route('bank_accounts.show', 999999999))->assertNotFound();
 
         $token = Fake::secret('fio-token');
-        $this->as()->get(route('bank_accounts.edit', $org))->assertOk()->assertViewHas('fioToken', '');
+        $this->as()->get(route('bank_accounts.edit', $org))->assertOk()->assertViewHas('hasFioToken', false);
         $this->as()->put(route('bank_accounts.update', $org), ['IBAN' => 'CZ65', 'SWIFT' => 'FIOBCZPP', 'fio_token' => $token])
             ->assertRedirect(route('bank_accounts.show', $org))->assertSessionHas('success', 'Bankovní účet byl uložen.');
         $this->assertSame(['CZ65', 'FIOBCZPP', $token], [DB::table('bank_accounts')->where('id', $org)->value('IBAN'), DB::table('bank_accounts')->where('id', $org)->value('SWIFT'), Setting::get("fio_api_token_bank_account_{$org}")]);
         $this->assertTrue($this->as()->get(route('bank_accounts.show', $org))->viewData('hasFioToken'));
         $this->as()->put(route('bank_accounts.update', $org), ['SWIFT' => str_repeat('X', 12)])->assertSessionHasErrors('SWIFT');
         $this->as()->put(route('bank_accounts.update', 999999999), [])->assertNotFound();
+    }
+
+    /** Uložený FIO token se do formuláře nevypisuje; prázdné pole ho nemaže, odebrání jen zaškrtnutím. */
+    public function test_fio_token_se_nezobrazuje(): void
+    {
+        $ba = $this->account(1);
+        $token = Fake::secret('fio-token-2');
+        Setting::set("fio_api_token_bank_account_{$ba}", $token);
+
+        $this->as()->get(route('bank_accounts.edit', $ba))->assertOk()->assertViewHas('hasFioToken', true)->assertDontSee($token)->assertSee('remove_fio_token');
+        $this->as()->put(route('bank_accounts.update', $ba), ['IBAN' => 'CZ1', 'fio_token' => ''])->assertSessionHas('success');
+        $this->assertSame($token, Setting::get("fio_api_token_bank_account_{$ba}"), 'prázdné pole = beze změny');
+        $this->as()->put(route('bank_accounts.update', $ba), ['fio_token' => " {$token}x "]);
+        $this->assertSame("{$token}x", Setting::get("fio_api_token_bank_account_{$ba}"));
+        $this->as()->put(route('bank_accounts.update', $ba), ['remove_fio_token' => '1']);
+        $this->assertSame('', (string) Setting::get("fio_api_token_bank_account_{$ba}"));
     }
 
     public function test_pravidla_stahovani(): void

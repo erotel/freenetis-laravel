@@ -62,10 +62,11 @@ class BankAccountController extends Controller
     {
         abort_unless($this->can('edit_all'), 403);
 
-        $account  = $this->accounts->findOrFail($id);
-        $fioToken = $this->accounts->fioToken($id);
-
-        return view('bank_accounts.edit', compact('account', 'fioToken'));
+        // token do stránky neposíláme — prázdné pole = beze změny
+        return view('bank_accounts.edit', [
+            'account'     => $this->accounts->findOrFail($id),
+            'hasFioToken' => $this->accounts->fioToken($id) !== '',
+        ]);
     }
 
     public function update(Request $request, int $id)
@@ -78,10 +79,15 @@ class BankAccountController extends Controller
             'IBAN'      => ['nullable', 'string', 'max:34'],
             'SWIFT'     => ['nullable', 'string', 'max:11'],
             'fio_token' => ['nullable', 'string', 'max:200'],
+            'remove_fio_token' => ['nullable', 'boolean'],
         ]);
 
         $this->accounts->setIbanSwift($account, $data['IBAN'] ?? null, $data['SWIFT'] ?? null);
-        $this->accounts->setFioToken($id, $data['fio_token'] ?? '');
+        if ($request->boolean('remove_fio_token')) {
+            $this->accounts->setFioToken($id, '');
+        } elseif (trim((string) ($data['fio_token'] ?? '')) !== '') {
+            $this->accounts->setFioToken($id, trim($data['fio_token']));
+        }
 
         return redirect()->route('bank_accounts.show', $id)->with('success', 'Bankovní účet byl uložen.');
     }

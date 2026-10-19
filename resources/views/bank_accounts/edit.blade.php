@@ -36,10 +36,15 @@
     </div>
     <div class="m-form-group">
         <label class="m-form-label" for="fio_token">FIO API token</label>
-        <input class="m-form-input" type="text" name="fio_token" id="fio_token"
-               value="{{ old('fio_token', $fioToken) }}" maxlength="200"
-               placeholder="Vložte token z FIO internet bankingu">
-        <div class="m-form-hint">Token najdete v FIO Internet Bankingu → Nastavení → API</div>
+        <input class="m-form-input" type="password" name="fio_token" id="fio_token"
+               value="" maxlength="200" autocomplete="off"
+               placeholder="{{ $hasFioToken ? 'Token je uložený — vyplňte jen pro změnu' : 'Vložte token z FIO internet bankingu' }}">
+        <div class="m-form-hint">Token najdete v FIO Internet Bankingu → Nastavení → API. Uložený token se z bezpečnostních důvodů nezobrazuje.</div>
+        @if($hasFioToken)
+        <label style="display:flex;align-items:center;gap:6px;margin-top:6px;cursor:pointer">
+            <input type="checkbox" name="remove_fio_token" value="1"> Odebrat uložený token
+        </label>
+        @endif
         @error('fio_token') <div class="m-form-hint" style="color:#c0392b">{{ $message }}</div> @enderror
     </div>
 </div>
