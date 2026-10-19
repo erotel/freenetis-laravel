@@ -99,9 +99,11 @@ class ManualRedirectsTest extends DatabaseTestCase
         $a = $this->lastAudit();
         $this->assertSame(['created', $x['member'], ['message_id' => $msg, 'ip_count' => 2, 'scope' => 'member']], [$a->action, (int) $a->auditable_id, json_decode($a->new_values, true)]);
 
-        // charakterizace: POST nekontroluje, že je zpráva v nabídce (systémový typ projde)
-        $this->as()->post(route('redirects.activate-member', $x['member']), ['message_id' => $sys]);
-        $this->assertCount(2, $this->redirects($sys));
+        // zpráva mimo nabídku (systémový typ, prázdný text) neprojde ani podvrženým POSTem
+        $this->as()->post(route('redirects.activate-member', $x['member']), ['message_id' => $sys])->assertSessionHasErrors('message_id');
+        $this->as()->post(route('redirects.activate-member', $x['member']), ['message_id' => $empty])->assertSessionHasErrors('message_id');
+        $this->as()->post(route('redirects.activate-ip', $x['device_ip']), ['message_id' => $sys])->assertSessionHasErrors('message_id');
+        $this->assertSame([], $this->redirects($sys));
 
         $this->as()->post(route('redirects.activate-member', $x['member']), ['message_id' => 999999999])->assertSessionHasErrors('message_id');
         $this->as()->get(route('redirects.activate-member', 999999999))->assertNotFound();

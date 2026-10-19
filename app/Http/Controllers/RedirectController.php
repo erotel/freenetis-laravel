@@ -10,6 +10,7 @@ use App\Domains\Notifications\Queries\ManualRedirectsQuery;
 use App\Domains\Notifications\Repositories\RedirectionRepository;
 use App\Domains\Members\Repositories\MemberRepository;
 use Illuminate\Http\Request;
+use Illuminate\Validation\Rule;
 
 /**
  * Ruční správa přesměrování (admin). Automatická přesměrování a hromadné
@@ -41,10 +42,14 @@ class RedirectController extends Controller
     private function canEdit(): bool   { return $this->aclCheck('edit_all',   self::ACL_SECTION, self::ACL_KEY); }
     private function canDelete(): bool { return $this->aclCheck('delete_all', self::ACL_SECTION, self::ACL_KEY); }
 
+    /**
+     * Jen zprávy z nabídky — systémové typy (přerušení, expirovaný test…)
+     * spravují automatiky a ručně aktivovat nejdou ani podvrženým POSTem.
+     */
     private function validated(Request $request): array
     {
         return $request->validate([
-            'message_id' => 'required|integer|exists:messages,id',
+            'message_id' => ['required', 'integer', Rule::in(array_keys($this->query->activatableMessages()))],
             'comment'    => 'nullable|string|max:1000',
         ]);
     }
