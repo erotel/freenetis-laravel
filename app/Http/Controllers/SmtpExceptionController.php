@@ -2,12 +2,16 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\SmtpException;
+use App\Domains\Network\Repositories\SmtpExceptionRepository;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 
 class SmtpExceptionController extends Controller
 {
+    public function __construct(private SmtpExceptionRepository $exceptions)
+    {
+    }
+
     private function can(string $action = 'view_all'): bool
     {
         return $this->aclCheck($action, 'Network_Controller', 'smtp_exceptions');
@@ -17,10 +21,8 @@ class SmtpExceptionController extends Controller
     {
         abort_unless($this->can(), 403);
 
-        $rows = SmtpException::orderByRaw('INET_ATON(intip) ASC')->get();
-
         return view('smtp_exceptions.index', [
-            'rows'    => $rows,
+            'rows'    => $this->exceptions->all(),
             'canEdit' => $this->can('edit_all'),
         ]);
     }
@@ -41,17 +43,13 @@ class SmtpExceptionController extends Controller
 
         $data = $this->validateException($request);
 
-        if (SmtpException::where('intip', $data['intip'])->exists()) {
+        if ($this->exceptions->ipTaken($data['intip'])) {
             return back()->withInput()->withErrors([
                 'intip' => 'Tato IP adresa už má SMTP výjimku.',
             ]);
         }
 
-        SmtpException::create([
-            'intip' => $data['intip'],
-            'user'  => (string) (Auth::user()?->login ?? '—'),
-            'datum' => now()->toDateString(),
-        ]);
+        $this->exceptions->create($data['intip'], (string) (Auth::user()?->login ?? '—'));
 
         session()->flash('success', 'SMTP výjimka byla uložena.');
         return redirect()->route('smtp-exceptions.index');
@@ -61,7 +59,7 @@ class SmtpExceptionController extends Controller
     {
         abort_unless($this->can('edit_all'), 403);
 
-        $record = SmtpException::findOrFail($id);
+        $record = $this->exceptions->findOrFail($id);
 
         return view('smtp_exceptions.form', [
             'action' => 'edit',
@@ -73,22 +71,16 @@ class SmtpExceptionController extends Controller
     {
         abort_unless($this->can('edit_all'), 403);
 
-        $record = SmtpException::findOrFail($id);
+        $record = $this->exceptions->findOrFail($id);
         $data   = $this->validateException($request);
 
-        $collision = SmtpException::where('intip', $data['intip'])
-            ->where('id', '!=', $id)
-            ->exists();
-        if ($collision) {
+        if ($this->exceptions->ipTaken($data['intip'], $id)) {
             return back()->withInput()->withErrors([
                 'intip' => 'Tato IP adresa už má SMTP výjimku.',
             ]);
         }
 
-        // user/datum jsou auditní stopa původního zadavatele — neměníme je při úpravě.
-        $record->update([
-            'intip' => $data['intip'],
-        ]);
+        $this->exceptions->changeIp($record, $data['intip']);
 
         session()->flash('success', 'SMTP výjimka byla uložena.');
         return redirect()->route('smtp-exceptions.index');
@@ -98,7 +90,7 @@ class SmtpExceptionController extends Controller
     {
         abort_unless($this->can('edit_all'), 403);
 
-        SmtpException::findOrFail($id)->delete();
+        $this->exceptions->delete($this->exceptions->findOrFail($id));
 
         session()->flash('success', 'SMTP výjimka byla smazána.');
         return redirect()->route('smtp-exceptions.index');
