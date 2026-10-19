@@ -2,11 +2,17 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\BankStatement;
+use App\Domains\Billing\Actions\DeleteBankStatementAction;
+use App\Domains\Billing\Repositories\BankLedgerRepository;
+
 class BankStatementController extends Controller
 {
     private const ACL_SECTION = 'Accounts_Controller';
     private const ACL_VALUE   = 'bank_statements';
+
+    public function __construct(private BankLedgerRepository $ledger)
+    {
+    }
 
     private function can(string $action): bool
     {
@@ -17,37 +23,21 @@ class BankStatementController extends Controller
     {
         abort_unless($this->can('view_all'), 403);
 
-        $statements = BankStatement::where('bank_account_id', $bankAccountId)
-            ->with('user')
-            ->orderBy('from', 'desc')
-            ->paginate(30);
-
-        $account = \App\Models\BankAccount::findOrFail($bankAccountId);
+        $statements = $this->ledger->statementsOfAccount($bankAccountId, 30);
+        $account = $this->ledger->bankAccountOrFail($bankAccountId);
 
         return view('bank_statements.show_by_account', compact('account', 'statements'));
     }
 
-    public function destroy(int $id)
+    public function destroy(int $id, DeleteBankStatementAction $delete)
     {
         abort_unless($this->can('delete'), 403);
 
-        $stmt = BankStatement::with('bankTransfers')->findOrFail($id);
-        $bankAccountId = $stmt->bank_account_id;
-        $btCount = $stmt->bankTransfers->count();
-
-        // Delete associated bank transfers (soft-delete via model)
-        $stmt->bankTransfers()->delete();
-        // Hromadné soft-delete přes relaci nespustí per-model eventy — zalogujeme
-        // souhrn (kolik bankovních převodů výpis smazal). Samotný BankStatement se
-        // auditne přes trait ($stmt->delete()).
-        \App\Services\AuditLogger::log('deleted', 'bank_transfers', $id, [
-            'bank_statement_id'     => $id,
-            'bank_transfers_deleted' => $btCount,
-        ], null);
-        $stmt->delete();
+        $stmt = $this->ledger->statementWithTransfersOrFail($id);
+        $delete->handle($stmt);
 
         return redirect()
-            ->route('bank_statements.by_account', $bankAccountId)
+            ->route('bank_statements.by_account', $stmt->bank_account_id)
             ->with('success', 'Výpis byl smazán.');
     }
 }

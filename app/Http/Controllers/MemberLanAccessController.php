@@ -2,8 +2,9 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\Member;
-use App\Models\MemberLanAccess;
+use App\Domains\Members\Repositories\MemberRepository;
+use App\Domains\Network\Actions\AddLanAccessAction;
+use App\Domains\Network\Repositories\LanAccessRepository;
 use App\Services\LanIsolationService;
 use Illuminate\Http\Request;
 use InvalidArgumentException;
@@ -18,44 +19,22 @@ class MemberLanAccessController extends Controller
     private const ACL_SECTION = 'Members_Controller';
     private const ACL_KEY     = 'lan_access';
 
-    public function __construct(private LanIsolationService $lan) {}
+    public function __construct(private LanIsolationService $lan, private LanAccessRepository $access) {}
 
-    public function store(Request $request, int $memberId)
+    public function store(Request $request, int $memberId, MemberRepository $members, AddLanAccessAction $add)
     {
         abort_unless($this->aclCheck('edit_all', self::ACL_SECTION, self::ACL_KEY), 403);
-        Member::findOrFail($memberId);
+        $members->findOrFail($memberId);
 
         $data = $request->validate([
             'destinations' => 'required|string|max:2000',
             'comment'      => 'nullable|string|max:255',
         ]);
 
-        // Víc cílů najednou (oddělené čárkou/mezerou/řádkem) — vše, nebo nic.
-        $tokens = preg_split('/[\s,;]+/', $data['destinations'], -1, PREG_SPLIT_NO_EMPTY);
-        $normalized = [];
-        $errors = [];
-        foreach ($tokens as $t) {
-            try {
-                $normalized[] = $this->lan->normalizeDestination($t);
-            } catch (InvalidArgumentException $e) {
-                $errors[] = $e->getMessage();
-            }
-        }
-        if ($errors) {
-            return back()->withInput()->withErrors(['destinations' => implode(' ', $errors)]);
-        }
-
-        $added = 0;
-        foreach (array_unique($normalized) as $dest) {
-            $row = MemberLanAccess::firstOrCreate(
-                ['member_id' => $memberId, 'destination' => $dest],
-                ['comment' => $data['comment'] ?? null, 'created_by' => auth()->id()]
-            );
-            $added += $row->wasRecentlyCreated ? 1 : 0;
-        }
-
-        if ($added) {
-            $this->lan->expireSubnetsForMember($memberId);
+        try {
+            $added = $add->handle($memberId, $data['destinations'], $data['comment'] ?? null, auth()->id());
+        } catch (InvalidArgumentException $e) {
+            return back()->withInput()->withErrors(['destinations' => $e->getMessage()]);
         }
 
         return redirect()->route('members.show', $memberId)
@@ -68,9 +47,9 @@ class MemberLanAccessController extends Controller
     {
         abort_unless($this->aclCheck('edit_all', self::ACL_SECTION, self::ACL_KEY), 403);
 
-        $row = MemberLanAccess::findOrFail($id);
+        $row = $this->access->findOrFail($id);
         $memberId = (int) $row->member_id;
-        $row->delete();
+        $this->access->delete($row);
         $this->lan->expireSubnetsForMember($memberId);
 
         return redirect()->route('members.show', $memberId)

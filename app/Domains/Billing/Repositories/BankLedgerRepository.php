@@ -108,4 +108,32 @@ class BankLedgerRepository
     {
         DB::table('transfers')->where('id', $transferId)->update(['member_id' => 1]);
     }
+
+    /** Výpisy bankovního účtu, nejnovější první. */
+    public function statementsOfAccount(int $bankAccountId, int $perPage)
+    {
+        return BankStatement::where('bank_account_id', $bankAccountId)
+            ->with('user')
+            ->orderBy('from', 'desc')
+            ->paginate($perPage);
+    }
+
+    public function bankAccountOrFail(int $id): BankAccount
+    {
+        return BankAccount::findOrFail($id);
+    }
+
+    public function statementWithTransfersOrFail(int $id): BankStatement
+    {
+        return BankStatement::with('bankTransfers')->findOrFail($id);
+    }
+
+    /** Smaže výpis; jeho bankovní pohyby soft-delete. @return int počet smazaných pohybů */
+    public function deleteStatement(BankStatement $statement): int
+    {
+        $count = $statement->bankTransfers->count();
+        $statement->bankTransfers()->delete();
+        $statement->delete();
+        return $count;
+    }
 }

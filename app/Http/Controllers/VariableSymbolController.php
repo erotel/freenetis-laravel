@@ -2,14 +2,17 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\Account;
-use App\Models\VariableSymbol;
+use App\Domains\Billing\Repositories\VariableSymbolRepository;
 use Illuminate\Http\Request;
 
 class VariableSymbolController extends Controller
 {
     private const ACL_SECTION = 'Variable_Symbols_Controller';
     private const ACL_VALUE   = 'variable_symbols';
+
+    public function __construct(private VariableSymbolRepository $symbols)
+    {
+    }
 
     private function can(string $action): bool
     {
@@ -20,7 +23,7 @@ class VariableSymbolController extends Controller
     {
         abort_unless($this->can('view_all'), 403);
 
-        $account = Account::with(['member', 'variableSymbols'])->findOrFail($accountId);
+        $account = $this->symbols->accountWithSymbolsOrFail($accountId);
 
         return view('variable_symbols.show_by_account', [
             'account'   => $account,
@@ -34,7 +37,7 @@ class VariableSymbolController extends Controller
     {
         abort_unless($this->can('new_all'), 403);
 
-        $account = Account::findOrFail($accountId);
+        $account = $this->symbols->accountOrFail($accountId);
 
         $request->validate([
             'variable_symbol' => [
@@ -48,10 +51,7 @@ class VariableSymbolController extends Controller
             'variable_symbol.unique' => 'Tento variabilní symbol je již použit.',
         ]);
 
-        VariableSymbol::create([
-            'account_id'      => $account->id,
-            'variable_symbol' => $request->variable_symbol,
-        ]);
+        $this->symbols->create($account->id, $request->variable_symbol);
 
         session()->flash('success', 'Variabilní symbol byl úspěšně přidán.');
 
@@ -62,9 +62,9 @@ class VariableSymbolController extends Controller
     {
         abort_unless($this->can('delete_all'), 403);
 
-        $symbol = VariableSymbol::findOrFail($id);
+        $symbol = $this->symbols->findOrFail($id);
         $accountId = $symbol->account_id;
-        $symbol->delete();
+        $this->symbols->delete($symbol);
 
         session()->flash('success', 'Variabilní symbol byl smazán.');
 
