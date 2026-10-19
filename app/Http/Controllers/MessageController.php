@@ -2,12 +2,26 @@
 
 namespace App\Http\Controllers;
 
+use App\Domains\Notifications\Repositories\MessageRepository;
+use App\Domains\Notifications\Repositories\RedirectionRepository;
 use App\Models\Message;
+use App\Services\AuditLogger;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\DB;
 
+/** Šablony zpráv (přesměrování, e-mail, SMS); data v doméně Notifications. */
 class MessageController extends Controller
 {
+    private const RULES = [
+        'name'             => 'required|string|max:100',
+        'text'             => 'nullable|string',
+        'email_text'       => 'nullable|string',
+        'sms_text'         => 'nullable|string|max:760',
+        'self_cancel'      => 'required|integer|in:0,1,2',
+        'ignore_whitelist' => 'boolean',
+    ];
+
+    public function __construct(private MessageRepository $messages, private RedirectionRepository $redirects) {}
+
     private const ACL_SECTION = 'Messages_Controller';
     private const ACL_VALUE   = 'message';
 
@@ -18,27 +32,14 @@ class MessageController extends Controller
 
     public function index()
     {
-        $systemMessages = Message::where('type', '>', 0)->orderBy('type')->get();
-        $userMessages   = Message::where('type', 0)->orderBy('name')->get();
-
-        return view('messages.index', compact('systemMessages', 'userMessages'));
+        return view('messages.index', ['systemMessages' => $this->messages->systemMessages(), 'userMessages' => $this->messages->userMessages()]);
     }
 
     public function show(int $id)
     {
         abort_unless($this->can('view_all'), 403);
 
-        $message = Message::findOrFail($id);
-
-        $activeIps = DB::table('messages_ip_addresses as mip')
-            ->join('ip_addresses as ip', 'ip.id', '=', 'mip.ip_address_id')
-            ->leftJoin('users as u', 'u.id', '=', 'mip.user_id')
-            ->where('mip.message_id', $id)
-            ->select('mip.ip_address_id', 'ip.ip_address', 'u.login as activated_by', 'mip.comment', 'mip.datetime')
-            ->orderByDesc('mip.datetime')
-            ->get();
-
-        return view('messages.show', compact('message', 'activeIps'));
+        return view('messages.show', ['message' => $this->messages->findOrFail($id), 'activeIps' => $this->messages->activeIps($id)]);
     }
 
     public function create()
@@ -51,19 +52,12 @@ class MessageController extends Controller
     {
         abort_unless($this->can('new_all'), 403);
 
-        $validated = $request->validate([
-            'name'             => 'required|string|max:100',
-            'text'             => 'nullable|string',
-            'email_text'       => 'nullable|string',
-            'sms_text'         => 'nullable|string|max:760',
-            'self_cancel'      => 'required|integer|in:0,1,2',
-            'ignore_whitelist' => 'boolean',
-        ]);
+        $validated = $request->validate(self::RULES);
 
         $validated['type']             = Message::USER_MESSAGE;
         $validated['ignore_whitelist'] = $request->boolean('ignore_whitelist') ? 1 : 0;
 
-        Message::create($validated);
+        $this->messages->create($validated);
 
         return redirect()->route('messages.index')
             ->with('success', 'Zpráva byla vytvořena.');
@@ -72,28 +66,20 @@ class MessageController extends Controller
     public function edit(int $id)
     {
         abort_unless($this->can('edit_all'), 403);
-        $message = Message::findOrFail($id);
-        return view('messages.edit', compact('message'));
+        return view('messages.edit', ['message' => $this->messages->findOrFail($id)]);
     }
 
     public function update(Request $request, int $id)
     {
         abort_unless($this->can('edit_all'), 403);
 
-        $message = Message::findOrFail($id);
+        $message = $this->messages->findOrFail($id);
 
-        $validated = $request->validate([
-            'name'             => 'required|string|max:100',
-            'text'             => 'nullable|string',
-            'email_text'       => 'nullable|string',
-            'sms_text'         => 'nullable|string|max:760',
-            'self_cancel'      => 'required|integer|in:0,1,2',
-            'ignore_whitelist' => 'boolean',
-        ]);
+        $validated = $request->validate(self::RULES);
 
         $validated['ignore_whitelist'] = $request->boolean('ignore_whitelist') ? 1 : 0;
 
-        $message->update($validated);
+        $this->messages->update($message, $validated);
 
         return redirect()->route('messages.show', $id)
             ->with('success', 'Zpráva byla upravena.');
@@ -103,14 +89,11 @@ class MessageController extends Controller
     {
         abort_unless($this->can('delete_all'), 403);
 
-        $message = Message::findOrFail($id);
-
+        $message = $this->messages->findOrFail($id);
         if ($message->isSystem()) {
             return back()->with('error', 'Systémové zprávy nelze smazat.');
         }
-
-        DB::table('messages_ip_addresses')->where('message_id', $id)->delete();
-        $message->delete();
+        $this->messages->delete($message);
 
         return redirect()->route('messages.index')
             ->with('success', 'Zpráva byla smazána.');
@@ -120,7 +103,7 @@ class MessageController extends Controller
     {
         abort_unless($this->can('edit_all'), 403);
 
-        Message::findOrFail($id);
+        $this->messages->findOrFail($id);
 
         $validated = $request->validate([
             'ip_address_ids'   => 'required|array|min:1',
@@ -128,17 +111,9 @@ class MessageController extends Controller
             'comment'          => 'nullable|string|max:255',
         ]);
 
-        foreach ($validated['ip_address_ids'] as $ipId) {
-            DB::table('messages_ip_addresses')->insertOrIgnore([
-                'message_id'    => $id,
-                'ip_address_id' => $ipId,
-                'user_id'       => auth()->id(),
-                'comment'       => $validated['comment'] ?? '',
-                'datetime'      => now(),
-            ]);
-        }
+        $this->redirects->addAuto($id, $validated['ip_address_ids'], (int) auth()->id(), $validated['comment'] ?? '');
 
-        \App\Services\AuditLogger::log('created', 'messages_ip_addresses', $id, null, [
+        AuditLogger::log('created', 'messages_ip_addresses', $id, null, [
             'message_id' => $id,
             'ip_count'   => count($validated['ip_address_ids']),
         ]);
@@ -150,12 +125,9 @@ class MessageController extends Controller
     {
         abort_unless($this->can('edit_all'), 403);
 
-        DB::table('messages_ip_addresses')
-            ->where('message_id', $id)
-            ->where('ip_address_id', $ipAddressId)
-            ->delete();
+        $this->redirects->remove($id, [$ipAddressId]);
 
-        \App\Services\AuditLogger::log('deleted', 'messages_ip_addresses', $ipAddressId, [
+        AuditLogger::log('deleted', 'messages_ip_addresses', $ipAddressId, [
             'message_id' => $id,
         ], null);
 
