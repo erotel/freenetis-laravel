@@ -2,13 +2,17 @@
 
 namespace App\Http\Controllers;
 
+use App\Domains\Billing\Repositories\AccountRepository;
+use App\Domains\Billing\Repositories\TransferRepository;
 use App\Http\Filters\TransferFilter;
-use App\Models\Account;
-use App\Models\Transfer;
 use Illuminate\Http\Request;
 
 class TransferController extends Controller
 {
+    public function __construct(private TransferRepository $transfers)
+    {
+    }
+
     private function can(string $action = 'view_all'): bool
     {
         return $this->aclCheck($action, 'Accounts_Controller', 'transfers');
@@ -23,26 +27,15 @@ class TransferController extends Controller
             $perPage = 50;
         }
 
-        $query = Transfer::with(['origin.member', 'destination.member', 'member'])
-            ->orderBy($sort, $dir);
-
-        if ($accountId = (int) $request->account_id) {
-            $query->where(function ($q) use ($accountId) {
-                $q->where('origin_id', $accountId)
-                  ->orWhere('destination_id', $accountId);
-            });
-        }
-
-        if ($memberId = (int) $request->member_id) {
-            $query->where('member_id', $memberId);
-        }
-
         $advancedFilters = $request->input('filters', []);
-        if (!empty($advancedFilters)) {
-            TransferFilter::apply($query, $advancedFilters);
-        }
-
-        $transfers = $query->paginate($perPage)->withQueryString();
+        $transfers = $this->transfers->search(
+            (int) $request->account_id ?: null,
+            (int) $request->member_id ?: null,
+            $advancedFilters,
+            $sort,
+            $dir,
+            $perPage
+        );
 
         return view('transfers.index', [
             'transfers'      => $transfers,
@@ -54,23 +47,16 @@ class TransferController extends Controller
         ]);
     }
 
-    public function showByAccount(Request $request, int $accountId)
+    public function showByAccount(Request $request, int $accountId, AccountRepository $accounts)
     {
         abort_unless($this->can(), 403);
 
-        $account = Account::with(['member', 'accountAttribute'])->findOrFail($accountId);
+        $account = $accounts->findWithRelationsOrFail($accountId);
 
         $sort = in_array($request->sort, ['id', 'datetime', 'amount'], true) ? $request->sort : 'datetime';
         $dir  = $request->dir === 'asc' ? 'asc' : 'desc';
 
-        $transfers = Transfer::where(function ($q) use ($accountId) {
-                $q->where('origin_id', $accountId)
-                  ->orWhere('destination_id', $accountId);
-            })
-            ->with(['origin.member', 'destination.member'])
-            ->orderBy($sort, $dir)
-            ->paginate(50)
-            ->withQueryString();
+        $transfers = $this->transfers->ofAccount($accountId, $sort, $dir, 50);
 
         return view('transfers.show_by_account', compact('account', 'transfers', 'accountId', 'sort', 'dir'));
     }
@@ -79,25 +65,6 @@ class TransferController extends Controller
     {
         abort_unless($this->can(), 403);
 
-        $transfer = Transfer::with([
-            'origin.member',
-            'destination.member',
-            'member',
-            'user',
-            'previousTransfer.origin.member',
-            'previousTransfer.destination.member',
-            'previousTransfer.member',
-            'previousTransfer.user',
-            'previousTransfer.bankTransfer.originAccount',
-            'previousTransfer.bankTransfer.destinationAccount',
-            'previousTransfer.bankTransfer.bankStatement',
-            'bankTransfer.originAccount',
-            'bankTransfer.destinationAccount',
-            'bankTransfer.bankStatement',
-            'dependentTransfers.origin',
-            'dependentTransfers.destination',
-        ])->findOrFail($id);
-
-        return view('transfers.show', compact('transfer'));
+        return view('transfers.show', ['transfer' => $this->transfers->findForDetailOrFail($id)]);
     }
 }
