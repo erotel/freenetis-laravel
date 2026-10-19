@@ -7,12 +7,10 @@ use App\Domains\Access\Actions\SubmitConnectionRequestAction;
 use App\Domains\Access\Onboarding\ConnectionDetector;
 use App\Domains\Access\Repositories\ConnectionRequestRepository;
 use App\Domains\Network\Queries\DeviceFormQuery;
+use App\Domains\Members\Repositories\MemberRepository;
+use App\Domains\Network\Repositories\SubnetRepository;
 use App\Models\ConnectionRequest;
-use App\Models\DeviceTemplate;
-use App\Models\EnumType;
-use App\Models\Member;
 use App\Models\Setting;
-use App\Models\Subnet;
 use Illuminate\Http\Request;
 
 /** Žádosti o připojení (onboarding). Logika v app/Domains/Access. */
@@ -32,17 +30,7 @@ class ConnectionRequestController extends Controller
 
     private function deviceTypes(): array
     {
-        $types = EnumType::where('type_id', EnumType::DEVICE_GROUP_ID)
-            ->orderBy('value')
-            ->pluck('value', 'id')
-            ->toArray();
-
-        $allowed = Setting::get('connection_request_device_types');
-        if ($allowed) {
-            $ids = explode(':', $allowed);
-            $types = array_filter($types, fn($id) => in_array($id, $ids), ARRAY_FILTER_USE_KEY);
-        }
-        return $types;
+        return app(ConnectionRequestRepository::class)->deviceTypes();
     }
 
     // ── Index ─────────────────────────────────────────────────────────────────
@@ -54,22 +42,14 @@ class ConnectionRequestController extends Controller
         abort_unless($canViewAll || $canViewOwn, 403);
         $this->checkEnabled();
 
-        $query = ConnectionRequest::with(['member', 'subnet', 'addedUser'])
-            ->orderByDesc('id');
-
         // view_own without view_all → restrict to own member's requests
-        if (!$canViewAll && $canViewOwn) {
-            $query->where('member_id', auth()->user()?->member_id);
-        }
-
-        if ($request->filled('state') && $request->state !== '') {
-            $query->where('state', (int) $request->state);
-        }
-        if ($request->filled('ip_address')) {
-            $query->where('ip_address', 'like', '%' . $request->ip_address . '%');
-        }
-
-        $items = $query->paginate(50)->withQueryString();
+        $items = app(ConnectionRequestRepository::class)->paginate(
+            auth()->user()?->member_id,
+            !$canViewAll && $canViewOwn,
+            $request->filled('state') && $request->state !== '' ? (int) $request->state : null,
+            $request->filled('ip_address') ? (string) $request->ip_address : null,
+            50
+        );
 
         return view('connection_requests.index', [
             'items'           => $items,
@@ -90,11 +70,8 @@ class ConnectionRequestController extends Controller
         abort_unless($canViewAll || $canViewOwn, 403);
         $this->checkEnabled();
 
-        $member = Member::findOrFail($memberId);
-        $items  = ConnectionRequest::with(['subnet', 'addedUser'])
-            ->where('member_id', $memberId)
-            ->orderByDesc('id')
-            ->get();
+        $member = app(MemberRepository::class)->findOrFail($memberId);
+        $items  = app(ConnectionRequestRepository::class)->ofMember($memberId);
 
         return view('connection_requests.by_member', [
             'member'      => $member,
@@ -114,9 +91,9 @@ class ConnectionRequestController extends Controller
         abort_unless($canViewAll || $canViewOwn, 403);
         $this->checkEnabled();
 
-        $cr = ConnectionRequest::with([
+        $cr = app(ConnectionRequestRepository::class)->findOrFail($id, [
             'member', 'subnet', 'addedUser', 'decidedUser', 'deviceTemplate', 'deviceType',
-        ])->findOrFail($id);
+        ]);
 
         // view_own: can only view own requests
         if (!$canViewAll && $canViewOwn) {
@@ -162,7 +139,7 @@ class ConnectionRequestController extends Controller
 
         return view('connection_requests.request', [
             'deviceTypes' => $this->deviceTypes(),
-            'templates'   => DeviceTemplate::orderBy('name')->get(['id', 'name', 'enum_type_id']),
+            'templates'   => app(ConnectionRequestRepository::class)->deviceTemplates(),
             'defaultType' => (int) Setting::get('connection_request_device_default_type', 0),
             'detected'    => $detected, // ['subnet_id','ip','mac'] nebo null
         ]);
@@ -237,7 +214,7 @@ class ConnectionRequestController extends Controller
         abort_unless($canNewAll || $canNewOwn, 403);
         $this->checkEnabled();
 
-        $subnet = Subnet::findOrFail($subnetId);
+        $subnet = app(SubnetRepository::class)->findOrFail($subnetId);
 
         // Validate IP is in subnet range
         if (!filter_var($ipAddress, FILTER_VALIDATE_IP)
@@ -252,7 +229,7 @@ class ConnectionRequestController extends Controller
 
         $members        = $this->membersForSelect();
         $deviceTypes    = $this->deviceTypes();
-        $templates      = DeviceTemplate::orderBy('name')->get(['id', 'name', 'enum_type_id']);
+        $templates      = app(ConnectionRequestRepository::class)->deviceTemplates();
         $defaultType    = (int) Setting::get('connection_request_device_default_type', 0);
         $canEditDevices = $canNewAll && $this->aclCheck('new_all', 'Devices_Controller', 'devices');
         $authMemberId   = auth()->user()?->member_id;
@@ -291,7 +268,7 @@ class ConnectionRequestController extends Controller
 
         $data = $request->validate($rules);
 
-        $subnet = Subnet::findOrFail($data['subnet_id']);
+        $subnet = app(SubnetRepository::class)->findOrFail((int) $data['subnet_id']);
 
         if (!ConnectionDetector::ipInSubnet($data['ip_address'], $subnet->network_address, $subnet->netmask)) {
             return back()->withErrors(['ip_address' => 'IP adresa není v rozsahu subnetu.'])->withInput();
@@ -322,7 +299,7 @@ class ConnectionRequestController extends Controller
         abort_unless($this->aclCheck('edit_all', self::ACL_SECTION, self::ACL_KEY), 403);
         $this->checkEnabled();
 
-        $cr = ConnectionRequest::findOrFail($id);
+        $cr = app(ConnectionRequestRepository::class)->findOrFail($id);
 
         if ($cr->state !== ConnectionRequest::STATE_UNDECIDED) {
             abort(400, 'Žádost již byla rozhodnuta.');
@@ -339,7 +316,7 @@ class ConnectionRequestController extends Controller
         abort_unless($this->aclCheck('edit_all', self::ACL_SECTION, self::ACL_KEY), 403);
         $this->checkEnabled();
 
-        $cr = ConnectionRequest::with('member')->findOrFail($id);
+        $cr = app(ConnectionRequestRepository::class)->findOrFail($id, ['member']);
 
         if ($cr->state !== ConnectionRequest::STATE_UNDECIDED) {
             abort(400, 'Žádost již byla rozhodnuta.');

@@ -3,6 +3,11 @@
 namespace App\Domains\Access\Repositories;
 
 use App\Models\ConnectionRequest;
+use App\Models\DeviceTemplate;
+use App\Models\EnumType;
+use App\Models\Setting;
+use Illuminate\Contracts\Pagination\LengthAwarePaginator;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 
 /** Žádosti o připojení (connection_requests) a volnost IP pro novou žádost. */
@@ -51,5 +56,50 @@ class ConnectionRequestRepository
             'device_id'          => null,
             'comments_thread_id' => null,
         ]);
+    }
+
+    /** Nejnovější první; $memberId = jen žádosti člena (view_own). */
+    public function paginate(?int $memberId, bool $onlyMember, ?int $state, ?string $ip, int $perPage): LengthAwarePaginator
+    {
+        return ConnectionRequest::with(['member', 'subnet', 'addedUser'])
+            ->orderByDesc('id')
+            ->when($onlyMember, fn ($q) => $q->where('member_id', $memberId))
+            ->when($state !== null, fn ($q) => $q->where('state', $state))
+            ->when($ip, fn ($q) => $q->where('ip_address', 'like', '%' . $ip . '%'))
+            ->paginate($perPage)->withQueryString();
+    }
+
+    public function ofMember(int $memberId): Collection
+    {
+        return ConnectionRequest::with(['subnet', 'addedUser'])
+            ->where('member_id', $memberId)
+            ->orderByDesc('id')
+            ->get();
+    }
+
+    public function findOrFail(int $id, array $with = []): ConnectionRequest
+    {
+        return ConnectionRequest::with($with)->findOrFail($id);
+    }
+
+    /** Typy zařízení pro žádost (id => název), omezené nastavením connection_request_device_types. */
+    public function deviceTypes(): array
+    {
+        $types = EnumType::where('type_id', EnumType::DEVICE_GROUP_ID)
+            ->orderBy('value')
+            ->pluck('value', 'id')
+            ->toArray();
+
+        $allowed = Setting::get('connection_request_device_types');
+        if ($allowed) {
+            $ids = explode(':', $allowed);
+            $types = array_filter($types, fn ($id) => in_array($id, $ids), ARRAY_FILTER_USE_KEY);
+        }
+        return $types;
+    }
+
+    public function deviceTemplates(): Collection
+    {
+        return DeviceTemplate::orderBy('name')->get(['id', 'name', 'enum_type_id']);
     }
 }
