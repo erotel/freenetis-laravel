@@ -57,7 +57,10 @@ class EndMembershipNoticePeriodTest extends DatabaseTestCase
         $acc = (int) DB::table('accounts')->insertGetId([
             'member_id' => $id, 'account_attribute_id' => 221100, 'balance' => $balance, 'name' => 'char',
         ]);
-        DB::table('variable_symbols')->insert(['account_id' => $acc, 'variable_symbol' => (string) $id]);
+        do {   // VS = id by kolidoval s reálnými VS v kopii dat (auto-increment se rollbackem nevrací)
+            $vs = (string) random_int(90000000, 99999999);
+        } while (DB::table('variable_symbols')->where('variable_symbol', $vs)->orWhere('variable_symbol', $vs . '+U')->exists());
+        DB::table('variable_symbols')->insert(['account_id' => $acc, 'variable_symbol' => $vs]);
         return ['member' => $id, 'account' => $acc];
     }
 
