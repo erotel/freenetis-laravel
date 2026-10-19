@@ -12,6 +12,7 @@ use App\Domains\Network\Repositories\SubnetRepository;
 use App\Models\ConnectionRequest;
 use App\Models\Setting;
 use Illuminate\Http\Request;
+use Illuminate\Validation\Rule;
 
 /** Žádosti o připojení (onboarding). Logika v app/Domains/Access. */
 class ConnectionRequestController extends Controller
@@ -173,7 +174,7 @@ class ConnectionRequestController extends Controller
         $hasDetectedMac = $detected && !empty($detected['mac']);
 
         $rules = [
-            'device_type_id'     => 'nullable|integer|exists:enum_types,id',
+            'device_type_id'     => ['nullable', 'integer', Rule::in(array_keys($this->deviceTypes()))],
             'device_template_id' => 'nullable|integer|exists:device_templates,id',
             'comment'            => 'nullable|string|max:1000',
         ];
@@ -258,7 +259,7 @@ class ConnectionRequestController extends Controller
             'subnet_id'          => 'required|integer|exists:subnets,id',
             'ip_address'         => 'required|ip',
             'mac_address'        => ['required', 'regex:/^([0-9A-Fa-f]{2}[:-]){5}([0-9A-Fa-f]{2})$/'],
-            'device_type_id'     => 'required|integer|exists:enum_types,id',
+            'device_type_id'     => ['required', 'integer', Rule::in(array_keys($this->deviceTypes()))],
             'device_template_id' => 'required|integer|exists:device_templates,id',
             'comment'            => 'nullable|string|max:1000',
         ];
@@ -282,7 +283,7 @@ class ConnectionRequestController extends Controller
         $submit->handle($memberId, auth()->id(), [
             'ip_address'         => $data['ip_address'],
             'subnet_id'          => $data['subnet_id'],
-            'mac_address'        => strtoupper($data['mac_address']),
+            'mac_address'        => strtoupper(str_replace('-', ':', $data['mac_address'])),
             'device_type_id'     => $data['device_type_id'],
             'device_template_id' => $data['device_template_id'],
             'comment'            => $data['comment'] ?? null,

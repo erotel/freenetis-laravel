@@ -120,15 +120,26 @@ class ConnectionRequestTest extends DatabaseTestCase
             ->assertRedirect(route('connection_requests.by_member', $this->memberId))->assertSessionHas('success', 'Žádost o připojení byla odeslána.');
 
         $cr = DB::table('connection_requests')->where('ip_address', '10.250.22.9')->first();
-        $this->assertSame([$this->memberId, $this->adminId, 0, $this->subnetId, 'AA-BB-CC-DD-EE-0F', 8, $this->templateId, 'chci net', null, null],
+        $this->assertSame([$this->memberId, $this->adminId, 0, $this->subnetId, 'AA:BB:CC:DD:EE:0F', 8, $this->templateId, 'chci net', null, null],
             [(int) $cr->member_id, (int) $cr->added_user_id, (int) $cr->state, (int) $cr->subnet_id, $cr->mac_address, (int) $cr->device_type_id,
              (int) $cr->device_template_id, $cr->comment, $cr->pppoe_username, $cr->pppoe_secret]);
 
         $noc = DB::table('email_queues')->where('to', 'noc@example.invalid')->orderByDesc('id')->first();
         $this->assertSame('Nová žádost o připojení — 10.250.22.9', $noc->subject);
-        $this->assertSame("Byla podána nová žádost o připojení.\n\nČlen: Char Zadatel\nIP adresa: 10.250.22.9\nMAC adresa: AA-BB-CC-DD-EE-0F\n\nDetail: "
+        $this->assertSame("Byla podána nová žádost o připojení.\n\nČlen: Char Zadatel\nIP adresa: 10.250.22.9\nMAC adresa: AA:BB:CC:DD:EE:0F\n\nDetail: "
             . route('connection_requests.show', $cr->id), $noc->body);
         $this->assertSame('MSG Char Zadatel|chci net', DB::table('email_queues')->where('to', "charcr{$this->tag}@example.invalid")->value('body'));
+    }
+
+    /** Typ zařízení jen z číselníku zařízení (a povolených v nastavení); MAC jednotně s dvojtečkami. */
+    public function test_typ_zarizeni_jen_povoleny(): void
+    {
+        $memberType = (int) DB::table('enum_types')->where('type_id', 1)->value('id');
+        $this->as()->post(route('connection_requests.store'), $this->storeData(['device_type_id' => $memberType]))->assertSessionHasErrors('device_type_id');
+        Setting::set('connection_request_device_types', '9:10');
+        $this->as()->post(route('connection_requests.store'), $this->storeData())->assertSessionHasErrors('device_type_id');
+        $this->as($this->userId)->post(route('connection_requests.request_store'), ['device_type_id' => 8, 'mac_address' => '02:00:00:00:00:09'])->assertSessionHasErrors('device_type_id');
+        $this->assertFalse(DB::table('connection_requests')->where('ip_address', '10.250.22.9')->exists());
     }
 
     public function test_zadost_technikem_chyby_a_bez_prava_na_zarizeni(): void
