@@ -2,15 +2,17 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\Account;
-use App\Models\AccountAttribute;
-use App\Models\Transfer;
+use App\Domains\Billing\Repositories\AccountRepository;
 use Illuminate\Http\Request;
 
 class AccountController extends Controller
 {
     private const ACL_SECTION = 'Accounts_Controller';
     private const ACL_VALUE   = 'accounts';
+
+    public function __construct(private AccountRepository $accounts)
+    {
+    }
 
     private function can(string $action, string $value = self::ACL_VALUE): bool
     {
@@ -37,31 +39,7 @@ class AccountController extends Controller
         $type = $request->query('type', 'all');
         $q    = trim((string) $request->query('q', ''));
 
-        $query = Account::with(['member', 'accountAttribute']);
-
-        match ($type) {
-            'credit'  => $query->whereNotNull('member_id'),
-            'project' => $query->where('account_attribute_id', AccountAttribute::PROJECT_ATTRIBUTE_ID),
-            'other'   => $query->whereNull('member_id')
-                               ->where('account_attribute_id', '!=', AccountAttribute::PROJECT_ATTRIBUTE_ID),
-            default   => null,
-        };
-
-        if ($q !== '') {
-            $like = '%' . str_replace(['%', '_'], ['\\%', '\\_'], $q) . '%';
-            $query->where(function ($w) use ($like, $q) {
-                $w->where('name', 'like', $like)
-                  ->orWhereHas('member', fn ($m) => $m->where('name', 'like', $like));
-                if (ctype_digit($q)) {
-                    $w->orWhere('id', (int) $q)
-                      ->orWhere('member_id', (int) $q);
-                }
-            });
-        }
-
-        $accounts = $query->orderBy($sort, $dir)
-            ->paginate($perPage)
-            ->withQueryString();
+        $accounts = $this->accounts->paginate($type, $q, $sort, $dir, $perPage);
 
         return view('accounts.index', [
             'accounts'        => $accounts,
@@ -82,13 +60,8 @@ class AccountController extends Controller
             abort(403);
         }
 
-        $account = Account::with(['member', 'accountAttribute'])->find($id);
-        if (!$account) {
-            abort(404);
-        }
-
-        $totalIn  = Transfer::where('destination_id', $account->id)->sum('amount');
-        $totalOut = Transfer::where('origin_id', $account->id)->sum('amount');
+        $account = $this->accounts->findWithRelationsOrFail($id);
+        [$totalIn, $totalOut] = $this->accounts->totals($account->id);
 
         return view('accounts.show', [
             'account'         => $account,
@@ -119,13 +92,7 @@ class AccountController extends Controller
             'comment' => 'nullable|string|max:254',
         ]);
 
-        $account = Account::create([
-            'name'                 => $data['name'],
-            'comment'              => $data['comment'] ?? null,
-            'account_attribute_id' => AccountAttribute::PROJECT_ATTRIBUTE_ID,
-            'member_id'            => null,
-            'balance'              => 0,
-        ]);
+        $account = $this->accounts->createProject($data['name'], $data['comment'] ?? null);
 
         session()->flash('success', 'Projektový účet byl úspěšně přidán.');
         return redirect()->route('accounts.show', $account->id);
@@ -137,10 +104,7 @@ class AccountController extends Controller
             abort(403);
         }
 
-        $account = Account::with('accountAttribute')->find($id);
-        if (!$account) {
-            abort(404);
-        }
+        $account = $this->accounts->findWithAttributeOrFail($id);
 
         return view('accounts.edit', ['account' => $account]);
     }
@@ -151,17 +115,14 @@ class AccountController extends Controller
             abort(403);
         }
 
-        $account = Account::find($id);
-        if (!$account) {
-            abort(404);
-        }
+        $account = $this->accounts->findOrFail($id);
 
         $data = $request->validate([
             'name'    => 'required|string|min:3|max:100',
             'comment' => 'nullable|string|max:254',
         ]);
 
-        $account->update($data);
+        $this->accounts->update($account, $data);
 
         session()->flash('success', 'Účet byl úspěšně upraven.');
         return redirect()->route('accounts.show', $id);
