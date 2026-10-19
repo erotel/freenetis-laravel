@@ -92,18 +92,20 @@ class AclService
         // id => parent_id
         $groups = DB::table('aro_groups')->pluck('parent_id', 'id')->all();
 
+        // Skupina + všichni předci. $seen: cyklus v parent_id (chybná data)
+        // nesmí výpočet zacyklit — jinak by visela každá kontrola práv.
         foreach ($groups as $id => $parentId) {
             $final = [$id];
-            $stack = ($parentId == 0) ? [] : [$parentId];
+            $seen  = [$id => true];
+            $top   = (int) $parentId;
 
-            while ($top = array_pop($stack)) {
-                if (isset($groups[$top]) && $groups[$top] != 0) {
-                    $stack[] = $groups[$top];
-                }
-                $final[] = $top;
+            while ($top !== 0 && !isset($seen[$top])) {
+                $seen[$top] = true;
+                $final[]    = $top;
+                $top        = (int) ($groups[$top] ?? 0);
             }
 
-            $this->groupHierarchy[$id] = array_unique($final);
+            $this->groupHierarchy[$id] = $final;
         }
 
         return $this->groupHierarchy;

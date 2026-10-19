@@ -19,10 +19,39 @@ class AroGroupRepository
         return AroGroup::with('parent')->orderBy('lft')->get();
     }
 
-    /** Skupiny pro výběr rodiče / v pravidle, volitelně bez jedné. */
-    public function forSelect(?int $exceptId = null, array $columns = ['*']): Collection
+    /** Skupiny pro výběr (v pravidle / rodiče nové skupiny). */
+    public function forSelect(array $columns = ['*']): Collection
     {
-        return AroGroup::when($exceptId !== null, fn ($q) => $q->where('id', '!=', $exceptId))->orderBy('lft')->get($columns);
+        return AroGroup::orderBy('lft')->get($columns);
+    }
+
+    /** Možní rodiče skupiny: všechny kromě ní a jejích podskupin (jinak cyklus). */
+    public function possibleParents(int $groupId): Collection
+    {
+        $excluded = array_merge([$groupId], $this->descendantIds($groupId));
+        return AroGroup::whereNotIn('id', $excluded)->orderBy('lft')->get();
+    }
+
+    /** Id všech podskupin (do hloubky; odolné vůči cyklu v datech). @return int[] */
+    public function descendantIds(int $groupId): array
+    {
+        $children = [];
+        foreach (DB::table('aro_groups')->pluck('parent_id', 'id') as $id => $parent) {
+            $children[(int) $parent][] = (int) $id;
+        }
+        $seen  = [$groupId => true];
+        $stack = $children[$groupId] ?? [];
+        $out   = [];
+        while ($stack) {
+            $id = array_pop($stack);
+            if (isset($seen[$id])) {
+                continue;
+            }
+            $seen[$id] = true;
+            $out[]     = $id;
+            array_push($stack, ...($children[$id] ?? []));
+        }
+        return $out;
     }
 
     public function find(int $id): ?AroGroup

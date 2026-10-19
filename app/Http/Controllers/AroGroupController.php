@@ -92,7 +92,7 @@ class AroGroupController extends Controller
     public function edit(int $id)
     {
         abort_unless($this->can('edit_all'), 403);
-        return view('aro_groups.edit', ['group' => $this->groups->findOrFail($id), 'groups' => $this->groups->forSelect($id)]);
+        return view('aro_groups.edit', ['group' => $this->groups->findOrFail($id), 'groups' => $this->groups->possibleParents($id)]);
     }
 
     public function update(SaveGroupRequest $request, int $id, UpdateGroupAction $update)
@@ -148,7 +148,7 @@ class AroGroupController extends Controller
         return [
             'actions' => AclRuleRepository::ACTIONS,
             'axo'     => $rules->objects(),
-            'groups'  => $this->groups->forSelect(null, ['id', 'name']),
+            'groups'  => $this->groups->forSelect(['id', 'name']),
         ];
     }
 
