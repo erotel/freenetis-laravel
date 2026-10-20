@@ -10,7 +10,7 @@ use App\Models\AddressPoint;
 use App\Models\IpAddress;
 use App\Models\Member;
 use App\Models\MemberVotingLog;
-use App\Services\ContractService;
+use App\Domains\Contracts\Repositories\ContractRepository;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
 
 /**
@@ -27,14 +27,14 @@ class UpdateMemberAction
 {
     public function __construct(
         private MemberRepository $members,
-        private ContractService $contracts,
+        private ContractRepository $contracts,
     ) {
     }
 
     /** Podepsaná smlouva → tarif se mění jen dodatkem, ne přímou editací. */
     public function hasSignedContract(int $memberId): bool
     {
-        $signed = $this->contracts->getByMemberId($memberId);
+        $signed = $this->contracts->forMember($memberId);
         return $signed && $signed->status === 'signed';
     }
 

@@ -194,9 +194,9 @@ class AllowedSubnetsTest extends DatabaseTestCase
 
     public function test_uctovani_u_podepsane_smlouvy_jen_dodatkem(): void
     {
-        $svc = $this->mock(\App\Services\ContractService::class);
+        $svc = $this->mock(\App\Domains\Contracts\Repositories\ContractRepository::class);
         $x = $this->member();
-        $svc->shouldReceive('getByMemberId')->with($x['member'])->andReturn(new \App\Models\Contract(['status' => 'signed']));
+        $svc->shouldReceive('forMember')->with($x['member'])->andReturn(new \App\Models\Contract(['status' => 'signed']));
         $a = $this->allowed($x['member'], $this->subnet(), true, ['speed_class_id' => $this->speed()]);
 
         $this->as()->put(route('allowed_subnets.update_billing', $a), ['charged' => 1])

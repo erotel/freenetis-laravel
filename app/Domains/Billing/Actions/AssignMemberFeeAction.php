@@ -6,7 +6,7 @@ use App\Domains\Billing\Exceptions\MemberFeeRejected;
 use App\Domains\Billing\Repositories\MemberFeeRepository;
 use App\Models\Fee;
 use App\Models\MemberFee;
-use App\Services\ContractService;
+use App\Domains\Contracts\Repositories\ContractRepository;
 
 /**
  * Přiřadí členovi tarif (bez konce = 9999-12-31, priorita 1).
@@ -17,7 +17,7 @@ use App\Services\ContractService;
  */
 class AssignMemberFeeAction
 {
-    public function __construct(private MemberFeeRepository $memberFees, private ContractService $contracts)
+    public function __construct(private MemberFeeRepository $memberFees, private ContractRepository $contracts)
     {
     }
 
@@ -65,7 +65,7 @@ class AssignMemberFeeAction
     {
         $fee = $this->memberFees->fee($feeId);
         if ($fee && (int) $fee->type_id === Fee::TYPE_ADDITIONAL_SERVICE) {
-            $contract = $this->contracts->getByMemberId($memberId);
+            $contract = $this->contracts->forMember($memberId);
             if ($contract && $contract->status === 'signed') {
                 throw new MemberFeeRejected('Dodatečnou službu u člena s podepsanou smlouvou přidej dodatkem ke smlouvě (přiřadí se po podpisu), ne přímo v poplatcích.');
             }

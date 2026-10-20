@@ -83,7 +83,7 @@ class SetupService
 
         // Po importu hlavní DB doplníme contracts schema, pokud ještě není.
         // Legacy Kohana FreenetIS contracts neměl, takže typický migrační dump
-        // ho nikdy neobsahuje — bez něj padá ContractService po loginu.
+        // ho nikdy neobsahuje — bez něj padá doména Contracts po loginu.
         $contractsBootstrap = base_path('scripts/install/sql/contractsdb-bootstrap.sql.gz');
         if (is_file($contractsBootstrap) && $this->isDbEmpty('contracts')) {
             $cmd2 = sprintf('gunzip -c %s | mariadb --defaults-file=%s %s',

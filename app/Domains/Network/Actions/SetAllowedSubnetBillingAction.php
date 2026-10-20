@@ -5,7 +5,7 @@ namespace App\Domains\Network\Actions;
 use App\Domains\Network\Exceptions\PlaceBillingRejected;
 use App\Domains\Network\Repositories\AllowedSubnetRepository;
 use App\Models\AllowedSubnet;
-use App\Services\ContractService;
+use App\Domains\Contracts\Repositories\ContractRepository;
 
 /**
  * Účtování přípojného místa (cena podle jeho rychlosti). Zapnout jde jen
@@ -14,7 +14,7 @@ use App\Services\ContractService;
  */
 class SetAllowedSubnetBillingAction
 {
-    public function __construct(private AllowedSubnetRepository $places, private ContractService $contracts)
+    public function __construct(private AllowedSubnetRepository $places, private ContractRepository $contracts)
     {
     }
 
@@ -25,7 +25,7 @@ class SetAllowedSubnetBillingAction
             throw new PlaceBillingRejected('Účtovat lze jen místo s vlastní rychlostí. Nejprve mu nastavte rychlost (ne „zdědit").');
         }
         if ($charged) {
-            $contract = $this->contracts->getByMemberId((int) $as->member_id);
+            $contract = $this->contracts->forMember((int) $as->member_id);
             if ($contract && $contract->status === 'signed') {
                 throw new PlaceBillingRejected('Zpoplatnění přípojného místa u člena s podepsanou smlouvou zapni dodatkem ke smlouvě (začne účtovat po podpisu), ne přímo v podsítích.', true);
             }

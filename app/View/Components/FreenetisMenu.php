@@ -4,7 +4,7 @@ namespace App\View\Components;
 
 use App\Models\Setting;
 use App\Services\AclService;
-use App\Services\ContractService;
+use App\Domains\Contracts\Queries\ContractListQuery;
 use Illuminate\Support\Facades\DB;
 use Illuminate\View\Component;
 
@@ -54,7 +54,7 @@ class FreenetisMenu extends Component
         $countEmailUnsent            = fn() => (int) DB::table('email_queues')->where('state', 0)->count();
         $countSmsUnsent              = fn() => (int) DB::table('sms_messages')->where('type', 1)->where('state', 1)->count();
         $countConnectionRequests     = fn() => (int) DB::table('connection_requests')->where('state', 0)->count();
-        $countUnsignedContracts = fn() => app(ContractService::class)->countUnsigned();
+        $countUnsignedContracts = fn() => app(ContractListQuery::class)->countUnsigned();
 
         $countDhcpErrors = fn() => (int) DB::table('devices as d')
             ->join('ifaces as i', 'i.device_id', '=', 'd.id')

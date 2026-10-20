@@ -227,7 +227,7 @@
 
 {{-- Dodatek – umístění AP --}}
 @if($contract->status === 'signed')
-@php $addonStatus = app(\App\Services\ContractService::class)->getAddonStatus($contract); @endphp
+@php $addonStatus = \App\Domains\Contracts\Actions\CreateLegacyAddonAction::status($contract); @endphp
 <div class="m-section">Dodatek ke smlouvě – umístění AP na nemovitosti</div>
 <div class="m-card" style="margin-bottom:16px">
     <div style="font-size:14px;color:#6b7280;margin-bottom:12px">

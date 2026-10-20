@@ -13,7 +13,7 @@ use App\Models\MemberLanAccess;
 use App\Models\Setting;
 use App\Models\User;
 use App\Services\AllowedSubnetFeesResolver;
-use App\Services\ContractService;
+use App\Domains\Contracts\Repositories\ContractRepository;
 use App\Services\LanIsolationService;
 use App\Services\LoginLockService;
 use App\Services\PaymentQrService;
@@ -102,7 +102,7 @@ class MemberCardQuery
             'lanNetwork'              => app(LanIsolationService::class)->networkCidr(),
             'memberRedirections'      => app(RedirectionRepository::class)->memberRedirections($id),
             'expirationDate'          => $creditAccount?->getExpirationDate(),
-            'memberContract'          => app(ContractService::class)->getByMemberId($id),
+            'memberContract'          => app(ContractRepository::class)->forMember($id),
             'paymentInfo'             => app(PaymentQrService::class)->paymentInfoForMember($id),
             'paymentQrSvg'            => app(PaymentQrService::class)->svgForMember($id),
         ];

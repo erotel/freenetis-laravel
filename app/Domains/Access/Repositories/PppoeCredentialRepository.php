@@ -101,7 +101,7 @@ class PppoeCredentialRepository
 
     /**
      * Variabilní symbol člena (první VS prvního účtu), fallback member_id.
-     * Stejný vzor jako ContractService.
+     * Stejný vzor jako Contracts SignLinkToken.
      */
     public function variableSymbol(int $memberId): string
     {
