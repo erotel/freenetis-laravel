@@ -68,10 +68,10 @@ abstract class AddonController extends Controller
             : $this->back($memberId, 'error', 'Podepsaný dodatek nelze smazat.');
     }
 
-    /** Dodatek podle id (typ se ve správě historicky nekontroluje) nebo 404. */
+    /** Dodatek daného typu podle id, jinak 404 (cizí typ přes URL jiného dodatku neprojde). */
     protected function addonOrFail(int $addonId): ContractAddon
     {
-        $addon = $this->addons->findAny($addonId);
+        $addon = $this->addons->find($addonId, $this->type());
         if (!$addon) abort(404);
         return $addon;
     }
@@ -95,11 +95,7 @@ abstract class AddonController extends Controller
             return $this->back($memberId, 'error', "Odkaz k podpisu je jen pro přidání {$what}. Zrušení vydává poskytovatel bez podpisu zákazníka.");
         }
 
-        $typed = $this->addons->find((int) $addon->id, $type);
-        if (!$typed) {
-            return $this->back($memberId, 'error', 'Odkaz se nepodařilo vygenerovat.');
-        }
-        $result = app(IssueSignLinkAction::class)->handle((int) $typed->contract_id, $type->signLinkKind(), $typed);
+        $result = app(IssueSignLinkAction::class)->handle((int) $addon->contract_id, $type->signLinkKind(), $addon);
 
         return $this->back($memberId, 'success', $result['email_sent'] ? self::LINK_SENT : self::LINK_NOEMAIL)
             ->with($type->linkFlashKey(), $result['url']);

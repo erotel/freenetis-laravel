@@ -282,6 +282,13 @@ class ContractAdminTest extends DatabaseTestCase
         $this->as()->delete(route('contracts.service_addon.delete', $s->id))->assertSessionHas('error', 'Podepsaný dodatek nelze smazat.');
         $this->as()->delete(route('contracts.connection_point.delete', 999999999))->assertNotFound();
 
+        // dodatek jen přes routu svého typu (dřív šlo např. smazat přípojné místo přes URL tarifu)
+        $this->as()->get(route('contracts.tariff_addon.preview', $p->id))->assertNotFound();
+        $this->as()->delete(route('contracts.tariff_addon.delete', $p->id))->assertNotFound();
+        $this->as()->post(route('contracts.tariff_addon.send-link', $p->id))->assertNotFound();
+        $this->as()->post(route('contracts.service_addon.issue-removal', $p->id))->assertNotFound();
+        $this->assertTrue(ContractAddon::whereKey($p->id)->exists());
+
         // zákazník bez práv: náhled / stažení jen vlastních dodatků, žádné admin akce
         $this->acl(['view_all/Members_Controller/members', 'edit_all/Members_Controller/members']);
         $this->as($this->userId)->get(route('contracts.connection_point.preview', $p->id))->assertOk();
