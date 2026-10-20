@@ -52,7 +52,7 @@ class UpdateIfaceAction
                 if ($this->ifaces->ipTaken($ip, (int) $subnetId, (int) $existing->id)) {
                     throw new IfaceIpRejected("ip_address_{$n}", "IP adresa {$ip} je již použita.");
                 }
-                Ip6Sync::delete($oldIp);
+                Ip6Sync::delete((int) $iface->id, $oldIp);
             }
             $existing->update(['ip_address' => $ip, 'subnet_id' => (int) $subnetId]);
             if ($ip !== $oldIp) {

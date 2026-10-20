@@ -10,7 +10,7 @@ use App\Services\PendingCustomerRedirectService;
 
 /**
  * Nová IP: odvozená IPv6, expirace DHCP podsítě, přípojné místo vlastníka
- * zařízení; čekající zákazník → hned přepočet přesměrování (ne až cron).
+ * (přímý člen, jinak vlastník zařízení — IpOwner); čekající zákazník → hned přepočet přesměrování (ne až cron).
  */
 class AddIpAddressAction
 {
@@ -27,14 +27,12 @@ class AddIpAddressAction
         Ip6Sync::add($ip->iface_id, $ip->ip_address);
         $ip->subnet?->setExpired();
 
-        $owner = $this->ips->deviceOwnerId($ip);
+        $owner = $this->ips->ownerId($ip);
         if ($owner && $ip->subnet_id) {
             $this->places->onIpAdded($owner, (int) $ip->subnet_id);
         }
-
-        $memberId = $ip->member_id ?? $this->ips->ifaceOwnerId($ip->iface_id);
-        if ($memberId) {
-            $this->pending->refreshForMember((int) $memberId);
+        if ($owner) {
+            $this->pending->refreshForMember($owner);
         }
         return $ip;
     }

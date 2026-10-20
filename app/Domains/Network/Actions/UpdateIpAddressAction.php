@@ -17,8 +17,10 @@ class UpdateIpAddressAction
     public function handle(IpAddress $ip, array $data): void
     {
         $oldSubnetId = $ip->subnet_id;
-        Ip6Sync::delete($ip->ip_address);
+        $oldOwner = $this->ips->ownerId($ip);
+        Ip6Sync::delete($ip->iface_id, $ip->ip_address);
         $this->ips->update($ip, $data);
+        $ip->unsetRelation('iface');   // vlastník podle nového rozhraní
         Ip6Sync::add($ip->iface_id, $ip->ip_address);
 
         $ip->subnet?->setExpired();
@@ -26,9 +28,13 @@ class UpdateIpAddressAction
             $this->ips->subnet($oldSubnetId)?->setExpired();
         }
 
-        $owner = $this->ips->deviceOwnerId($ip);
+        $owner = $this->ips->ownerId($ip);
         if ($owner && $ip->subnet_id) {
             $this->places->onIpMoved($owner, $oldSubnetId, (int) $ip->subnet_id);
+        }
+        // jiný vlastník (jiné rozhraní / přímý člen) → původní ztratí místo bez jiné IP
+        if ($oldOwner && $oldOwner !== $owner && $oldSubnetId) {
+            $this->places->onIpRemoved($oldOwner, (int) $oldSubnetId);
         }
     }
 }

@@ -14,10 +14,11 @@ final class Ip6Sync
         }
     }
 
-    public static function delete(string $ipv4): void
+    /** Jen IPv6 téhož rozhraní — stejná IPv4 může být i jinde (přímé přiřazení bez rozhraní). */
+    public static function delete(?int $ifaceId, string $ipv4): void
     {
-        if ($ip6 = Ip6FromIpv4::derive($ipv4)) {
-            Ip6Address::where('ip_address', $ip6)->delete();
+        if ($ifaceId && ($ip6 = Ip6FromIpv4::derive($ipv4))) {
+            Ip6Address::where('iface_id', $ifaceId)->where('ip_address', $ip6)->delete();
         }
     }
 }

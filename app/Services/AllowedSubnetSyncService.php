@@ -4,7 +4,7 @@ namespace App\Services;
 
 use App\Models\AllowedSubnet;
 use App\Models\AllowedSubnetsCount;
-use App\Models\IpAddress;
+use App\Domains\Network\Support\IpOwner;
 use App\Models\Setting;
 use Illuminate\Support\Facades\DB;
 
@@ -105,12 +105,7 @@ class AllowedSubnetSyncService
 
     private function memberHasIpInSubnet(int $memberId, int $subnetId): bool
     {
-        return IpAddress::join('ifaces', 'ifaces.id', '=', 'ip_addresses.iface_id')
-            ->join('devices', 'devices.id', '=', 'ifaces.device_id')
-            ->join('users', 'users.id', '=', 'devices.user_id')
-            ->where('users.member_id', $memberId)
-            ->where('ip_addresses.subnet_id', $subnetId)
-            ->exists();
+        return IpOwner::ofMember($memberId)->where('ip.subnet_id', $subnetId)->exists();
     }
 
     private function normalizeIds(array $ids): array

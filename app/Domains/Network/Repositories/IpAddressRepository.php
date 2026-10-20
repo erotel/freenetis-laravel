@@ -56,6 +56,12 @@ class IpAddressRepository
     }
 
     /** Člen vlastnící zařízení s rozhraním dané IP (přes iface → device → user). */
+    /** Vlastník IP: přímo přiřazený člen, jinak člen vlastníka zařízení (viz IpOwner). */
+    public function ownerId(IpAddress $ip): ?int
+    {
+        return $ip->member_id ? (int) $ip->member_id : $this->deviceOwnerId($ip);
+    }
+
     public function deviceOwnerId(IpAddress $ip): ?int
     {
         $ip->loadMissing('iface.device.user');

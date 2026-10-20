@@ -2,6 +2,7 @@
 
 namespace App\Domains\Notifications\Actions;
 
+use App\Domains\Network\Support\IpOwner;
 use App\Domains\Notifications\Repositories\RedirectionRepository;
 use App\Domains\Notifications\Support\AutoMessages;
 use App\Helpers\MemberType;
@@ -76,11 +77,8 @@ class RebuildAutoRedirectsAction
         $msgId = AutoMessages::idOf(16); // CONNECTION_TEST_EXPIRED
         if (!$msgId) return null;
 
-        $ipIds = DB::table('ip_addresses as ip')
-            ->join('ifaces as i', 'i.id', '=', 'ip.iface_id')
-            ->join('devices as d', 'd.id', '=', 'i.device_id')
-            ->join('users as u', 'u.id', '=', 'd.user_id')
-            ->join('members as m', 'm.id', '=', 'u.member_id')
+        $ipIds = IpOwner::query()
+            ->join('members as m', 'm.id', '=', DB::raw(IpOwner::SQL))
             ->where('m.type', MemberType::APPLICANT)
             ->where('m.registration', 0)
             ->whereNotNull('m.applicant_connected_from')

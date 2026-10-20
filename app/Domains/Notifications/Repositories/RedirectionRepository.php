@@ -2,21 +2,17 @@
 
 namespace App\Domains\Notifications\Repositories;
 
+use App\Domains\Network\Support\IpOwner;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 
 /** Přesměrování IP na zprávu (messages_ip_addresses) a IP členů. */
 class RedirectionRepository
 {
-    /** id IPv4 adres na zařízeních uživatelů člena. */
+    /** id IPv4 adres člena (přímo přiřazené i na jeho zařízeních — IpOwner). */
     public function memberIpIds(int $memberId): Collection
     {
-        return DB::table('ip_addresses as ia')
-            ->join('ifaces as i', 'i.id', '=', 'ia.iface_id')
-            ->join('devices as d', 'd.id', '=', 'i.device_id')
-            ->join('users as u', 'u.id', '=', 'd.user_id')
-            ->where('u.member_id', $memberId)
-            ->pluck('ia.id');
+        return IpOwner::ofMember($memberId)->pluck('ip.id');
     }
 
     /** Aktivace po jedné IP s upsertem (existující přepíše autora, komentář, čas). @return int počet IP */
@@ -106,15 +102,7 @@ class RedirectionRepository
     /** IP člena přímo přidělené (ip_addresses.member_id) i přes jeho zařízení. */
     public function memberAllIpIds(int $memberId): Collection
     {
-        return DB::table('ip_addresses as ip')
-            ->leftJoin('ifaces as i', 'i.id', '=', 'ip.iface_id')
-            ->leftJoin('devices as d', 'd.id', '=', 'i.device_id')
-            ->leftJoin('users as u', 'u.id', '=', 'd.user_id')
-            ->where(function ($q) use ($memberId) {
-                $q->where('ip.member_id', $memberId)->orWhere('u.member_id', $memberId);
-            })
-            ->pluck('ip.id')
-            ->unique();
+        return $this->memberIpIds($memberId);
     }
 
     /** Přesměrování člena (přímé IP i přes zařízení) seskupená podle zprávy, nejnovější první. */
@@ -126,9 +114,7 @@ class RedirectionRepository
             ->leftJoin('ifaces as i', 'i.id', '=', 'ip.iface_id')
             ->leftJoin('devices as d', 'd.id', '=', 'i.device_id')
             ->leftJoin('users as u', 'u.id', '=', 'd.user_id')
-            ->where(function ($q) use ($memberId) {
-                $q->where('ip.member_id', $memberId)->orWhere('u.member_id', $memberId);
-            })
+            ->whereRaw(IpOwner::SQL . ' = ?', [$memberId])
             ->select('mia.message_id', 'mia.ip_address_id', 'mia.comment', 'mia.datetime',
                      'ip.ip_address', 'msg.name as msg_name', 'msg.type as msg_type')
             ->orderByDesc('mia.datetime')

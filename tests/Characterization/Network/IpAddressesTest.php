@@ -96,9 +96,8 @@ class IpAddressesTest extends DatabaseTestCase
         $this->assertSame(['2a07:9c0:2:700::/56'], DB::table('ip6_addresses')->where('iface_id', $x['iface'])->pluck('ip_address')->all());
         $this->assertSame([1, 1], [(int) DB::table('subnets')->where('id', $a)->value('dhcp_expired'), (int) DB::table('subnets')->where('id', $b)->value('dhcp_expired')]);
         $this->assertTrue(DB::table('allowed_subnets')->where('member_id', $x['member'])->where('subnet_id', $b)->exists());
-        // pozorování: sync přípojných míst počítá jen IP přes zařízení, ne přímé (ip.member_id) —
-        // místo v A odejde, i když tam má člen přímou IP .9
-        $this->assertFalse(DB::table('allowed_subnets')->where('member_id', $x['member'])->where('subnet_id', $a)->exists());
+        // místo v A zůstává — člen tam má přímou IP .9 (vlastník IP = přímý člen, jinak zařízení)
+        $this->assertTrue(DB::table('allowed_subnets')->where('member_id', $x['member'])->where('subnet_id', $a)->exists());
 
         $show = $this->as()->get(route('ip_addresses.show', $ip->id))->assertOk();
         $this->assertSame($ip->id, (int) $show->viewData('ip')->id);
@@ -124,5 +123,34 @@ class IpAddressesTest extends DatabaseTestCase
         $this->as()->post(route('ip_addresses.store'), [])->assertForbidden();
         $this->as()->put(route('ip_addresses.update', $id), [])->assertForbidden();
         $this->as()->delete(route('ip_addresses.destroy', $id))->assertForbidden();
+    }
+
+    /**
+     * Přímo přiřazená IP (bez rozhraní): smazání nevezme IPv6 zařízení se stejnou
+     * IPv4, přípojné místo vlastníka odejde až s poslední jeho IP v podsíti;
+     * přidání přímé IP místo založí.
+     */
+    public function test_prima_ip_bez_rozhrani(): void
+    {
+        $x = $this->iface();
+        $a = $this->subnet('10.240.3.0');
+        DB::table('allowed_subnets')->where('member_id', $x['member'])->delete();
+
+        // zařízení člena má .5 (s IPv6), stejná IPv4 je navíc přímo u člena (legacy duplicita)
+        $this->as()->post(route('ip_addresses.store'), ['iface_id' => $x['iface'], 'subnet_id' => $a, 'ip_address' => '10.240.3.5'])->assertSessionHasNoErrors();
+        $dup = (int) DB::table('ip_addresses')->insertGetId(['ip_address' => '10.240.3.5', 'subnet_id' => $a, 'member_id' => $x['member']]);
+        $this->as()->delete(route('ip_addresses.destroy', $dup))->assertRedirect(route('ip_addresses.index'));
+        $this->assertSame(['2a07:9c0:3:500::/56'], DB::table('ip6_addresses')->where('iface_id', $x['iface'])->pluck('ip_address')->all(), 'IPv6 zařízení zůstává');
+
+        // přímé IP bez rozhraní: přidání založí místo, smazání jedné ho nechá, poslední ho vezme
+        $b = $this->subnet('10.240.4.0');
+        $this->as()->post(route('ip_addresses.store'), ['subnet_id' => $b, 'member_id' => $x['member'], 'ip_address' => '10.240.4.1'])->assertSessionHasNoErrors();
+        $this->as()->post(route('ip_addresses.store'), ['subnet_id' => $b, 'member_id' => $x['member'], 'ip_address' => '10.240.4.2'])->assertSessionHasNoErrors();
+        $place = fn () => DB::table('allowed_subnets')->where('member_id', $x['member'])->where('subnet_id', $b)->exists();
+        $this->assertTrue($place());
+        $this->as()->delete(route('ip_addresses.destroy', $this->ip('10.240.4.1')->id));
+        $this->assertTrue($place(), 'zbývá přímá IP .2');
+        $this->as()->delete(route('ip_addresses.destroy', $this->ip('10.240.4.2')->id));
+        $this->assertFalse($place());
     }
 }

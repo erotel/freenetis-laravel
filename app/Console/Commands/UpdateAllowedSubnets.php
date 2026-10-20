@@ -1,6 +1,7 @@
 <?php
 namespace App\Console\Commands;
 
+use App\Domains\Network\Support\IpOwner;
 use App\Models\Message;
 use App\Models\Setting;
 use Illuminate\Console\Command;
@@ -71,11 +72,8 @@ class UpdateAllowedSubnets extends Command
     private function getIpAddressesWithUnallowedSubnet(): \Illuminate\Support\Collection
     {
         // Find IP addresses of members whose subnet is NOT in their allowed_subnets (enabled=1)
-        return DB::table('ip_addresses as ip')
-            ->join('ifaces as i', 'i.id', '=', 'ip.iface_id')
-            ->join('devices as d', 'd.id', '=', 'i.device_id')
-            ->join('users as u', 'u.id', '=', 'd.user_id')
-            ->join('members as m', 'm.id', '=', 'u.member_id')
+        return IpOwner::query()
+            ->join('members as m', 'm.id', '=', DB::raw(IpOwner::SQL))
             ->where('m.id', '!=', 1)
             ->whereNotNull('ip.subnet_id')
             ->whereNotExists(function ($q) {
