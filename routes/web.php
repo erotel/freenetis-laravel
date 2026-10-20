@@ -703,6 +703,7 @@ Route::middleware('auth')->group(function () {
 
     // Comments (account financial state, log_queue, ...)
     Route::get('comments/add-thread/{type}/{fkId}', [CommentController::class, 'addThread'])->name('comments.add-thread');
+    Route::post('comments/add-thread/{type}/{fkId}', [CommentController::class, 'storeFirst'])->name('comments.store-first');
     Route::get('comments/{threadId}/add',           [CommentController::class, 'add'])->name('comments.add');
     Route::post('comments/{threadId}',              [CommentController::class, 'store'])->name('comments.store');
     Route::get('comments/{id}/edit',                [CommentController::class, 'edit'])->name('comments.edit');

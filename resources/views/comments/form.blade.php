@@ -20,7 +20,7 @@
 @endif
 
 @if($action === 'create')
-<form method="POST" action="{{ route('comments.store', $thread->id) }}">
+<form method="POST" action="{{ $formAction }}">
 @else
 <form method="POST" action="{{ route('comments.update', $comment->id) }}">
 @method('PUT')

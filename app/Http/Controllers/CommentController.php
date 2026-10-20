@@ -59,16 +59,44 @@ class CommentController extends Controller
         return null;
     }
 
-    /** Založí vlákno k účtu / záznamu logu (když chybí) a přejde na formulář. */
+    /**
+     * Formulář prvního komentáře k účtu / záznamu logu. Nic nezapisuje — vlákno
+     * vznikne až uložením (storeFirst); existuje-li, přejde na jeho formulář.
+     */
     public function addThread(string $type, int $fkId)
     {
         abort_unless($this->can('new_all'), 403);
         abort_unless(isset(CommentRepository::OWNER_TABLES[$type]), 404);
 
+        $owner = $this->comments->owner($type, $fkId);
+        abort_if(!$owner, 404);
+        if ($owner->comments_thread_id) {
+            return redirect()->route('comments.add', $owner->comments_thread_id);
+        }
+
+        return view('comments.form', [
+            'action'     => 'create',
+            'thread'     => null,
+            'comment'    => null,
+            'formAction' => route('comments.store-first', ['type' => $type, 'fkId' => $fkId]),
+            'backUrl'    => $type === 'account'
+                ? ($owner->member_id ? route('members.show', $owner->member_id) : null)
+                : route('log_queues.show', $fkId),
+        ]);
+    }
+
+    /** Uloží první komentář — teprve teď založí vlákno (když mezitím nevzniklo). */
+    public function storeFirst(Request $request, string $type, int $fkId, AddCommentAction $add)
+    {
+        abort_unless($this->can('new_all'), 403);
+        abort_unless(isset(CommentRepository::OWNER_TABLES[$type]), 404);
+        $request->validate(['text' => 'required|string|max:5000']);
+
         $threadId = $this->comments->ensureThread($type, $fkId);
         abort_if($threadId === null, 404);
 
-        return redirect()->route('comments.add', $threadId);
+        $add->handle($threadId, (string) $request->input('text'), auth()->id());
+        return $this->returnTo($this->threadOrFail($threadId), 'Komentář byl přidán.');
     }
 
     public function add(int $threadId)
@@ -76,7 +104,8 @@ class CommentController extends Controller
         abort_unless($this->can('new_all'), 403);
         $thread = $this->threadOrFail($threadId);
 
-        return view('comments.form', ['action' => 'create', 'thread' => $thread, 'backUrl' => $this->backUrl($thread), 'comment' => null]);
+        return view('comments.form', ['action' => 'create', 'thread' => $thread, 'backUrl' => $this->backUrl($thread), 'comment' => null,
+            'formAction' => route('comments.store', $thread->id)]);
     }
 
     public function store(Request $request, int $threadId, AddCommentAction $add)

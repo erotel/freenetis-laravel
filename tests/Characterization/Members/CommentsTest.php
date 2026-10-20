@@ -57,25 +57,39 @@ class CommentsTest extends DatabaseTestCase
 
     // ── vlákno ───────────────────────────────────────────────────────────────
 
+    /**
+     * Formulář prvního komentáře nic nezapisuje (dřív GET založil vlákno — stačilo
+     * otevřít odkaz); vlákno vznikne až uložením prvního komentáře (POST).
+     */
     public function test_line_zalozeni_vlakna(): void
     {
         $x = $this->account();
-        $res = $this->as()->get(route('comments.add-thread', ['type' => 'account', 'fkId' => $x['account']]));
+        $threads = DB::table('comments_threads')->count();
+        $form = $this->as()->get(route('comments.add-thread', ['type' => 'account', 'fkId' => $x['account']]))->assertOk()->assertViewIs('comments.form');
+        $this->assertSame([$threads, null], [DB::table('comments_threads')->count(), DB::table('accounts')->where('id', $x['account'])->value('comments_thread_id')], 'GET nic nezaloží');
+        $this->assertSame([route('comments.store-first', ['type' => 'account', 'fkId' => $x['account']]), route('members.show', $x['member'])],
+            [$form->viewData('formAction'), $form->viewData('backUrl')]);
+
+        $this->as()->post(route('comments.store-first', ['type' => 'account', 'fkId' => $x['account']]), ['text' => ''])->assertSessionHasErrors('text');
+        $this->assertNull(DB::table('accounts')->where('id', $x['account'])->value('comments_thread_id'), 'bez textu ani vlákno');
+        $this->as()->post(route('comments.store-first', ['type' => 'account', 'fkId' => $x['account']]), ['text' => 'první'])
+            ->assertRedirect(route('members.show', $x['member']))->assertSessionHas('success', 'Komentář byl přidán.');
         $thread = (int) DB::table('accounts')->where('id', $x['account'])->value('comments_thread_id');
-        $this->assertGreaterThan(0, $thread);
-        $res->assertRedirect(route('comments.add', $thread));
-        $this->assertSame('account', DB::table('comments_threads')->where('id', $thread)->value('type'));
+        $this->assertSame(['account', ['první']], [DB::table('comments_threads')->where('id', $thread)->value('type'), DB::table('comments')->where('comments_thread_id', $thread)->pluck('text')->all()]);
         $this->as()->get(route('comments.add-thread', ['type' => 'account', 'fkId' => $x['account']]))->assertRedirect(route('comments.add', $thread));
-        $this->assertSame($thread, (int) DB::table('accounts')->where('id', $x['account'])->value('comments_thread_id'), 'podruhé stejné');
+        // druhé „první“ uložení (např. dva otevřené formuláře) nepřidá další vlákno
+        $this->as()->post(route('comments.store-first', ['type' => 'account', 'fkId' => $x['account']]), ['text' => 'druhý']);
+        $this->assertSame([$thread, 2], [(int) DB::table('accounts')->where('id', $x['account'])->value('comments_thread_id'), DB::table('comments')->where('comments_thread_id', $thread)->count()]);
 
         $lq = $this->logQueue();
-        $this->as()->get(route('comments.add-thread', ['type' => 'log_queue', 'fkId' => $lq]));
+        $this->assertSame(route('log_queues.show', $lq), $this->as()->get(route('comments.add-thread', ['type' => 'log_queue', 'fkId' => $lq]))->viewData('backUrl'));
+        $this->as()->post(route('comments.store-first', ['type' => 'log_queue', 'fkId' => $lq]), ['text' => 'x'])->assertRedirect(route('log_queues.show', $lq));
         $lqThread = (int) DB::table('log_queues')->where('id', $lq)->value('comments_thread_id');
         $this->assertSame('log_queue', DB::table('comments_threads')->where('id', $lqThread)->value('type'));
 
         $this->as()->get(route('comments.add-thread', ['type' => 'device', 'fkId' => 1]))->assertNotFound();
         $this->as()->get(route('comments.add-thread', ['type' => 'account', 'fkId' => 999999999]))->assertNotFound();
-        $this->as()->get(route('comments.add-thread', ['type' => 'log_queue', 'fkId' => 999999999]))->assertNotFound();
+        $this->as()->post(route('comments.store-first', ['type' => 'log_queue', 'fkId' => 999999999]), ['text' => 'x'])->assertNotFound();
     }
 
     // ── přidání, úprava, smazání ─────────────────────────────────────────────
@@ -83,8 +97,8 @@ class CommentsTest extends DatabaseTestCase
     public function test_komentar_k_uctu(): void
     {
         $x = $this->account();
-        $this->as()->get(route('comments.add-thread', ['type' => 'account', 'fkId' => $x['account']]));
-        $thread = (int) DB::table('accounts')->where('id', $x['account'])->value('comments_thread_id');
+        $thread = (int) DB::table('comments_threads')->insertGetId(['type' => 'account']);
+        DB::table('accounts')->where('id', $x['account'])->update(['comments_thread_id' => $thread]);
 
         $form = $this->as()->get(route('comments.add', $thread))->assertOk()->assertViewIs('comments.form');
         $this->assertSame(['create', $thread, route('members.show', $x['member']), null],
@@ -120,8 +134,8 @@ class CommentsTest extends DatabaseTestCase
     public function test_navrat_log_a_ostatni(): void
     {
         $lq = $this->logQueue();
-        $this->as()->get(route('comments.add-thread', ['type' => 'log_queue', 'fkId' => $lq]));
-        $thread = (int) DB::table('log_queues')->where('id', $lq)->value('comments_thread_id');
+        $thread = (int) DB::table('comments_threads')->insertGetId(['type' => 'log_queue']);
+        DB::table('log_queues')->where('id', $lq)->update(['comments_thread_id' => $thread]);
         $this->assertSame(route('log_queues.show', $lq), $this->as()->get(route('comments.add', $thread))->viewData('backUrl'));
         $this->as()->post(route('comments.store', $thread), ['text' => 'x'])->assertRedirect(route('log_queues.show', $lq));
 
@@ -144,6 +158,7 @@ class CommentsTest extends DatabaseTestCase
 
         $this->acl(['new_all/Members_Controller/comment', 'edit_all/Members_Controller/comment', 'delete_all/Members_Controller/comment']);
         $this->as()->get(route('comments.add-thread', ['type' => 'account', 'fkId' => $x['account']]))->assertForbidden();
+        $this->as()->post(route('comments.store-first', ['type' => 'account', 'fkId' => $x['account']]), ['text' => 'x'])->assertForbidden();
         $this->as()->get(route('comments.add', $thread))->assertForbidden();
         $this->as()->post(route('comments.store', $thread), ['text' => 'x'])->assertForbidden();
         $this->as()->get(route('comments.edit', $c))->assertForbidden();

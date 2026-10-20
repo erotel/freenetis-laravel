@@ -37,17 +37,28 @@ class CommentRepository
     /** Vlákno vlastníka (založí ho, když chybí); null = vlastník neexistuje. */
     public function ensureThread(string $type, int $ownerId): ?int
     {
-        $table  = self::OWNER_TABLES[$type];
-        $record = DB::table($table)->where('id', $ownerId)->first();
-        if (!$record) {
-            return null;
-        }
-        if ($record->comments_thread_id) {
-            return (int) $record->comments_thread_id;
-        }
-        $threadId = (int) DB::table('comments_threads')->insertGetId(['type' => $type]);
-        DB::table($table)->where('id', $ownerId)->update(['comments_thread_id' => $threadId]);
-        return $threadId;
+        $table = self::OWNER_TABLES[$type];
+
+        // zámek řádku vlastníka: dvě souběžná uložení nesmí založit dvě vlákna
+        return DB::transaction(function () use ($table, $type, $ownerId) {
+            $record = DB::table($table)->where('id', $ownerId)->lockForUpdate()->first();
+            if (!$record) {
+                return null;
+            }
+            if ($record->comments_thread_id) {
+                return (int) $record->comments_thread_id;
+            }
+            $threadId = (int) DB::table('comments_threads')->insertGetId(['type' => $type]);
+            DB::table($table)->where('id', $ownerId)->update(['comments_thread_id' => $threadId]);
+            return $threadId;
+        });
+    }
+
+    /** Vlastník vlákna (účet / záznam logu) bez zápisu; null = neexistuje. */
+    public function owner(string $type, int $ownerId): ?object
+    {
+        $columns = $type === 'account' ? ['id', 'comments_thread_id', 'member_id'] : ['id', 'comments_thread_id'];
+        return DB::table(self::OWNER_TABLES[$type])->where('id', $ownerId)->first($columns);
     }
 
     /** Člen, jehož účtu vlákno patří (null = nenalezen). */
