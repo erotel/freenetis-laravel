@@ -90,11 +90,6 @@ class SpeedClassController extends Controller
             ->with('success', 'Třída rychlosti byla přidána.');
     }
 
-    public function show($id)
-    {
-        return redirect()->route('speed_classes.index');
-    }
-
     public function edit($id)
     {
         if (!$this->can('edit_all'))

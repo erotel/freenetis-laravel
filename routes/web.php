@@ -554,7 +554,7 @@ Route::middleware('auth')->group(function () {
     Route::resource('speed-classes', SpeedClassController::class)
         ->names('speed_classes')
         ->parameters(['speed-classes' => 'id'])
-        ->except(['index']);
+        ->except(['index', 'show']);
 
     Route::get('members/{memberId}/allowed-subnets',  [AllowedSubnetController::class, 'showByMember'])->name('allowed_subnets.by_member');
     Route::put('members/{memberId}/allowed-subnets/count', [AllowedSubnetController::class, 'updateCount'])->name('allowed_subnets.update_count');

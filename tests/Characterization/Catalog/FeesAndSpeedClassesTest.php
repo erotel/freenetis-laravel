@@ -74,7 +74,7 @@ class FeesAndSpeedClassesTest extends CatalogTestCase
             ->assertSessionHasErrors(['name' => 'Třída rychlosti s tímto jménem již existuje.', 'qos_ceil', 'qos_rate']);
 
         $this->as()->get(route('speed_classes.index'))->assertOk();
-        $this->as()->get(route('speed_classes.show', $sc->id))->assertRedirect(route('speed_classes.index'));
+        $this->as()->get("/speed-classes/{$sc->id}")->assertStatus(405);   // detail neexistuje (dřív jen redirect na seznam)
         $this->as()->put(route('speed_classes.update', $sc->id), ['name' => "Rych2 {$this->tag}", 'qos_ceil' => '1G', 'qos_rate' => '512K/256K', 'price' => 'abc'])
             ->assertRedirect(route('speed_classes.index'))->assertSessionHas('success', 'Třída rychlosti byla upravena.');
         $u = DB::table('speed_classes')->where('id', $sc->id)->first();

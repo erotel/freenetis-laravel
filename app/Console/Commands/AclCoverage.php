@@ -24,7 +24,12 @@ class AclCoverage extends Command
             $this->info('Pokrytí přihlášených rout autorizací:');
             $this->line("  • deklarativní acl middleware: {$r['byMiddleware']}");
             $this->line("  • aclCheck/abort v controlleru: {$r['byController']}");
+            $this->line('  • posouzené výjimky (self-service / ownership): ' . count($r['allowed']));
             $this->line('  • MEZERY (k posouzení): ' . count($r['gaps']));
+            $this->newLine();
+            foreach ($r['allowed'] as $a) {
+                $this->line('  ' . str_pad($a['methods'], 10) . ' ' . str_pad($a['uri'], 40) . ' → ' . str_pad($a['action'], 36) . ' ' . $a['reason']);
+            }
             $this->newLine();
         }
 
