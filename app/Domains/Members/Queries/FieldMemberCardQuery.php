@@ -47,7 +47,7 @@ class FieldMemberCardQuery
                 (bool) ($member->payment_blocked ?? false), (bool) ($member->pending_termination ?? false)),
             'variableSymbols'  => $variableSymbols,
             'balance'          => $balance,
-            'expirationDate'   => $creditAccount?->getExpirationDate(),
+            'expirationDate'   => ($creditAccount ? app(\App\Domains\Billing\Fees\PaidUntil::class)->for($creditAccount) : null),
             'activeMemberFee'  => $this->activeMemberFee($member),
             'monthlyFee'       => $monthlyFee,
             'monthlyFeeSource' => $monthlyFeeSource,

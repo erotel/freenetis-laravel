@@ -12,11 +12,11 @@ use Illuminate\Support\Facades\DB;
  * Důvod: před přechodem na prepaid model DeductFees strhával nepodmíněně.
  * V čistém prepaid modelu by ty srážky nebyly (DeductFees by jen flagnul).
  * Smazání obnoví výchozí stav — bilance jde zpět na to, co bylo před stržením,
- * a getExpirationDate ("Zaplaceno do") sedí s payment_blocked_since.
+ * a PaidUntil ("Zaplaceno do") sedí s payment_blocked_since.
  *
  * Smazat (ne kompenzovat counter-transferem), protože:
  *  - Pohoda za tyto srážky nevystavila faktury (ověřeno před spuštěním)
- *  - Counter-transfery by zmátly getExpirationDate (counter typ=1 with dest=credit
+ *  - Counter-transfery by zmátly PaidUntil (counter typ=1 with dest=credit
  *    nepočítá jako 'stržení', ale původní OUT transfer tam pořád zůstává a algoritmus
  *    ho považuje za 'naposledy strženo' → posune 'Zaplaceno do' o měsíc)
  *

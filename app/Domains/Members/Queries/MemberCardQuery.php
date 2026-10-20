@@ -101,7 +101,7 @@ class MemberCardQuery
             'lanIsInfra'              => app(LanIsolationService::class)->isInfraMember($id),
             'lanNetwork'              => app(LanIsolationService::class)->networkCidr(),
             'memberRedirections'      => app(RedirectionRepository::class)->memberRedirections($id),
-            'expirationDate'          => $creditAccount?->getExpirationDate(),
+            'expirationDate'          => ($creditAccount ? app(\App\Domains\Billing\Fees\PaidUntil::class)->for($creditAccount) : null),
             'memberContract'          => app(ContractRepository::class)->forMember($id),
             'paymentInfo'             => app(PaymentQrService::class)->paymentInfoForMember($id),
             'paymentQrSvg'            => app(PaymentQrService::class)->svgForMember($id),

@@ -57,7 +57,7 @@ class RedirectionPageQuery
         $credit = Account::where('member_id', $memberId)->where('account_attribute_id', 221100)->first();
         if ($credit) {
             $out['balance']         = (float) $credit->balance;
-            $out['expiration_date'] = $credit->getExpirationDate();
+            $out['expiration_date'] = app(\App\Domains\Billing\Fees\PaidUntil::class)->for($credit);
             $out['variable_symbol'] = (string) ($credit->variableSymbols()->value('variable_symbol') ?? '');
         }
         return $out;

@@ -360,4 +360,13 @@ class LedgerRepository
             ->where('id', $accountId)
             ->update(['balance' => $incoming - $outgoing]);
     }
+
+    /** Čas poslední srážky z účtu (členský, vstupní, splátka zařízení), nebo null. */
+    public function lastDeductionAt(int $accountId): ?string
+    {
+        return DB::table('transfers')
+            ->where('origin_id', $accountId)
+            ->whereIn('type', [1, 2, 5])
+            ->max('datetime');
+    }
 }

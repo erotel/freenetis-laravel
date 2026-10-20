@@ -8,7 +8,7 @@ use Illuminate\Support\Facades\DB;
 use Tests\DatabaseTestCase;
 
 /**
- * Regrese: Account::getExpirationDate („Zaplaceno do") musí počítat měsíční
+ * Regrese: Billing\Fees\PaidUntil („Zaplaceno do") musí počítat měsíční
  * poplatek SHODNĚ s reálnou srážkou (FeePolicy::regularFee: individuální → tarif →
  * default dle typu). Dřív bral jen members_fees(member) → fallback member_id=1
  * default (320), takže u členů s tarifním poplatkem ukazoval špatné datum.
@@ -46,11 +46,11 @@ class AccountExpirationDateTest extends DatabaseTestCase
 
         // Nízký tarif → víc pokrytých měsíců → pozdější expirace.
         DB::table('speed_classes')->where('id', $scId)->update(['price' => 100]);
-        $dLow = Account::find($accountId)->getExpirationDate();
+        $dLow = app(\App\Domains\Billing\Fees\PaidUntil::class)->for(Account::find($accountId));
 
         // Vysoký tarif → míň měsíců → dřívější expirace.
         DB::table('speed_classes')->where('id', $scId)->update(['price' => 1000]);
-        $dHigh = Account::find($accountId)->getExpirationDate();
+        $dHigh = app(\App\Domains\Billing\Fees\PaidUntil::class)->for(Account::find($accountId));
 
         $this->assertNotNull($dLow);
         $this->assertNotNull($dHigh);
@@ -58,7 +58,7 @@ class AccountExpirationDateTest extends DatabaseTestCase
         // Bug (ignorovaný tarif, konstantní default) → obě data stejná. Fix → rozdílná.
         $this->assertGreaterThan(
             $dHigh, $dLow,
-            'getExpirationDate musí zohlednit cenu tarifu — nižší poplatek = pozdější „Zaplaceno do"'
+            'PaidUntil musí zohlednit cenu tarifu — nižší poplatek = pozdější „Zaplaceno do"'
         );
     }
 
@@ -68,7 +68,7 @@ class AccountExpirationDateTest extends DatabaseTestCase
         DB::table('accounts')->where('id', $accountId)->update(['balance' => 1200]);
         DB::table('speed_classes')->where('id', $scId)->update(['price' => 1000]); // drahý tarif
 
-        $dTariff = Account::find($accountId)->getExpirationDate();
+        $dTariff = app(\App\Domains\Billing\Fees\PaidUntil::class)->for(Account::find($accountId));
 
         // Individuální poplatek 100 (levnější) má přednost před tarifem 1000 → pozdější datum.
         $feeId = DB::table('fees')->insertGetId([
@@ -81,7 +81,7 @@ class AccountExpirationDateTest extends DatabaseTestCase
             'priority' => 1, 'comment' => 'test',
         ]);
 
-        $dIndividual = Account::find($accountId)->getExpirationDate();
+        $dIndividual = app(\App\Domains\Billing\Fees\PaidUntil::class)->for(Account::find($accountId));
 
         $this->assertGreaterThan(
             $dTariff, $dIndividual,
@@ -106,7 +106,7 @@ class AccountExpirationDateTest extends DatabaseTestCase
             'member_id' => $id, 'account_attribute_id' => 221100, 'balance' => 0, 'name' => 'char',
         ]);
 
-        $this->assertNull(\App\Models\Account::find($accId)->getExpirationDate());
+        $this->assertNull(app(\App\Domains\Billing\Fees\PaidUntil::class)->for(\App\Models\Account::find($accId)));
     }
 
     /** D4: dodatečná služba se do „Zaplaceno do" počítá jako tarif (strhává se měsíčně taky). */
@@ -129,9 +129,9 @@ class AccountExpirationDateTest extends DatabaseTestCase
         [, $acc400] = $mk(400);
         [, $acc300] = $mk(300);
 
-        $svc = \App\Models\Account::find($accSvc)->getExpirationDate();
-        $this->assertSame(\App\Models\Account::find($acc400)->getExpirationDate(), $svc, 'tarif 300 + služba 100 = jako tarif 400');
-        $this->assertLessThan(\App\Models\Account::find($acc300)->getExpirationDate(), $svc, 'se službou kredit vydrží kratší dobu');
+        $svc = app(\App\Domains\Billing\Fees\PaidUntil::class)->for(\App\Models\Account::find($accSvc));
+        $this->assertSame(app(\App\Domains\Billing\Fees\PaidUntil::class)->for(\App\Models\Account::find($acc400)), $svc, 'tarif 300 + služba 100 = jako tarif 400');
+        $this->assertLessThan(app(\App\Domains\Billing\Fees\PaidUntil::class)->for(\App\Models\Account::find($acc300)), $svc, 'se službou kredit vydrží kratší dobu');
     }
 
     /** D1/D4: čekající (18) se neúčtuje → „—". */
@@ -143,6 +143,6 @@ class AccountExpirationDateTest extends DatabaseTestCase
             'entrance_date' => '2026-01-10', 'leaving_date' => '9999-12-31',
         ]);
         $acc = (int) \Illuminate\Support\Facades\DB::table('accounts')->insertGetId(['member_id' => $id, 'account_attribute_id' => 221100, 'balance' => 1000, 'name' => 'char']);
-        $this->assertNull(\App\Models\Account::find($acc)->getExpirationDate());
+        $this->assertNull(app(\App\Domains\Billing\Fees\PaidUntil::class)->for(\App\Models\Account::find($acc)));
     }
 }

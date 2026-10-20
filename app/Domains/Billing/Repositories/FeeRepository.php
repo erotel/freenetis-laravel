@@ -65,4 +65,26 @@ class FeeRepository
             ->where('mf.activation_date', '<=', $date)
             ->where('mf.deactivation_date', '>=', $date);
     }
+
+    /** Nejstarší „od“ a nejpozdější „do“ pravidelných poplatků ceníku (hranice výpočtu „zaplaceno do“). @return array{0:?string, 1:?string} */
+    public function regularFeeBounds(): array
+    {
+        $q = fn () => DB::table('fees')
+            ->join('enum_types', 'enum_types.id', '=', 'fees.type_id')
+            ->where('enum_types.value', 'regular member fee');
+        return [$q()->min('fees.from'), $q()->max('fees.to')];
+    }
+
+    /** Zařízení člena splácená ve srážkách (hlavní uživatel; datum nákupu, cena, splátka). */
+    public function devicesWithDebt(int $memberId)
+    {
+        return DB::table('devices')
+            ->where('user_id', function ($q) use ($memberId) {
+                $q->select('id')->from('users')->where('member_id', $memberId)->limit(1);
+            })
+            ->whereNotNull('buy_date')
+            ->where('price', '>', 0)
+            ->where('payment_rate', '>', 0)
+            ->get(['buy_date', 'price', 'payment_rate']);
+    }
 }
