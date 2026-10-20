@@ -2,6 +2,7 @@
 
 namespace Tests\Feature\Fees;
 
+use App\Domains\Billing\Repositories\FeeCatalogRepository;
 use App\Models\Fee;
 use Illuminate\Support\Facades\DB;
 use Tests\DatabaseTestCase;
@@ -89,9 +90,9 @@ class FeeArchiveTest extends DatabaseTestCase
 
         $feeNone = $this->makeFee(archived: false);
 
-        $this->assertTrue(Fee::find($feeActive)->hasActiveAssignments(), 'aktivní přiřazení');
-        $this->assertFalse(Fee::find($feeExpired)->hasActiveAssignments(), 'jen prošlé přiřazení');
-        $this->assertFalse(Fee::find($feeNone)->hasActiveAssignments(), 'žádné přiřazení');
+        $this->assertTrue(app(FeeCatalogRepository::class)->hasActiveAssignments(Fee::find($feeActive)), 'aktivní přiřazení');
+        $this->assertFalse(app(FeeCatalogRepository::class)->hasActiveAssignments(Fee::find($feeExpired)), 'jen prošlé přiřazení');
+        $this->assertFalse(app(FeeCatalogRepository::class)->hasActiveAssignments(Fee::find($feeNone)), 'žádné přiřazení');
     }
 
     public function test_activeAssignmentsCount_pocita_jen_aktivni(): void
@@ -107,7 +108,7 @@ class FeeArchiveTest extends DatabaseTestCase
             ['fee_id' => $feeId, 'member_id' => $memberIds[0], 'activation_date' => '2019-01-01', 'deactivation_date' => '2019-12-31', 'priority' => 1, 'comment' => 'test'],
         ]);
 
-        $this->assertSame(2, Fee::find($feeId)->activeAssignmentsCount());
+        $this->assertSame(2, app(FeeCatalogRepository::class)->activeAssignmentsCount(Fee::find($feeId)));
     }
 
     public function test_osvobozen_od_poplatku_je_v_nabidce_i_kdyz_readonly(): void

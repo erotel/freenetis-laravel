@@ -124,7 +124,7 @@ class FeeController extends Controller
 
         // Pojistka: archivovat lze jen tarif bez aktivního přiřazení (tlačítko se
         // u aktivních ani nezobrazí, tohle chrání proti obejití). Obnovit lze vždy.
-        if (!$fee->archived && $fee->hasActiveAssignments()) {
+        if (!$fee->archived && $this->fees->hasActiveAssignments($fee)) {
             session()->flash('error', 'Tarif má aktivní přiřazení, nelze ho archivovat. Nejdřív ho odeberte členům.');
             return redirect()->back();
         }

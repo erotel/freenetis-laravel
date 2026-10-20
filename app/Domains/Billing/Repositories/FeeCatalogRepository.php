@@ -20,7 +20,7 @@ class FeeCatalogRepository
 
         $today = now()->toDateString();
         $fees->getCollection()->each(function ($fee) use ($today) {
-            $fee->active_count = $fee->activeAssignmentsCount($today);
+            $fee->active_count = $this->activeAssignmentsCount($fee, $today);
             $fee->has_active   = $fee->active_count > 0;
         });
         return $fees;
@@ -62,6 +62,23 @@ class FeeCatalogRepository
     public function update(Fee $fee, array $data): void
     {
         $fee->update($data);
+    }
+
+    /** Počet přiřazení tarifu členům platných k datu (výchozí dnes). */
+    public function activeAssignmentsCount(Fee $fee, ?string $date = null): int
+    {
+        $date = $date ?: now()->toDateString();
+
+        return $fee->memberFees()
+            ->where('activation_date', '<=', $date)
+            ->where('deactivation_date', '>=', $date)
+            ->count();
+    }
+
+    /** Má tarif k datu aspoň jedno platné přiřazení? (archivovat jde jen bez nich) */
+    public function hasActiveAssignments(Fee $fee, ?string $date = null): bool
+    {
+        return $this->activeAssignmentsCount($fee, $date) > 0;
     }
 
     public function isAssigned(Fee $fee): bool

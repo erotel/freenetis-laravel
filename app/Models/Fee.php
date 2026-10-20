@@ -70,20 +70,4 @@ class Fee extends Model
         return $this->hasMany(MemberFee::class);
     }
 
-    /** Počet aktivních přiřazení tarifu členům k danému dni. */
-    public function activeAssignmentsCount(?string $date = null): int
-    {
-        $date = $date ?: now()->toDateString();
-
-        return $this->memberFees()
-            ->where('activation_date', '<=', $date)
-            ->where('deactivation_date', '>=', $date)
-            ->count();
-    }
-
-    /** Má tarif k danému dni aspoň jedno aktivní přiřazení členovi? */
-    public function hasActiveAssignments(?string $date = null): bool
-    {
-        return $this->activeAssignmentsCount($date) > 0;
-    }
 }
