@@ -36,6 +36,12 @@ class BankAccountRepository
         return $query->get();
     }
 
+    /** Bankovní účty sdružení (člen 1) — ty se stahují z FIO. */
+    public function organizationAccounts(): Collection
+    {
+        return BankAccount::where('member_id', 1)->get(['id', 'name', 'account_nr', 'bank_nr']);
+    }
+
     public function findOrFail(int $id): BankAccount
     {
         return BankAccount::findOrFail($id);

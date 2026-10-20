@@ -60,4 +60,16 @@ class LogQueueRepository
             ->when($type !== '', fn ($q) => $q->where('type', (int) $type))
             ->update(['state' => LogQueue::STATE_CLOSED, 'closed_at' => now(), 'closed_by_user_id' => $userId]);
     }
+
+    /** Nový systémový záznam (informace, varování, chyba) do fronty k přečtení. */
+    public function record(int $type, string $description, ?string $backtrace = null): void
+    {
+        DB::table('log_queues')->insert(array_filter([
+            'type'                => $type,
+            'state'               => LogQueue::STATE_NEW,
+            'created_at'          => now(),
+            'description'         => $description,
+            'exception_backtrace' => $backtrace,
+        ], fn ($v) => $v !== null));
+    }
 }

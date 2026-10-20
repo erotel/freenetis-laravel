@@ -2,11 +2,12 @@
 
 namespace App\Console\Commands;
 
+use App\Domains\Audit\Repositories\LogQueueRepository;
 use App\Domains\Billing\Actions\ImportNewFioPaymentsAction;
+use App\Domains\Billing\Bank\DownloadSchedule;
+use App\Domains\Billing\Repositories\BankAccountRepository;
 use App\Models\LogQueue;
-use App\Models\Setting;
 use Illuminate\Console\Command;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 
 /**
@@ -30,43 +31,29 @@ class ImportBankStatements extends Command
                                 {--force    : Skip rule matching, import all accounts with tokens}';
     protected $description = 'Auto-import FIO bank statements for association bank accounts per configured rules';
 
-    // Time_Activity_Rule type constants
-    const TYPE_MONTHLY        = 1;
-    const TYPE_WEEKLY         = 2;
-    const TYPE_DAILY          = 3;
-    const TYPE_DAILY_WD       = 4;
-    const TYPE_HOURLY         = 5;
-    const TYPE_AFTER_DEDUCTION = 6;
-
-    public function handle(ImportNewFioPaymentsAction $importer): int
+    public function handle(ImportNewFioPaymentsAction $importer, BankAccountRepository $accounts, DownloadSchedule $schedule, LogQueueRepository $log): int
     {
         $now    = time();
         $onlyId = $this->option('account') ? (int) $this->option('account') : null;
         $force  = (bool) $this->option('force');
 
-        $accounts = DB::table('bank_accounts')
-            ->where('member_id', 1)
-            ->get(['id', 'name', 'account_nr', 'bank_nr']);
 
         $totalImported = 0;
         $totalSkipped  = 0;
         $errors        = 0;
 
-        foreach ($accounts as $account) {
+        foreach ($accounts->organizationAccounts() as $account) {
             if ($onlyId && $account->id !== $onlyId) {
                 continue;
             }
 
-            $token = Setting::get('fio_api_token_bank_account_' . $account->id);
-            if (empty($token)) {
+            if ($accounts->fioToken((int) $account->id) === '') {
                 $this->line("  Skip #{$account->id} {$account->name}: no API token.");
                 continue;
             }
 
             // Load rules from bank_accounts_automatical_downloads
-            $rules = DB::table('bank_accounts_automatical_downloads')
-                ->where('bank_account_id', $account->id)
-                ->get();
+            $rules = $accounts->downloadRules((int) $account->id);
 
             if (!$force) {
                 if ($rules->isEmpty()) {
@@ -74,7 +61,7 @@ class ImportBankStatements extends Command
                     continue;
                 }
 
-                $matched = $this->matchRules($rules, $now);
+                $matched = $schedule->matches($rules, $now);
                 if (!$matched) {
                     $this->line("  Skip #{$account->id} {$account->name}: no rule matches current time.");
                     continue;
@@ -96,12 +83,7 @@ class ImportBankStatements extends Command
 
                 if ($imported > 0) {
                     $msg = "Bank statement imported for {$label}: {$imported} new, {$skipped} duplicates skipped.";
-                    DB::table('log_queues')->insert([
-                        'type'        => LogQueue::TYPE_INFO,
-                        'state'       => LogQueue::STATE_NEW,
-                        'created_at'  => now(),
-                        'description' => $msg,
-                    ]);
+                    $log->record(LogQueue::TYPE_INFO, $msg);
                 }
             } catch (\RuntimeException $e) {
                 // FIO API rate limit (409) — too soon since last download, not a real error
@@ -115,85 +97,18 @@ class ImportBankStatements extends Command
                 $this->error("  Error: " . $e->getMessage());
                 Log::error($errMsg);
 
-                DB::table('log_queues')->insert([
-                    'type'                => LogQueue::TYPE_ERROR,
-                    'state'               => LogQueue::STATE_NEW,
-                    'created_at'          => now(),
-                    'description'         => $errMsg,
-                    'exception_backtrace' => $e->getTraceAsString(),
-                ]);
+                $log->record(LogQueue::TYPE_ERROR, $errMsg, $e->getTraceAsString());
             } catch (\Throwable $e) {
                 $errors++;
                 $errMsg = "FIO import unexpected error for {$label}: " . $e->getMessage();
                 $this->error("  Unexpected error: " . $e->getMessage());
                 Log::error($errMsg, ['trace' => $e->getTraceAsString()]);
 
-                DB::table('log_queues')->insert([
-                    'type'                => LogQueue::TYPE_ERROR,
-                    'state'               => LogQueue::STATE_NEW,
-                    'created_at'          => now(),
-                    'description'         => $errMsg,
-                    'exception_backtrace' => $e->getTraceAsString(),
-                ]);
+                $log->record(LogQueue::TYPE_ERROR, $errMsg, $e->getTraceAsString());
             }
         }
 
         $this->info("Done. Imported: {$totalImported}, skipped: {$totalSkipped}, errors: {$errors}.");
         return $errors > 0 ? 1 : 0;
-    }
-
-    /**
-     * Returns true if at least one rule in the collection matches the given unix timestamp.
-     * Mirrors Time_Activity_Rule::filter_rules() with AM_BANK_STATEMENTS='55'.
-     */
-    private function matchRules(\Illuminate\Support\Collection $rules, int $time): bool
-    {
-        $hour      = (int) date('G', $time);   // 0-23
-        $day       = (int) date('j', $time);   // 1-31
-        $month     = (int) date('n', $time);   // 1-12
-        $year      = (int) date('Y', $time);
-        $dayOfWeek = (int) date('N', $time);   // 1=Mon … 7=Sun
-
-        foreach ($rules as $rule) {
-            $attrs = $rule->attribute !== null ? explode('/', $rule->attribute) : [];
-            $attr0 = isset($attrs[0]) ? (int) $attrs[0] : 0; // primary attribute
-            $attr1 = isset($attrs[1]) ? (int) $attrs[1] : 0; // secondary attribute (hour)
-
-            $passed = match ((int) $rule->type) {
-                self::TYPE_MONTHLY => (function () use ($day, $month, $year, $hour, $attr0, $attr1): bool {
-                    $daysInMonth = (int) date('t', mktime(0, 0, 0, $month, 1, $year));
-                    $effectiveDay = max(1, min($daysInMonth, $attr0));
-                    return $day === $effectiveDay && $hour === $attr1;
-                })(),
-
-                self::TYPE_WEEKLY =>
-                    $dayOfWeek === $attr0 && $hour === $attr1,
-
-                self::TYPE_DAILY =>
-                    $hour === $attr0,
-
-                self::TYPE_DAILY_WD =>
-                    $hour === $attr0 && $dayOfWeek <= 5,
-
-                self::TYPE_HOURLY =>
-                    true,
-
-                self::TYPE_AFTER_DEDUCTION => (function () use ($hour, $day, $month, $year, $attr0): bool {
-                    if (!Setting::get('deduct_fees_automatically_enabled', 0)) return false;
-                    $deductDay  = (int) Setting::get('deduct_day', 26);
-                    $daysInMonth = (int) date('t', mktime(0, 0, 0, $month, 1, $year));
-                    $effectiveDay = min($deductDay, $daysInMonth);
-                    return $hour === $attr0 && $day === $effectiveDay;
-                })(),
-
-                default => false,
-            };
-
-            if ($passed) {
-                return true;
-            }
-        }
-
-        return false;
     }
 }

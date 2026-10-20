@@ -42,11 +42,10 @@ class BankImportScheduleTest extends DatabaseTestCase
             ->map(fn ($r) => [(int) $r->type, $r->description])->all();
     }
 
-    /** Vyhodnocení pravidel pro daný okamžik (příkaz bere čas z time(), ne z Carbonu). */
+    /** Vyhodnocení pravidel pro daný okamžik (příkaz bere čas z time(), ne z Carbonu → testujeme DownloadSchedule přímo). */
     private function ruleMatches(int $type, ?string $attr, string $at): bool
     {
-        $m = new \ReflectionMethod(\App\Console\Commands\ImportBankStatements::class, 'matchRules');
-        return $m->invoke(app(\App\Console\Commands\ImportBankStatements::class), collect([(object) ['type' => $type, 'attribute' => $attr]]), strtotime($at));
+        return app(\App\Domains\Billing\Bank\DownloadSchedule::class)->matches(collect([(object) ['type' => $type, 'attribute' => $attr]]), strtotime($at));
     }
 
     public function test_pravidla_casu(): void
