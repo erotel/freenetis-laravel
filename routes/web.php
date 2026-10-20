@@ -66,6 +66,10 @@ use App\Http\Controllers\ConnectionRequestController;
 use App\Http\Controllers\SmsMessageController;
 use App\Http\Controllers\GponController;
 use App\Http\Controllers\ContractController;
+use App\Http\Controllers\Contracts\ConnectionPointAddonController;
+use App\Http\Controllers\Contracts\LegacyAddonController;
+use App\Http\Controllers\Contracts\ServiceAddonController;
+use App\Http\Controllers\Contracts\TariffAddonController;
 use App\Http\Controllers\FieldController;
 use App\Http\Controllers\WebAuthnController;
 use Illuminate\Support\Facades\Route;
@@ -740,30 +744,30 @@ Route::middleware('auth')->group(function () {
     Route::post('members/{id}/contract/send-link',       [ContractController::class, 'sendLink'])->name('contracts.send-link');
     Route::get('contracts/{id}/download',                [ContractController::class, 'download'])->name('contracts.download');
     Route::get('contracts/{id}/preview',                 [ContractController::class, 'preview'])->name('contracts.preview');
-    Route::post('members/{id}/contract/addon',           [ContractController::class, 'createAddon'])->name('contracts.addon.create');
-    Route::post('members/{id}/contract/addon/send-link', [ContractController::class, 'sendAddonLink'])->name('contracts.addon.send-link');
-    Route::get('contracts/{id}/download-addon',          [ContractController::class, 'downloadAddon'])->name('contracts.addon.download');
-    Route::delete('contracts/{id}/addon',                [ContractController::class, 'deleteAddon'])->name('contracts.addon.delete');
+    Route::post('members/{id}/contract/addon',           [LegacyAddonController::class, 'store'])->name('contracts.addon.create');
+    Route::post('members/{id}/contract/addon/send-link', [LegacyAddonController::class, 'sendLink'])->name('contracts.addon.send-link');
+    Route::get('contracts/{id}/download-addon',          [LegacyAddonController::class, 'download'])->name('contracts.addon.download');
+    Route::delete('contracts/{id}/addon',                [LegacyAddonController::class, 'destroy'])->name('contracts.addon.delete');
     // Dodatek – změna tarifu (contract_addons)
-    Route::post('members/{id}/contract/tariff-addon',        [ContractController::class, 'createTariffAddon'])->name('contracts.tariff_addon.create');
-    Route::get('contracts/tariff-addon/{addonId}/preview',   [ContractController::class, 'previewTariffAddon'])->name('contracts.tariff_addon.preview');
-    Route::delete('contracts/tariff-addon/{addonId}',        [ContractController::class, 'deleteTariffAddon'])->name('contracts.tariff_addon.delete');
-    Route::post('contracts/tariff-addon/{addonId}/send-link', [ContractController::class, 'sendTariffAddonLink'])->name('contracts.tariff_addon.send-link');
-    Route::get('contracts/tariff-addon/{addonId}/download',   [ContractController::class, 'downloadTariffAddon'])->name('contracts.tariff_addon.download');
+    Route::post('members/{id}/contract/tariff-addon',        [TariffAddonController::class, 'store'])->name('contracts.tariff_addon.create');
+    Route::get('contracts/tariff-addon/{addonId}/preview',   [TariffAddonController::class, 'preview'])->name('contracts.tariff_addon.preview');
+    Route::delete('contracts/tariff-addon/{addonId}',        [TariffAddonController::class, 'destroy'])->name('contracts.tariff_addon.delete');
+    Route::post('contracts/tariff-addon/{addonId}/send-link', [TariffAddonController::class, 'sendLink'])->name('contracts.tariff_addon.send-link');
+    Route::get('contracts/tariff-addon/{addonId}/download',   [TariffAddonController::class, 'download'])->name('contracts.tariff_addon.download');
 
     // Dodatek: dodatečná služba (fáze A — vytvořit/náhled/smazat; podpis ve fázi B)
-    Route::post('members/{id}/contract/service-addon',       [ContractController::class, 'createServiceAddon'])->name('contracts.service_addon.create');
-    Route::get('contracts/service-addon/{addonId}/preview',  [ContractController::class, 'previewServiceAddon'])->name('contracts.service_addon.preview');
-    Route::delete('contracts/service-addon/{addonId}',       [ContractController::class, 'deleteServiceAddon'])->name('contracts.service_addon.delete');
-    Route::post('contracts/service-addon/{addonId}/send-link', [ContractController::class, 'sendServiceAddonLink'])->name('contracts.service_addon.send-link');
-    Route::post('contracts/service-addon/{addonId}/issue-removal', [ContractController::class, 'issueServiceRemoval'])->name('contracts.service_addon.issue-removal');
-    Route::get('contracts/service-addon/{addonId}/download',   [ContractController::class, 'downloadServiceAddon'])->name('contracts.service_addon.download');
-    Route::post('members/{id}/contract/connection-point',       [ContractController::class, 'createConnectionPointAddon'])->name('contracts.connection_point.create');
-    Route::get('contracts/connection-point/{addonId}/preview',  [ContractController::class, 'previewConnectionPointAddon'])->name('contracts.connection_point.preview');
-    Route::delete('contracts/connection-point/{addonId}',       [ContractController::class, 'deleteConnectionPointAddon'])->name('contracts.connection_point.delete');
-    Route::post('contracts/connection-point/{addonId}/send-link', [ContractController::class, 'sendConnectionPointAddonLink'])->name('contracts.connection_point.send-link');
-    Route::post('contracts/connection-point/{addonId}/issue-removal', [ContractController::class, 'issueConnectionPointRemoval'])->name('contracts.connection_point.issue-removal');
-    Route::get('contracts/connection-point/{addonId}/download',   [ContractController::class, 'downloadConnectionPointAddon'])->name('contracts.connection_point.download');
+    Route::post('members/{id}/contract/service-addon',       [ServiceAddonController::class, 'store'])->name('contracts.service_addon.create');
+    Route::get('contracts/service-addon/{addonId}/preview',  [ServiceAddonController::class, 'preview'])->name('contracts.service_addon.preview');
+    Route::delete('contracts/service-addon/{addonId}',       [ServiceAddonController::class, 'destroy'])->name('contracts.service_addon.delete');
+    Route::post('contracts/service-addon/{addonId}/send-link', [ServiceAddonController::class, 'sendLink'])->name('contracts.service_addon.send-link');
+    Route::post('contracts/service-addon/{addonId}/issue-removal', [ServiceAddonController::class, 'issueRemoval'])->name('contracts.service_addon.issue-removal');
+    Route::get('contracts/service-addon/{addonId}/download',   [ServiceAddonController::class, 'download'])->name('contracts.service_addon.download');
+    Route::post('members/{id}/contract/connection-point',       [ConnectionPointAddonController::class, 'store'])->name('contracts.connection_point.create');
+    Route::get('contracts/connection-point/{addonId}/preview',  [ConnectionPointAddonController::class, 'preview'])->name('contracts.connection_point.preview');
+    Route::delete('contracts/connection-point/{addonId}',       [ConnectionPointAddonController::class, 'destroy'])->name('contracts.connection_point.delete');
+    Route::post('contracts/connection-point/{addonId}/send-link', [ConnectionPointAddonController::class, 'sendLink'])->name('contracts.connection_point.send-link');
+    Route::post('contracts/connection-point/{addonId}/issue-removal', [ConnectionPointAddonController::class, 'issueRemoval'])->name('contracts.connection_point.issue-removal');
+    Route::get('contracts/connection-point/{addonId}/download',   [ConnectionPointAddonController::class, 'download'])->name('contracts.connection_point.download');
 
     // Device DHCP export — inside auth group but device self-call bypasses auth middleware
     Route::get('devices/{id}/export/{format}', [DhcpExportController::class, 'export'])

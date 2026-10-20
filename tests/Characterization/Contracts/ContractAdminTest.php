@@ -282,6 +282,16 @@ class ContractAdminTest extends DatabaseTestCase
         $this->as()->delete(route('contracts.service_addon.delete', $s->id))->assertSessionHas('error', 'Podepsaný dodatek nelze smazat.');
         $this->as()->delete(route('contracts.connection_point.delete', 999999999))->assertNotFound();
 
+        // zákazník bez práv: náhled / stažení jen vlastních dodatků, žádné admin akce
+        $this->acl(['view_all/Members_Controller/members', 'edit_all/Members_Controller/members']);
+        $this->as($this->userId)->get(route('contracts.connection_point.preview', $p->id))->assertOk();
+        $this->as($this->userId)->get(route('contracts.connection_point.download', $p->id))->assertOk();
+        $this->as($this->userId)->post(route('contracts.connection_point.send-link', $p->id))->assertForbidden();
+        $this->as($this->userId)->delete(route('contracts.connection_point.delete', $p->id))->assertForbidden();
+        $other = (int) DB::table('users')->where('member_id', '<>', $this->memberId)->where('id', '<>', $this->adminId)->value('id');
+        $this->as($other)->get(route('contracts.connection_point.preview', $p->id))->assertForbidden();
+        $this->as($other)->get(route('contracts.service_addon.download', $s->id))->assertForbidden();
+
         // tarifní dodatek vyžaduje i qos_ceil
         $this->acl(['edit_all/Members_Controller/qos_ceil']);
         $this->as()->post(route('contracts.tariff_addon.create', $this->memberId), ['speed_class_id' => $this->speedId])->assertForbidden();
