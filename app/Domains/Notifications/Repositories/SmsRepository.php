@@ -69,4 +69,23 @@ class SmsRepository
             ->where('state', SmsMessage::STATE_SENT_UNSENT)
             ->delete();
     }
+
+    /** Odchozí SMS čekající na odeslání, nejstarší první. */
+    public function pendingOutgoing(int $limit)
+    {
+        return SmsMessage::where('type', SmsMessage::TYPE_SENT)
+            ->where('state', SmsMessage::STATE_SENT_UNSENT)
+            ->orderBy('id')
+            ->limit($limit)
+            ->get();
+    }
+
+    /** Výsledek odeslání: stav + hláška brány (max 100 znaků). */
+    public function markDelivered(int $id, bool $ok, string $message): void
+    {
+        SmsMessage::whereKey($id)->update([
+            'state'   => $ok ? SmsMessage::STATE_SENT_OK : SmsMessage::STATE_SENT_FAILED,
+            'message' => substr($message, 0, 100),
+        ]);
+    }
 }

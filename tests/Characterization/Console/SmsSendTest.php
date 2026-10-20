@@ -36,8 +36,7 @@ class SmsSendTest extends DatabaseTestCase
     /** Ovladač pro dané id (stejná logika jako příkaz). */
     private function driver(int $id): ?object
     {
-        $m = new \ReflectionMethod(\App\Console\Commands\SmsSend::class, 'resolveDriver');
-        return $m->invoke(app(\App\Console\Commands\SmsSend::class), $id);
+        return app(\App\Domains\Notifications\Channels\SmsDriverResolver::class)->resolve($id);
     }
 
     public function test_vypnute_a_bez_ovladace(): void
