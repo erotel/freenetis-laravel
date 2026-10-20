@@ -22,7 +22,9 @@ class SubnetAssignmentSync
     public function expireDhcp(array $subnetIds): void
     {
         foreach ($subnetIds as $sid) {
-            Subnet::find($sid)?->setExpired();
+            if ($subnet = Subnet::find($sid)) {
+                SubnetDhcpChanges::expire($subnet);
+            }
         }
     }
 

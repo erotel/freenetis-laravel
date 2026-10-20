@@ -2,6 +2,7 @@
 
 namespace App\Domains\Access\Repositories;
 
+use App\Domains\Network\Support\SubnetDhcpChanges;
 use App\Models\ConnectionRequest;
 use App\Models\Device;
 use Carbon\Carbon;
@@ -15,7 +16,7 @@ use Illuminate\Support\Facades\DB;
  *  - bez ?client: sdílený boolean `subnets.dhcp_expired` (jeden konzument),
  *  - s ?client:   `subnets.dhcp_changed_at` vs. `dhcp_export_state.exported_at`
  *                 (high-water-mark per konzument, mikrosekundy).
- * Změny nastavuje Subnet::setExpired() (dhcp_expired=1 + dhcp_changed_at=now).
+ * Změny nastavuje Network\Support\SubnetDhcpChanges::expire() (dhcp_expired=1 + dhcp_changed_at=now).
  */
 class DhcpExportRepository
 {
@@ -87,7 +88,7 @@ class DhcpExportRepository
     public function markSubnetsSynced(Device $device): void
     {
         foreach ($this->dhcpSubnets($device) as $subnet) {
-            $subnet->setNotExpired();
+            SubnetDhcpChanges::synced($subnet);
         }
     }
 

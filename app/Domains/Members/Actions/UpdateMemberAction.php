@@ -2,15 +2,16 @@
 
 namespace App\Domains\Members\Actions;
 
+use App\Domains\Contracts\Repositories\ContractRepository;
 use App\Domains\Members\Events\MemberApproved;
 use App\Domains\Members\Repositories\MemberRepository;
 use App\Domains\Members\Support\MemberChanges;
+use App\Domains\Network\Support\SubnetDhcpChanges;
 use App\Helpers\MemberType;
 use App\Models\AddressPoint;
 use App\Models\IpAddress;
 use App\Models\Member;
 use App\Models\MemberVotingLog;
-use App\Domains\Contracts\Repositories\ContractRepository;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
 
 /**
@@ -100,7 +101,11 @@ class UpdateMemberAction
         IpAddress::where('member_id', $id)
             ->with('subnet')
             ->get()
-            ->each(fn ($ip) => $ip->subnet?->setExpired());
+            ->each(function ($ip) {
+                if ($ip->subnet) {
+                    SubnetDhcpChanges::expire($ip->subnet);
+                }
+            });
 
         if ($isApproval) {
             MemberApproved::dispatch($member->id, $oldType, $c->type);

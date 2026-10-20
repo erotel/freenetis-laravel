@@ -2,6 +2,7 @@
 
 namespace App\Domains\Network\Repositories;
 
+use App\Domains\Network\Support\SubnetDhcpChanges;
 use App\Models\Device;
 use App\Models\Iface;
 use App\Models\IpAddress;
@@ -90,7 +91,7 @@ class IfaceRepository
     {
         $subnet = Subnet::find($subnetId);
         if ($subnet && $subnet->dhcp) {
-            $subnet->setExpired();
+            SubnetDhcpChanges::expire($subnet);
         }
     }
 

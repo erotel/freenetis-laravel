@@ -2,7 +2,6 @@
 
 namespace App\Models;
 
-use App\Domains\Access\Events\IpoeReservationsChanged;
 use Illuminate\Database\Eloquent\Model;
 
 class Subnet extends Model
@@ -28,29 +27,6 @@ class Subnet extends Model
         'qos'             => 'boolean',
         'ipoe'            => 'boolean',
     ];
-
-    public function setExpired(): void
-    {
-        // dhcp_expired = sdílený flag pro legacy jednoho-konzumenta;
-        // dhcp_changed_at = timestamp pro per-client detekci (více DHCP serverů).
-        $this->update(['dhcp_expired' => 1, 'dhcp_changed_at' => now()]);
-
-        // Změna IP v IPoE subnetu = změna rezervace → Kea host-cache (odloženě,
-        // jednou za request). Sem vedou všechny cesty (IP/rozhraní/zařízení/člen).
-        if ($this->dhcp && $this->ipoe) {
-            IpoeReservationsChanged::dispatch("subnet:{$this->id}", true);
-        }
-    }
-
-    public function setNotExpired(): void
-    {
-        $this->update(['dhcp_expired' => 0]);
-    }
-
-    public function scopeExpired($query)
-    {
-        return $query->where('dhcp_expired', 1);
-    }
 
     public function ipAddresses()
     {

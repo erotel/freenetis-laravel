@@ -4,6 +4,7 @@ namespace App\Domains\Network\Actions;
 
 use App\Domains\Network\Repositories\IfaceRepository;
 use App\Domains\Network\Support\AllowedSubnetSyncService;
+use App\Domains\Network\Support\SubnetDhcpChanges;
 use App\Models\Iface;
 
 /** Smaže rozhraní s IP; DHCP podsítě expirují, přípojná místa člena bez IP odejdou. */
@@ -19,7 +20,7 @@ class RemoveIfaceAction
         $touched  = [];
         foreach ($iface->ipAddresses as $ip) {
             if ($ip->subnet && $ip->subnet->dhcp) {
-                $ip->subnet->setExpired();
+                SubnetDhcpChanges::expire($ip->subnet);
             }
             if ($ip->subnet_id) {
                 $touched[$ip->subnet_id] = true;

@@ -4,6 +4,7 @@ namespace App\Domains\Network\Actions;
 
 use App\Domains\Access\Events\IpoeReservationsChanged;
 use App\Domains\Network\Repositories\SubnetRepository;
+use App\Domains\Network\Support\SubnetDhcpChanges;
 use App\Models\Subnet;
 
 /** Úprava podsítě — příznaky, které admin bez jemného práva neposlal, zůstávají. */
@@ -31,7 +32,7 @@ class UpdateSubnetAction
 
         // jiná síť / maska = jiná konfigurace DHCP serveru → ke stažení
         if ($rangeChanged && $subnet->dhcp) {
-            $subnet->setExpired();
+            SubnetDhcpChanges::expire($subnet);
         }
 
         // Zapnutí/vypnutí IPoE (dhcp+ipoe) mění, co RADIUS vrací → Kea host-cache.

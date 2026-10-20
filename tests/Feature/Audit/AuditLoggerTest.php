@@ -125,7 +125,7 @@ class AuditLoggerTest extends DatabaseTestCase
         $this->assertArrayNotHasKey('access_time', $new);
         $this->assertSame('Nové', $new['name']);
 
-        // Subnet: změna jen DHCP-flagů (setExpired po změně IP) se nezaloguje.
+        // Subnet: změna jen DHCP-flagů (SubnetDhcpChanges::expire po změně IP) se nezaloguje.
         $before2 = DB::table('audit_logs')->count();
         AuditLogger::log('updated', 'subnets', 991002,
             ['dhcp_expired' => 0, 'dhcp_changed_at' => '2026-08-13 10:00:00'],

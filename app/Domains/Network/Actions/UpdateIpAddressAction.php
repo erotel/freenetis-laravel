@@ -5,6 +5,7 @@ namespace App\Domains\Network\Actions;
 use App\Domains\Network\Repositories\IpAddressRepository;
 use App\Domains\Network\Support\AllowedSubnetSyncService;
 use App\Domains\Network\Support\Ip6Sync;
+use App\Domains\Network\Support\SubnetDhcpChanges;
 use App\Models\IpAddress;
 
 /** Úprava IP: přepočet IPv6, expirace DHCP nové i původní podsítě, přesun přípojného místa. */
@@ -23,9 +24,13 @@ class UpdateIpAddressAction
         $ip->unsetRelation('iface');   // vlastník podle nového rozhraní
         Ip6Sync::add($ip->iface_id, $ip->ip_address);
 
-        $ip->subnet?->setExpired();
+        if ($ip->subnet) {
+            SubnetDhcpChanges::expire($ip->subnet);
+        }
         if ($oldSubnetId !== $ip->subnet_id) {
-            $this->ips->subnet($oldSubnetId)?->setExpired();
+            if ($old = $this->ips->subnet($oldSubnetId)) {
+                SubnetDhcpChanges::expire($old);
+            }
         }
 
         $owner = $this->ips->ownerId($ip);

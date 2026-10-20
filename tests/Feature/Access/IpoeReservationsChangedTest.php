@@ -6,6 +6,7 @@ use App\Domains\Access\Events\IpoeReservationsChanged;
 use App\Domains\Access\Kea\KeaControlClient;
 use App\Domains\Access\Listeners\FlushKeaHostCache;
 use App\Domains\Acl\AclService;
+use App\Domains\Network\Support\SubnetDhcpChanges;
 use App\Models\Subnet;
 use App\Models\User;
 use Illuminate\Support\Facades\DB;
@@ -16,7 +17,7 @@ use Tests\DatabaseTestCase;
  * Event IpoeReservationsChanged → listener FlushKeaHostCache (Kea host-cache).
  * Registrace v AccessServiceProvider; výsledek flushe nese event (cacheFlushed).
  *
- * Každá změna IP v IPoE subnetu (dhcp+ipoe) jde přes Subnet::setExpired() →
+ * Každá změna IP v IPoE subnetu (dhcp+ipoe) jde přes SubnetDhcpChanges::expire() →
  * odložený flush, jednou za request (KeaFlushScheduler, po odeslání odpovědi).
  */
 class IpoeReservationsChangedTest extends DatabaseTestCase
@@ -63,7 +64,7 @@ class IpoeReservationsChangedTest extends DatabaseTestCase
     {
         Event::fake([IpoeReservationsChanged::class]);
         $s = $this->subnet(1, 1);
-        $s->setExpired();
+        SubnetDhcpChanges::expire($s);
 
         Event::assertDispatched(IpoeReservationsChanged::class,
             fn ($e) => $e->deferred && $e->source === "subnet:{$s->id}");
@@ -72,8 +73,8 @@ class IpoeReservationsChangedTest extends DatabaseTestCase
     public function test_set_expired_mimo_ipoe_nic(): void
     {
         Event::fake([IpoeReservationsChanged::class]);
-        $this->subnet(1, 0)->setExpired();
-        $this->subnet(0, 1)->setExpired();
+        SubnetDhcpChanges::expire($this->subnet(1, 0));
+        SubnetDhcpChanges::expire($this->subnet(0, 1));
 
         Event::assertNotDispatched(IpoeReservationsChanged::class);
     }
@@ -87,9 +88,9 @@ class IpoeReservationsChangedTest extends DatabaseTestCase
             return true;
         });
         $a = $this->subnet(1, 1);
-        $a->setExpired();
-        $a->setExpired();
-        $this->subnet(1, 1)->setExpired();
+        SubnetDhcpChanges::expire($a);
+        SubnetDhcpChanges::expire($a);
+        SubnetDhcpChanges::expire($this->subnet(1, 1));
 
         $this->assertSame(0, $flushes, 'během requestu se na Kea nečeká');
         $this->app->terminate();
