@@ -19,6 +19,11 @@ use App\Http\Controllers\Auth\MfaChallengeController;
 use App\Http\Controllers\MfaController;
 use App\Http\Controllers\ContactController;
 use App\Http\Controllers\DeviceController;
+use App\Http\Controllers\Devices\DeviceEngineerController;
+use App\Http\Controllers\Devices\DeviceFromTemplateController;
+use App\Http\Controllers\Devices\DeviceInventoryController;
+use App\Http\Controllers\Devices\DevicePppoeController;
+use App\Http\Controllers\Devices\DhcpExportController;
 use App\Http\Controllers\DeviceTemplateController;
 use App\Http\Controllers\IpAddressController;
 use App\Http\Controllers\MemberController;
@@ -378,13 +383,13 @@ Route::middleware('auth')->group(function () {
         ->middleware('acl:view_all,Users_Controller,users');
     Route::resource('users', UserController::class)->except(['index']);
 
-    Route::get('devices/dhcp-servers', [DeviceController::class, 'dhcpServers'])->name('devices.dhcp-servers');
-    Route::get('devices/add/{userId?}', [DeviceController::class, 'createWithTemplate'])->name('devices.add');
-    Route::post('devices/add', [DeviceController::class, 'storeWithTemplate'])->name('devices.store_template');
-    Route::get('devices/create-from-cr/{crId}', [DeviceController::class, 'createFromConnectionRequest'])->name('devices.create_from_cr');
-    Route::post('ifaces/{ifaceId}/pppoe/generate', [DeviceController::class, 'pppoeGenerate'])->name('devices.pppoe.generate');
-    Route::post('ifaces/{ifaceId}/pppoe/rotate',   [DeviceController::class, 'pppoeRotate'])->name('devices.pppoe.rotate');
-    Route::get('devices/inventory-export', [DeviceController::class, 'inventoryCsv'])->name('devices.inventory_export');
+    Route::get('devices/dhcp-servers', [DhcpExportController::class, 'index'])->name('devices.dhcp-servers');
+    Route::get('devices/add/{userId?}', [DeviceFromTemplateController::class, 'create'])->name('devices.add');
+    Route::post('devices/add', [DeviceFromTemplateController::class, 'store'])->name('devices.store_template');
+    Route::get('devices/create-from-cr/{crId}', [DeviceFromTemplateController::class, 'createFromConnectionRequest'])->name('devices.create_from_cr');
+    Route::post('ifaces/{ifaceId}/pppoe/generate', [DevicePppoeController::class, 'generate'])->name('devices.pppoe.generate');
+    Route::post('ifaces/{ifaceId}/pppoe/rotate',   [DevicePppoeController::class, 'rotate'])->name('devices.pppoe.rotate');
+    Route::get('devices/inventory-export', [DeviceInventoryController::class, 'export'])->name('devices.inventory_export');
     Route::resource('devices', DeviceController::class);
     Route::resource('device-templates', DeviceTemplateController::class)
         ->parameters(['device-templates' => 'id'])
@@ -400,9 +405,9 @@ Route::middleware('auth')->group(function () {
     Route::get('device-templates-export', [DeviceTemplateController::class, 'exportJson'])->name('device_templates.export');
     Route::get('users/{userId}/devices', [DeviceController::class, 'showByUser'])
         ->name('devices.by_user');
-    Route::post('devices/{id}/engineers', [DeviceController::class, 'addEngineer'])
+    Route::post('devices/{id}/engineers', [DeviceEngineerController::class, 'store'])
         ->name('devices.engineers.add');
-    Route::delete('devices/{deviceId}/engineers/{userId}', [DeviceController::class, 'removeEngineer'])
+    Route::delete('devices/{deviceId}/engineers/{userId}', [DeviceEngineerController::class, 'destroy'])
         ->name('devices.engineers.remove');
 
     Route::resource('accounts', AccountController::class)->except(['destroy']);
@@ -761,11 +766,11 @@ Route::middleware('auth')->group(function () {
     Route::get('contracts/connection-point/{addonId}/download',   [ContractController::class, 'downloadConnectionPointAddon'])->name('contracts.connection_point.download');
 
     // Device DHCP export — inside auth group but device self-call bypasses auth middleware
-    Route::get('devices/{id}/export/{format}', [DeviceController::class, 'export'])
+    Route::get('devices/{id}/export/{format}', [DhcpExportController::class, 'export'])
         ->name('devices.export')
         ->withoutMiddleware(\Illuminate\Auth\Middleware\Authenticate::class);
 
     // Kohana legacy URL compatibility
-    Route::get('index.php/en/devices/export/{id}/{format}/text', [DeviceController::class, 'export'])
+    Route::get('index.php/en/devices/export/{id}/{format}/text', [DhcpExportController::class, 'export'])
         ->withoutMiddleware(\Illuminate\Auth\Middleware\Authenticate::class);
 });

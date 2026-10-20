@@ -2,54 +2,26 @@
 
 namespace App\Http\Controllers;
 
-use App\Domains\Access\Actions\ExportDhcpConfigAction;
-use App\Domains\Access\Repositories\DhcpExportRepository;
-use App\Domains\Access\Support\DhcpClientId;
+use App\Domains\Members\Repositories\UserRepository;
 use App\Domains\Network\Actions\CreateDeviceAction;
-use App\Domains\Network\Actions\RegisterDeviceFromTemplateAction;
 use App\Domains\Network\Actions\RemoveDeviceAction;
-use App\Domains\Network\Actions\RemoveDeviceEngineerAction;
 use App\Domains\Network\Actions\UpdateDeviceAction;
-use App\Domains\Network\Documents\DeviceInventoryCsv;
 use App\Domains\Network\Exceptions\DeviceOwnerInvalid;
 use App\Domains\Network\Queries\DeviceCardQuery;
 use App\Domains\Network\Queries\DeviceFormQuery;
 use App\Domains\Network\Queries\DeviceListQuery;
 use App\Domains\Network\Repositories\DeviceRepository;
+use App\Http\Controllers\Devices\DeviceAccess;
 use App\Http\Filters\DeviceFilter;
-use App\Http\Requests\Devices\StoreDeviceFromTemplateRequest;
 use App\Http\Requests\Devices\StoreDeviceRequest;
 use App\Http\Requests\Devices\UpdateDeviceRequest;
-use App\Domains\Access\Repositories\ConnectionRequestRepository;
-use App\Domains\Members\Repositories\UserRepository;
 use App\Models\Device;
-use App\Models\Iface;
 use App\Models\Setting;
 use Illuminate\Http\Request;
 
 class DeviceController extends Controller
 {
-    private const ACL_SECTION = 'Devices_Controller';
-    private const ACL_VALUE   = 'devices';
-
-    private function can(string $action, string $value = self::ACL_VALUE): bool
-    {
-        return $this->aclCheck($action, self::ACL_SECTION, $value);
-    }
-
-    /**
-     * True, pokud daný uživatel patří pod stejného člena jako přihlášený uživatel
-     * (self-access — zákazník smí vidět vlastní zařízení i bez ACL view_all).
-     */
-    private function isOwnUser(?int $userId): bool
-    {
-        $ownMemberId = auth()->user()?->member_id;
-        if (!$ownMemberId || !$userId) {
-            return false;
-        }
-
-        return app(DeviceRepository::class)->memberIdOfUser($userId) == $ownMemberId;
-    }
+    use DeviceAccess;
 
     public function index(Request $request, DeviceListQuery $list)
     {
@@ -147,127 +119,7 @@ class DeviceController extends Controller
 
     // ── PPPoE přístupy (per iface) ──────────────────────────────────────────────
 
-    /**
-     * Vygeneruje (nebo dorovná) PPPoE credential pro rozhraní. Idempotentní —
-     * existující heslo nemění. Vyžaduje právo editovat + vidět hesla; modul
-     * musí být zapnutý (Setting pppoe_enabled). Viz onboarding návrh.
-     */
-    public function pppoeGenerate(int $ifaceId, \App\Domains\Access\Actions\EnsurePppoeCredentialAction $ensure)
-    {
-        abort_unless((bool) Setting::get('pppoe_enabled', 0), 403, 'PPPoE modul není zapnutý.');
-        abort_unless($this->can('edit_all') && $this->can('view_all', 'password'), 403);
-
-        $iface  = $this->pppoeIface($ifaceId);
-        $secret = $ensure->handle($iface);
-
-        return redirect()->route('devices.show', $iface->device_id)->with(
-            $secret ? 'success' : 'error',
-            $secret
-                ? "PPPoE přístup vytvořen: {$secret->username}"
-                : 'PPPoE přístup nelze vytvořit — rozhraní nemá přiřazeného člena.'
-        );
-    }
-
-    /** Přegeneruje heslo (rotace) — username zůstává. Stejná autorizace jako generate. */
-    public function pppoeRotate(int $ifaceId, \App\Domains\Access\Actions\RotatePppoeSecretAction $rotate)
-    {
-        abort_unless((bool) Setting::get('pppoe_enabled', 0), 403, 'PPPoE modul není zapnutý.');
-        abort_unless($this->can('edit_all') && $this->can('view_all', 'password'), 403);
-
-        $iface  = $this->pppoeIface($ifaceId);
-        $secret = $rotate->handle($iface);
-
-        return redirect()->route('devices.show', $iface->device_id)->with(
-            $secret ? 'success' : 'error',
-            $secret ? 'Heslo PPPoE bylo přegenerováno.' : 'Rotaci nelze provést.'
-        );
-    }
-
-    /**
-     * Dohledá iface pro PPPoE akci a ověří vlastnictví zařízení (uživatel ho smí
-     * editovat). Autorizaci modulu + práva řeší volající metoda (kvůli statickému
-     * ACL guardu musí být markery přímo v těle akce).
-     */
-    private function pppoeIface(int $ifaceId): Iface
-    {
-        $iface = app(DeviceRepository::class)->ifaceWithDeviceOrFail($ifaceId);
-        abort_if(!$iface->device, 404);
-        abort_unless($this->can('view_all') || $this->isOwnUser($iface->device->user_id), 403);
-        return $iface;
-    }
-
     // ── Engineers ─────────────────────────────────────────────────────────────
-
-    public function addEngineer(Request $request, int $deviceId, DeviceRepository $devices)
-    {
-        abort_unless($this->can('new_all', 'engineer'), 403);
-
-        $devices->findOrFail($deviceId);
-        $data = $request->validate(['user_id' => 'required|integer|exists:users,id']);
-        $devices->addEngineer($deviceId, (int) $data['user_id']);
-
-        return redirect()->route('devices.show', $deviceId)
-            ->with('success', 'Technik byl přidán.');
-    }
-
-    public function removeEngineer(int $deviceId, int $userId, RemoveDeviceEngineerAction $remove)
-    {
-        abort_unless($this->can('delete_all', 'engineer'), 403);
-
-        $remove->handle($deviceId, $userId);
-
-        return redirect()->route('devices.show', $deviceId)
-            ->with('success', 'Technik byl odebrán.');
-    }
-
-    public function createWithTemplate(Request $request, DeviceFormQuery $form, ?int $userId = null)
-    {
-        abort_unless($this->can('new_all'), 403);
-
-        $user = $userId ? app(UserRepository::class)->findOrFail($userId) : null;
-        // Preselect: primárně ?member_id= (po reloadu formuláře), jinak člen
-        // hlavního uživatele z URL (legacy „/devices/add/{userId}").
-        $preselectedMemberId = $request->filled('member_id') ? (int) $request->query('member_id') : $user?->member_id;
-
-        return view('devices.add', ['user' => $user, 'preselectedMemberId' => $preselectedMemberId]
-            + $form->templateForm((int) $request->query('type_id') ?: null, (int) $request->query('template_id') ?: null));
-    }
-
-    public function createFromConnectionRequest(Request $request, int $crId, DeviceFormQuery $form)
-    {
-        abort_unless($this->can('new_all'), 403);
-
-        $cr = app(ConnectionRequestRepository::class)->findOrFail($crId, ['member', 'deviceTemplate', 'deviceType']);
-
-        // Admin může typ/šablonu ze žádosti přepsat (reloadWithTemplate()).
-        $typeId     = (int) $request->query('type_id', $cr->device_type_id) ?: $cr->device_type_id;
-        $templateId = (int) $request->query('template_id', $cr->device_template_id) ?: $cr->device_template_id;
-
-        return view('devices.add', [
-            'user'                => app(UserRepository::class)->firstOfMember((int) $cr->member_id),
-            'preselectedMemberId' => $cr->member_id,
-            'preselectedMac'      => $cr->mac_address,
-            'preselectedIp'       => $cr->ip_address,
-            'preselectedSubnetId' => $cr->subnet_id,
-            'connectionRequestId' => $cr->id,
-        ] + $form->templateForm($typeId, $templateId));
-    }
-
-    public function storeWithTemplate(StoreDeviceFromTemplateRequest $request, RegisterDeviceFromTemplateAction $register)
-    {
-        try {
-            $deviceId = $register->handle($request->deviceData(), $request->ifaceInputs(), $request->connectionRequestId(), auth()->id());
-        } catch (\Exception $e) {
-            \Log::error('storeWithTemplate error', [
-                'message' => $e->getMessage(),
-                'trace'   => $e->getTraceAsString(),
-            ]);
-            throw $e;
-        }
-
-        session()->flash('success', 'Zařízení bylo úspěšně přidáno.');
-        return redirect()->route('devices.show', $deviceId);
-    }
 
     public function create(Request $request, DeviceFormQuery $form, DeviceRepository $devices)
     {
@@ -355,75 +207,6 @@ class DeviceController extends Controller
 
     // ── DHCP Servers overview ─────────────────────────────────────────────────
 
-    public function dhcpServers(DeviceListQuery $list)
-    {
-        abort_unless($this->aclCheck('view_all', 'Devices_Controller', 'devices'), 403);
-
-        return view('devices.dhcp_servers', [
-            'devices' => $list->dhcpServers(),
-            'token'   => Setting::get('dhcp_api_token'),
-        ]);
-    }
-
     // ── DHCP Export ───────────────────────────────────────────────────────────
 
-    public function export(Request $request, int $id, string $format, DhcpExportRepository $repo, ExportDhcpConfigAction $action)
-    {
-        if (!in_array($format, ExportDhcpConfigAction::FORMATS)) {
-            abort(404);
-        }
-
-        // Čas zachytíme PŘED načtením stavu subnetů (viz ExportDhcpConfigAction).
-        $exportStartedAt = now();
-
-        $device = $repo->deviceWithSubnets($id);
-        if (!$device) {
-            abort(404);
-        }
-
-        // Auth: DHCP servery se ověřují dhcp_api_tokenem, jinak přihlášený uživatel
-        // s ACL view_all#export. Legacy „volání z vlastní IP zařízení" (fromDevice)
-        // bylo odstraněno (audit 2026-08-18): DHCP servery už jezdí přes token a
-        // IP-based větev jen otevírala cross-member únik (export vydává
-        // MAC + jméno člena sousedů na subnetu komukoliv, kdo zavolá z IP zařízení).
-        $token      = $request->input('token') ?? $request->bearerToken();
-        $validToken = Setting::get('dhcp_api_token');
-        $tokenValid = $token && $validToken && hash_equals($validToken, $token);
-
-        if (!$tokenValid) {
-            if (auth()->guest()) {
-                abort(403);
-            }
-            abort_unless($this->aclCheck('view_all', 'Devices_Controller', 'export'), 403);
-        }
-
-        $text = $action->handle(
-            $device,
-            $format,
-            fromDhcpServer: (bool) $tokenValid,
-            forced: $request->boolean('forced'),
-            client: DhcpClientId::normalize($request->input('client')),
-            role: (string) $request->input('role'),
-            startedAt: $exportStartedAt,
-        );
-
-        if ($text === null) {
-            return response('', 204);
-        }
-
-        return response($text, 200)->header('Content-Type', 'text/plain; charset=utf-8');
-    }
-
-    /**
-     * CSV inventář VŠECH zařízení — vše jako na detailu zařízení (info, technici,
-     * rozhraní s MAC/IPv4/IPv6), BEZ PPPoE sekce. Credentialy (login/heslo/wpa2)
-     * jen s příslušným právem (stejně jako detail). Streamované + chunk kvůli
-     * tisícům zařízení (bounded paměť). Oddělovač ';' + UTF-8 BOM (Excel/CZ).
-     */
-    public function inventoryCsv(Request $request, DeviceInventoryCsv $csv): \Symfony\Component\HttpFoundation\StreamedResponse
-    {
-        abort_unless($this->can('view_all'), 403);
-
-        return $csv->download($this->can('view_all', 'login'), $this->can('view_all', 'password'));
-    }
 }

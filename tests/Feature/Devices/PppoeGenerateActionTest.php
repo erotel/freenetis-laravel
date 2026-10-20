@@ -10,7 +10,7 @@ use Illuminate\Support\Facades\DB;
 use Tests\DatabaseTestCase;
 
 /**
- * Akce generování PPPoE credentialu (DeviceController::pppoeGenerate):
+ * Akce generování PPPoE credentialu (Devices\DevicePppoeController::generate):
  *  - vyžaduje zapnutý modul (Setting pppoe_enabled) → jinak 403,
  *  - vyžaduje právo edit_all + view password → jinak 403,
  *  - při splnění vytvoří credential pro rozhraní.

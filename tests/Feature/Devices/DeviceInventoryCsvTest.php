@@ -8,7 +8,7 @@ use Illuminate\Support\Facades\DB;
 use Tests\DatabaseTestCase;
 
 /**
- * CSV inventář všech zařízení (DeviceController::inventoryCsv):
+ * CSV inventář všech zařízení (Devices\DeviceInventoryController::export):
  *  - vyžaduje view_all (jinak 403),
  *  - obsahuje hlavičku + řádek se zařízením (rozhraní/MAC/IP),
  *  - credentialy (login/heslo/wpa) jen s právem na ně.
