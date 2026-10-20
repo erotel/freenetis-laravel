@@ -40,8 +40,8 @@
         @foreach($rules as $rule)
         <tr>
             <td>{{ $rule->id }}</td>
-            <td style="font-size:14px">{{ $rule->typeLabel() }}</td>
-            <td style="font-size:14px">{{ $rule->attributeLabel() }}</td>
+            <td style="font-size:14px">{{ \App\Domains\Billing\Bank\DownloadSchedule::label((int) $rule->type) }}</td>
+            <td style="font-size:14px">{{ \App\Domains\Billing\Bank\DownloadSchedule::describe($rule) }}</td>
             <td>@if($rule->email_enabled)<span class="m-tag m-tag-green">Ano</span>@else —@endif</td>
             <td>@if($rule->sms_enabled)<span class="m-tag m-tag-green">Ano</span>@else —@endif</td>
             <td>

@@ -3,7 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Domains\Billing\Repositories\BankAccountRepository;
-use App\Models\BankAccountAutoDownload;
+use App\Domains\Billing\Bank\DownloadSchedule;
 use Illuminate\Http\Request;
 
 class BankAccountAutoDownloadController extends Controller
@@ -42,8 +42,8 @@ class BankAccountAutoDownloadController extends Controller
         return view('bank_accounts.auto_downloads', [
             'account'    => $account,
             'rules'      => $rules,
-            'typeLabels' => BankAccountAutoDownload::typeLabels(),
-            'typeAttrs'  => BankAccountAutoDownload::typeAttributes(),
+            'typeLabels' => DownloadSchedule::typeLabels(),
+            'typeAttrs'  => DownloadSchedule::typeAttributes(),
             'canAdd'     => $this->canAdd(),
             'canDelete'  => $this->canDelete(),
         ]);
@@ -58,7 +58,7 @@ class BankAccountAutoDownloadController extends Controller
         $this->accounts->findOrFail($bankAccountId);
 
         $type = (int) $request->input('type');
-        $defs = BankAccountAutoDownload::typeAttributes()[$type] ?? null;
+        $defs = DownloadSchedule::typeAttributes()[$type] ?? null;
 
         abort_if($defs === null, 422);
 
