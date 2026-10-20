@@ -15,7 +15,7 @@ use App\Models\Member;
 use App\Models\Setting;
 use App\Services\AuditLogger;
 use App\Services\MemberFeesTermination;
-use App\Services\PaymentBlockedRedirectService;
+use App\Domains\Notifications\Actions\SyncDebtorRedirectAction;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Support\Facades\DB;
 
@@ -44,7 +44,7 @@ class EndMembershipAction
         private RefundRepository $refunds,
         private IssueTerminationRefundAction $issueRefund,
         private RemoveFormerMemberDevicesAction $removeDevices,
-        private PaymentBlockedRedirectService $paymentBlockedRedirect,
+        private SyncDebtorRedirectAction $paymentBlockedRedirect,
     ) {
     }
 
@@ -100,7 +100,7 @@ class EndMembershipAction
                 'end_mode'     => $endMode,
             ]);
             // Aktivní redirect „nezaplaceno" smazat (flag byl právě resetován).
-            $this->paymentBlockedRedirect->refreshForMember($memberId);
+            $this->paymentBlockedRedirect->handle($memberId);
 
             // Individuální tarif a služby datumově ukončit k datu odchodu (i budoucímu).
             MemberFeesTermination::deactivate($memberId, $leavingDate);

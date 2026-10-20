@@ -2,7 +2,7 @@
 
 namespace App\Console\Commands;
 
-use App\Services\InvoiceService;
+use App\Domains\Billing\Documents\InvoicePdf;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\DB;
 
@@ -35,7 +35,7 @@ class MigrateInvoicePdfStorage extends Command
         $dryRun  = (bool) $this->option('dry-run');
         $noFiles = (bool) $this->option('no-files');
         $roots   = $this->option('legacy-path') ?: self::DEFAULT_LEGACY_ROOTS;
-        $target  = InvoiceService::pdfBasePath();
+        $target  = InvoicePdf::basePath();
 
         $this->info('Cíl: ' . $target);
         $this->info('Legacy kořeny: ' . implode(', ', $roots));

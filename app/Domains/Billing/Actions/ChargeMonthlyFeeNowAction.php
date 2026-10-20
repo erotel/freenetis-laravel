@@ -13,7 +13,7 @@ use App\Services\AuditLogger;
  * přerušeného členství). Stejná pravidla jako měsíční srážka: poplatek dle
  * FeePolicy, cíl provozní účet 221101 + přepočet jeho zůstatku, prepaid —
  * při nedostatku kreditu nestrhnout, jen payment_blocked (doplatek doběhne
- * PaymentBackchargeService po další platbě). Idempotence: převod type 1
+ * ChargeOverdueFeesAction po další platbě). Idempotence: převod type 1
  * s `datetime` = datum už existuje → nic (srážka v deduct_day pak také ne).
  *
  * Volat uvnitř transakce.

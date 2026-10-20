@@ -1,5 +1,5 @@
 <?php
-// Variables passed in from InvoiceService::generatePdf():
+// Variables passed in from InvoicePdf::render():
 // $invoice  - Invoice model
 // $org      - Member model (organization)
 // $items    - invoice items collection

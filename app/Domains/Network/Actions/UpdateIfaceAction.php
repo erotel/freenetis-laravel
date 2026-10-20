@@ -7,7 +7,7 @@ use App\Domains\Network\Repositories\IfaceRepository;
 use App\Domains\Network\Support\Ip6Sync;
 use App\Models\Iface;
 use App\Services\AllowedSubnetSyncService;
-use App\Services\PendingCustomerRedirectService;
+use App\Domains\Notifications\Actions\SyncPendingCustomerRedirectAction;
 use Illuminate\Support\Facades\DB;
 
 /**
@@ -22,7 +22,7 @@ class UpdateIfaceAction
     public function __construct(
         private IfaceRepository $ifaces,
         private AllowedSubnetSyncService $places,
-        private PendingCustomerRedirectService $pending,
+        private SyncPendingCustomerRedirectAction $pending,
     ) {
     }
 
@@ -74,7 +74,7 @@ class UpdateIfaceAction
             Ip6Sync::add($iface->id, $ip);
             $touched[(int) $subnetId] = true;
             if ($memberId) {
-                $this->pending->refreshForMember((int) $memberId);
+                $this->pending->handle((int) $memberId);
             }
         }
 

@@ -60,7 +60,7 @@ class InvoicePdf
 
             return $path;
         } catch (\Exception $e) {
-            Log::error('InvoiceService: PDF generation failed: ' . $e->getMessage());
+            Log::error('InvoicePdf: PDF generation failed: ' . $e->getMessage());
             return null;
         }
     }

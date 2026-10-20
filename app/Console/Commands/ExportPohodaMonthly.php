@@ -3,7 +3,7 @@
 namespace App\Console\Commands;
 
 use App\Models\Setting;
-use App\Services\PohodaExportService;
+use App\Domains\Billing\Actions\ExportPohodaAction;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -15,7 +15,7 @@ class ExportPohodaMonthly extends Command
                                 {--force : Run even if already sent this period}';
     protected $description = 'Export monthly invoices and refunds to Pohoda XML and email to accountant';
 
-    public function handle(PohodaExportService $service): int
+    public function handle(ExportPohodaAction $service): int
     {
         // Determine target month
         if ($this->option('month')) {
@@ -43,7 +43,7 @@ class ExportPohodaMonthly extends Command
 
         // Step 1: invoices
         try {
-            $invoiceFile = $service->exportInvoices($year, $month);
+            $invoiceFile = $service->invoices($year, $month);
             if ($invoiceFile) {
                 $attachments[] = $invoiceFile;
                 $this->info('Invoices XML: ' . basename($invoiceFile));
@@ -57,7 +57,7 @@ class ExportPohodaMonthly extends Command
 
         // Step 2: refunds
         try {
-            $refundFile = $service->exportRefunds($year, $month);
+            $refundFile = $service->refunds($year, $month);
             if ($refundFile) {
                 $attachments[] = $refundFile;
                 $this->info('Refunds XML: ' . basename($refundFile));

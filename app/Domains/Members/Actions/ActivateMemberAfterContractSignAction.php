@@ -5,7 +5,7 @@ namespace App\Domains\Members\Actions;
 use App\Domains\Members\Events\MemberApproved;
 use App\Domains\Members\Repositories\MemberRepository;
 use App\Helpers\MemberType;
-use App\Services\PendingCustomerRedirectService;
+use App\Domains\Notifications\Actions\SyncPendingCustomerRedirectAction;
 
 /**
  * Synchronizace člena po online podpisu smlouvy: vždy registration=1, žadatel (1)
@@ -20,7 +20,7 @@ class ActivateMemberAfterContractSignAction
 
     public function __construct(
         private MemberRepository $members,
-        private PendingCustomerRedirectService $pendingRedirects,
+        private SyncPendingCustomerRedirectAction $pendingRedirects,
     ) {
     }
 
@@ -41,7 +41,7 @@ class ActivateMemberAfterContractSignAction
         // Po přechodu 18 → 2 okamžitě uvolnit IP z přesměrování (jinak by
         // zákazník čekal až na další běh cronu, max 1 h).
         if ($oldType !== $newType) {
-            $this->pendingRedirects->refreshForMember($member->id);
+            $this->pendingRedirects->handle($member->id);
             MemberApproved::dispatch($member->id, $oldType, $newType);
         }
 

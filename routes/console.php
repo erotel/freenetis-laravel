@@ -47,7 +47,7 @@ Schedule::command('members:redirect-expired-applicants')->hourly();
 Schedule::command('members:redirect-pending-customers')->hourly();
 
 // Activate redirect for members with insufficient credit (payment_blocked=1); auto-clears
-// po dorovnání kreditu (PaymentBackchargeService). Toggleable via payment_blocked_redirect_enabled.
+// po dorovnání kreditu (ChargeOverdueFeesAction). Toggleable via payment_blocked_redirect_enabled.
 Schedule::command('members:redirect-blocked')->hourly();
 
 // Fáze B (IPoE): překlop self-learning line-id z RADIUS accountingu (line_id_seen)

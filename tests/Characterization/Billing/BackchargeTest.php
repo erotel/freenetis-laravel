@@ -3,12 +3,12 @@
 namespace Tests\Characterization\Billing;
 
 use App\Models\Setting;
-use App\Services\PaymentBackchargeService;
+use App\Domains\Billing\Actions\ChargeOverdueFeesAction;
 use Illuminate\Support\Facades\DB;
 use Tests\DatabaseTestCase;
 
 /**
- * Charakterizace dohnání poplatků po platbě (PaymentBackchargeService) před
+ * Charakterizace dohnání poplatků po platbě (ChargeOverdueFeesAction) před
  * přesunem do domény Billing; doplňuje Feature/Fees/PaymentBackchargeTest.
  *
  * Měsíce od payment_blocked_since do dneška; den srážky = deduct_day oříznutý
@@ -56,7 +56,7 @@ class BackchargeTest extends DatabaseTestCase
 
     private function backcharge(int $member, string $today): bool
     {
-        return app(PaymentBackchargeService::class)->backchargeForMember($member, $today);
+        return app(ChargeOverdueFeesAction::class)->handle($member, $today);
     }
 
     public function test_den_srazky_orizne_na_konec_mesice_a_sluzby_po_poplatcich(): void

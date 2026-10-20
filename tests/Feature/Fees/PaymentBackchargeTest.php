@@ -3,12 +3,12 @@
 namespace Tests\Feature\Fees;
 
 use App\Models\Setting;
-use App\Services\PaymentBackchargeService;
+use App\Domains\Billing\Actions\ChargeOverdueFeesAction;
 use Illuminate\Support\Facades\DB;
 use Tests\DatabaseTestCase;
 
 /**
- * Dohnání poplatků po platbě (PaymentBackchargeService): blokovaný člen
+ * Dohnání poplatků po platbě (ChargeOverdueFeesAction): blokovaný člen
  * (payment_blocked) po příchozí platbě — strhne dlužné měsíce od
  * payment_blocked_since chronologicky, dokud kredit stačí; když projde vše,
  * odblokuje. Typy mimo účtování (žadatel, čekající, bývalí) jen odblokuje.
@@ -51,7 +51,7 @@ class PaymentBackchargeTest extends DatabaseTestCase
     public function test_dohna_dluzne_mesice_a_odblokuje(): void
     {
         $x = $this->blocked(2, 1000, '2099-01-01');
-        $unblocked = app(PaymentBackchargeService::class)->backchargeForMember($x['member'], '2099-03-15');
+        $unblocked = app(ChargeOverdueFeesAction::class)->handle($x['member'], '2099-03-15');
 
         $this->assertTrue($unblocked);
         $this->assertSame(['2099-01-01 00:00:00' => 300.0, '2099-02-01 00:00:00' => 300.0, '2099-03-01 00:00:00' => 300.0], $this->fees($x['account']));
@@ -64,7 +64,7 @@ class PaymentBackchargeTest extends DatabaseTestCase
     public function test_nedostatek_kreditu_dohna_cast_a_blokace_zustava(): void
     {
         $x = $this->blocked(2, 650, '2099-01-01');
-        $unblocked = app(PaymentBackchargeService::class)->backchargeForMember($x['member'], '2099-03-15');
+        $unblocked = app(ChargeOverdueFeesAction::class)->handle($x['member'], '2099-03-15');
 
         $this->assertFalse($unblocked);
         $this->assertCount(2, $this->fees($x['account']), 'leden + únor, na březen nezbylo');
@@ -77,7 +77,7 @@ class PaymentBackchargeTest extends DatabaseTestCase
         $sc = (int) DB::table('speed_classes')->insertGetId(['name' => 'char ' . uniqid(), 'd_ceil' => 1, 'd_rate' => 1, 'u_ceil' => 1, 'u_rate' => 1, 'price' => 199]);
         foreach ([1, 17, 18] as $type) {
             $x = $this->blocked($type, 1000, '2099-01-01', ['speed_class_id' => $sc]);
-            $this->assertTrue(app(PaymentBackchargeService::class)->backchargeForMember($x['member'], '2099-03-15'));
+            $this->assertTrue(app(ChargeOverdueFeesAction::class)->handle($x['member'], '2099-03-15'));
             $this->assertSame([], $this->fees($x['account']), "typ {$type}");
             $this->assertEqualsWithDelta(1000, (float) DB::table('accounts')->where('id', $x['account'])->value('balance'), 0.001);
         }

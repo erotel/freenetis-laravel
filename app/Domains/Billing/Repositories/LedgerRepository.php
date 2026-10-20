@@ -13,7 +13,7 @@ use Illuminate\Support\Facades\DB;
  *
  * Dotazy „kdo má zaplatit" jsou hromadné SQL nad všemi členy (výkon). Idempotence
  * srážek = LEFT JOIN / NOT IN na převod stejného typu s `datetime` = den srážky.
- * Pravidla výše poplatku zrcadlí App\Services\RegularFeeResolver a
+ * Pravidla výše poplatku zrcadlí FeePolicy::regularFee a
  * AllowedSubnetFeesResolver — změna pravidla musí jít do všech.
  */
 class LedgerRepository

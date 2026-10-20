@@ -19,7 +19,7 @@ use Illuminate\Support\Facades\Log;
  *
  * Prepaid pravidlo: strhne se jen to, co kredit pokryje celé. Nedostatek u
  * členského/služeb → payment_blocked=1 (dohnání po platbě řeší
- * PaymentBackchargeService); u vstupního/zařízení jen přeskočit (dluh, ne služba).
+ * ChargeOverdueFeesAction); u vstupního/zařízení jen přeskočit (dluh, ne služba).
  *
  * Kdy a zda běžet (nastavení, den srážky) rozhoduje volající (fees:deduct).
  */
@@ -98,7 +98,7 @@ class DeductFeesAction
             foreach ($accounts as $account) {
                 // Pořadí: individuální (members_fees) → cena tarifu (speed_classes.price)
                 // → základní dle typu. NULL propadá dál, 0 = osvobozeno (feeAmount 0 se
-                // níže přeskočí). Mirror App\Services\RegularFeeResolver.
+                // níže přeskočí). Mirror FeePolicy::regularFee.
                 if ($account->individual_fee !== null) {
                     $feeAmount = (float) $account->individual_fee;
                 } elseif ($account->tarif_fee !== null) {
@@ -114,7 +114,7 @@ class DeductFeesAction
 
                 // Prepaid pravidlo: stržení proběhne pouze pokud kredit pokryje
                 // celou částku. Kdo nemá → payment_blocked=1, transfer se nevytvoří
-                // a dohánění proběhne po platbě (PaymentBackchargeService).
+                // a dohánění proběhne po platbě (ChargeOverdueFeesAction).
                 if ((float) $account->balance < $feeAmount) {
                     $this->ledger->blockForPayment((int) $account->member_id, $date);
                     $flagged++;

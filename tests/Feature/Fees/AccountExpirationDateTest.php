@@ -3,13 +3,13 @@
 namespace Tests\Feature\Fees;
 
 use App\Models\Account;
-use App\Services\RegularFeeResolver;
+use App\Domains\Billing\Fees\FeePolicy;
 use Illuminate\Support\Facades\DB;
 use Tests\DatabaseTestCase;
 
 /**
  * Regrese: Account::getExpirationDate („Zaplaceno do") musí počítat měsíční
- * poplatek SHODNĚ s reálnou srážkou (RegularFeeResolver: individuální → tarif →
+ * poplatek SHODNĚ s reálnou srážkou (FeePolicy::regularFee: individuální → tarif →
  * default dle typu). Dřív bral jen members_fees(member) → fallback member_id=1
  * default (320), takže u členů s tarifním poplatkem ukazoval špatné datum.
  * Bug objeven 2026-08-17 (viz task_getexpirationdate_fee_mismatch).
@@ -30,7 +30,7 @@ class AccountExpirationDateTest extends DatabaseTestCase
             ->get(['m.id', 'm.speed_class_id', 'a.id as account_id']);
 
         foreach ($rows as $m) {
-            if (RegularFeeResolver::individualFee((int) $m->id, $today) === null) {
+            if (app(FeePolicy::class)->individualFee((int) $m->id, $today) === null) {
                 return [(int) $m->id, (int) $m->speed_class_id, (int) $m->account_id];
             }
         }

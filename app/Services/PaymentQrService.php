@@ -214,7 +214,7 @@ class PaymentQrService
      * Výše aktivního pravidelného členského poplatku (tarifu). Pořadí:
      * individuální (members_fees) → cena tarifu (speed_classes.price) → výchozí
      * poplatek pro typ člena → tarif sdružení (member 1). První tři řeší centrální
-     * RegularFeeResolver (shodně s DeductFees), poslední fallback je specifikum QR.
+     * FeePolicy::regularFee (shodně s DeductFees), poslední fallback je specifikum QR.
      */
     private function regularFee(int $memberId, int $memberType): float
     {

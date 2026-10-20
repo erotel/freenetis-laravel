@@ -2,7 +2,7 @@
 
 namespace App\Console\Commands;
 
-use App\Services\PaymentBlockedRedirectService;
+use App\Domains\Notifications\Actions\SyncDebtorRedirectAction;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\DB;
 
@@ -165,10 +165,10 @@ class MigrateToPrepaid extends Command
 
             if (!$dryRun) {
                 $this->info('  Refresh redirect přesměrování...');
-                $svc = app(PaymentBlockedRedirectService::class);
+                $svc = app(SyncDebtorRedirectAction::class);
                 foreach ($activeNegative as $r) {
                     try {
-                        $svc->refreshForMember((int) $r->member_id);
+                        $svc->handle((int) $r->member_id);
                     } catch (\Throwable $e) {
                         \Illuminate\Support\Facades\Log::error('refresh redirect failed', [
                             'member_id' => $r->member_id, 'error' => $e->getMessage(),

@@ -20,7 +20,7 @@ class FinanceSettings
         'default_fee_member_type_2',   // zákazník — default fee_id
         'default_fee_member_type_90',  // člen — default fee_id
         // Prepaid: DeductFees flagne místo přečerpání, redirect přes
-        // PaymentBlockedRedirectService, ukončení 14. den (per VOP).
+        // SyncDebtorRedirectAction, ukončení 14. den (per VOP).
         'payment_blocked_redirect_enabled',
         'pending_termination_day',
         'admin_notification_email',

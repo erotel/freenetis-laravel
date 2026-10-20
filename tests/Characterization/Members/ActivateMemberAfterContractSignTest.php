@@ -4,7 +4,7 @@ namespace Tests\Characterization\Members;
 
 use App\Domains\Members\Actions\ActivateMemberAfterContractSignAction;
 use App\Helpers\MemberType;
-use App\Services\PendingCustomerRedirectService;
+use App\Domains\Notifications\Actions\SyncPendingCustomerRedirectAction;
 use Illuminate\Support\Facades\DB;
 use Tests\DatabaseTestCase;
 
@@ -24,7 +24,7 @@ class ActivateMemberAfterContractSignTest extends DatabaseTestCase
         if (!$this->apId) {
             $this->markTestSkipped('chybí adresní bod');
         }
-        $this->redirects = $this->mock(PendingCustomerRedirectService::class);
+        $this->redirects = $this->mock(SyncPendingCustomerRedirectAction::class);
     }
 
     private function member(int $type): int
@@ -49,7 +49,7 @@ class ActivateMemberAfterContractSignTest extends DatabaseTestCase
     public function test_cekajici_zakaznik_se_aktivuje_a_uvolni_presmerovani(): void
     {
         $id = $this->member(MemberType::PENDING_CUSTOMER);
-        $this->redirects->shouldReceive('refreshForMember')->once()->with($id);
+        $this->redirects->shouldReceive('handle')->once()->with($id);
 
         $this->assertSame(['old_type' => 18, 'new_type' => 2], $this->activate($id));
         $this->assertSame(MemberType::CUSTOMER, (int) $this->row($id)->type);
@@ -61,7 +61,7 @@ class ActivateMemberAfterContractSignTest extends DatabaseTestCase
     public function test_zadatel_se_aktivuje_na_zakaznika(): void
     {
         $id = $this->member(MemberType::APPLICANT);
-        $this->redirects->shouldReceive('refreshForMember')->once()->with($id);
+        $this->redirects->shouldReceive('handle')->once()->with($id);
 
         $this->assertSame(['old_type' => 1, 'new_type' => 2], $this->activate($id));
         $this->assertSame(MemberType::CUSTOMER, (int) $this->row($id)->type);
@@ -70,7 +70,7 @@ class ActivateMemberAfterContractSignTest extends DatabaseTestCase
     public function test_cekajici_clen_jen_registration_typ_beze_zmeny(): void
     {
         $id = $this->member(MemberType::PENDING_MEMBER);
-        $this->redirects->shouldNotReceive('refreshForMember');
+        $this->redirects->shouldNotReceive('handle');
 
         $this->assertSame(['old_type' => 17, 'new_type' => 17], $this->activate($id));
         $this->assertSame(MemberType::PENDING_MEMBER, (int) $this->row($id)->type);
@@ -81,7 +81,7 @@ class ActivateMemberAfterContractSignTest extends DatabaseTestCase
     public function test_aktivni_zakaznik_jen_registration(): void
     {
         $id = $this->member(MemberType::CUSTOMER);
-        $this->redirects->shouldNotReceive('refreshForMember');
+        $this->redirects->shouldNotReceive('handle');
 
         DB::table('members')->where('id', $id)->update(['entrance_date' => '2024-03-01']);
 
@@ -93,7 +93,7 @@ class ActivateMemberAfterContractSignTest extends DatabaseTestCase
     public function test_aktivace_zapise_approved_do_auditu_bez_emailu(): void
     {
         $id = $this->member(MemberType::PENDING_CUSTOMER);
-        $this->redirects->shouldReceive('refreshForMember');
+        $this->redirects->shouldReceive('handle');
         $before = DB::table('email_queues')->count();
 
         $this->activate($id);
@@ -116,7 +116,7 @@ class ActivateMemberAfterContractSignTest extends DatabaseTestCase
 
     public function test_neexistujici_clen_null(): void
     {
-        $this->redirects->shouldNotReceive('refreshForMember');
+        $this->redirects->shouldNotReceive('handle');
         $this->assertNull($this->activate(PHP_INT_MAX >> 33));
     }
 }

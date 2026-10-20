@@ -4,7 +4,7 @@ namespace App\Domains\Network\Support;
 
 use App\Models\Subnet;
 use App\Services\AllowedSubnetSyncService;
-use App\Services\PendingCustomerRedirectService;
+use App\Domains\Notifications\Actions\SyncPendingCustomerRedirectAction;
 
 /**
  * Dopady přidání / odebrání IP člena v podsítích:
@@ -36,7 +36,7 @@ class SubnetAssignmentSync
             $this->allowed->onIpAdded($memberId, (int) $sid);
         }
         if (!empty($subnetIds)) {
-            app(PendingCustomerRedirectService::class)->refreshForMember($memberId);
+            app(SyncPendingCustomerRedirectAction::class)->handle($memberId);
         }
     }
 

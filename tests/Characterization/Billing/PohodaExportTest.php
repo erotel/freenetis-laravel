@@ -3,12 +3,13 @@
 namespace Tests\Characterization\Billing;
 
 use App\Models\Setting;
-use App\Services\PohodaExportService;
+use App\Domains\Billing\Actions\ExportPohodaAction;
+use App\Domains\Billing\Documents\PohodaRefundsXml;
 use Illuminate\Support\Facades\DB;
 use Tests\DatabaseTestCase;
 
 /**
- * Charakterizace exportu do Pohody (PohodaExportService) před přesunem do
+ * Charakterizace exportu do Pohody (dřív PohodaExportService) před přesunem do
  * domény Billing — „zlatý" výstup XML faktur (vydané, DPH high/none, firma
  * vs. osoba) a vratek (opravný daňový doklad, záporné částky, adresa s
  * částí obce), výběr do konce měsíce a překlopení na exported.
@@ -68,7 +69,7 @@ class PohodaExportTest extends DatabaseTestCase
             [['Služba', 'S1', 2, 100, 21]]);
         $later = $this->invoice(209900003, '2099-02-01', [], [['Pozdě', 'X', 1, 10, 0.21]]);
 
-        $file = app(PohodaExportService::class)->exportInvoices(2099, 1);
+        $file = app(ExportPohodaAction::class)->invoices(2099, 1);
         $this->files[] = $file;
         $this->assertSame(storage_path('app/private/pohoda-exports/pohoda_2099_01.xml'), $file);
 
@@ -216,7 +217,7 @@ XML;
 
         $this->assertSame(['exported', 'exported', 'new'], DB::table('invoices')->whereIn('id', [$a, $b, $later])->orderBy('id')->pluck('pohoda_status')->all());
         $this->assertNotNull(DB::table('invoices')->where('id', $a)->value('pohoda_exported_at'));
-        $this->assertNull(app(PohodaExportService::class)->exportInvoices(2099, 1), 'nic nového');
+        $this->assertNull(app(ExportPohodaAction::class)->invoices(2099, 1), 'nic nového');
     }
 
     public function test_export_vratek_xml_a_preklopeni(): void
@@ -227,7 +228,7 @@ XML;
         $zero   = $q(['amount' => 0, 'doc_number' => '99012']);
         $later  = $q(['created_at' => '2099-02-01 00:00:00', 'doc_number' => '99013']);
 
-        $file = app(PohodaExportService::class)->exportRefunds(2099, 1);
+        $file = app(ExportPohodaAction::class)->refunds(2099, 1);
         $this->files[] = $file;
         $this->assertMatchesRegularExpression('~/pohoda-exports/pohoda_refunds_2099_01_\d{6}\.xml$~', $file);
 
@@ -287,11 +288,11 @@ XML;
         $this->assertSame($expected, (string) file_get_contents($file), 'nulová vratka se do XML nedostane');
         $this->assertSame(['exported', 'exported', 'new'], DB::table('pohoda_refund_queue')->whereIn('id', [$first, $zero, $later])->orderBy('id')->pluck('status')->all(),
             'nulová se přesto označí exportovaná');
-        $this->assertNull(app(PohodaExportService::class)->exportRefunds(2099, 1));
+        $this->assertNull(app(ExportPohodaAction::class)->refunds(2099, 1));
 
         Setting::set('ico', '');
         $this->expectExceptionMessage('POHODA export: chybí povinné IČO sdružení v config.ico.');
-        app(PohodaExportService::class)->buildRefundXml(collect());
+        app(PohodaRefundsXml::class)->build(collect());
     }
 
     private function country(): string

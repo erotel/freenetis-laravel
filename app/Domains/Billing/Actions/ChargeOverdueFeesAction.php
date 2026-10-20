@@ -49,7 +49,7 @@ class ChargeOverdueFeesAction
         }
         $operating = $this->ledger->organizationAccountId(AccountAttribute::OPERATING);
         if (!$operating) {
-            Log::warning('PaymentBackchargeService: organization operating account not found.');
+            Log::warning('ChargeOverdueFeesAction: organization operating account not found.');
             return false;
         }
 
@@ -83,7 +83,7 @@ class ChargeOverdueFeesAction
             return $complete;
         } catch (\Throwable $e) {
             DB::rollBack();
-            Log::error('PaymentBackchargeService error', ['member_id' => $memberId, 'error' => $e->getMessage()]);
+            Log::error('ChargeOverdueFeesAction error', ['member_id' => $memberId, 'error' => $e->getMessage()]);
             return false;
         }
     }

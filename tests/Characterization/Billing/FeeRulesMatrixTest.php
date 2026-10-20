@@ -5,7 +5,7 @@ namespace Tests\Characterization\Billing;
 use App\Models\Setting;
 use App\Services\AllowedSubnetFeesResolver;
 use App\Services\PaymentQrService;
-use App\Services\RegularFeeResolver;
+use App\Domains\Billing\Fees\FeePolicy;
 use Closure;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\DB;
@@ -17,8 +17,8 @@ use Tests\DatabaseTestCase;
  * základní dle typu" je dnes implementované víckrát:
  *
  *   deduct   = fees:deduct (hromadné SQL v LedgerRepository + DeductFeesAction)
- *   resolver = RegularFeeResolver::amount — používá ho dohnání po platbě
- *              (PaymentBackchargeService), ruční srážka po obnovení přerušení
+ *   resolver = FeePolicy::regularFee — používá ho dohnání po platbě
+ *              (ChargeOverdueFeesAction), ruční srážka po obnovení přerušení
  *              (MemberController) a „Zaplaceno do" (Account)
  *   qr       = PaymentQrService (resolver + fallback na tarif sdružení)
  *
@@ -92,7 +92,7 @@ class FeeRulesMatrixTest extends DatabaseTestCase
 
         return [
             'deduct'   => (float) DB::table('transfers')->where('origin_id', $account)->where('type', 1)->where('datetime', self::DATE)->sum('amount'),
-            'resolver' => RegularFeeResolver::amount($member, $type, self::DATE),
+            'resolver' => app(FeePolicy::class)->regularFee($member, $type, self::DATE),
             'qr'       => ($this->qrRegular)($member, $type),
         ];
     }
@@ -166,7 +166,7 @@ class FeeRulesMatrixTest extends DatabaseTestCase
     /** QR bez jakéhokoli poplatku spadne na individuální tarif sdružení (member 1). */
     public function test_bez_poplatku_qr_fallback_sdruzeni(): void
     {
-        $assoc = RegularFeeResolver::individualFee(1, now()->toDateString()) ?? 0.0;
+        $assoc = app(FeePolicy::class)->individualFee(1, now()->toDateString()) ?? 0.0;
         $this->assertRules(['deduct' => 0.0, 'resolver' => null, 'qr' => (float) $assoc], $this->member(3));
     }
 

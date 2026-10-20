@@ -4,7 +4,7 @@ namespace App\Domains\Billing\Listeners;
 
 use App\Domains\Billing\Events\PaymentReceived;
 use App\Domains\Billing\Actions\ChargeOverdueFeesAction;
-use App\Services\PaymentBlockedRedirectService;
+use App\Domains\Notifications\Actions\SyncDebtorRedirectAction;
 use Illuminate\Support\Facades\Log;
 
 /**
@@ -18,7 +18,7 @@ class BackchargeAfterPayment
     {
         try {
             if (app(ChargeOverdueFeesAction::class)->handle($event->memberId, date('Y-m-d'))) {
-                app(PaymentBlockedRedirectService::class)->refreshForMember($event->memberId);
+                app(SyncDebtorRedirectAction::class)->handle($event->memberId);
             }
         } catch (\Throwable $e) {
             Log::error(

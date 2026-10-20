@@ -2,15 +2,15 @@
 
 namespace Tests\Feature\Fees;
 
-use App\Services\RegularFeeResolver;
+use App\Domains\Billing\Fees\FeePolicy;
 use Illuminate\Support\Facades\DB;
 use Tests\DatabaseTestCase;
 
 /**
- * RegularFeeResolver: třístupňový fallback měsíčního poplatku
+ * FeePolicy::regularFee: třístupňový fallback měsíčního poplatku
  * individuální → cena tarifu → základní dle typu; a rozdíl null vs. explicitní 0.
  */
-class RegularFeeResolverTest extends DatabaseTestCase
+class RegularFeeTest extends DatabaseTestCase
 {
     private const REGULAR_FEE_TYPE = 35; // enum_types 'regular member fee'
 
@@ -26,7 +26,7 @@ class RegularFeeResolverTest extends DatabaseTestCase
     private function memberWithoutIndividual(): array
     {
         foreach (DB::table('members')->where('id', '>', 1)->orderBy('id')->limit(100)->get(['id', 'type']) as $m) {
-            if (RegularFeeResolver::individualFee((int) $m->id, $this->today) === null) {
+            if (app(FeePolicy::class)->individualFee((int) $m->id, $this->today) === null) {
                 return [(int) $m->id, (int) $m->type];
             }
         }
@@ -42,7 +42,7 @@ class RegularFeeResolverTest extends DatabaseTestCase
             ->orderBy('m.id')->limit(100)
             ->get(['m.id', 'm.type', 'sc.price']);
         foreach ($rows as $m) {
-            if (RegularFeeResolver::individualFee((int) $m->id, $this->today) === null) {
+            if (app(FeePolicy::class)->individualFee((int) $m->id, $this->today) === null) {
                 return [(int) $m->id, (int) $m->type, (float) $m->price];
             }
         }
@@ -68,8 +68,8 @@ class RegularFeeResolverTest extends DatabaseTestCase
 
         $this->assignRegularFee($member, 123.0);
 
-        $this->assertSame(123.0, RegularFeeResolver::individualFee($member, $this->today));
-        $this->assertSame(123.0, RegularFeeResolver::amount($member, $type, $this->today));
+        $this->assertSame(123.0, app(FeePolicy::class)->individualFee($member, $this->today));
+        $this->assertSame(123.0, app(FeePolicy::class)->regularFee($member, $type, $this->today));
     }
 
     public function test_individualni_ma_prednost_pred_tarifem(): void
@@ -77,11 +77,11 @@ class RegularFeeResolverTest extends DatabaseTestCase
         [$member, $type, $tarif] = $this->memberWithTariff();
 
         // Bez individuálního → částka = cena tarifu.
-        $this->assertSame($tarif, RegularFeeResolver::amount($member, $type, $this->today));
+        $this->assertSame($tarif, app(FeePolicy::class)->regularFee($member, $type, $this->today));
 
         // S individuálním (jiná hodnota) → má přednost.
         $this->assignRegularFee($member, $tarif + 100);
-        $this->assertSame($tarif + 100, RegularFeeResolver::amount($member, $type, $this->today));
+        $this->assertSame($tarif + 100, app(FeePolicy::class)->regularFee($member, $type, $this->today));
     }
 
     public function test_explicitni_nula_neucituje_dal(): void
@@ -91,15 +91,15 @@ class RegularFeeResolverTest extends DatabaseTestCase
 
         // Explicitní individuální 0 = „neúčtovat nic" — NEsmí propadnout na tarif.
         $this->assignRegularFee($member, 0.0);
-        $this->assertSame(0.0, RegularFeeResolver::amount($member, $type, $this->today));
+        $this->assertSame(0.0, app(FeePolicy::class)->regularFee($member, $type, $this->today));
     }
 
     public function test_cekajici_typ18_mapuje_na_zakaznika_typ2(): void
     {
         // Žadatel/čekající zákazník (18) se účtuje jako zákazník (2).
         $this->assertSame(
-            RegularFeeResolver::defaultFeeByType(2),
-            RegularFeeResolver::defaultFeeByType(18)
+            app(FeePolicy::class)->defaultFeeByType(2),
+            app(FeePolicy::class)->defaultFeeByType(18)
         );
     }
 }

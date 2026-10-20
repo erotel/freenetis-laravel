@@ -66,7 +66,7 @@ class IssueServicesInvoiceAction
             DB::commit();
         } catch (\Exception $e) {
             DB::rollBack();
-            Log::error('InvoiceService: invoice creation failed: ' . $e->getMessage());
+            Log::error('IssueServicesInvoiceAction: invoice creation failed: ' . $e->getMessage());
             return null;
         }
 

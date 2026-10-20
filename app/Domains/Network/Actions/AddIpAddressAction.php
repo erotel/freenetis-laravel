@@ -6,7 +6,7 @@ use App\Domains\Network\Repositories\IpAddressRepository;
 use App\Domains\Network\Support\Ip6Sync;
 use App\Models\IpAddress;
 use App\Services\AllowedSubnetSyncService;
-use App\Services\PendingCustomerRedirectService;
+use App\Domains\Notifications\Actions\SyncPendingCustomerRedirectAction;
 
 /**
  * Nová IP: odvozená IPv6, expirace DHCP podsítě, přípojné místo vlastníka
@@ -17,7 +17,7 @@ class AddIpAddressAction
     public function __construct(
         private IpAddressRepository $ips,
         private AllowedSubnetSyncService $places,
-        private PendingCustomerRedirectService $pending,
+        private SyncPendingCustomerRedirectAction $pending,
     ) {
     }
 
@@ -32,7 +32,7 @@ class AddIpAddressAction
             $this->places->onIpAdded($owner, (int) $ip->subnet_id);
         }
         if ($owner) {
-            $this->pending->refreshForMember($owner);
+            $this->pending->handle($owner);
         }
         return $ip;
     }

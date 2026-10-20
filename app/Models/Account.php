@@ -110,7 +110,7 @@ class Account extends Model
 
         $maxIterations = 600; // ~50 years
 
-        // Poplatek se rozlišuje SHODNĚ s reálnou srážkou (App\Services\RegularFeeResolver,
+        // Poplatek se rozlišuje SHODNĚ s reálnou srážkou (Billing\Fees\FeePolicy::regularFee,
         // který mirroruje DeductFees): individuální (members_fees) → cena tarifu
         // (speed_classes.price) → základní dle typu. Tarif a základní jsou v rámci člena
         // konstantní → předpočítáme je před cyklem (iteruje se až 600×); jen individuální

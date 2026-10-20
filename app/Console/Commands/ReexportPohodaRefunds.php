@@ -135,7 +135,7 @@ class ReexportPohodaRefunds extends Command
 
         // 2. XML — používáme stejnou metodu jako monthly export (Pohoda formát:
         // issuedCorrectiveTax, DPH 21 %, záporné částky). Status řádků se nemění.
-        $xmlString = app(\App\Services\PohodaExportService::class)->buildRefundXml($items);
+        $xmlString = app(\App\Domains\Billing\Documents\PohodaRefundsXml::class)->build($items);
 
         $typeTag = $memberType === MemberType::CUSTOMER ? '_customer'
                  : ($memberType === MemberType::REGULAR ? '_regular'

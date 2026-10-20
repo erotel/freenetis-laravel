@@ -3,15 +3,15 @@
 namespace Tests\Characterization\Notifications;
 
 use App\Models\Setting;
-use App\Services\PaymentBlockedRedirectService;
-use App\Services\PendingCustomerRedirectService;
+use App\Domains\Notifications\Actions\SyncDebtorRedirectAction;
+use App\Domains\Notifications\Actions\SyncPendingCustomerRedirectAction;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Tests\DatabaseTestCase;
 
 /**
  * Charakterizace automatických přesměrování (crony members:redirect-* kromě
- * former, služby PaymentBlockedRedirectService / PendingCustomerRedirectService)
+ * former, služby SyncDebtorRedirectAction / SyncPendingCustomerRedirectAction)
  * před přesunem do domény Notifications. Vzor: smazat přesměrování dané zprávy
  * a znovu založit pro aktuální množinu členů (comment „Auto: …", user 1).
  */
@@ -90,15 +90,15 @@ class AutoRedirectsTest extends DatabaseTestCase
             ['message_id' => self::MSG_DEBTOR, 'ip_address_id' => $x['ips'][0], 'datetime' => now()],
             ['message_id' => self::MSG_DEBTOR_CLEN, 'ip_address_id' => $x['ips'][0], 'datetime' => now()],
         ]);
-        $svc = app(PaymentBlockedRedirectService::class);
-        $this->assertTrue($svc->refreshForMember($x['member']));
+        $svc = app(SyncDebtorRedirectAction::class);
+        $this->assertTrue($svc->handle($x['member']));
         $this->assertSame([[], []], [$this->redirects(self::MSG_DEBTOR, $x['ips']), $this->redirects(self::MSG_DEBTOR_CLEN, $x['ips'])]);
-        $this->assertFalse($svc->refreshForMember($x['member']), 'nic ke smazání');
-        $this->assertFalse($svc->refreshForMember($this->member(18, [], 0)['member']), 'bez IP');
-        $this->assertFalse($svc->refreshForMember($this->member(1, ['payment_blocked' => 1])['member']), 'žadatel nemá zprávu');
+        $this->assertFalse($svc->handle($x['member']), 'nic ke smazání');
+        $this->assertFalse($svc->handle($this->member(18, [], 0)['member']), 'bez IP');
+        $this->assertFalse($svc->handle($this->member(1, ['payment_blocked' => 1])['member']), 'žadatel nemá zprávu');
 
         Setting::set('payment_blocked_redirect_enabled', 0);
-        $this->assertFalse($svc->refreshForMember($this->member(2, ['payment_blocked' => 1])['member']));
+        $this->assertFalse($svc->handle($this->member(2, ['payment_blocked' => 1])['member']));
         $this->artisan('members:redirect-blocked')->expectsOutputToContain('Payment blocked redirect disabled, skipping.')->assertExitCode(0);
     }
 
@@ -116,7 +116,7 @@ class AutoRedirectsTest extends DatabaseTestCase
         $this->assertSame([], $this->redirects(self::MSG_PENDING, array_merge($active['ips'], [$stale])));
 
         DB::table('members')->where('id', $pending['member'])->update(['type' => 2]);
-        $this->assertTrue(app(PendingCustomerRedirectService::class)->refreshForMember($pending['member']), 'po podpisu smazat');
+        $this->assertTrue(app(SyncPendingCustomerRedirectAction::class)->handle($pending['member']), 'po podpisu smazat');
         $this->assertSame([], $this->redirects(self::MSG_PENDING, $pending['ips']));
     }
 
