@@ -3,7 +3,6 @@
 namespace Tests\Feature\Contracts;
 
 use App\Models\Contract;
-use App\Services\ContractService;
 use Closure;
 use Illuminate\Support\Facades\DB;
 use Tests\DatabaseTestCase;
@@ -14,19 +13,12 @@ use Tests\DatabaseTestCase;
  */
 class ContractNumberTest extends DatabaseTestCase
 {
-    private ContractService $svc;
     private Closure $gen;
 
     protected function setUp(): void
     {
         parent::setUp();
-        $this->svc = app(ContractService::class);
-        // generateContractNo() je private — zpřístupníme přes Closure::bind.
-        $this->gen = Closure::bind(
-            fn (int $memberId) => $this->generateContractNo($memberId),
-            $this->svc,
-            ContractService::class
-        );
+        $this->gen = fn (int $memberId) => app(\App\Domains\Contracts\Repositories\ContractRepository::class)->nextContractNo($memberId);
     }
 
     /** Vloží řádek smlouvy na 'contracts' connection a vrátí jeho id. */
@@ -71,7 +63,7 @@ class ContractNumberTest extends DatabaseTestCase
             'created_at'  => '2026-01-01 00:00:00',
         ]);
 
-        $ok = $this->svc->cancelContract(Contract::find($id), 'test');
+        $ok = app(\App\Domains\Contracts\Actions\CancelContractAction::class)->handle(Contract::find($id), 'test');
 
         $this->assertTrue($ok);
         $this->assertNull(Contract::find($id), 'řádek smlouvy má být smazán');
@@ -87,7 +79,7 @@ class ContractNumberTest extends DatabaseTestCase
         $mid = 990104;
         $id  = $this->insertContract($mid, $this->no($mid), 'signed');
 
-        $ok = $this->svc->cancelContract(Contract::find($id), null);
+        $ok = app(\App\Domains\Contracts\Actions\CancelContractAction::class)->handle(Contract::find($id), null);
 
         $this->assertFalse($ok, 'signed nesmí projít guardem cancelContract');
         $this->assertNotNull(Contract::find($id), 'podepsaná smlouva musí zůstat jako doklad');
@@ -102,7 +94,7 @@ class ContractNumberTest extends DatabaseTestCase
         // Dokud návrh existuje, ideální číslo je obsazené → suffix.
         $this->assertNotSame($base, ($this->gen)($mid));
 
-        $this->svc->cancelContract(Contract::find($id), null);
+        app(\App\Domains\Contracts\Actions\CancelContractAction::class)->handle(Contract::find($id), null);
 
         // Po smazání se číslo uvolní.
         $this->assertSame($base, ($this->gen)($mid));

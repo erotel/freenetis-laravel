@@ -7,13 +7,12 @@ use App\Models\ContractAddon;
 use App\Models\User;
 use App\Services\AclService;
 use App\Services\Contracts\PdfService;
-use App\Services\ContractService;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Tests\DatabaseTestCase;
 
 /**
- * Charakterizace správy smluv (ContractController + zbytek ContractService)
+ * Charakterizace správy smluv (ContractController a akce domény Contracts)
  * před přesunem do domény Contracts: založení a jeho podmínky, snímek smluvní
  * strany, aktualizace údajů, místo připojení, zrušení / ukončení, odkazy,
  * starý dodatek, admin akce tří typů dodatků, náhled/stažení, seznam a odznak.
@@ -224,7 +223,7 @@ class ContractAdminTest extends DatabaseTestCase
         DB::connection('contracts')->table('contracts')->where('id', $c->id)->update(['addon' => 1, 'addon_signed' => 1]);
         $this->as()->delete(route('contracts.addon.delete', $c->id))->assertSessionHas('error', 'Podepsaný dodatek nelze smazat.');
         $this->as()->post(route('contracts.addon.send-link', $this->memberId))->assertSessionHas('error', 'Dodatek je již podepsán.');
-        $this->assertSame('signed', app(ContractService::class)->getAddonStatus(Contract::find($c->id)));
+        $this->assertSame('signed', \App\Domains\Contracts\Actions\CreateLegacyAddonAction::status(Contract::find($c->id)));
     }
 
     // ── dodatky: admin akce ──────────────────────────────────────────────────
@@ -343,8 +342,7 @@ class ContractAdminTest extends DatabaseTestCase
     {
         $this->as()->post(route('contracts.create', $this->memberId));
         $c = $this->contract();
-        $svc = app(ContractService::class);
-        $badge = $svc->countUnsigned();
+        $badge = app(\App\Domains\Contracts\Queries\ContractListQuery::class)->countUnsigned();
 
         $ids = fn (array $q) => collect($this->as()->get(route('contracts.index', $q))->assertOk()->viewData('contracts')->items())->pluck('id')->all();
         $this->assertSame([$c->id], $ids(['q' => $c->contract_no]));
@@ -354,7 +352,7 @@ class ContractAdminTest extends DatabaseTestCase
 
         DB::table('members')->where('id', $this->memberId)->update(['type' => 16]);
         $this->assertSame([], $ids(['q' => $c->contract_no]), 'smlouva bývalého skrytá');
-        $this->assertSame($badge - 1, $svc->countUnsigned(), 'odznak bez bývalých');
+        $this->assertSame($badge - 1, app(\App\Domains\Contracts\Queries\ContractListQuery::class)->countUnsigned(), 'odznak bez bývalých');
         $c->update(['status' => 'terminated']);
         $this->assertSame([$c->id], $ids(['q' => $c->contract_no]), 'ukončená zůstává viditelná');
         $this->as()->get(route('contracts.index'))->assertViewHas('totalCounts', fn ($t) => is_array($t));

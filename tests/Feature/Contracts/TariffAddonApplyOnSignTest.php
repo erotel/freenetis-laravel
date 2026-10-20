@@ -4,7 +4,6 @@ namespace Tests\Feature\Contracts;
 
 use App\Models\User;
 use App\Services\Contracts\PdfService;
-use App\Services\ContractService;
 use App\Services\AclService;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
@@ -26,7 +25,6 @@ class TariffAddonApplyOnSignTest extends DatabaseTestCase
     private const SPEED_OLD = 5;   // Standard (320)
     private const SPEED_NEW = 18;  // Mega (420)
 
-    private ContractService $svc;
     private int $member;
     private int $contractId;
     private int $userId;
@@ -36,7 +34,6 @@ class TariffAddonApplyOnSignTest extends DatabaseTestCase
     protected function setUp(): void
     {
         parent::setUp();
-        $this->svc = app(ContractService::class);
 
         $m = DB::table('members')
             ->where('id', '>', 1)
@@ -96,7 +93,7 @@ class TariffAddonApplyOnSignTest extends DatabaseTestCase
 
     public function test_vytvoreni_dodatku_je_jen_navrh_nemeni_clena(): void
     {
-        $addon = $this->svc->createTariffChangeAddon($this->contractId, self::SPEED_NEW);
+        $addon = app(\App\Domains\Contracts\Actions\CreateTariffAddonAction::class)->handle($this->contractId, self::SPEED_NEW);
 
         $this->assertNotNull($addon);
         $this->assertSame('tariff_change', $addon->type);
@@ -116,8 +113,8 @@ class TariffAddonApplyOnSignTest extends DatabaseTestCase
 
     public function test_podpis_dodatku_aplikuje_tarif_na_clena(): void
     {
-        $addon = $this->svc->createTariffChangeAddon($this->contractId, self::SPEED_NEW);
-        $this->svc->signTariffAddon($addon, app(PdfService::class));
+        $addon = app(\App\Domains\Contracts\Actions\CreateTariffAddonAction::class)->handle($this->contractId, self::SPEED_NEW);
+        app(\App\Domains\Contracts\Actions\SignAddonAction::class)->handle($addon, \App\Domains\Contracts\Support\AddonType::TariffChange, app(PdfService::class));
 
         $this->assertSame(
             self::SPEED_NEW,

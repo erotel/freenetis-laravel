@@ -4,7 +4,6 @@ namespace Tests\Feature\Contracts;
 
 use App\Models\ContractAddon;
 use App\Services\Contracts\PdfService;
-use App\Services\ContractService;
 use Illuminate\Support\Facades\DB;
 use Tests\DatabaseTestCase;
 
@@ -14,9 +13,10 @@ use Tests\DatabaseTestCase;
  */
 class ConnectionPointAddonTest extends DatabaseTestCase
 {
+    use \Tests\Support\IssuesContractAddonLinks;
+
     private const MEGA = 18; // cena 400
 
-    private ContractService $svc;
     private int $member;
     private int $contractId;
     private int $allowedSubnetId;
@@ -24,7 +24,6 @@ class ConnectionPointAddonTest extends DatabaseTestCase
     protected function setUp(): void
     {
         parent::setUp();
-        $this->svc = app(ContractService::class);
 
         // Reálný člen (FK allowed_subnets→members).
         $this->member = (int) DB::table('members')->where('id', '>', 1)->orderBy('id')->value('id');
@@ -51,7 +50,7 @@ class ConnectionPointAddonTest extends DatabaseTestCase
 
     public function test_vytvori_dodatek_ze_placeneho_mista(): void
     {
-        $addon = $this->svc->createConnectionPointAddon($this->contractId, $this->allowedSubnetId, 'add', 'Testovací 1, Prostějov');
+        $addon = app(\App\Domains\Contracts\Actions\CreateConnectionPointAddonAction::class)->handle($this->contractId, $this->allowedSubnetId, 'add', 'Testovací 1, Prostějov');
 
         $this->assertNotNull($addon);
         $this->assertSame('connection_point', $addon->type);
@@ -67,13 +66,13 @@ class ConnectionPointAddonTest extends DatabaseTestCase
 
     public function test_adresa_pripojeni_jako_nazev_mista(): void
     {
-        $addon = $this->svc->createConnectionPointAddon($this->contractId, $this->allowedSubnetId, 'add', 'Tylova 38, Prostějov 79601');
+        $addon = app(\App\Domains\Contracts\Actions\CreateConnectionPointAddonAction::class)->handle($this->contractId, $this->allowedSubnetId, 'add', 'Tylova 38, Prostějov 79601');
         $this->assertSame('Tylova 38, Prostějov 79601', $addon->service_name, 'v dodatku je adresa připojení, ne podsíť');
     }
 
     public function test_nahled_pdf_se_vygeneruje(): void
     {
-        $addon = $this->svc->createConnectionPointAddon($this->contractId, $this->allowedSubnetId, 'add', 'Testovací 1, Prostějov');
+        $addon = app(\App\Domains\Contracts\Actions\CreateConnectionPointAddonAction::class)->handle($this->contractId, $this->allowedSubnetId, 'add', 'Testovací 1, Prostějov');
         $bytes = app(PdfService::class)->renderConnectionPointAddonPdf($addon, true);
 
         $this->assertStringStartsWith('%PDF', $bytes);
@@ -97,36 +96,36 @@ class ConnectionPointAddonTest extends DatabaseTestCase
 
     public function test_podpisovy_token_round_trip(): void
     {
-        $addon = $this->svc->createConnectionPointAddon($this->contractId, $this->allowedSubnetId, 'add', 'Testovací 1, Prostějov');
+        $addon = app(\App\Domains\Contracts\Actions\CreateConnectionPointAddonAction::class)->handle($this->contractId, $this->allowedSubnetId, 'add', 'Testovací 1, Prostějov');
 
-        $res = $this->svc->issueConnectionPointAddonLink($addon->id);
+        $res = $this->issueAddonLink($addon->id);
         $this->assertNotNull($res['url']);
 
         parse_str((string) parse_url($res['url'], PHP_URL_QUERY), $q);
         $token = $q['t'] ?? '';
         $this->assertNotSame('', $token);
-        $this->assertSame($addon->id, $this->svc->verifyConnectionPointAddonToken($token));
+        $this->assertSame($addon->id, app(\App\Domains\Contracts\Support\SignLinkToken::class)->addonId($token));
     }
 
     public function test_getter_a_seznam_filtruji_typ(): void
     {
-        $addon = $this->svc->createConnectionPointAddon($this->contractId, $this->allowedSubnetId, 'add', 'Testovací 1, Prostějov');
+        $addon = app(\App\Domains\Contracts\Actions\CreateConnectionPointAddonAction::class)->handle($this->contractId, $this->allowedSubnetId, 'add', 'Testovací 1, Prostějov');
 
-        $this->assertSame($addon->id, $this->svc->getConnectionPointAddon($addon->id)?->id);
-        $this->assertTrue($this->svc->connectionPointAddons($this->contractId)->contains('id', $addon->id));
+        $this->assertSame($addon->id, app(\App\Domains\Contracts\Repositories\ContractAddonRepository::class)->find($addon->id, \App\Domains\Contracts\Support\AddonType::ConnectionPoint)?->id);
+        $this->assertTrue(app(\App\Domains\Contracts\Repositories\ContractAddonRepository::class)->forContract($this->contractId, \App\Domains\Contracts\Support\AddonType::ConnectionPoint)->contains('id', $addon->id));
         // service-addon getter typ neplete
-        $this->assertNull($this->svc->getServiceAddon($addon->id));
+        $this->assertNull(app(\App\Domains\Contracts\Repositories\ContractAddonRepository::class)->find($addon->id, \App\Domains\Contracts\Support\AddonType::AdditionalService));
     }
 
     public function test_neexistujici_misto_nevytvori_dodatek(): void
     {
-        $this->assertNull($this->svc->createConnectionPointAddon($this->contractId, 2147480000, 'add', 'Adresa'));
+        $this->assertNull(app(\App\Domains\Contracts\Actions\CreateConnectionPointAddonAction::class)->handle($this->contractId, 2147480000, 'add', 'Adresa'));
     }
 
     public function test_bez_adresy_dodatek_nevznikne(): void
     {
         $this->assertNull(
-            $this->svc->createConnectionPointAddon($this->contractId, $this->allowedSubnetId, 'add', ''),
+            app(\App\Domains\Contracts\Actions\CreateConnectionPointAddonAction::class)->handle($this->contractId, $this->allowedSubnetId, 'add', ''),
             'bez adresy připojení nelze dodatek vytvořit'
         );
     }

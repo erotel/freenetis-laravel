@@ -7,7 +7,6 @@ use App\Models\Message;
 use App\Models\Setting;
 use App\Services\Contracts\OtpService;
 use App\Services\Contracts\PdfService;
-use App\Services\ContractService;
 use Illuminate\Support\Facades\DB;
 use Tests\DatabaseTestCase;
 
@@ -22,6 +21,8 @@ use Tests\DatabaseTestCase;
  */
 class PublicSignTest extends DatabaseTestCase
 {
+    use \Tests\Support\IssuesContractAddonLinks;
+
     private int $memberId;
     private int $contractId;
     private string $contractNo;
@@ -78,9 +79,8 @@ class PublicSignTest extends DatabaseTestCase
 
     private function token(?int $addonId = null): string
     {
-        $svc = app(ContractService::class);
         $this->actingAs(\App\Models\User::find((int) DB::table('users')->where('type', 1)->value('id')));
-        $url = $addonId ? $svc->issueTariffAddonLink($addonId)['url'] : $svc->issueAccessLink($this->contractId)['url'];
+        $url = $addonId ? $this->issueAddonLink($addonId)['url'] : app(\App\Domains\Contracts\Actions\IssueSignLinkAction::class)->handle($this->contractId, \App\Domains\Contracts\Support\SignLinkKind::Contract)['url'];
         auth()->logout();
         parse_str((string) parse_url($url, PHP_URL_QUERY), $q);
         return $q['t'];
@@ -227,16 +227,15 @@ class PublicSignTest extends DatabaseTestCase
         $speed  = (int) DB::table('speed_classes')->insertGetId(['name' => 'Char PS', 'd_ceil' => 1, 'd_rate' => 1, 'u_ceil' => 1, 'u_rate' => 1, 'price' => 77]);
         $place  = (int) DB::table('allowed_subnets')->insertGetId(['member_id' => $this->memberId, 'subnet_id' => $subnet, 'enabled' => 1, 'charged' => 0, 'speed_class_id' => $speed]);
 
-        $svc = app(ContractService::class);
         $this->actingAs(\App\Models\User::find((int) DB::table('users')->where('type', 1)->value('id')));
         $cases = [
-            [$svc->createTariffChangeAddon($this->contractId, $speed), 'issueTariffAddonLink', 'tariff_addon', 'dodatek', 'změna tarifu', 'dodatek-tarif-', 'tariff_addon', 'Tariff'],
-            [$svc->createServiceAddon($this->contractId, $fee), 'issueServiceAddonLink', 'service_addon', 'dodatek-sluzba', 'dodatečná služba', 'dodatek-sluzba-', 'service_addon', 'Service'],
-            [$svc->createConnectionPointAddon($this->contractId, $place, 'add', 'Adresa 9'), 'issueConnectionPointAddonLink', 'connection_point', 'dodatek-misto', 'přípojné místo', 'dodatek-misto-', 'connection_point_addon', 'ConnectionPoint'],
+            [app(\App\Domains\Contracts\Actions\CreateTariffAddonAction::class)->handle($this->contractId, $speed), 'issueTariffAddonLink', 'tariff_addon', 'dodatek', 'změna tarifu', 'dodatek-tarif-', 'tariff_addon', 'Tariff'],
+            [app(\App\Domains\Contracts\Actions\CreateServiceAddonAction::class)->handle($this->contractId, $fee), 'issueServiceAddonLink', 'service_addon', 'dodatek-sluzba', 'dodatečná služba', 'dodatek-sluzba-', 'service_addon', 'Service'],
+            [app(\App\Domains\Contracts\Actions\CreateConnectionPointAddonAction::class)->handle($this->contractId, $place, 'add', 'Adresa 9'), 'issueConnectionPointAddonLink', 'connection_point', 'dodatek-misto', 'přípojné místo', 'dodatek-misto-', 'connection_point_addon', 'ConnectionPoint'],
         ];
         $tokens = [];
         foreach ($cases as $i => $c) {
-            parse_str((string) parse_url($svc->{$c[1]}($c[0]->id)['url'], PHP_URL_QUERY), $q);
+            parse_str((string) parse_url($this->issueAddonLink($c[0]->id)['url'], PHP_URL_QUERY), $q);
             $tokens[$i] = $q['t'];
         }
         $contractToken = $this->token();

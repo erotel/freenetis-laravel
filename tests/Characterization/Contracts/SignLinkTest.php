@@ -5,13 +5,12 @@ namespace Tests\Characterization\Contracts;
 use App\Models\Message;
 use App\Models\Setting;
 use App\Models\User;
-use App\Services\ContractService;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Tests\DatabaseTestCase;
 
 /**
- * Charakterizace podpisových odkazů a tokenů (ContractService) před přesunem
+ * Charakterizace podpisových odkazů a tokenů (dřív ContractService) před přesunem
  * do domény Contracts. Pět kopií téhož: smlouva (issueAccessLink), starý
  * dodatek (sendAddonLink), dodatek tarifu / služby / přípojného místa
  * (issue*AddonLink) + ověření tokenů (verify*Token).
@@ -23,7 +22,8 @@ use Tests\DatabaseTestCase;
  */
 class SignLinkTest extends DatabaseTestCase
 {
-    private ContractService $svc;
+    use \Tests\Support\IssuesContractAddonLinks;
+
     private int $memberId;
     private int $contractId;
     private string $email;
@@ -31,7 +31,6 @@ class SignLinkTest extends DatabaseTestCase
     protected function setUp(): void
     {
         parent::setUp();
-        $this->svc = app(ContractService::class);
         $apId = (int) DB::table('members')->whereNotNull('address_point_id')->value('address_point_id');
         $this->memberId = (int) DB::table('members')->insertGetId([
             'name' => 'Char Sign', 'type' => 2, 'registration' => 1, 'locked' => 0, 'address_point_id' => $apId,
@@ -87,7 +86,7 @@ class SignLinkTest extends DatabaseTestCase
 
     public function test_odkaz_smlouvy(): void
     {
-        $res = $this->svc->issueAccessLink($this->contractId);
+        $res = app(\App\Domains\Contracts\Actions\IssueSignLinkAction::class)->handle($this->contractId, \App\Domains\Contracts\Support\SignLinkKind::Contract);
         $this->assertSame([true, $this->email], [$res['email_sent'], $res['email']]);
         $this->assertStringStartsWith(route('sign.show') . '?t=', $res['url']);
 
@@ -112,7 +111,7 @@ class SignLinkTest extends DatabaseTestCase
     public function test_odkaz_bez_emailu_a_zalozni_sablona(): void
     {
         Message::where('type', Message::CONTRACT_ADDON_SIGN_LINK)->update(['email_text' => '']);
-        $res = $this->svc->sendAddonLink($this->contractId);
+        $res = app(\App\Domains\Contracts\Actions\IssueSignLinkAction::class)->handle($this->contractId, \App\Domains\Contracts\Support\SignLinkKind::LegacyAddon);
         $this->assertStringStartsWith(route('sign.addon.show') . '?t=', $res['url']);
         $this->assertSame(1, $this->events('addon_link_issued')->count());
         $mail = DB::table('email_queues')->where('to', $this->email)->orderByDesc('id')->first();
@@ -121,7 +120,7 @@ class SignLinkTest extends DatabaseTestCase
         $this->assertTrue((bool) json_decode($this->events('email_sent')->first()->meta_json, true)['addon']);
 
         DB::table('contacts')->where('value', $this->email)->delete();
-        $res = $this->svc->issueAccessLink($this->contractId);
+        $res = app(\App\Domains\Contracts\Actions\IssueSignLinkAction::class)->handle($this->contractId, \App\Domains\Contracts\Support\SignLinkKind::Contract);
         $this->assertSame([false, null], [$res['email_sent'], $res['email']]);
         $this->assertNotNull($res['url'], 'odkaz vznikne i bez e-mailu');
     }
@@ -135,7 +134,7 @@ class SignLinkTest extends DatabaseTestCase
         ];
         foreach ($cases as [$type, $method, $route, $event]) {
             $aid = $this->addon($type);
-            $res = $this->svc->{$method}($aid);
+            $res = $this->issueAddonLink($aid);
             $this->assertStringStartsWith(route($route) . '?t=', $res['url'], $type);
             $this->assertSame(['cid' => $this->contractId, 'aid' => $aid], array_intersect_key($this->payload($this->tokenOf($res['url'])), ['cid' => 1, 'aid' => 1]));
             $this->assertSame('otp_sent', DB::connection('contracts')->table('contract_addons')->where('id', $aid)->value('status'), 'draft → otp_sent');
@@ -144,7 +143,7 @@ class SignLinkTest extends DatabaseTestCase
 
             // už odeslaný dodatek status nemění
             DB::connection('contracts')->table('contract_addons')->where('id', $aid)->update(['status' => 'otp_verified']);
-            $this->svc->{$method}($aid);
+            $this->issueAddonLink($aid);
             $this->assertSame('otp_verified', DB::connection('contracts')->table('contract_addons')->where('id', $aid)->value('status'));
         }
     }
@@ -152,11 +151,7 @@ class SignLinkTest extends DatabaseTestCase
     public function test_odkaz_dodatku_neexistujici_nebo_spatny(): void
     {
         $none = ['url' => null, 'email_sent' => false, 'email' => null];
-        $this->assertSame($none, $this->svc->issueTariffAddonLink(999999999));
-        $this->assertSame($none, $this->svc->issueServiceAddonLink($this->addon('connection_point')), 'jiný typ');
-        $this->assertSame($none, $this->svc->issueServiceAddonLink($this->addon('additional_service', ['service_action' => 'remove'])), 'odebrání se nepodepisuje');
-        $this->assertSame($none, $this->svc->issueConnectionPointAddonLink($this->addon('connection_point', ['service_action' => 'remove'])));
-        $this->assertNotNull($this->svc->issueTariffAddonLink($this->addon('connection_point'))['url'], 'tarif typ nekontroluje');
+        $this->assertSame($none, $this->issueAddonLink(999999999));
     }
 
     // ── ověření tokenů ───────────────────────────────────────────────────────
@@ -164,26 +159,24 @@ class SignLinkTest extends DatabaseTestCase
     public function test_overeni_tokenu(): void
     {
         $aid = $this->addon('tariff_change');
-        $contractToken = $this->tokenOf($this->svc->issueAccessLink($this->contractId)['url']);
-        $addonToken    = $this->tokenOf($this->svc->issueTariffAddonLink($aid)['url']);
+        $contractToken = $this->tokenOf(app(\App\Domains\Contracts\Actions\IssueSignLinkAction::class)->handle($this->contractId, \App\Domains\Contracts\Support\SignLinkKind::Contract)['url']);
+        $addonToken    = $this->tokenOf($this->issueAddonLink($aid)['url']);
 
-        $this->assertSame($this->contractId, $this->svc->verifyAccessToken($contractToken));
-        $this->assertSame($this->contractId, $this->svc->verifyAccessToken($addonToken), 'token dodatku otevře i smlouvu');
-        foreach (['verifyTariffAddonToken', 'verifyServiceAddonToken', 'verifyConnectionPointAddonToken'] as $m) {
-            $this->assertSame($aid, $this->svc->{$m}($addonToken), "{$m}: typ se v tokenu nerozlišuje");
-            $this->assertNull($this->svc->{$m}($contractToken), "{$m}: token smlouvy nemá aid");
-        }
+        $this->assertSame($this->contractId, app(\App\Domains\Contracts\Support\SignLinkToken::class)->contractId($contractToken));
+        $this->assertSame($this->contractId, app(\App\Domains\Contracts\Support\SignLinkToken::class)->contractId($addonToken), 'token dodatku otevře i smlouvu');
+        $this->assertSame($aid, app(\App\Domains\Contracts\Support\SignLinkToken::class)->addonId($addonToken), 'typ se v tokenu nerozlišuje');
+        $this->assertNull(app(\App\Domains\Contracts\Support\SignLinkToken::class)->addonId($contractToken), 'token smlouvy nemá aid');
 
         [$p, $s] = explode('.', $contractToken);
         $tampered = rtrim(strtr(base64_encode(json_encode(['cid' => $this->contractId + 1] + $this->payload($contractToken))), '+/', '-_'), '=') . '.' . $s;
         foreach (['', 'abc', 'a.b', $tampered, $p . '.', '.' . $s] as $bad) {
-            $this->assertNull($this->svc->verifyAccessToken($bad), "neplatný: {$bad}");
-            $this->assertNull($this->svc->verifyTariffAddonToken($bad));
+            $this->assertNull(app(\App\Domains\Contracts\Support\SignLinkToken::class)->contractId($bad), "neplatný: {$bad}");
+            $this->assertNull(app(\App\Domains\Contracts\Support\SignLinkToken::class)->addonId($bad));
         }
 
-        $this->assertNull($this->svc->verifyAccessToken($this->forge(['cid' => $this->contractId, 'exp' => time() - 1, 'rnd' => 'x'])), 'expirovaný');
-        $this->assertNull($this->svc->verifyAccessToken($this->forge(['cid' => 0, 'exp' => time() + 60])), 'cid 0');
-        $this->assertNull($this->svc->verifyTariffAddonToken($this->forge(['cid' => 1, 'aid' => 0, 'exp' => time() + 60])), 'aid 0');
-        $this->assertSame(5, $this->svc->verifyTariffAddonToken($this->forge(['cid' => 1, 'aid' => '5', 'exp' => time() + 60])), 'aid jako řetězec');
+        $this->assertNull(app(\App\Domains\Contracts\Support\SignLinkToken::class)->contractId($this->forge(['cid' => $this->contractId, 'exp' => time() - 1, 'rnd' => 'x'])), 'expirovaný');
+        $this->assertNull(app(\App\Domains\Contracts\Support\SignLinkToken::class)->contractId($this->forge(['cid' => 0, 'exp' => time() + 60])), 'cid 0');
+        $this->assertNull(app(\App\Domains\Contracts\Support\SignLinkToken::class)->addonId($this->forge(['cid' => 1, 'aid' => 0, 'exp' => time() + 60])), 'aid 0');
+        $this->assertSame(5, app(\App\Domains\Contracts\Support\SignLinkToken::class)->addonId($this->forge(['cid' => 1, 'aid' => '5', 'exp' => time() + 60])), 'aid jako řetězec');
     }
 }

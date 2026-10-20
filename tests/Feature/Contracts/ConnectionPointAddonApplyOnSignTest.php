@@ -6,7 +6,6 @@ use App\Models\AllowedSubnet;
 use App\Models\User;
 use App\Services\AclService;
 use App\Services\Contracts\PdfService;
-use App\Services\ContractService;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Tests\DatabaseTestCase;
@@ -21,7 +20,6 @@ class ConnectionPointAddonApplyOnSignTest extends DatabaseTestCase
 {
     private const MEGA = 18; // rychlost s cenou
 
-    private ContractService $svc;
     private int $member;
     private int $contractId;
     private int $userId;
@@ -29,7 +27,6 @@ class ConnectionPointAddonApplyOnSignTest extends DatabaseTestCase
     protected function setUp(): void
     {
         parent::setUp();
-        $this->svc = app(ContractService::class);
 
         $this->member = (int) DB::table('members')->where('id', '>', 1)->orderBy('id')->value('id');
 
@@ -63,7 +60,7 @@ class ConnectionPointAddonApplyOnSignTest extends DatabaseTestCase
     public function test_vytvoreni_add_dodatku_je_jen_navrh_nezpoplatnuje(): void
     {
         $asId  = $this->makePlace(false); // ještě neúčtované
-        $addon = $this->svc->createConnectionPointAddon($this->contractId, $asId, 'add', 'Testovací 1, Prostějov');
+        $addon = app(\App\Domains\Contracts\Actions\CreateConnectionPointAddonAction::class)->handle($this->contractId, $asId, 'add', 'Testovací 1, Prostějov');
 
         $this->assertNotNull($addon);
         $this->assertSame('connection_point', $addon->type);
@@ -77,8 +74,8 @@ class ConnectionPointAddonApplyOnSignTest extends DatabaseTestCase
     public function test_podpis_add_dodatku_zpoplatni_misto(): void
     {
         $asId  = $this->makePlace(false);
-        $addon = $this->svc->createConnectionPointAddon($this->contractId, $asId, 'add', 'Testovací 1, Prostějov');
-        $this->svc->signConnectionPointAddon($addon, app(PdfService::class));
+        $addon = app(\App\Domains\Contracts\Actions\CreateConnectionPointAddonAction::class)->handle($this->contractId, $asId, 'add', 'Testovací 1, Prostějov');
+        app(\App\Domains\Contracts\Actions\SignAddonAction::class)->handle($addon, \App\Domains\Contracts\Support\AddonType::ConnectionPoint, app(PdfService::class));
 
         $this->assertTrue((bool) AllowedSubnet::find($asId)->charged, 'po podpisu se místo účtuje (charged=1)');
 
@@ -90,8 +87,8 @@ class ConnectionPointAddonApplyOnSignTest extends DatabaseTestCase
     public function test_vydani_remove_dodatku_zrusi_uctovani(): void
     {
         $asId  = $this->makePlace(true); // účtované
-        $addon = $this->svc->createConnectionPointAddon($this->contractId, $asId, 'remove', 'Testovací 1, Prostějov');
-        $this->svc->issueConnectionPointRemoval($addon, app(PdfService::class));
+        $addon = app(\App\Domains\Contracts\Actions\CreateConnectionPointAddonAction::class)->handle($this->contractId, $asId, 'remove', 'Testovací 1, Prostějov');
+        app(\App\Domains\Contracts\Actions\IssueAddonRemovalAction::class)->handle($addon, \App\Domains\Contracts\Support\AddonType::ConnectionPoint, app(PdfService::class));
 
         $this->assertFalse((bool) AllowedSubnet::find($asId)->charged, 'po vydání zrušení se místo neúčtuje (charged=0)');
 

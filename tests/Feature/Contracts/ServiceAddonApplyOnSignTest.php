@@ -7,7 +7,6 @@ use App\Models\MemberFee;
 use App\Models\User;
 use App\Services\AclService;
 use App\Services\Contracts\PdfService;
-use App\Services\ContractService;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Tests\DatabaseTestCase;
@@ -20,7 +19,6 @@ use Tests\DatabaseTestCase;
  */
 class ServiceAddonApplyOnSignTest extends DatabaseTestCase
 {
-    private ContractService $svc;
     private int $member;
     private int $contractId;
     private int $userId;
@@ -29,7 +27,6 @@ class ServiceAddonApplyOnSignTest extends DatabaseTestCase
     protected function setUp(): void
     {
         parent::setUp();
-        $this->svc = app(ContractService::class);
 
         $fee = Fee::where('type_id', Fee::TYPE_ADDITIONAL_SERVICE)->where('archived', 0)->orderBy('id')->first();
         if (!$fee) {
@@ -72,7 +69,7 @@ class ServiceAddonApplyOnSignTest extends DatabaseTestCase
 
     public function test_vytvoreni_add_dodatku_je_jen_navrh_neprirazuje(): void
     {
-        $addon = $this->svc->createServiceAddon($this->contractId, $this->feeId, 'add');
+        $addon = app(\App\Domains\Contracts\Actions\CreateServiceAddonAction::class)->handle($this->contractId, $this->feeId, 'add');
 
         $this->assertNotNull($addon);
         $this->assertSame('additional_service', $addon->type);
@@ -85,8 +82,8 @@ class ServiceAddonApplyOnSignTest extends DatabaseTestCase
 
     public function test_podpis_add_dodatku_prirradi_sluzbu(): void
     {
-        $addon = $this->svc->createServiceAddon($this->contractId, $this->feeId, 'add');
-        $this->svc->signServiceAddon($addon, app(PdfService::class));
+        $addon = app(\App\Domains\Contracts\Actions\CreateServiceAddonAction::class)->handle($this->contractId, $this->feeId, 'add');
+        app(\App\Domains\Contracts\Actions\SignAddonAction::class)->handle($addon, \App\Domains\Contracts\Support\AddonType::AdditionalService, app(PdfService::class));
 
         $this->assertTrue($this->isFeeActive(), 'po podpisu je služba přiřazená (aktivní)');
 
@@ -105,8 +102,8 @@ class ServiceAddonApplyOnSignTest extends DatabaseTestCase
         ]);
         $this->assertTrue($this->isFeeActive());
 
-        $addon = $this->svc->createServiceAddon($this->contractId, $this->feeId, 'remove');
-        $this->svc->issueServiceRemoval($addon, app(PdfService::class));
+        $addon = app(\App\Domains\Contracts\Actions\CreateServiceAddonAction::class)->handle($this->contractId, $this->feeId, 'remove');
+        app(\App\Domains\Contracts\Actions\IssueAddonRemovalAction::class)->handle($addon, \App\Domains\Contracts\Support\AddonType::AdditionalService, app(PdfService::class));
 
         $row = MemberFee::where('member_id', $this->member)->where('fee_id', $this->feeId)->first();
         $this->assertSame(now()->toDateString(), $row->deactivation_date?->toDateString(), 'zrušení nastaví konec služby na dnešek');
