@@ -2,9 +2,10 @@
 
 namespace App\Console\Commands;
 
+use App\Domains\Members\Repositories\MemberRepository;
+use App\Domains\Notifications\Repositories\EmailQueueRepository;
 use App\Models\Setting;
 use Illuminate\Console\Command;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 
 /**
@@ -22,7 +23,7 @@ class MarkPendingTermination extends Command
     protected $signature   = 'members:mark-pending-termination {--force : Run regardless of day-of-month}';
     protected $description = 'Mark members for termination if they have unpaid fees from previous month or older';
 
-    public function handle(): int
+    public function handle(MemberRepository $members): int
     {
         $today    = date('Y-m-d');
         $todayDay = (int) date('j');
@@ -39,23 +40,7 @@ class MarkPendingTermination extends Command
 
         // Kandidáti: payment_blocked=1, pending_termination ještě 0,
         // payment_blocked_since spadá do měsíce M-1 nebo dříve.
-        $candidates = DB::table('members as m')
-            ->join('accounts as a', function ($j) {
-                $j->on('a.member_id', '=', 'm.id')
-                  ->where('a.account_attribute_id', 221100);
-            })
-            ->where('m.payment_blocked', 1)
-            ->where('m.pending_termination', 0)
-            // Už ukončení: bývalí (15/16) a členové ve výpovědní lhůtě (odchod v budoucnu).
-            ->whereNotIn('m.type', [15, 16])
-            ->where(function ($q) {
-                $q->whereIn('m.leaving_date', ['9999-12-31', '0000-00-00'])
-                  ->orWhereNull('m.leaving_date');
-            })
-            ->whereNotNull('m.payment_blocked_since')
-            ->whereRaw("DATE_FORMAT(m.payment_blocked_since, '%Y-%m') < ?", [$currentMonth])
-            ->select('m.id', 'm.name', 'm.type', 'm.payment_blocked_since', 'a.balance')
-            ->get();
+        $candidates = $members->pendingTerminationCandidates($currentMonth);
 
         if ($candidates->isEmpty()) {
             $this->info('Žádní kandidáti na ukončení (payment_blocked z předchozích měsíců).');
@@ -63,18 +48,10 @@ class MarkPendingTermination extends Command
         }
 
         // Variabilní symboly v jednom dotazu, aby se v emailu hodily k jménu.
-        $vsByMember = DB::table('variable_symbols as vs')
-            ->join('accounts as a', 'a.id', '=', 'vs.account_id')
-            ->whereIn('a.member_id', $candidates->pluck('id')->all())
-            ->where('a.account_attribute_id', 221100)
-            ->select('a.member_id', DB::raw('GROUP_CONCAT(vs.variable_symbol) AS vs'))
-            ->groupBy('a.member_id')
-            ->pluck('vs', 'member_id');
+        $vsByMember = $members->creditVariableSymbols($candidates->pluck('id')->all());
 
         // Mark
-        DB::table('members')
-            ->whereIn('id', $candidates->pluck('id')->all())
-            ->update(['pending_termination' => 1]);
+        $members->markPendingTermination($candidates->pluck('id')->all());
 
         // Audit trail: automatické označení kandidátů na ukončení (systém, user_id NULL).
         \App\Domains\Audit\AuditLogger::log('auto_pending_termination', 'members', null, null, [
@@ -135,12 +112,6 @@ označeni jako kandidáti na ukončení smlouvy (per VOP).</p>
 </table>
 HTML;
 
-        DB::table('email_queues')->insert([
-            'from'    => $from,
-            'to'      => $to,
-            'subject' => $subject,
-            'body'    => $body,
-            'state'   => 0,
-        ]);
+        app(EmailQueueRepository::class)->enqueue((string) $from, $to, $subject, $body);
     }
 }

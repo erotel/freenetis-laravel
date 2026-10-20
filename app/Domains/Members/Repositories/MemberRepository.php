@@ -201,6 +201,48 @@ class MemberRepository
         return $this->formerWithLeaving()->where('leaving_date', '<=', $today)->pluck('id');
     }
 
+    /**
+     * Kandidáti na ukončení pro neplacení (VOP): zablokovaný od předchozího
+     * měsíce nebo dřív, ještě neoznačený, ne bývalý a ne ve výpovědní lhůtě.
+     * Se stavem kreditního účtu.
+     */
+    public function pendingTerminationCandidates(string $currentMonth): Collection
+    {
+        return DB::table('members as m')
+            ->join('accounts as a', function ($j) {
+                $j->on('a.member_id', '=', 'm.id')
+                  ->where('a.account_attribute_id', 221100);
+            })
+            ->where('m.payment_blocked', 1)
+            ->where('m.pending_termination', 0)
+            ->whereNotIn('m.type', [15, 16])
+            ->where(function ($q) {
+                $q->whereIn('m.leaving_date', ['9999-12-31', '0000-00-00'])
+                  ->orWhereNull('m.leaving_date');
+            })
+            ->whereNotNull('m.payment_blocked_since')
+            ->whereRaw("DATE_FORMAT(m.payment_blocked_since, '%Y-%m') < ?", [$currentMonth])
+            ->select('m.id', 'm.name', 'm.type', 'm.payment_blocked_since', 'a.balance')
+            ->get();
+    }
+
+    /** Variabilní symboly kreditních účtů členů (member_id => „vs1,vs2“). */
+    public function creditVariableSymbols(array $memberIds): Collection
+    {
+        return DB::table('variable_symbols as vs')
+            ->join('accounts as a', 'a.id', '=', 'vs.account_id')
+            ->whereIn('a.member_id', $memberIds)
+            ->where('a.account_attribute_id', 221100)
+            ->select('a.member_id', DB::raw('GROUP_CONCAT(vs.variable_symbol) AS vs'))
+            ->groupBy('a.member_id')
+            ->pluck('vs', 'member_id');
+    }
+
+    public function markPendingTermination(array $memberIds): void
+    {
+        DB::table('members')->whereIn('id', $memberIds)->update(['pending_termination' => 1]);
+    }
+
     private function formerWithLeaving(): \Illuminate\Database\Query\Builder
     {
         return DB::table('members')
