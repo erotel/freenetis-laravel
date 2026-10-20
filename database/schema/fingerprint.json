@@ -438,7 +438,7 @@
             "columns": {
                 "id": "int(11) | not null | default ∅ | auto_increment | -",
                 "comments_thread_id": "int(11) | not null | default ∅ | - | -",
-                "user_id": "int(11) | not null | default ∅ | - | -",
+                "user_id": "int(11) | null | default NULL | - | -",
                 "text": "text | not null | default ∅ | - | utf8mb3_czech_ci",
                 "datetime": "datetime | not null | default ∅ | - | -"
             },
@@ -1026,7 +1026,7 @@
             "columns": {
                 "id": "int(11) | not null | default ∅ | auto_increment | -",
                 "job_report_id": "int(11) | null | default NULL | - | -",
-                "user_id": "int(11) | not null | default ∅ | - | -",
+                "user_id": "int(11) | null | default NULL | - | -",
                 "previous_rejected_work_id": "int(11) | null | default NULL | - | -",
                 "added_by_id": "int(11) | null | default NULL | - | -",
                 "approval_template_id": "int(11) | null | default NULL | - | -",
@@ -1056,7 +1056,7 @@
             "collation": "utf8mb3_czech_ci",
             "columns": {
                 "id": "int(11) | not null | default ∅ | auto_increment | -",
-                "user_id": "int(11) | not null | default ∅ | - | -",
+                "user_id": "int(11) | null | default NULL | - | -",
                 "added_by_id": "int(11) | null | default NULL | - | -",
                 "transfer_id": "int(11) | null | default NULL | - | -",
                 "approval_template_id": "int(11) | not null | default ∅ | - | -",
@@ -1204,7 +1204,7 @@
             "collation": "utf8mb3_czech_ci",
             "columns": {
                 "id": "int(11) | not null | default ∅ | auto_increment | -",
-                "user_id": "int(11) | not null | default ∅ | - | -",
+                "user_id": "int(11) | null | default NULL | - | -",
                 "time": "datetime | not null | default ∅ | - | -",
                 "IP_address": "varchar(45) | not null | default ∅ | - | utf8mb3_czech_ci"
             },
@@ -1255,8 +1255,8 @@
             "collation": "utf8mb3_czech_ci",
             "columns": {
                 "id": "int(11) | not null | default ∅ | auto_increment | -",
-                "from_id": "int(11) | not null | default ∅ | - | -",
-                "to_id": "int(11) | not null | default ∅ | - | -",
+                "from_id": "int(11) | null | default NULL | - | -",
+                "to_id": "int(11) | null | default NULL | - | -",
                 "subject": "varchar(150) | not null | default ∅ | - | utf8mb3_czech_ci",
                 "body": "text | not null | default ∅ | - | utf8mb3_czech_ci",
                 "time": "datetime | not null | default ∅ | - | -",
@@ -2105,7 +2105,7 @@
             "collation": "utf8mb3_czech_ci",
             "columns": {
                 "id": "int(11) | not null | default ∅ | auto_increment | -",
-                "user_id": "int(11) | not null | default ∅ | - | -",
+                "user_id": "int(11) | null | default NULL | - | -",
                 "approval_template_id": "int(11) | null | default NULL | - | -",
                 "type": "smallint(6) | not null | default 0 | - | -",
                 "description": "mediumtext | null | default NULL | - | utf8mb3_czech_ci",
@@ -2159,7 +2159,7 @@
             "collation": "utf8mb3_czech_ci",
             "columns": {
                 "id": "int(11) | not null | default ∅ | auto_increment | -",
-                "user_id": "int(11) | not null | default ∅ | - | -",
+                "user_id": "int(11) | null | default NULL | - | -",
                 "sms_message_id": "int(11) | null | default NULL | - | -",
                 "stamp": "datetime | not null | default ∅ | - | -",
                 "send_date": "datetime | not null | default ∅ | - | -",
@@ -2566,7 +2566,7 @@
             "collation": "utf8mb3_czech_ci",
             "columns": {
                 "id": "int(11) | not null | default ∅ | auto_increment | -",
-                "user_id": "int(11) | not null | default ∅ | - | -",
+                "user_id": "int(11) | null | default NULL | - | -",
                 "type": "int(11) | not null | default ∅ | - | -",
                 "fk_id": "int(11) | not null | default ∅ | - | -",
                 "aro_group_id": "int(11) | not null | default ∅ | - | -",

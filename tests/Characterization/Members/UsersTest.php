@@ -167,7 +167,7 @@ class UsersTest extends DatabaseTestCase
         $this->as()->delete(route('users.destroy', 999999999))->assertNotFound();
     }
 
-    /** Smazání uživatele a jeho historie (komentáře, SMS, přihlášení, hlasování). */
+    /** Smazání uživatele historii nemaže (dřív kaskádou komentáře, SMS, přihlášení) — autor zůstane jako „smazaný uživatel“. */
     public function test_smazani_a_historie(): void
     {
         $a = $this->user('h');
@@ -179,8 +179,15 @@ class UsersTest extends DatabaseTestCase
 
         $this->as()->delete(route('users.destroy', $a))->assertRedirect(route('users.index'));
         $this->assertFalse(DB::table('users')->where('id', $a)->exists());
-        $this->assertSame([false, false, false], [DB::table('comments')->where('id', $comment)->exists(), DB::table('sms_messages')->where('id', $sms)->exists(),
-            DB::table('login_logs')->where('id', $login)->exists()], 'historie se smaže kaskádou');
+        $this->assertSame([null, null, null], [DB::table('comments')->where('id', $comment)->value('user_id'), DB::table('sms_messages')->where('id', $sms)->value('user_id'),
+            DB::table('login_logs')->where('id', $login)->value('user_id')]);
+        $this->assertTrue(DB::table('comments')->where('id', $comment)->exists() && DB::table('sms_messages')->where('id', $sms)->exists() && DB::table('login_logs')->where('id', $login)->exists());
+        $audit = DB::table('audit_logs')->where('auditable_type', 'users')->where('auditable_id', $a)->where('action', 'deleted')->first();
+        $this->assertSame("{$this->tag}h", json_decode($audit->old_values, true)['login'] ?? null, 'kdo byl smazán, zůstane v auditu');
+
+        // komentář smazaného uživatele je na kartě člena dál vidět
+        DB::table('accounts')->insert(['member_id' => $this->memberId, 'account_attribute_id' => 221100, 'balance' => 0, 'name' => 'c', 'comments_thread_id' => $thread]);
+        $this->as()->get(route('members.show', $this->memberId))->assertOk()->assertSee('smazaný uživatel');
     }
 
     // ── heslo ────────────────────────────────────────────────────────────────

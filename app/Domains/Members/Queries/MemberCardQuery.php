@@ -26,6 +26,9 @@ use Illuminate\Support\Facades\DB;
  */
 class MemberCardQuery
 {
+    /** Autor komentáře; smazaný uživatel (user_id NULL) zůstane v historii. */
+    private const AUTHOR_SQL = "COALESCE(CONCAT(u.surname, ' ', u.name), 'smazaný uživatel')";
+
     public function __construct(
         private FeePolicy $fees,
         private MembershipInterruptRepository $interrupts,
@@ -168,10 +171,10 @@ class MemberCardQuery
     private function accountCommentsText(int $threadId): string
     {
         return DB::table('comments as c')
-            ->join('users as u', 'u.id', '=', 'c.user_id')
+            ->leftJoin('users as u', 'u.id', '=', 'c.user_id')
             ->where('c.comments_thread_id', $threadId)
             ->orderByDesc('c.datetime')
-            ->selectRaw('CONCAT(u.surname, " ", u.name, " (", DATE(c.datetime), "):\n", c.text) as line')
+            ->selectRaw('CONCAT(' . self::AUTHOR_SQL . ', " (", DATE(c.datetime), "):\n", c.text) as line')
             ->pluck('line')
             ->implode("\n\n");
     }
@@ -180,10 +183,10 @@ class MemberCardQuery
     private function accountComments(?int $threadId): Collection
     {
         return DB::table('comments as c')
-            ->join('users as u', 'u.id', '=', 'c.user_id')
+            ->leftJoin('users as u', 'u.id', '=', 'c.user_id')
             ->where('c.comments_thread_id', $threadId)
             ->orderByDesc('c.datetime')
-            ->selectRaw('c.id, c.text, c.datetime, CONCAT(u.surname, " ", u.name) as user_name')
+            ->selectRaw('c.id, c.text, c.datetime, ' . self::AUTHOR_SQL . ' as user_name')
             ->get();
     }
 }

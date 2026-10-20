@@ -38,9 +38,9 @@ class LogQueueRepository
             return collect();
         }
         return DB::table('comments as c')
-            ->join('users as u', 'u.id', '=', 'c.user_id')
+            ->leftJoin('users as u', 'u.id', '=', 'c.user_id')
             ->where('c.comments_thread_id', $threadId)
-            ->select('c.*', DB::raw("CONCAT(u.name, ' ', u.surname) AS user_name"), 'u.id AS uid')
+            ->select('c.*', DB::raw("COALESCE(CONCAT(u.name, ' ', u.surname), 'smazaný uživatel') AS user_name"), 'u.id AS uid')
             ->orderBy('c.datetime')
             ->get();
     }
