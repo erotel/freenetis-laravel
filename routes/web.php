@@ -22,6 +22,9 @@ use App\Http\Controllers\DeviceController;
 use App\Http\Controllers\DeviceTemplateController;
 use App\Http\Controllers\IpAddressController;
 use App\Http\Controllers\MemberController;
+use App\Http\Controllers\Members\MemberDocumentController;
+use App\Http\Controllers\Members\MembershipController;
+use App\Http\Controllers\Members\MyNotificationsController;
 use App\Http\Controllers\MeetingController;
 use App\Http\Controllers\SubnetController;
 use App\Http\Controllers\LineIdAnomalyController;
@@ -276,17 +279,17 @@ Route::middleware('auth')->group(function () {
     Route::get('streets', [StreetController::class, 'index'])->name('streets.index')
         ->middleware('acl:view_all,Address_points_Controller,street');
     Route::resource('streets', StreetController::class)->except(['index']);
-    Route::get('members/applicants', [MemberController::class, 'applicants'])->name('members.applicants');
-    Route::get('members/pending-termination', [MemberController::class, 'pendingTermination'])->name('members.pending-termination');
-    Route::get('members/{id}/registration-export/{type}', [MemberController::class, 'registrationExport'])->name('members.registration-export');
-    Route::post('members/{id}/registration-export-email/{type}', [MemberController::class, 'registrationExportEmail'])->name('members.registration-export-email');
-    Route::get('members/{id}/end-membership', [MemberController::class, 'endMembershipForm'])->name('members.end-membership');
-    Route::post('members/{id}/end-membership', [MemberController::class, 'endMembership'])->name('members.end-membership.store');
-    Route::post('members/{id}/restore', [MemberController::class, 'restore'])->name('members.restore');
-    Route::post('members/{id}/restore-interrupt', [MemberController::class, 'restoreInterrupt'])->name('members.restore-interrupt');
-    Route::get ('me/notifications',  [MemberController::class, 'myNotificationsForm'])->name('me.notifications');
-    Route::post('me/notifications',  [MemberController::class, 'myNotificationsUpdate'])->name('me.notifications.update');
-    Route::post('members/{id}/approve', [MemberController::class, 'approve'])->name('members.approve');
+    Route::get('members/applicants', [MembershipController::class, 'applicants'])->name('members.applicants');
+    Route::get('members/pending-termination', [MembershipController::class, 'pendingTermination'])->name('members.pending-termination');
+    Route::get('members/{id}/registration-export/{type}', [MemberDocumentController::class, 'show'])->name('members.registration-export');
+    Route::post('members/{id}/registration-export-email/{type}', [MemberDocumentController::class, 'email'])->name('members.registration-export-email');
+    Route::get('members/{id}/end-membership', [MembershipController::class, 'endMembershipForm'])->name('members.end-membership');
+    Route::post('members/{id}/end-membership', [MembershipController::class, 'endMembership'])->name('members.end-membership.store');
+    Route::post('members/{id}/restore', [MembershipController::class, 'restore'])->name('members.restore');
+    Route::post('members/{id}/restore-interrupt', [MembershipController::class, 'restoreInterrupt'])->name('members.restore-interrupt');
+    Route::get ('me/notifications',  [MyNotificationsController::class, 'edit'])->name('me.notifications');
+    Route::post('me/notifications',  [MyNotificationsController::class, 'update'])->name('me.notifications.update');
+    Route::post('members/{id}/approve', [MembershipController::class, 'approve'])->name('members.approve');
     Route::get('members', [MemberController::class, 'index'])->name('members.index')
         ->middleware('acl:view_all,Members_Controller,members');
     Route::resource('members', MemberController::class)->except(['index']);

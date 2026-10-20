@@ -18,7 +18,7 @@ class RedirectFormerMembers extends Command
     {
         // Step 1: Mark today's expired members as former (locked=1) — řádný člen (90)
         // → bývalý člen (15), ostatní (zákazník 2, čekající 18 …) → bývalý zákazník (16),
-        // stejně jako ruční ukončení (MemberController::endMembership).
+        // stejně jako ruční ukončení (Members\MembershipController::endMembership).
         $today = now()->format('Y-m-d');
 
         // Nejdřív si vytáhneme, koho budeme překlápět (kvůli deaktivaci poplatků
