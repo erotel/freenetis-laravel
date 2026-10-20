@@ -1,19 +1,17 @@
 <?php
 namespace App\Console\Commands;
 
-use App\Domains\Network\Support\IpOwner;
+use App\Domains\Notifications\Repositories\RedirectionRepository;
 use App\Models\Message;
 use App\Models\Setting;
 use Illuminate\Console\Command;
-use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Log;
 
 class UpdateAllowedSubnets extends Command
 {
     protected $signature   = 'subnets:update-allowed {--force : Skip interval/enabled checks}';
     protected $description = 'Update allowed subnets redirections - activate message for members connecting from unallowed subnet';
 
-    public function handle(): int
+    public function handle(RedirectionRepository $redirects): int
     {
         // Check if enabled
         if (!$this->option('force')) {
@@ -39,27 +37,16 @@ class UpdateAllowedSubnets extends Command
         }
 
         // Get IP addresses connecting from unallowed subnets
-        $ipIds = $this->getIpAddressesWithUnallowedSubnet();
+        $ipIds = $redirects->ipsOutsideAllowedSubnets();
 
         $this->info("Found {$ipIds->count()} IP addresses on unallowed subnets.");
 
         // Clear old redirections for this message
-        $deleted = DB::table('messages_ip_addresses')
-            ->where('message_id', $message->id)
-            ->delete();
+        $deleted = $redirects->clear([(int) $message->id]);
         $this->info("Cleared {$deleted} old redirections.");
 
         // Insert new redirections
-        $now = now();
-        foreach ($ipIds as $ipId) {
-            DB::table('messages_ip_addresses')->insertOrIgnore([
-                'message_id'    => $message->id,
-                'ip_address_id' => $ipId,
-                'user_id'       => 1,
-                'comment'       => 'Auto: nepovolená podsíť',
-                'datetime'      => $now,
-            ]);
-        }
+        $redirects->addAuto((int) $message->id, $ipIds, 1, 'Auto: nepovolená podsíť');
 
         $this->info("Activated redirections for {$ipIds->count()} IP addresses.");
 
@@ -67,27 +54,5 @@ class UpdateAllowedSubnets extends Command
         Setting::set('allowed_subnets_update_state', now()->format('Y-m-d H:i:s'));
 
         return 0;
-    }
-
-    private function getIpAddressesWithUnallowedSubnet(): \Illuminate\Support\Collection
-    {
-        // Find IP addresses of members whose subnet is NOT in their allowed_subnets (enabled=1)
-        return IpOwner::query()
-            ->join('members as m', 'm.id', '=', DB::raw(IpOwner::SQL))
-            ->where('m.id', '!=', 1)
-            ->whereNotNull('ip.subnet_id')
-            ->whereNotExists(function ($q) {
-                $q->from('allowed_subnets as als')
-                  ->whereColumn('als.member_id', 'm.id')
-                  ->whereColumn('als.subnet_id', 'ip.subnet_id')
-                  ->where('als.enabled', 1);
-            })
-            // Only members who have at least one allowed subnet configured
-            ->whereExists(function ($q) {
-                $q->from('allowed_subnets as als2')
-                  ->whereColumn('als2.member_id', 'm.id');
-            })
-            ->pluck('ip.id')
-            ->unique();
     }
 }

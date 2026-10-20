@@ -41,10 +41,35 @@ class RedirectionRepository
         return count($rows);
     }
 
-    /** Zruší všechna přesměrování na zprávy (přestavba automatických). */
-    public function clear(array $messageIds): void
+    /** Zruší všechna přesměrování na zprávy (přestavba automatických). @return int počet zrušených */
+    public function clear(array $messageIds): int
     {
-        DB::table('messages_ip_addresses')->whereIn('message_id', $messageIds)->delete();
+        return DB::table('messages_ip_addresses')->whereIn('message_id', $messageIds)->delete();
+    }
+
+    /**
+     * IP členů (vlastník podle IpOwner, kromě sdružení) v podsíti, která jim
+     * není povolená (allowed_subnets.enabled) — jen u členů, kteří nějaké
+     * přípojné místo mají.
+     */
+    public function ipsOutsideAllowedSubnets(): Collection
+    {
+        return IpOwner::query()
+            ->join('members as m', 'm.id', '=', DB::raw(IpOwner::SQL))
+            ->where('m.id', '!=', 1)
+            ->whereNotNull('ip.subnet_id')
+            ->whereNotExists(function ($q) {
+                $q->from('allowed_subnets as als')
+                  ->whereColumn('als.member_id', 'm.id')
+                  ->whereColumn('als.subnet_id', 'ip.subnet_id')
+                  ->where('als.enabled', 1);
+            })
+            ->whereExists(function ($q) {
+                $q->from('allowed_subnets as als2')
+                  ->whereColumn('als2.member_id', 'm.id');
+            })
+            ->pluck('ip.id')
+            ->unique();
     }
 
     /** Automatické přesměrování IP na zprávu (existující ponechá). */
