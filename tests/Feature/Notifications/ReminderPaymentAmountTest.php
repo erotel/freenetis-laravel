@@ -31,7 +31,7 @@ class ReminderPaymentAmountTest extends DatabaseTestCase
         $member = $this->memberWithQr();
 
         $info = app(PaymentQrService::class)->paymentInfoForMember($member);
-        $ph   = Message::buildPlaceholders($member);
+        $ph   = app(\App\Domains\Notifications\Support\MemberPlaceholders::class)->forMember($member);
 
         // {payment_amount} je částka z QR zformátovaná jako {balance} (2 des. místa).
         $this->assertSame(number_format($info['amount'], 2, ',', ' '), $ph['payment_amount']);
@@ -53,7 +53,7 @@ class ReminderPaymentAmountTest extends DatabaseTestCase
         $member = $this->memberWithQr();
         $msg    = Message::where('type', 6)->first();
 
-        $rendered = Message::substitute($msg->email_text, Message::buildPlaceholders($member));
+        $rendered = Message::substitute($msg->email_text, app(\App\Domains\Notifications\Support\MemberPlaceholders::class)->forMember($member));
 
         $this->assertStringNotContainsString('{payment_amount}', $rendered, 'placeholder má být nahrazen');
         // Vyrenderovaná fráze musí obsahovat číslo a „Kč".

@@ -369,4 +369,10 @@ class LedgerRepository
             ->whereIn('type', [1, 2, 5])
             ->max('datetime');
     }
+
+    /** Variabilní symboly účtu podle pořadí založení. @return string[] */
+    public function variableSymbols(int $accountId): array
+    {
+        return DB::table('variable_symbols')->where('account_id', $accountId)->orderBy('id')->pluck('variable_symbol')->all();
+    }
 }

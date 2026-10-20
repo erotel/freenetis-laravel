@@ -3,7 +3,6 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
-use Illuminate\Support\Facades\DB;
 
 class Message extends Model
 {
@@ -89,48 +88,5 @@ class Message extends Model
             array_values($vars)
         );
         return str_replace($search, $replace, $body);
-    }
-
-    /**
-     * Build the standard placeholder map for a member (name, id, dates, balance).
-     * $extra wins over auto-loaded values.
-     */
-    public static function buildPlaceholders(int $memberId, array $extra = []): array
-    {
-        $member = DB::table('members')->where('id', $memberId)->first();
-        if (!$member) return $extra;
-
-        $account = DB::table('accounts')
-            ->where('member_id', $memberId)
-            ->where('account_attribute_id', 221100)
-            ->first(['id', 'balance']);
-
-        // VS visí na účtu přes variable_symbols (jako v Kohaně) — typicky 1 VS,
-        // GROUP_CONCAT pro případ víc symbolů na účet.
-        $variableSymbol = '';
-        if ($account) {
-            $variableSymbol = DB::table('variable_symbols')
-                ->where('account_id', $account->id)
-                ->orderBy('id')
-                ->pluck('variable_symbol')
-                ->implode(',');
-        }
-
-        // Platební údaje (číslo cílového účtu / IBAN / částka dle tarifu) — stejný
-        // zdroj jako QR platba, aby text a QR v upozornění seděly. {payment_qr}
-        // (obrázek) se neřeší tady, ale v NotificationActivation (cid příloha).
-        $payment = app(\App\Domains\Billing\Documents\PaymentQrService::class)->paymentInfoForMember($memberId);
-
-        return array_merge([
-            'member_name'     => $member->name ?? '',
-            'member_id'       => $member->id,
-            'leaving_date'    => $member->leaving_date ?? '',
-            'entrance_date'   => $member->entrance_date ?? '',
-            'balance'         => number_format((float) ($account->balance ?? 0), 2, ',', ' '),
-            'variable_symbol' => $variableSymbol,
-            'account_number'  => $payment['account_number'] ?? '',
-            'iban'            => $payment['iban'] ?? '',
-            'payment_amount'  => $payment ? number_format($payment['amount'], 2, ',', ' ') : '',
-        ], $extra);
     }
 }

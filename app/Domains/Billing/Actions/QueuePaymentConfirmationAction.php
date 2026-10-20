@@ -77,7 +77,7 @@ class QueuePaymentConfirmationAction
 
             $body = Message::substitute(
                 $message->email_text,
-                Message::buildPlaceholders($memberId, $extra)
+                app(\App\Domains\Notifications\Support\MemberPlaceholders::class)->forMember($memberId, $extra)
             );
         }
 

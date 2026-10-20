@@ -47,7 +47,7 @@ class SendTerminationEmail
             $extra['ucet']    = $event->refund?->targetAccount ?? '';
             $extra['balance'] = number_format($event->refund?->amount ?? 0, 2, ',', ' ');
         }
-        $body   = Message::substitute($message->email_text, Message::buildPlaceholders($event->memberId, $extra));
+        $body   = Message::substitute($message->email_text, app(\App\Domains\Notifications\Support\MemberPlaceholders::class)->forMember($event->memberId, $extra));
         $prefix = Setting::get('email_subject_prefix', '');
 
         $emailId = $this->emails->enqueue(

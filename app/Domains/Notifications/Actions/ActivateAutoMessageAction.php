@@ -64,7 +64,7 @@ class ActivateAutoMessageAction
                 $stats['emails']++;
             }
             if ($doSms && !empty($member->phone) && $sms) {
-                $text = Message::substitute($message->sms_text ?? $message->text ?? '', Message::buildPlaceholders((int) $member->id));
+                $text = Message::substitute($message->sms_text ?? $message->text ?? '', app(\App\Domains\Notifications\Support\MemberPlaceholders::class)->forMember((int) $member->id));
                 DB::table('sms_messages')->insert(Outbox::smsRow(1, (string) now(), $text, $member->phone, [$cfg['sms_driver'], $cfg['sms_sender']]));
                 $stats['sms']++;
             }
@@ -91,7 +91,7 @@ class ActivateAutoMessageAction
 
     private function email(Message $message, object $member, array $cfg): void
     {
-        $body = Message::substitute($message->email_text ?? $message->text ?? '', Message::buildPlaceholders((int) $member->id));
+        $body = Message::substitute($message->email_text ?? $message->text ?? '', app(\App\Domains\Notifications\Support\MemberPlaceholders::class)->forMember((int) $member->id));
 
         // QR platba podle tarifu člena jako inline (cid) obrázek — spolehlivě i v Gmailu;
         // když QR nejde sestavit (chybí účet/VS/tarif), placeholder zmizí.

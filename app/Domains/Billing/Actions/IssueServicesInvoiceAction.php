@@ -119,7 +119,7 @@ class IssueServicesInvoiceAction
 
         $message = Message::where('name', 'Payment confirmation - customer')->first();
         $body = ($message && !empty($message->email_text))
-            ? Message::substitute($message->email_text, Message::buildPlaceholders($member->id, $extra))
+            ? Message::substitute($message->email_text, app(\App\Domains\Notifications\Support\MemberPlaceholders::class)->forMember($member->id, $extra))
             : '<p>Vážený zákazníku,</p>'
                 . '<p>v příloze zasíláme fakturu č. <strong>' . $no . '</strong>'
                 . ' na částku <strong>' . $extra['payment_amount'] . ' Kč</strong>.</p>'

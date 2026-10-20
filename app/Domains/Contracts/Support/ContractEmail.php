@@ -15,7 +15,7 @@ final class ContractEmail
     /**
      * Předmět + tělo ze šablony zprávy daného typu; prázdná/chybějící šablona →
      * záložní closures (dostanou HTML-escapované číslo smlouvy). Šablona umí
-     * {contract_no} i standardní placeholdery člena (Message::buildPlaceholders).
+     * {contract_no} i standardní placeholdery člena (MemberPlaceholders).
      *
      * @return array{0:string,1:string}
      */
@@ -27,7 +27,7 @@ final class ContractEmail
         if ($tpl && trim((string) $tpl->email_text) !== '') {
             $prefix  = (string) Setting::get('email_subject_prefix', '');
             $subject = ($prefix !== '' ? $prefix . ' :: ' : '') . $tpl->name;
-            $body    = Message::substitute($tpl->email_text, Message::buildPlaceholders($memberId, ['contract_no' => $contractNo]));
+            $body    = Message::substitute($tpl->email_text, app(\App\Domains\Notifications\Support\MemberPlaceholders::class)->forMember($memberId, ['contract_no' => $contractNo]));
             return [$subject, $body];
         }
 

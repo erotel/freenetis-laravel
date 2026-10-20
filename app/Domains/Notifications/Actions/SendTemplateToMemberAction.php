@@ -9,7 +9,7 @@ use Illuminate\Support\Facades\DB;
 /**
  * Šablona zprávy (messages) e-mailem na VŠECHNY e-mailové kontakty všech
  * uživatelů člena. Placeholdery {member_name}, {member_id}, {balance}… doplní
- * Message::buildPlaceholders; $vars volajícího mají přednost. Šablona bez
+ * MemberPlaceholders; $vars volajícího mají přednost. Šablona bez
  * textu e-mailu nebo člen bez e-mailu = nic.
  */
 class SendTemplateToMemberAction
@@ -35,7 +35,7 @@ class SendTemplateToMemberAction
         $from    = Setting::get('email_default_email', 'noreply@freenetis.org');
         $prefix  = Setting::get('email_subject_prefix', '');
         $subject = ($prefix ? $prefix . ' :: ' : '') . $message->name;
-        $body    = Message::substitute($message->email_text, Message::buildPlaceholders($memberId, $vars));
+        $body    = Message::substitute($message->email_text, app(\App\Domains\Notifications\Support\MemberPlaceholders::class)->forMember($memberId, $vars));
 
         foreach ($emails as $to) {
             DB::table('email_queues')->insert([

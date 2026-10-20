@@ -39,7 +39,7 @@ class SendApprovalEmail
             return;
         }
 
-        $body   = Message::substitute($message->email_text, Message::buildPlaceholders($event->memberId));
+        $body   = Message::substitute($message->email_text, app(\App\Domains\Notifications\Support\MemberPlaceholders::class)->forMember($event->memberId));
         $prefix = Setting::get('email_subject_prefix', '');
 
         $this->emails->enqueue(

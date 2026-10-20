@@ -87,7 +87,7 @@ class RedirectionController extends Controller
         // Bez známého člena placeholdery zůstanou v textu jako-jsou.
         $messageText = (string) $row->message_text;
         if ($row->member_id) {
-            $vars = Message::buildPlaceholders((int) $row->member_id, [
+            $vars = app(\App\Domains\Notifications\Support\MemberPlaceholders::class)->forMember((int) $row->member_id, [
                 'variable_symbol' => $variableSymbol ?? '',
             ]);
             $messageText = Message::substitute($messageText, $vars);
