@@ -59,6 +59,15 @@ listenery, ne kód v akci. Nová featura = nový listener, ne zásah do core.
 `Acl/AclService`, `Audit/AuditLogger`. V `app/Services` zůstává jen instalátor
 (`SetupService`).
 
+**Mimo domény (vědomě)** — přímé SQL mimo `app/Domains` smí jen technická
+vrstva: instalátor (`FreenetisInstall`, `SetupService`), údržba DB a logů
+(`audit:maintain-partitions`, `*:prune*`, `audit:purge-noise`, `cron:heartbeat`,
+`testing:refresh-db`, `schema:check`), jednorázové správcovské a migrační
+příkazy (`members:move-network`, `devices:cleanup-no-ip`, `migrate:*`,
+`pohoda:reexport-refunds`, `sledovanitv:check-mismatch`, …), filtry nad query
+builderem (`app/Http/Filters`), audit trait modelů a read model menu
+(`app/View/Queries`). Plánované příkazy s byznys logikou volají domény.
+
 ## Pravidla práce
 
 1. Každý commit **buď refaktoruje** (testy projdou beze změny asercí), **nebo
