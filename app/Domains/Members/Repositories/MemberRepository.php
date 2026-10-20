@@ -2,10 +2,12 @@
 
 namespace App\Domains\Members\Repositories;
 
+use App\Domains\Members\Support\FormerType;
 use App\Models\Member;
 use App\Models\SpeedClass;
 use App\Models\User;
 use Illuminate\Support\Facades\Crypt;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 
 /**
@@ -151,6 +153,61 @@ class MemberRepository
             'leaving_date'   => $leavingDate,
             'speed_class_id' => null,
         ]);
+    }
+
+    /**
+     * Aktivní členové, jejichž odchod dnes nastal nebo už uplynul (cron
+     * překlopí na bývalé). 9999-12-31 / 0000-00-00 = bez odchodu.
+     */
+    public function dueToBecomeFormer(string $today): Collection
+    {
+        return DB::table('members')
+            ->whereNotIn('type', FormerType::TYPES)
+            ->whereNotNull('leaving_date')
+            ->where('leaving_date', '!=', '9999-12-31')
+            ->where('leaving_date', '!=', '0000-00-00')
+            ->where('leaving_date', '<=', $today)
+            ->get(['id', 'type', 'leaving_date']);
+    }
+
+    /** Hromadné překlopení na bývalé daného typu: zámek, rychlost „žádná". @return int počet */
+    public function markFormerMany(array $ids, int $formerType): int
+    {
+        return DB::table('members')->whereIn('id', $ids)->update([
+            'type'           => $formerType,
+            'locked'         => 1,
+            'speed_class_id' => null,
+        ]);
+    }
+
+    /** Bývalí ukončení s budoucím datem, kterým odchod dnes nastal: zámek + bez rychlosti. @return int počet */
+    public function lockFormerLeftBy(string $today): int
+    {
+        return $this->formerWithLeaving()
+            ->where('locked', 0)
+            ->where('leaving_date', '<=', $today)
+            ->update(['locked' => 1, 'speed_class_id' => null]);
+    }
+
+    /** Bývalí s odchodem v daném rozmezí (včetně). */
+    public function formerLeftBetween(string $from, string $to): Collection
+    {
+        return $this->formerWithLeaving()->whereBetween('leaving_date', [$from, $to])->pluck('id');
+    }
+
+    /** Bývalí, jejichž odchod už nastal (ne „neurčeno“). */
+    public function formerLeftBy(string $today): Collection
+    {
+        return $this->formerWithLeaving()->where('leaving_date', '<=', $today)->pluck('id');
+    }
+
+    private function formerWithLeaving(): \Illuminate\Database\Query\Builder
+    {
+        return DB::table('members')
+            ->whereIn('type', FormerType::TYPES)
+            ->whereNotNull('leaving_date')
+            ->where('leaving_date', '!=', '9999-12-31')
+            ->where('leaving_date', '!=', '0000-00-00');
     }
 
     /** Obnovený bývalý: nový typ, odemčený, datum odchodu „neurčeno". */

@@ -4,17 +4,16 @@ namespace App\Console\Commands;
 use App\Domains\Members\Actions\RemoveFormerMemberDevicesAction;
 use App\Domains\Members\Repositories\MemberRepository;
 use App\Domains\Members\Support\FormerType;
+use App\Domains\Notifications\Repositories\RedirectionRepository;
 use App\Models\Message;
 use Illuminate\Console\Command;
-use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Log;
 
 class RedirectFormerMembers extends Command
 {
     protected $signature   = 'members:redirect-former {--force : Skip time check}';
     protected $description = 'Mark expired members as former, optionally remove devices, activate redirect message';
 
-    public function handle(): int
+    public function handle(MemberRepository $members, RedirectionRepository $redirects): int
     {
         // Step 1: Mark today's expired members as former (locked=1) — řádný člen (90)
         // → bývalý člen (15), ostatní (zákazník 2, čekající 18 …) → bývalý zákazník (16),
@@ -23,24 +22,12 @@ class RedirectFormerMembers extends Command
 
         // Nejdřív si vytáhneme, koho budeme překlápět (kvůli deaktivaci poplatků
         // k jejich vlastnímu leaving_date), pak teprve hromadně přepneme typ.
-        $toFormer = DB::table('members')
-            ->whereNotIn('type', FormerType::TYPES)
-            ->whereNotNull('leaving_date')
-            ->where('leaving_date', '!=', '9999-12-31')
-            ->where('leaving_date', '!=', '0000-00-00')
-            ->where('leaving_date', '<=', $today)
-            ->get(['id', 'type', 'leaving_date']);
+        $toFormer = $members->dueToBecomeFormer($today);
 
         $updated = 0;
         if ($toFormer->isNotEmpty()) {
             foreach ($toFormer->groupBy(fn ($m) => FormerType::for((int) $m->type)) as $formerType => $group) {
-                $updated += DB::table('members')
-                    ->whereIn('id', $group->pluck('id'))
-                    ->update([
-                        'type'           => $formerType,
-                        'locked'         => 1,
-                        'speed_class_id' => null, // bývalý člen → rychlost „žádná"
-                    ]);
+                $updated += $members->markFormerMany($group->pluck('id')->all(), (int) $formerType);
             }
 
             // Individuální tarif + dodatečné služby ukončit k datu odchodu.
@@ -49,7 +36,7 @@ class RedirectFormerMembers extends Command
             // přerušení" i přímé editace leaving_date.
             foreach ($toFormer as $m) {
                 \App\Domains\Billing\Fees\MemberFeesTermination::deactivate((int) $m->id, $m->leaving_date);
-                app(MemberRepository::class)->markVariableSymbolLeft((int) $m->id);
+                $members->markVariableSymbolLeft((int) $m->id);
             }
 
             // Audit trail: automatické překlopení na bývalé členy (systém, user_id NULL).
@@ -67,14 +54,7 @@ class RedirectFormerMembers extends Command
         // rychlost, protože endMembership ji u budoucího data nechal být, aby
         // člen internet dohrál do odjezdu. Step 1 výše je nechytne (jsou už
         // FORMER), takže je to jediné místo, kde jim tarif v den D „dojede".
-        $locked = DB::table('members')
-            ->whereIn('type', FormerType::TYPES)
-            ->where('locked', 0)
-            ->whereNotNull('leaving_date')
-            ->where('leaving_date', '!=', '9999-12-31')
-            ->where('leaving_date', '!=', '0000-00-00')
-            ->where('leaving_date', '<=', $today)
-            ->update(['locked' => 1, 'speed_class_id' => null]);
+        $locked = $members->lockFormerLeftBy($today);
 
         if ($locked > 0) {
             $this->info("Locked {$locked} former members whose leaving_date arrived (speed cleared).");
@@ -94,12 +74,7 @@ class RedirectFormerMembers extends Command
         if ($autoRemove) {
             $sevenDaysAgo = now()->subDays(7)->format('Y-m-d');
 
-            $memberIds = DB::table('members')
-                ->whereIn('type', FormerType::TYPES)
-                ->where('leaving_date', '!=', '9999-12-31')
-                ->where('leaving_date', '!=', '0000-00-00')
-                ->whereBetween('leaving_date', [$sevenDaysAgo, $today])
-                ->pluck('id');
+            $memberIds = $members->formerLeftBetween($sevenDaysAgo, $today);
 
             // IP adresy se nejdřív zapíšou do komentáře ([YYYY-MM-DD] ip1,ip2,…) —
             // stopa, na kterých IP bývalý člen byl. Bez IP se tady nic nezapisuje.
@@ -126,35 +101,18 @@ class RedirectFormerMembers extends Command
         // dojet až do leaving_date — proto redirect aktivujeme až k datu.
         // Sentinel hodnoty 9999-12-31 / 0000-00-00 znamenají "datum neurčeno"
         // a takové členy raději nepřesměrováváme (defensive: admin to doplní).
-        $formerMembers = DB::table('members as m')
-            ->whereIn('m.type', FormerType::TYPES)
-            ->where('m.leaving_date', '<=', $today)
-            ->where('m.leaving_date', '!=', '9999-12-31')
-            ->where('m.leaving_date', '!=', '0000-00-00')
-            ->pluck('m.id');
+        $formerMembers = $members->formerLeftBy($today);
 
         // Step 5: Clear old redirections for this message
-        DB::table('messages_ip_addresses')
-            ->where('message_id', $message->id)
-            ->delete();
+        $redirects->clear([(int) $message->id]);
 
         // Step 6: Activate redirect for all former members' IPs
         $count = 0;
-        $now   = now();
         foreach ($formerMembers as $memberId) {
             // vlastník IP jako všude (IpOwner): přímo přiřazené i na zařízeních
-            $ipIds = app(\App\Domains\Notifications\Repositories\RedirectionRepository::class)->memberIpIds((int) $memberId);
-
-            foreach ($ipIds as $ipId) {
-                DB::table('messages_ip_addresses')->insertOrIgnore([
-                    'message_id'    => $message->id,
-                    'ip_address_id' => $ipId,
-                    'user_id'       => 1,
-                    'comment'       => 'Auto: bývalý člen',
-                    'datetime'      => $now,
-                ]);
-                $count++;
-            }
+            $ipIds = $redirects->memberIpIds((int) $memberId);
+            $redirects->addAuto((int) $message->id, $ipIds, 1, 'Auto: bývalý člen');
+            $count += $ipIds->count();
         }
 
         $this->info("Activated redirect for {$count} IP addresses of {$formerMembers->count()} former members.");
