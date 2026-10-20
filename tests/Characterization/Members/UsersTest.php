@@ -167,6 +167,22 @@ class UsersTest extends DatabaseTestCase
         $this->as()->delete(route('users.destroy', 999999999))->assertNotFound();
     }
 
+    /** Smazání uživatele a jeho historie (komentáře, SMS, přihlášení, hlasování). */
+    public function test_smazani_a_historie(): void
+    {
+        $a = $this->user('h');
+        $this->user('h2');   // člen má dalšího uživatele
+        $thread = (int) DB::table('comments_threads')->insertGetId(['type' => 'account']);
+        $comment = (int) DB::table('comments')->insertGetId(['comments_thread_id' => $thread, 'user_id' => $a, 'text' => 'pozn', 'datetime' => now()]);
+        $sms = (int) DB::table('sms_messages')->insertGetId(['user_id' => $a, 'stamp' => now(), 'send_date' => now(), 'text' => 't', 'sender' => '1', 'receiver' => '2', 'driver' => 3, 'type' => 1, 'state' => 0]);
+        $login = (int) DB::table('login_logs')->insertGetId(['user_id' => $a, 'time' => now(), 'IP_address' => '10.0.0.1']);
+
+        $this->as()->delete(route('users.destroy', $a))->assertRedirect(route('users.index'));
+        $this->assertFalse(DB::table('users')->where('id', $a)->exists());
+        $this->assertSame([false, false, false], [DB::table('comments')->where('id', $comment)->exists(), DB::table('sms_messages')->where('id', $sms)->exists(),
+            DB::table('login_logs')->where('id', $login)->exists()], 'historie se smaže kaskádou');
+    }
+
     // ── heslo ────────────────────────────────────────────────────────────────
 
     public function test_zmena_hesla_sam_a_admin(): void
