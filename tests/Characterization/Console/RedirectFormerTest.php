@@ -62,6 +62,7 @@ class RedirectFormerTest extends DatabaseTestCase
         $ips = [$this->ip($regular, '10.246.0.1'), $this->ip($customer, '10.246.0.2'), $this->ip($future, '10.246.0.3'),
                 $this->ip($noticed, '10.246.0.4'), $this->ip($old, '10.246.0.5'), $this->ip($noDate, '10.246.0.6')];
         $stale = $ips[2];
+        $direct = (int) DB::table('ip_addresses')->insertGetId(['ip_address' => '10.246.0.7', 'member_id' => $customer]);
         DB::table('messages_ip_addresses')->insert(['message_id' => $this->msg, 'ip_address_id' => $stale, 'datetime' => now()]);
 
         $this->artisan('members:redirect-former', ['--force' => true])->assertExitCode(0);
@@ -79,6 +80,7 @@ class RedirectFormerTest extends DatabaseTestCase
         $redirected = DB::table('messages_ip_addresses')->where('message_id', $this->msg)->whereIn('ip_address_id', $ips)->pluck('ip_address_id')->map(fn ($i) => (int) $i)->sort()->values()->all();
         $this->assertSame([$ips[0], $ips[1], $ips[3], $ips[4]], $redirected, 'bývalí po odchodu; ne budoucí, ne bez data; staré přesměrování smazáno');
         $row = DB::table('messages_ip_addresses')->where('message_id', $this->msg)->where('ip_address_id', $ips[0])->first();
+        $this->assertTrue(DB::table('messages_ip_addresses')->where('message_id', $this->msg)->where('ip_address_id', $direct)->exists(), 'i přímo přiřazená IP (IpOwner)');
         $this->assertSame([1, 'Auto: bývalý člen'], [(int) $row->user_id, $row->comment]);
     }
 }

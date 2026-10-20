@@ -142,12 +142,8 @@ class RedirectFormerMembers extends Command
         $count = 0;
         $now   = now();
         foreach ($formerMembers as $memberId) {
-            $ipIds = DB::table('ip_addresses as ip')
-                ->join('ifaces as i', 'i.id', '=', 'ip.iface_id')
-                ->join('devices as d', 'd.id', '=', 'i.device_id')
-                ->join('users as u', 'u.id', '=', 'd.user_id')
-                ->where('u.member_id', $memberId)
-                ->pluck('ip.id');
+            // vlastník IP jako všude (IpOwner): přímo přiřazené i na zařízeních
+            $ipIds = app(\App\Domains\Notifications\Repositories\RedirectionRepository::class)->memberIpIds((int) $memberId);
 
             foreach ($ipIds as $ipId) {
                 DB::table('messages_ip_addresses')->insertOrIgnore([
