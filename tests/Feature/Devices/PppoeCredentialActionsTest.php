@@ -4,10 +4,8 @@ namespace Tests\Feature\Devices;
 
 use App\Models\Iface;
 use App\Models\PppoeSecret;
-use App\Domains\Access\Actions\AdoptPppoeCredentialAction;
 use App\Domains\Access\Actions\EnsurePppoeCredentialAction;
 use App\Domains\Access\Actions\RotatePppoeSecretAction;
-use App\Domains\Access\Pppoe\PppoeCredentialGenerator;
 use Illuminate\Support\Facades\DB;
 use Tests\DatabaseTestCase;
 
@@ -20,13 +18,6 @@ use Tests\DatabaseTestCase;
  */
 class PppoeCredentialActionsTest extends DatabaseTestCase
 {
-    /** Nový přístup (username z VS člena + náhodné heslo) — jako onboarding. */
-    private function credential(int $memberId): array
-    {
-        $g = app(PppoeCredentialGenerator::class);
-        return ['username' => $g->usernameFor($memberId), 'secret' => $g->secret()];
-    }
-
     protected function setUp(): void
     {
         parent::setUp();

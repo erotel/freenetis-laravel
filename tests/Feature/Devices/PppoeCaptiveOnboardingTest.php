@@ -6,8 +6,6 @@ use App\Models\ConnectionRequest;
 use App\Models\Iface;
 use App\Models\PppoeSecret;
 use App\Domains\Access\Actions\AdoptPppoeCredentialAction;
-use App\Domains\Access\Actions\EnsurePppoeCredentialAction;
-use App\Domains\Access\Actions\RotatePppoeSecretAction;
 use App\Domains\Access\Pppoe\PppoeCredentialGenerator;
 use Illuminate\Support\Facades\DB;
 use Tests\DatabaseTestCase;
