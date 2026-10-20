@@ -116,4 +116,41 @@ class MfaTest extends DatabaseTestCase
         $this->assertFalse(app(MfaService::class)->isEnabled($this->userId));
         $this->assertSame(0, DB::table('mfa_recovery_codes')->where('user_id', $this->userId)->count());
     }
+
+    /** Zapnuté MFA nejde přepsat novým autentizátorem jen ze session (setup → confirm). */
+    public function test_zapnute_mfa_nejde_prepsat_setupem(): void
+    {
+        $secret = $this->enableMfa();
+        $user = User::find($this->userId);
+        $this->actingAs($user)->withSession(['mfa_passed' => true])->get(route('mfa.setup'))->assertRedirect(route('mfa.status'));
+        $attacker = app(MfaService::class)->generateSecret();
+        $code = app(Google2FA::class)->getCurrentOtp($attacker);
+        $this->actingAs($user)->withSession(['mfa_passed' => true, 'mfa.setup_secret' => $attacker])->post(route('mfa.confirm'), ['code' => $code])
+            ->assertRedirect(route('mfa.status'));
+        $this->assertSame($secret, (string) app(MfaService::class)->getConfirmed($this->userId)->totp_secret);
+    }
+
+    /** Vypnutí chce heslo i kód; s povinným MFA role nejde vůbec. */
+    public function test_vypnuti_vyzaduje_kod_a_ne_u_povinne_role(): void
+    {
+        $secret = $this->enableMfa();
+        $user = User::find($this->userId);
+        $as = fn () => $this->actingAs($user)->withSession(['mfa_passed' => true])->from(route('mfa.status'));
+
+        $as()->post(route('mfa.disable'), ['password' => $this->pass])->assertSessionHasErrors('code');
+        $as()->post(route('mfa.disable'), ['password' => $this->pass, 'code' => '000000'])->assertSessionHasErrors(['code' => 'Kód nesouhlasí.']);
+        $this->assertTrue(app(MfaService::class)->isEnabled($this->userId));
+
+        $group = (int) DB::table('aro_groups')->insertGetId(['parent_id' => 1, 'name' => 'mfa test ' . uniqid(), 'value' => 'mfa_test_' . uniqid(), 'lft' => 0, 'rgt' => 0]);
+        DB::table('groups_aro_map')->insert(['group_id' => $group, 'aro_id' => $this->userId]);
+        DB::table('mfa_required_groups')->insert(['group_id' => $group]);
+        $as()->post(route('mfa.disable'), ['password' => $this->pass, 'code' => app(Google2FA::class)->getCurrentOtp($secret)])
+            ->assertSessionHas('error');
+        $this->assertTrue(app(MfaService::class)->isEnabled($this->userId));
+        DB::table('mfa_required_groups')->where('group_id', $group)->delete();
+
+        $as()->post(route('mfa.disable'), ['password' => $this->pass, 'code' => app(Google2FA::class)->getCurrentOtp($secret)])
+            ->assertRedirect(route('mfa.status'))->assertSessionHas('success', 'Dvoufázové přihlášení bylo vypnuto.');
+        $this->assertFalse(app(MfaService::class)->isEnabled($this->userId));
+    }
 }

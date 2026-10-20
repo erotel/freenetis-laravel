@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Services\MfaEnforcementService;
 use App\Services\MfaService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -26,6 +27,7 @@ class MfaController extends Controller
         return view('mfa.status', [
             'enabled'       => $enabled,
             'recoveryLeft'  => $enabled ? $this->mfa->unusedRecoveryCount($userId) : 0,
+            'required'      => app(MfaEnforcementService::class)->isRequiredForUser($userId),
         ]);
     }
 
@@ -33,6 +35,11 @@ class MfaController extends Controller
     public function setup(Request $request)
     {
         $user = Auth::user();
+        // Zapnuté MFA nejde přepsat novým autentizátorem bez ověření (ukradená
+        // session by si jinak tiše vyměnila druhý faktor) — nejdřív vypnout.
+        if ($this->mfa->isEnabled((int) $user->id)) {
+            return redirect()->route('mfa.status');
+        }
 
         // Nový secret při každém vstupu do setupu (dokud není potvrzený).
         $secret = $this->mfa->generateSecret();
@@ -50,6 +57,9 @@ class MfaController extends Controller
     public function confirm(Request $request)
     {
         $request->validate(['code' => 'required|string']);
+        if ($this->mfa->isEnabled((int) Auth::id())) {
+            return redirect()->route('mfa.status');
+        }
 
         $secret = (string) $request->session()->get(self::SETUP_SECRET_KEY, '');
         if ($secret === '') {
@@ -94,15 +104,27 @@ class MfaController extends Controller
         return view('mfa.recovery_codes', ['codes' => $codes, 'context' => 'regenerated']);
     }
 
-    /** Vypnout MFA (vyžaduje heslo). */
+    /**
+     * Vypnout MFA: heslo + platný kód z aplikace (nebo záložní kód). Když role
+     * MFA vyžaduje, vypnout nejde (jinak by session + heslo stačily k převzetí
+     * druhého faktoru přes vynucené znovuzřízení) — reset provede správce.
+     */
     public function disable(Request $request)
     {
-        $request->validate(['password' => 'required|string']);
+        $userId = (int) Auth::id();
+        if (app(MfaEnforcementService::class)->isRequiredForUser($userId)) {
+            return back()->with('error', 'Vaše role vyžaduje dvoufázové přihlášení — vypnout ho nelze. Při ztrátě telefonu požádejte správce o reset.');
+        }
+
+        $request->validate(['password' => 'required|string', 'code' => 'required|string']);
         if (!$this->passwordOk($request->input('password'))) {
             return back()->withErrors(['password' => 'Nesprávné heslo.']);
         }
-
-        $userId = (int) Auth::id();
+        $mfa = $this->mfa->getConfirmed($userId);
+        $code = (string) $request->input('code');
+        if ($mfa && !$this->mfa->verifyTotp((string) $mfa->totp_secret, $code) && !$this->mfa->verifyAndConsumeRecovery($userId, $code)) {
+            return back()->withErrors(['code' => 'Kód nesouhlasí.']);
+        }
         $this->mfa->disable($userId);
         logger()->warning('auth.mfa.disabled', ['user_id' => $userId, 'ip' => $request->ip()]);
 

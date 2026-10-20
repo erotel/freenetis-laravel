@@ -36,6 +36,11 @@
                 <button class="m-btn">Přegenerovat</button>
             </form>
 
+            @if($required)
+            <div style="flex:1 1 260px;border:1px solid #eee;border-radius:6px;padding:12px;font-size:13px;color:#666">
+                Vaše role vyžaduje dvoufázové přihlášení, proto ho nelze vypnout. Při ztrátě telefonu požádejte správce o reset.
+            </div>
+            @else
             <form method="POST" action="{{ route('mfa.disable') }}" style="flex:1 1 260px;border:1px solid #f5c6cb;border-radius:6px;padding:12px"
                   onsubmit="return confirm('Opravdu vypnout dvoufázové přihlášení?')">
                 @csrf
@@ -43,8 +48,12 @@
                 <div style="font-size:13px;color:#888;margin-bottom:8px">Účet bude chráněný jen heslem.</div>
                 <input type="password" name="password" placeholder="Vaše heslo" required
                        style="width:100%;padding:6px 8px;border:1px solid #ccc;border-radius:4px;margin-bottom:8px">
+                <input type="text" name="code" placeholder="Kód z aplikace nebo záložní kód" required autocomplete="one-time-code"
+                       style="width:100%;padding:6px 8px;border:1px solid #ccc;border-radius:4px;margin-bottom:8px">
+                @error('code') <div style="color:#c0392b;font-size:13px;margin-bottom:6px">{{ $message }}</div> @enderror
                 <button class="m-btn m-btn-danger">Vypnout</button>
             </form>
+            @endif
         </div>
     @else
         <div style="display:inline-block;padding:2px 10px;border-radius:12px;font-weight:600;color:#9a6700;background:#fff8e1;margin-bottom:12px">
