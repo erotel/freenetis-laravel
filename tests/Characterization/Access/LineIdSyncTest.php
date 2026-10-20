@@ -2,12 +2,13 @@
 
 namespace Tests\Characterization\Access;
 
-use App\Services\LineIdSyncService;
+use App\Domains\Access\Actions\DetectLineIdAnomaliesAction;
+use App\Domains\Access\Actions\ReconcileLineIdsAction;
 use Illuminate\Support\Facades\DB;
 use Tests\DatabaseTestCase;
 
 /**
- * Charakterizace self-learning line-id (LineIdSyncService) před přesunem do
+ * Charakterizace self-learning line-id (dřív LineIdSyncService) před přesunem do
  * domény Access. `line_ids` je kontrakt pro RADIUS views (IPoE Framed-IP) a Kea
  * → chování párování a detekce anomálií musí refaktor zachovat beze změny.
  *
@@ -17,7 +18,7 @@ use Tests\DatabaseTestCase;
  */
 class LineIdSyncTest extends DatabaseTestCase
 {
-    private LineIdSyncService $svc;
+    private ReconcileLineIdsAction $reconcile;
     private int $deviceId;
     private string $tag;
     /** @var array<string,int> */
@@ -27,12 +28,12 @@ class LineIdSyncTest extends DatabaseTestCase
     {
         parent::setUp();
         config(['kea.control_nodes' => [], 'kea.control_socket' => '']);
-        $this->svc = app(LineIdSyncService::class);
+        $this->reconcile = app(ReconcileLineIdsAction::class);
         $this->tag = strtoupper(substr(md5(uniqid('', true)), 0, 6));
         $this->deviceId = (int) DB::table('devices')->insertGetId(['name' => 'char-lineid', 'type' => 1]);
 
-        $this->svc->reconcileFromSeen();               // ustálit reálná data (v transakci)
-        $this->baseline = $this->svc->reconcileFromSeen();
+        $this->reconcile->handle();               // ustálit reálná data (v transakci)
+        $this->baseline = $this->reconcile->handle();
     }
 
     private function iface(string $mac): int
@@ -75,7 +76,7 @@ class LineIdSyncTest extends DatabaseTestCase
 
     private function reconcile(): array
     {
-        $r = $this->svc->reconcileFromSeen();
+        $r = $this->reconcile->handle();
         foreach (['reconciled', 'unmatched', 'conflicts', 'shared'] as $k) {
             $r[$k] -= $this->baseline[$k];
         }
@@ -225,7 +226,7 @@ class LineIdSyncTest extends DatabaseTestCase
         $this->line($this->circuit(), $owner);
         $this->seen($this->circuit(), $this->mac(2));
 
-        $this->svc->detectAnomalies();
+        app(DetectLineIdAnomaliesAction::class)->handle();
 
         $a = $this->anomaly($this->circuit(), $this->mac(2));
         $this->assertNotNull($a);
@@ -242,7 +243,7 @@ class LineIdSyncTest extends DatabaseTestCase
         $this->line($this->circuit(), $owner);
         $this->seen($this->circuit(), $this->mac(9));
 
-        $this->svc->detectAnomalies();
+        app(DetectLineIdAnomaliesAction::class)->handle();
 
         $a = $this->anomaly($this->circuit(), $this->mac(9));
         $this->assertSame('unknown_device', $a->type);
@@ -256,7 +257,7 @@ class LineIdSyncTest extends DatabaseTestCase
         $this->line($this->circuit(1), $iface);           // domovský port
         $this->seen($this->circuit(2), $this->mac(1));    // viděna jinde (port bez mapování)
 
-        $this->svc->detectAnomalies();
+        app(DetectLineIdAnomaliesAction::class)->handle();
 
         $a = $this->anomaly($this->circuit(2), $this->mac(1));
         $this->assertSame('mac_moved', $a->type);
@@ -270,17 +271,17 @@ class LineIdSyncTest extends DatabaseTestCase
         $this->line($this->circuit(), $owner);
         $this->seen($this->circuit(), $this->mac(9), null, now()->subHour());
 
-        $this->svc->detectAnomalies();
+        app(DetectLineIdAnomaliesAction::class)->handle();
         // Vyřešeno PO posledním výskytu → zůstává vyřešené, jen count roste.
         DB::table('line_id_anomalies')->where('circuit_id', $this->circuit())->update(['resolved_at' => now()]);
-        $this->svc->detectAnomalies();
+        app(DetectLineIdAnomaliesAction::class)->handle();
         $a = $this->anomaly($this->circuit(), $this->mac(9));
         $this->assertSame(2, (int) $a->seen_count);
         $this->assertNotNull($a->resolved_at);
 
         // Nový výskyt PO vyřešení → znovuotevřít.
         DB::table('line_id_seen')->where('mac', $this->mac(9))->update(['last_seen' => now()->addMinute()]);
-        $this->svc->detectAnomalies();
+        app(DetectLineIdAnomaliesAction::class)->handle();
         $this->assertNull($this->anomaly($this->circuit(), $this->mac(9))->resolved_at);
     }
 
@@ -293,7 +294,7 @@ class LineIdSyncTest extends DatabaseTestCase
         $this->line($this->circuit(2), $owner);
         $this->seen($this->circuit(2), $this->mac(7), null, now()->subDays(8)); // mimo okno 7 dní
 
-        $this->svc->detectAnomalies();
+        app(DetectLineIdAnomaliesAction::class)->handle();
 
         $this->assertFalse(DB::table('line_id_anomalies')->whereIn('circuit_id', [$this->circuit(1), $this->circuit(2)])->exists());
     }

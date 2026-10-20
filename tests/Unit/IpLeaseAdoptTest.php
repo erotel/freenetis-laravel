@@ -3,7 +3,7 @@
 namespace Tests\Unit;
 
 use App\Http\Controllers\IpAddressController;
-use App\Services\LineIdSyncService;
+use App\Domains\Access\Kea\KeaControlClient;
 use Illuminate\Support\Collection;
 use PHPUnit\Framework\TestCase;
 
@@ -56,7 +56,7 @@ class IpLeaseAdoptTest extends TestCase
     public function test_current_lease_ip_rejects_invalid_mac(): void
     {
         // nevalidní MAC se nesmí dostat k síťovému dotazu → null
-        $this->assertNull((new LineIdSyncService())->currentLeaseIp('neplatna'));
-        $this->assertNull((new LineIdSyncService())->currentLeaseIp(''));
+        $this->assertNull((new KeaControlClient())->currentLeaseIp('neplatna'));
+        $this->assertNull((new KeaControlClient())->currentLeaseIp(''));
     }
 }

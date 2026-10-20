@@ -3,7 +3,6 @@
 namespace Tests\Characterization\Billing;
 
 use App\Models\Setting;
-use App\Services\AdditionalServicesResolver;
 use App\Services\AllowedSubnetFeesResolver;
 use App\Services\PaymentQrService;
 use App\Services\RegularFeeResolver;
@@ -187,6 +186,6 @@ class FeeRulesMatrixTest extends DatabaseTestCase
         $deducted = (float) DB::table('transfers')->where('origin_id', $account)->where('type', 6)->where('datetime', self::DATE)->value('amount');
 
         $this->assertEqualsWithDelta(230.0, $deducted, 0.001);
-        $this->assertEqualsWithDelta(230.0, AdditionalServicesResolver::total($m, self::DATE) + AllowedSubnetFeesResolver::total($m), 0.001);
+        $this->assertEqualsWithDelta(230.0, app(\App\Domains\Billing\Fees\FeePolicy::class)->additionalServicesTotal($m, self::DATE) + AllowedSubnetFeesResolver::total($m), 0.001);
     }
 }

@@ -2,18 +2,18 @@
 
 namespace Tests\Feature\Fees;
 
-use App\Services\AdditionalServicesResolver;
+use App\Domains\Billing\Fees\FeePolicy;
 use Illuminate\Support\Facades\DB;
 use Tests\DatabaseTestCase;
 
 /**
- * AdditionalServicesResolver = jedna pravda pro dodatečné služby člena
+ * FeePolicy (dodatečné služby) = jedna pravda pro dodatečné služby člena
  * (součet aktivních poplatků typu „additional service", enum_types#39).
  *
  * `members_fees.member_id` má FK na `members`, proto pracujeme s reálným členem,
  * který zatím žádné dodatečné služby nemá; vše se na konci rollbackuje.
  */
-class AdditionalServicesResolverTest extends DatabaseTestCase
+class AdditionalServicesTest extends DatabaseTestCase
 {
     private int $member;
 
@@ -28,8 +28,8 @@ class AdditionalServicesResolverTest extends DatabaseTestCase
     {
         $today = now()->toDateString();
         foreach (DB::table('members')->where('id', '>', 1)->orderBy('id')->limit(100)->pluck('id') as $id) {
-            if (AdditionalServicesResolver::total((int) $id, $today) === 0.0
-                && AdditionalServicesResolver::items((int) $id, $today) === []) {
+            if (app(FeePolicy::class)->additionalServicesTotal((int) $id, $today) === 0.0
+                && app(FeePolicy::class)->additionalServiceItems((int) $id, $today) === []) {
                 return (int) $id;
             }
         }
@@ -53,12 +53,12 @@ class AdditionalServicesResolverTest extends DatabaseTestCase
     public function test_total_scita_aktivni_sluzby(): void
     {
         $today = now()->toDateString();
-        $this->assertSame(0.0, AdditionalServicesResolver::total($this->member, $today), 'čistý člen = 0');
+        $this->assertSame(0.0, app(FeePolicy::class)->additionalServicesTotal($this->member, $today), 'čistý člen = 0');
 
         $this->assignService('Veřejná IP', 50, 1);
         $this->assignService('Statická IP', 30, 2);
 
-        $this->assertSame(80.0, AdditionalServicesResolver::total($this->member, $today));
+        $this->assertSame(80.0, app(FeePolicy::class)->additionalServicesTotal($this->member, $today));
     }
 
     public function test_items_vraci_polozky_serazene_dle_priority(): void
@@ -66,7 +66,7 @@ class AdditionalServicesResolverTest extends DatabaseTestCase
         $this->assignService('Druhá', 30, 2);
         $this->assignService('První', 50, 1);
 
-        $items = AdditionalServicesResolver::items($this->member, now()->toDateString());
+        $items = app(FeePolicy::class)->additionalServiceItems($this->member, now()->toDateString());
 
         $this->assertCount(2, $items);
         $this->assertSame('První', $items[0]['name']);   // priority 1 první
@@ -79,6 +79,6 @@ class AdditionalServicesResolverTest extends DatabaseTestCase
         // Služba deaktivovaná v minulosti → k dnešku neplatí.
         $this->assignService('Stará', 99, 1, from: '2020-01-01', to: '2020-12-31');
 
-        $this->assertSame(0.0, AdditionalServicesResolver::total($this->member, now()->toDateString()));
+        $this->assertSame(0.0, app(FeePolicy::class)->additionalServicesTotal($this->member, now()->toDateString()));
     }
 }

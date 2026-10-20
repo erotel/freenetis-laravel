@@ -4,7 +4,10 @@ namespace Tests\Feature\Devices;
 
 use App\Models\Iface;
 use App\Models\PppoeSecret;
-use App\Services\PppoeSecretService;
+use App\Domains\Access\Actions\AdoptPppoeCredentialAction;
+use App\Domains\Access\Actions\EnsurePppoeCredentialAction;
+use App\Domains\Access\Actions\RotatePppoeSecretAction;
+use App\Domains\Access\Pppoe\PppoeCredentialGenerator;
 use Illuminate\Support\Facades\DB;
 use Tests\DatabaseTestCase;
 
@@ -15,11 +18,13 @@ use Tests\DatabaseTestCase;
  *  - heslo silné náhodné, idempotence (opakované volání heslo nemění),
  *  - rotace hesla nechá username.
  */
-class PppoeSecretServiceTest extends DatabaseTestCase
+class PppoeCredentialActionsTest extends DatabaseTestCase
 {
-    private function svc(): PppoeSecretService
+    /** Nový přístup (username z VS člena + náhodné heslo) — jako onboarding. */
+    private function credential(int $memberId): array
     {
-        return app(PppoeSecretService::class);
+        $g = app(PppoeCredentialGenerator::class);
+        return ['username' => $g->usernameFor($memberId), 'secret' => $g->secret()];
     }
 
     protected function setUp(): void
@@ -53,7 +58,7 @@ class PppoeSecretServiceTest extends DatabaseTestCase
             $this->markTestSkipped('žádná iface s variabilním symbolem');
         }
 
-        $secret = $this->svc()->ensureForIface(Iface::find($row->iface_id));
+        $secret = app(EnsurePppoeCredentialAction::class)->handle(Iface::find($row->iface_id));
 
         $this->assertNotNull($secret);
         $this->assertSame($row->iface_id, $secret->iface_id);
@@ -70,8 +75,8 @@ class PppoeSecretServiceTest extends DatabaseTestCase
         }
         $iface = Iface::find($row->iface_id);
 
-        $first  = $this->svc()->ensureForIface($iface)->secret;
-        $second = $this->svc()->ensureForIface($iface->fresh())->secret;
+        $first  = app(EnsurePppoeCredentialAction::class)->handle($iface)->secret;
+        $second = app(EnsurePppoeCredentialAction::class)->handle($iface->fresh())->secret;
 
         $this->assertSame($first, $second, 'idempotence: heslo se znovu negeneruje');
     }
@@ -84,11 +89,11 @@ class PppoeSecretServiceTest extends DatabaseTestCase
         }
         $iface = Iface::find($row->iface_id);
 
-        $before = $this->svc()->ensureForIface($iface);
+        $before = app(EnsurePppoeCredentialAction::class)->handle($iface);
         $user   = $before->username;
         $old    = $before->secret;
 
-        $after = $this->svc()->rotateSecret($iface);
+        $after = app(RotatePppoeSecretAction::class)->handle($iface);
 
         $this->assertSame($user, $after->username, 'rotace nechá username');
         $this->assertNotSame($old, $after->secret, 'rotace změní heslo');
@@ -109,7 +114,7 @@ class PppoeSecretServiceTest extends DatabaseTestCase
             'enabled'  => true,
         ]);
 
-        $secret = $this->svc()->ensureForIface(Iface::find($row->iface_id));
+        $secret = app(EnsurePppoeCredentialAction::class)->handle(Iface::find($row->iface_id));
 
         $this->assertSame($row->vs . '-2', $secret->username, 'kolidující VS dostane suffix -2');
     }

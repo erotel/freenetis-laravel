@@ -5,7 +5,10 @@ namespace Tests\Feature\Devices;
 use App\Models\ConnectionRequest;
 use App\Models\Iface;
 use App\Models\PppoeSecret;
-use App\Services\PppoeSecretService;
+use App\Domains\Access\Actions\AdoptPppoeCredentialAction;
+use App\Domains\Access\Actions\EnsurePppoeCredentialAction;
+use App\Domains\Access\Actions\RotatePppoeSecretAction;
+use App\Domains\Access\Pppoe\PppoeCredentialGenerator;
 use Illuminate\Support\Facades\DB;
 use Tests\DatabaseTestCase;
 
@@ -41,14 +44,16 @@ class PppoeCaptiveOnboardingTest extends DatabaseTestCase
             ->orWhere('username', 'like', $this->vs . '-%')->delete();
     }
 
-    private function svc(): PppoeSecretService
+    /** Nový přístup (username z VS člena + náhodné heslo) — jako onboarding. */
+    private function credential(int $memberId): array
     {
-        return app(PppoeSecretService::class);
+        $g = app(PppoeCredentialGenerator::class);
+        return ['username' => $g->usernameFor($memberId), 'secret' => $g->secret()];
     }
 
     public function test_build_credential_username_je_vs(): void
     {
-        $c = $this->svc()->buildCredential($this->memberId);
+        $c = $this->credential($this->memberId);
 
         $this->assertSame($this->vs, $c['username']);
         $this->assertSame(16, strlen($c['secret']));
@@ -65,7 +70,7 @@ class PppoeCaptiveOnboardingTest extends DatabaseTestCase
             'pppoe_secret'   => \Tests\Support\Fake::secret('placeholderpwd'),
         ]);
 
-        $c = $this->svc()->buildCredential($this->memberId);
+        $c = $this->credential($this->memberId);
 
         $this->assertSame($this->vs . '-2', $c['username']);
     }
@@ -77,7 +82,7 @@ class PppoeCaptiveOnboardingTest extends DatabaseTestCase
             $this->markTestSkipped('žádná iface');
         }
 
-        $secret = $this->svc()->adoptFromRequest($iface, $this->vs, 'zadanoInstalatorem1');
+        $secret = app(AdoptPppoeCredentialAction::class)->handle($iface, $this->vs, 'zadanoInstalatorem1');
 
         $this->assertSame($iface->id, $secret->iface_id);
         $this->assertSame($this->vs, $secret->username);

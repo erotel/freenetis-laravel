@@ -4,7 +4,10 @@ namespace Tests\Characterization\Access;
 
 use App\Models\Iface;
 use App\Models\PppoeSecret;
-use App\Services\PppoeSecretService;
+use App\Domains\Access\Actions\AdoptPppoeCredentialAction;
+use App\Domains\Access\Actions\EnsurePppoeCredentialAction;
+use App\Domains\Access\Actions\RotatePppoeSecretAction;
+use App\Domains\Access\Pppoe\PppoeCredentialGenerator;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Tests\DatabaseTestCase;
@@ -28,9 +31,11 @@ class PppoeCredentialTest extends DatabaseTestCase
         }
     }
 
-    private function svc(): PppoeSecretService
+    /** Nový přístup (username z VS člena + náhodné heslo) — jako onboarding. */
+    private function credential(int $memberId): array
     {
-        return app(PppoeSecretService::class);
+        $g = app(PppoeCredentialGenerator::class);
+        return ['username' => $g->usernameFor($memberId), 'secret' => $g->secret()];
     }
 
     /** Člen (bez účtu → bez VS) + uživatel + zařízení + iface. Vrací [memberId, ifaceId]. */
@@ -59,7 +64,7 @@ class PppoeCredentialTest extends DatabaseTestCase
     {
         [, $ifaceId] = $this->connection(false);
 
-        $this->assertNull($this->svc()->ensureForIface(Iface::find($ifaceId)));
+        $this->assertNull(app(EnsurePppoeCredentialAction::class)->handle(Iface::find($ifaceId)));
         $this->assertNull(PppoeSecret::find($ifaceId));
     }
 
@@ -68,7 +73,7 @@ class PppoeCredentialTest extends DatabaseTestCase
         [$memberId, $ifaceId] = $this->connection();
         DB::table('pppoe_secrets')->where('username', (string) $memberId)->delete();
 
-        $s = $this->svc()->ensureForIface(Iface::find($ifaceId));
+        $s = app(EnsurePppoeCredentialAction::class)->handle(Iface::find($ifaceId));
 
         $this->assertSame((string) $memberId, $s->username);
         $this->assertMatchesRegularExpression('/^[a-km-zA-HJ-NP-Z2-9]{16}$/', $s->secret, 'abeceda bez 0/O/1/l/I');
@@ -80,7 +85,7 @@ class PppoeCredentialTest extends DatabaseTestCase
         DB::table('pppoe_secrets')->where('username', (string) $memberId)->delete();
         PppoeSecret::create(['iface_id' => $ifaceId, 'username' => 'stary-' . $memberId, 'secret' => \Tests\Support\Fake::secret('puvodniheslo'), 'enabled' => true]);
 
-        $s = $this->svc()->ensureForIface(Iface::find($ifaceId));
+        $s = app(EnsurePppoeCredentialAction::class)->handle(Iface::find($ifaceId));
 
         $this->assertSame((string) $memberId, $s->username);
         $this->assertSame(\Tests\Support\Fake::secret('puvodniheslo'), PppoeSecret::find($ifaceId)->secret);
@@ -91,7 +96,7 @@ class PppoeCredentialTest extends DatabaseTestCase
         [$memberId, $ifaceId] = $this->connection();
         DB::table('pppoe_secrets')->where('username', (string) $memberId)->delete();
 
-        $s = $this->svc()->rotateSecret(Iface::find($ifaceId));
+        $s = app(RotatePppoeSecretAction::class)->handle(Iface::find($ifaceId));
 
         $this->assertNotNull($s);
         $this->assertSame((string) $memberId, PppoeSecret::find($ifaceId)->username);
@@ -102,7 +107,7 @@ class PppoeCredentialTest extends DatabaseTestCase
         [$memberId] = $this->connection();
         $before = DB::table('pppoe_secrets')->count();
 
-        $c = $this->svc()->buildCredential($memberId);
+        $c = $this->credential($memberId);
 
         $this->assertSame((string) $memberId, $c['username']);
         $this->assertSame(16, strlen($c['secret']));
@@ -114,7 +119,7 @@ class PppoeCredentialTest extends DatabaseTestCase
         [, $ifaceId] = $this->connection();
         PppoeSecret::create(['iface_id' => $ifaceId, 'username' => 'x-' . $ifaceId, 'secret' => 'a', 'enabled' => false]);
 
-        $this->svc()->adoptFromRequest(Iface::find($ifaceId), 'adopt-' . $ifaceId, 'hesloZeZadosti23');
+        app(AdoptPppoeCredentialAction::class)->handle(Iface::find($ifaceId), 'adopt-' . $ifaceId, 'hesloZeZadosti23');
 
         $s = PppoeSecret::find($ifaceId);
         $this->assertSame('adopt-' . $ifaceId, $s->username);
