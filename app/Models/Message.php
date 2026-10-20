@@ -119,7 +119,7 @@ class Message extends Model
         // Platební údaje (číslo cílového účtu / IBAN / částka dle tarifu) — stejný
         // zdroj jako QR platba, aby text a QR v upozornění seděly. {payment_qr}
         // (obrázek) se neřeší tady, ale v NotificationActivation (cid příloha).
-        $payment = app(\App\Services\PaymentQrService::class)->paymentInfoForMember($memberId);
+        $payment = app(\App\Domains\Billing\Documents\PaymentQrService::class)->paymentInfoForMember($memberId);
 
         return array_merge([
             'member_name'     => $member->name ?? '',

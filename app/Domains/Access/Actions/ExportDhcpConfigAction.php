@@ -5,9 +5,9 @@ namespace App\Domains\Access\Actions;
 use App\Domains\Access\Dhcp\DhcpDeviceSettings;
 use App\Domains\Access\Dhcp\DhcpServerBuilder;
 use App\Domains\Access\Dhcp\MikrotikDhcpRenderer;
+use App\Domains\Access\Isolation\LanIsolationService;
 use App\Domains\Access\Repositories\DhcpExportRepository;
 use App\Models\Device;
-use App\Services\LanIsolationService;
 use Carbon\Carbon;
 
 /**

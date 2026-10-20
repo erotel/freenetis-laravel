@@ -2,9 +2,9 @@
 
 namespace App\View\Components;
 
-use App\Models\Setting;
-use App\Services\AclService;
+use App\Domains\Acl\AclService;
 use App\Domains\Contracts\Queries\ContractListQuery;
+use App\Models\Setting;
 use Illuminate\Support\Facades\DB;
 use Illuminate\View\Component;
 

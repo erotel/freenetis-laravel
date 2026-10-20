@@ -2,8 +2,8 @@
 
 namespace App\Http\Middleware;
 
-use App\Services\MfaEnforcementService;
-use App\Services\MfaService;
+use App\Domains\Members\Auth\MfaEnforcementService;
+use App\Domains\Members\Auth\MfaService;
 use Closure;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;

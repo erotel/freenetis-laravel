@@ -1,6 +1,6 @@
 <?php
 
-namespace App\Services\Contracts;
+namespace App\Domains\Contracts\Pdf;
 
 use App\Models\Contract;
 use App\Models\ContractParty;

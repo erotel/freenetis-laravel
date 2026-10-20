@@ -3,15 +3,15 @@
 namespace App\Providers;
 
 use App\Auth\FreenetisUserProvider;
+use App\Domains\Acl\AclService;
 use App\Models\Setting;
 use App\Models\User;
-use App\Services\AclService;
 use App\View\Components\FreenetisMenu;
+use Illuminate\Cache\RateLimiting\Limit;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Blade;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Cache\RateLimiting\Limit;
-use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\Facades\View;

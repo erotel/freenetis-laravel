@@ -2,10 +2,10 @@
 
 namespace Tests\Characterization\Contracts;
 
+use App\Domains\Contracts\Pdf\PdfService;
 use App\Models\ContractAddon;
 use App\Models\Setting;
 use App\Models\User;
-use App\Services\Contracts\PdfService;
 use Illuminate\Support\Facades\DB;
 use Tests\DatabaseTestCase;
 

@@ -2,8 +2,8 @@
 
 namespace App\Domains\Contracts\Support;
 
+use App\Domains\Contracts\Pdf\PdfService;
 use App\Models\ContractAddon;
-use App\Services\Contracts\PdfService;
 use Illuminate\Http\Request;
 
 /** Typ dodatku ke smlouvě (contract_addons.type) a jeho per-typ detaily. */

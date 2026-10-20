@@ -2,10 +2,10 @@
 
 namespace Tests\Characterization\Billing;
 
-use App\Models\Setting;
-use App\Services\AllowedSubnetFeesResolver;
-use App\Services\PaymentQrService;
+use App\Domains\Billing\Documents\PaymentQrService;
+use App\Domains\Billing\Fees\AllowedSubnetFeesResolver;
 use App\Domains\Billing\Fees\FeePolicy;
+use App\Models\Setting;
 use Closure;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\DB;

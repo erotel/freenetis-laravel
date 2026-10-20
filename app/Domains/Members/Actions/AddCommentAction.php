@@ -2,8 +2,8 @@
 
 namespace App\Domains\Members\Actions;
 
+use App\Domains\Audit\AuditLogger;
 use App\Domains\Members\Repositories\CommentRepository;
-use App\Services\AuditLogger;
 
 class AddCommentAction
 {

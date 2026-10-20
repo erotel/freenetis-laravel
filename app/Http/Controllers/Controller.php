@@ -2,8 +2,8 @@
 
 namespace App\Http\Controllers;
 
+use App\Domains\Acl\AclService;
 use App\Domains\Notifications\Actions\SendTemplateToMemberAction;
-use App\Services\AclService;
 
 abstract class Controller
 {

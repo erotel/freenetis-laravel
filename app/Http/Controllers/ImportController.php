@@ -5,8 +5,8 @@ namespace App\Http\Controllers;
 use App\Domains\Billing\Actions\FetchFioStatementAction;
 use App\Domains\Billing\Actions\ImportBankStatementAction;
 use App\Domains\Billing\Actions\ImportNewFioPaymentsAction;
+use App\Domains\Billing\Bank\FioCsvParser;
 use App\Domains\Billing\Repositories\BankAccountRepository;
-use App\Services\FioCsvParser;
 use Illuminate\Http\Request;
 
 /** Import bankovních výpisů FIO (soubor CSV, FIO API). Logika v app/Domains/Billing. */

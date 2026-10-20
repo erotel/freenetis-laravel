@@ -2,8 +2,8 @@
 
 namespace Tests\Feature\Auth;
 
+use App\Domains\Members\Auth\LoginLockService;
 use App\Models\Setting;
-use App\Services\LoginLockService;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Tests\DatabaseTestCase;

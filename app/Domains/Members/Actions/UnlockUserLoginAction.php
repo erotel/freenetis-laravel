@@ -2,8 +2,8 @@
 
 namespace App\Domains\Members\Actions;
 
-use App\Services\AuditLogger;
-use App\Services\LoginLockService;
+use App\Domains\Audit\AuditLogger;
+use App\Domains\Members\Auth\LoginLockService;
 
 /** Ruční odemčení účtu zamčeného po neúspěšných přihlášeních (audit + log). */
 class UnlockUserLoginAction

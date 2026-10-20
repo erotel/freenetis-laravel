@@ -2,8 +2,8 @@
 
 namespace App\Domains\Members\Actions;
 
+use App\Domains\Audit\AuditLogger;
 use App\Domains\Members\Repositories\PasswordResetRepository;
-use App\Services\AuditLogger;
 use Carbon\Carbon;
 
 /** Nové heslo podle tokenu z e-mailu (jednorázový, s expirací) + audit. */

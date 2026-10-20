@@ -2,7 +2,7 @@
 
 namespace App\Http\Requests\Devices;
 
-use App\Services\AclService;
+use App\Domains\Acl\AclService;
 
 /** Sdílené ACL a pravidla formulářů zařízení. */
 trait DeviceRules

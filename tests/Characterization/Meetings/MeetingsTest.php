@@ -2,10 +2,10 @@
 
 namespace Tests\Characterization\Meetings;
 
+use App\Domains\Acl\AclService;
 use App\Models\Meeting;
 use App\Models\MeetingAttendance;
 use App\Models\User;
-use App\Services\AclService;
 use Illuminate\Support\Facades\DB;
 use Tests\DatabaseTestCase;
 

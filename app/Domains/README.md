@@ -53,8 +53,11 @@ listenery, ne kód v akci. Nová featura = nový listener, ne zásah do core.
 - Jemná práva (skrytá pole) zjistí controller a předá akci jako `bool` —
   akce je vynutí i při podvrženém POSTu.
 
-**Service** — zůstává pro technické utility bez vlastního agregátu (PDF, OTP,
-QR). Existující `app/Services/*` se přesouvají do domén postupně.
+**Service** — technická třída bez vlastního agregátu (klient API, PDF, OTP, QR)
+žije v doméně, které slouží (`Contracts/Pdf/PdfService`, `Billing/Bank/FioApiService`,
+`Members/Auth/MfaService`, `Notifications/Channels/SmsManagerDriver`). Průřezové:
+`Acl/AclService`, `Audit/AuditLogger`. V `app/Services` zůstává jen instalátor
+(`SetupService`).
 
 ## Pravidla práce
 

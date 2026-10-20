@@ -2,8 +2,8 @@
 
 namespace App\Domains\Acl\Actions;
 
-use App\Services\AuditLogger;
-use App\Services\MfaEnforcementService;
+use App\Domains\Audit\AuditLogger;
+use App\Domains\Members\Auth\MfaEnforcementService;
 
 /** MFA fáze B: zda skupina (a její podskupiny) vyžaduje dvoufázové přihlášení. */
 class SetGroupMfaRequiredAction

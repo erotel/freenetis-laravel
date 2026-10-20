@@ -2,10 +2,10 @@
 
 namespace App\Domains\Billing\Actions;
 
+use App\Domains\Audit\AuditLogger;
 use App\Domains\Billing\Exceptions\BankStatementRejected;
 use App\Domains\Billing\Repositories\BankLedgerRepository;
 use App\Models\BankStatement;
-use App\Services\AuditLogger;
 
 /**
  * Smaže bankovní výpis i s jeho pohyby (soft-delete) a zaloguje souhrn.

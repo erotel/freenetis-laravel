@@ -2,9 +2,9 @@
 
 namespace Tests\Characterization\Notifications;
 
+use App\Domains\Acl\AclService;
 use App\Http\Controllers\RedirectController;
 use App\Models\User;
-use App\Services\AclService;
 use Illuminate\Support\Facades\DB;
 use Tests\DatabaseTestCase;
 

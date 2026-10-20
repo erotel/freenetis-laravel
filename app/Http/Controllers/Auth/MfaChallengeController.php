@@ -2,10 +2,10 @@
 
 namespace App\Http\Controllers\Auth;
 
+use App\Domains\Members\Auth\MfaService;
 use App\Domains\Members\Repositories\LoginLogRepository;
 use App\Domains\Members\Repositories\UserRepository;
 use App\Http\Controllers\Controller;
-use App\Services\MfaService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\RateLimiter;

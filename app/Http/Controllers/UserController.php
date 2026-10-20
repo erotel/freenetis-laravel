@@ -5,11 +5,11 @@ namespace App\Http\Controllers;
 use App\Domains\Members\Actions\RemoveUserAction;
 use App\Domains\Members\Actions\ResetUserMfaAction;
 use App\Domains\Members\Actions\UnlockUserLoginAction;
+use App\Domains\Members\Auth\LoginLockService;
+use App\Domains\Members\Auth\MfaService;
 use App\Domains\Members\Exceptions\UserNotDeletable;
 use App\Domains\Members\Queries\UserListQuery;
 use App\Domains\Members\Repositories\UserRepository;
-use App\Services\LoginLockService;
-use App\Services\MfaService;
 use Illuminate\Http\Request;
 
 /** Uživatelé členů; data a akce v doméně Members. Jemná práva (login, komentář, člen, heslo) vynucuje i zápis. */

@@ -3,13 +3,13 @@
 namespace App\Domains\Network\Actions;
 
 use App\Domains\Access\Events\DeviceRegisteredFromRequest;
+use App\Domains\Members\Support\AddressResolverService;
 use App\Domains\Network\Repositories\DeviceRepository;
 use App\Domains\Network\Support\SubnetAssignmentSync;
 use App\Domains\Network\Support\TemplateIfaceInput;
 use App\Domains\Notifications\Actions\SendTemplateToMemberAction;
 use App\Models\ConnectionRequest;
 use App\Models\User;
-use App\Services\AddressResolverService;
 use Illuminate\Support\Facades\DB;
 
 /**

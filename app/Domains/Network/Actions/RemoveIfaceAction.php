@@ -3,8 +3,8 @@
 namespace App\Domains\Network\Actions;
 
 use App\Domains\Network\Repositories\IfaceRepository;
+use App\Domains\Network\Support\AllowedSubnetSyncService;
 use App\Models\Iface;
-use App\Services\AllowedSubnetSyncService;
 
 /** Smaže rozhraní s IP; DHCP podsítě expirují, přípojná místa člena bez IP odejdou. */
 class RemoveIfaceAction

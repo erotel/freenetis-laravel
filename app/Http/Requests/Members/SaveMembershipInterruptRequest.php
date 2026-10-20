@@ -2,10 +2,10 @@
 
 namespace App\Http\Requests\Members;
 
+use App\Domains\Acl\AclService;
 use App\Domains\Members\Repositories\MemberRepository;
 use App\Domains\Members\Repositories\MembershipInterruptRepository;
 use App\Domains\Members\Support\InterruptPeriodPolicy;
-use App\Services\AclService;
 use Carbon\Carbon;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Validator;

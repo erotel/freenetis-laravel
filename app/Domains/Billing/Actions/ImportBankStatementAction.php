@@ -2,13 +2,13 @@
 
 namespace App\Domains\Billing\Actions;
 
+use App\Domains\Audit\AuditLogger;
 use App\Domains\Billing\Bank\OutgoingPaymentReconciler;
 use App\Domains\Billing\Bank\PaymentMatcher;
 use App\Domains\Billing\Events\PaymentReceived;
 use App\Domains\Billing\Repositories\BankLedgerRepository as Ledger;
 use App\Models\BankAccount;
 use App\Models\BankTransfer;
-use App\Services\AuditLogger;
 use Illuminate\Contracts\Cache\LockTimeoutException;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;

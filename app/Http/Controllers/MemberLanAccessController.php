@@ -2,10 +2,10 @@
 
 namespace App\Http\Controllers;
 
+use App\Domains\Access\Isolation\LanIsolationService;
 use App\Domains\Members\Repositories\MemberRepository;
 use App\Domains\Network\Actions\AddLanAccessAction;
 use App\Domains\Network\Repositories\LanAccessRepository;
-use App\Services\LanIsolationService;
 use Illuminate\Http\Request;
 use InvalidArgumentException;
 

@@ -2,12 +2,12 @@
 
 namespace App\Domains\Billing\Actions;
 
+use App\Domains\Audit\AuditLogger;
 use App\Domains\Billing\Fees\FeePolicy;
 use App\Domains\Billing\Repositories\LedgerRepository;
 use App\Domains\Billing\Support\AccountAttribute;
 use App\Domains\Billing\Support\TransferType;
 use App\Models\Setting;
-use App\Services\AuditLogger;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 

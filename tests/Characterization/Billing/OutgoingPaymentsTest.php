@@ -2,11 +2,11 @@
 
 namespace Tests\Characterization\Billing;
 
+use App\Domains\Acl\AclService;
+use App\Domains\Billing\Bank\FioApiService;
 use App\Models\OutgoingPayment;
 use App\Models\Setting;
 use App\Models\User;
-use App\Services\AclService;
-use App\Services\FioApiService;
 use Illuminate\Support\Facades\DB;
 use Tests\DatabaseTestCase;
 

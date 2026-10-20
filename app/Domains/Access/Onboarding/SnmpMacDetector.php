@@ -1,6 +1,6 @@
 <?php
 
-namespace App\Services;
+namespace App\Domains\Access\Onboarding;
 
 use App\Models\Setting;
 use Illuminate\Support\Facades\DB;

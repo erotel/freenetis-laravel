@@ -2,7 +2,7 @@
 
 namespace Tests\Unit;
 
-use App\Services\PaymentQrService;
+use App\Domains\Billing\Documents\PaymentQrService;
 use Closure;
 use Tests\TestCase;
 

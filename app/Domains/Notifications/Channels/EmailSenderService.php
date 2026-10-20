@@ -1,12 +1,12 @@
 <?php
 
-namespace App\Services;
+namespace App\Domains\Notifications\Channels;
 
 use App\Models\EmailQueue;
 use App\Models\Setting;
 use Illuminate\Support\Facades\Log;
-use Symfony\Component\Mailer\Transport;
 use Symfony\Component\Mailer\Mailer;
+use Symfony\Component\Mailer\Transport;
 use Symfony\Component\Mime\Email;
 use Symfony\Component\Mime\Part\DataPart;
 use Symfony\Component\Mime\Part\File;

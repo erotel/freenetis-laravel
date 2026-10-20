@@ -2,7 +2,9 @@
 
 namespace App\Domains\Members\Actions;
 
+use App\Domains\Audit\AuditLogger;
 use App\Domains\Billing\Actions\IssueTerminationRefundAction;
+use App\Domains\Billing\Fees\MemberFeesTermination;
 use App\Domains\Billing\Repositories\LedgerRepository;
 use App\Domains\Billing\Repositories\RefundRepository;
 use App\Domains\Billing\Support\TerminationRefund;
@@ -11,11 +13,9 @@ use App\Domains\Members\Exceptions\MembershipNotEndable;
 use App\Domains\Members\Repositories\MemberRepository;
 use App\Domains\Members\Support\EndMode;
 use App\Domains\Members\Support\FormerType;
+use App\Domains\Notifications\Actions\SyncDebtorRedirectAction;
 use App\Models\Member;
 use App\Models\Setting;
-use App\Services\AuditLogger;
-use App\Services\MemberFeesTermination;
-use App\Domains\Notifications\Actions\SyncDebtorRedirectAction;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Support\Facades\DB;
 

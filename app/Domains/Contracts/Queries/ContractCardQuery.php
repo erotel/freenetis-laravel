@@ -2,13 +2,13 @@
 
 namespace App\Domains\Contracts\Queries;
 
+use App\Domains\Billing\Fees\AllowedSubnetFeesResolver;
 use App\Domains\Billing\Fees\FeePolicy;
 use App\Domains\Contracts\Repositories\ContractAddonRepository;
 use App\Domains\Contracts\Repositories\ContractRepository;
 use App\Domains\Contracts\Support\AddonType;
 use App\Models\Fee;
 use App\Models\SpeedClass;
-use App\Services\AllowedSubnetFeesResolver;
 
 /** Data karty smlouvy člena (read model). Oprávnění řeší volající. */
 class ContractCardQuery

@@ -2,11 +2,11 @@
 
 namespace App\Domains\Members\Actions;
 
+use App\Domains\Members\Auth\WebAuthnService;
 use App\Domains\Members\Exceptions\PasskeyRejected;
 use App\Domains\Members\Repositories\PasskeyRepository;
 use App\Domains\Members\Support\WebAuthnChallenges;
 use App\Models\User;
-use App\Services\WebAuthnService;
 use lbuchs\WebAuthn\Binary\ByteBuffer;
 
 /**

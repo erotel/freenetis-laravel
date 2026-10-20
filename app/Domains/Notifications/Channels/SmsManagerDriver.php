@@ -1,6 +1,6 @@
 <?php
 
-namespace App\Services;
+namespace App\Domains\Notifications\Channels;
 
 /**
  * SMS driver for SmsManager JSON API v2 (https://api.smsmngr.com/v2).

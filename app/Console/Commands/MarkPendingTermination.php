@@ -77,7 +77,7 @@ class MarkPendingTermination extends Command
             ->update(['pending_termination' => 1]);
 
         // Audit trail: automatické označení kandidátů na ukončení (systém, user_id NULL).
-        \App\Services\AuditLogger::log('auto_pending_termination', 'members', null, null, [
+        \App\Domains\Audit\AuditLogger::log('auto_pending_termination', 'members', null, null, [
             'flagged'    => $candidates->count(),
             'member_ids' => $candidates->pluck('id')->all(),
         ]);

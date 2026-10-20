@@ -1,6 +1,6 @@
 <?php
 
-namespace App\Services;
+namespace App\Domains\Billing\Documents;
 
 use App\Models\Setting;
 use Endroid\QrCode\Encoding\Encoding;

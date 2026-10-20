@@ -2,10 +2,10 @@
 
 namespace App\Domains\Members\Actions;
 
+use App\Domains\Audit\AuditLogger;
 use App\Domains\Billing\Repositories\LedgerRepository;
 use App\Domains\Members\Repositories\MemberRepository;
 use App\Domains\Members\Support\RegistrationSummaryMail;
-use App\Services\AuditLogger;
 use Illuminate\Support\Facades\DB;
 
 /**

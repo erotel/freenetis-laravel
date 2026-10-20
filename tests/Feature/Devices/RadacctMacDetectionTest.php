@@ -2,9 +2,9 @@
 
 namespace Tests\Feature\Devices;
 
+use App\Domains\Access\Onboarding\SnmpMacDetector;
 use App\Http\Controllers\ConnectionRequestController;
 use App\Models\Setting;
-use App\Services\SnmpMacDetector;
 use Closure;
 use Illuminate\Support\Facades\DB;
 use Tests\DatabaseTestCase;

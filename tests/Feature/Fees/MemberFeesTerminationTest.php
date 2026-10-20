@@ -2,7 +2,7 @@
 
 namespace Tests\Feature\Fees;
 
-use App\Services\MemberFeesTermination;
+use App\Domains\Billing\Fees\MemberFeesTermination;
 use Illuminate\Support\Facades\DB;
 use Tests\DatabaseTestCase;
 

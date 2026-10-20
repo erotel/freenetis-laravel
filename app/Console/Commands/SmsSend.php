@@ -2,9 +2,9 @@
 
 namespace App\Console\Commands;
 
+use App\Domains\Notifications\Channels\KlikniavolejDriver;
+use App\Domains\Notifications\Channels\SmsManagerDriver;
 use App\Models\Setting;
-use App\Services\KlikniavolejDriver;
-use App\Services\SmsManagerDriver;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;

@@ -2,8 +2,8 @@
 
 namespace App\Domains\Network\Actions;
 
+use App\Domains\Access\Isolation\LanIsolationService;
 use App\Domains\Network\Repositories\LanAccessRepository;
-use App\Services\LanIsolationService;
 use InvalidArgumentException;
 
 /**

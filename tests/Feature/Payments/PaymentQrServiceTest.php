@@ -2,7 +2,7 @@
 
 namespace Tests\Feature\Payments;
 
-use App\Services\PaymentQrService;
+use App\Domains\Billing\Documents\PaymentQrService;
 use Illuminate\Support\Facades\DB;
 use Tests\DatabaseTestCase;
 

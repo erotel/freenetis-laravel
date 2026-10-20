@@ -2,7 +2,7 @@
 
 namespace App\Models\Concerns;
 
-use App\Services\AuditLogger;
+use App\Domains\Audit\AuditLogger;
 
 /**
  * Automatický audit trail pro Eloquent model. Přidej `use Auditable;` do modelu

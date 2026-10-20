@@ -2,13 +2,13 @@
 
 namespace App\Http\Controllers;
 
+use App\Domains\Audit\AuditLogger;
 use App\Domains\Members\Actions\AuthenticatePasskeyAction;
 use App\Domains\Members\Actions\RegisterPasskeyAction;
+use App\Domains\Members\Auth\WebAuthnService;
 use App\Domains\Members\Exceptions\PasskeyRejected;
 use App\Domains\Members\Repositories\PasskeyRepository;
 use App\Domains\Members\Support\WebAuthnChallenges;
-use App\Services\AuditLogger;
-use App\Services\WebAuthnService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;

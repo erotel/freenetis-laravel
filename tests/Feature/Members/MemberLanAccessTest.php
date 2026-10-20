@@ -2,11 +2,11 @@
 
 namespace Tests\Feature\Members;
 
+use App\Domains\Access\Isolation\LanIsolationService;
+use App\Domains\Acl\AclService;
 use App\Models\MemberLanAccess;
 use App\Models\Setting;
 use App\Models\User;
-use App\Services\AclService;
-use App\Services\LanIsolationService;
 use Illuminate\Support\Facades\DB;
 use InvalidArgumentException;
 use Tests\DatabaseTestCase;

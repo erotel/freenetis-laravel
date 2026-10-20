@@ -1,6 +1,6 @@
 <?php
 
-namespace App\Services;
+namespace App\Domains\Billing\Fees;
 
 use Illuminate\Support\Facades\DB;
 

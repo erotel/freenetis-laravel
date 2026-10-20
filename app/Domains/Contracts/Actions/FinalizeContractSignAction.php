@@ -3,12 +3,12 @@
 namespace App\Domains\Contracts\Actions;
 
 use App\Domains\Contracts\Exceptions\ContractSigningFailed;
+use App\Domains\Contracts\Pdf\PdfService;
 use App\Domains\Contracts\Support\PostSignEmails;
 use App\Domains\Members\Actions\ActivateMemberAfterContractSignAction;
 use App\Models\Contract;
 use App\Models\ContractEvent;
 use App\Models\ContractParty;
-use App\Services\Contracts\PdfService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 

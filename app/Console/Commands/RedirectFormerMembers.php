@@ -48,12 +48,12 @@ class RedirectFormerMembers extends Command
             // jsou už FORMER a tudíž mimo tento výběr), přerušení s „ukončit po
             // přerušení" i přímé editace leaving_date.
             foreach ($toFormer as $m) {
-                \App\Services\MemberFeesTermination::deactivate((int) $m->id, $m->leaving_date);
+                \App\Domains\Billing\Fees\MemberFeesTermination::deactivate((int) $m->id, $m->leaving_date);
                 app(MemberRepository::class)->markVariableSymbolLeft((int) $m->id);
             }
 
             // Audit trail: automatické překlopení na bývalé členy (systém, user_id NULL).
-            \App\Services\AuditLogger::log('auto_former', 'members', null, null, [
+            \App\Domains\Audit\AuditLogger::log('auto_former', 'members', null, null, [
                 'marked_former' => $updated,
                 'member_ids'    => $toFormer->pluck('id')->all(),
             ]);

@@ -2,9 +2,9 @@
 
 namespace App\Console\Commands;
 
+use App\Domains\Billing\Documents\RefundPdfService;
 use App\Helpers\MemberType;
 use App\Models\Setting;
-use App\Services\RefundPdfService;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\DB;
 

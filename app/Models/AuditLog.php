@@ -5,7 +5,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Model;
 
 /**
- * Jeden záznam audit trailu (kdo/co/kdy). Zápis dělá {@see \App\Services\AuditLogger},
+ * Jeden záznam audit trailu (kdo/co/kdy). Zápis dělá {@see \App\Domains\Audit\AuditLogger},
  * tento model slouží hlavně pro čtení (historie změn objektu).
  *
  * Tabulka nemá PRIMARY KEY (kvůli partitioningu), ale `id` je AUTO_INCREMENT,

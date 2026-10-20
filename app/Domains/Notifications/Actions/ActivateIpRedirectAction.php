@@ -2,8 +2,8 @@
 
 namespace App\Domains\Notifications\Actions;
 
+use App\Domains\Audit\AuditLogger;
 use App\Domains\Notifications\Repositories\RedirectionRepository;
-use App\Services\AuditLogger;
 
 /** Ruční přesměrování jedné IP na zprávu (existující přepíše autorem, komentářem, časem). */
 class ActivateIpRedirectAction

@@ -2,9 +2,9 @@
 
 namespace App\Domains\Network\Support;
 
-use App\Models\Subnet;
-use App\Services\AllowedSubnetSyncService;
+use App\Domains\Network\Support\AllowedSubnetSyncService;
 use App\Domains\Notifications\Actions\SyncPendingCustomerRedirectAction;
+use App\Models\Subnet;
 
 /**
  * Dopady přidání / odebrání IP člena v podsítích:

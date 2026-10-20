@@ -2,11 +2,11 @@
 
 namespace App\Domains\Members\Actions;
 
+use App\Domains\Audit\AuditLogger;
+use App\Domains\Billing\Fees\MemberFeesTermination;
 use App\Domains\Members\Exceptions\MemberNotRestorable;
 use App\Domains\Members\Repositories\MemberRepository;
 use App\Domains\Members\Support\FormerType;
-use App\Services\AuditLogger;
-use App\Services\MemberFeesTermination;
 
 /**
  * Obnovení bývalého člena (15/16): typ dle {@see FormerType::restoredType()},

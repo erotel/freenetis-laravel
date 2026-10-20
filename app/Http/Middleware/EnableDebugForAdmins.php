@@ -2,7 +2,7 @@
 
 namespace App\Http\Middleware;
 
-use App\Services\AclService;
+use App\Domains\Acl\AclService;
 use Closure;
 use Illuminate\Http\Request;
 

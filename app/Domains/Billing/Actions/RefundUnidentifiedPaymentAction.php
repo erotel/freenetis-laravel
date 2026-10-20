@@ -2,11 +2,11 @@
 
 namespace App\Domains\Billing\Actions;
 
+use App\Domains\Audit\AuditLogger;
 use App\Domains\Billing\Exceptions\OutgoingPaymentRejected;
 use App\Domains\Billing\Repositories\OutgoingPaymentRepository;
 use App\Models\BankTransfer;
 use App\Models\OutgoingPayment;
-use App\Services\AuditLogger;
 use Illuminate\Support\Facades\Cache;
 
 /**

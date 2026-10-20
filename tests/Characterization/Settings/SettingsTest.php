@@ -2,11 +2,11 @@
 
 namespace Tests\Characterization\Settings;
 
+use App\Domains\Acl\AclService;
+use App\Domains\Members\SledovaniTv\SledovaniTvService;
 use App\Models\GponOlt;
 use App\Models\Setting;
 use App\Models\User;
-use App\Services\AclService;
-use App\Services\SledovaniTvService;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;

@@ -2,8 +2,8 @@
 
 namespace App\Domains\Access\Settings;
 
+use App\Domains\Audit\AuditLogger;
 use App\Models\Setting;
-use App\Services\AuditLogger;
 use Illuminate\Support\Str;
 
 /**

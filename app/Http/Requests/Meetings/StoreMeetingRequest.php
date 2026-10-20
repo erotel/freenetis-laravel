@@ -2,8 +2,8 @@
 
 namespace App\Http\Requests\Meetings;
 
+use App\Domains\Acl\AclService;
 use App\Models\Meeting;
-use App\Services\AclService;
 use Illuminate\Foundation\Http\FormRequest;
 
 class StoreMeetingRequest extends FormRequest

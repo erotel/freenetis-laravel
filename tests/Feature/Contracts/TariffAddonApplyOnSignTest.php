@@ -2,9 +2,9 @@
 
 namespace Tests\Feature\Contracts;
 
+use App\Domains\Acl\AclService;
+use App\Domains\Contracts\Pdf\PdfService;
 use App\Models\User;
-use App\Services\Contracts\PdfService;
-use App\Services\AclService;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Tests\DatabaseTestCase;

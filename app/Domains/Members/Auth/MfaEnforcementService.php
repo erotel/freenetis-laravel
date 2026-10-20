@@ -1,6 +1,6 @@
 <?php
 
-namespace App\Services;
+namespace App\Domains\Members\Auth;
 
 use Illuminate\Support\Facades\DB;
 

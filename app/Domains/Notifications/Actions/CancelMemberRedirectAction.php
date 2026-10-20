@@ -2,8 +2,8 @@
 
 namespace App\Domains\Notifications\Actions;
 
+use App\Domains\Audit\AuditLogger;
 use App\Domains\Notifications\Repositories\RedirectionRepository;
-use App\Services\AuditLogger;
 
 /** Zruší přesměrování na zprávu pro všechny IP člena (přímé i přes zařízení). */
 class CancelMemberRedirectAction

@@ -2,7 +2,7 @@
 
 namespace Database\Seeders;
 
-use App\Services\AclService;
+use App\Domains\Acl\AclService;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\DB;
 

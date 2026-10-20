@@ -2,8 +2,8 @@
 
 namespace Tests\Characterization\Catalog;
 
+use App\Domains\Acl\AclService;
 use App\Models\User;
-use App\Services\AclService;
 use Illuminate\Support\Facades\DB;
 use Tests\DatabaseTestCase;
 

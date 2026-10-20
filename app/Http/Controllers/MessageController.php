@@ -2,10 +2,10 @@
 
 namespace App\Http\Controllers;
 
+use App\Domains\Audit\AuditLogger;
 use App\Domains\Notifications\Repositories\MessageRepository;
 use App\Domains\Notifications\Repositories\RedirectionRepository;
 use App\Models\Message;
-use App\Services\AuditLogger;
 use Illuminate\Http\Request;
 
 /** Šablony zpráv (přesměrování, e-mail, SMS); data v doméně Notifications. */

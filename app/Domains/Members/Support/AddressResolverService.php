@@ -1,6 +1,6 @@
 <?php
 
-namespace App\Services;
+namespace App\Domains\Members\Support;
 
 use App\Models\Street;
 use App\Models\Town;

@@ -124,7 +124,7 @@ class Account extends Model
         // Typ mimo účtování (žadatel, čekající, bývalý) — nic se nestrhává → „—".
         $billed     = \App\Domains\Billing\Fees\FeePolicy::isBilled($memberType);
         // Placená přípojná místa jsou v čase konstantní; služby závisí na datu.
-        $placesFee  = \App\Services\AllowedSubnetFeesResolver::total($memberId);
+        $placesFee  = \App\Domains\Billing\Fees\AllowedSubnetFeesResolver::total($memberId);
 
         $charged = false; // strhává se v některém měsíci vůbec něco?
         for ($i = 0; $i < $maxIterations; $i++) {

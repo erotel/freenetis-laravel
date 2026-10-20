@@ -2,10 +2,10 @@
 
 namespace App\Domains\Notifications\Actions;
 
+use App\Domains\Audit\AuditLogger;
 use App\Domains\Notifications\Repositories\RedirectionRepository;
 use App\Domains\Notifications\Support\NotificationResult;
 use App\Domains\Notifications\Support\Outbox;
-use App\Services\AuditLogger;
 use Illuminate\Support\Facades\DB;
 
 /**

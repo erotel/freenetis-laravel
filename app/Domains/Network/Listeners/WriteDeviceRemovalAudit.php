@@ -2,8 +2,8 @@
 
 namespace App\Domains\Network\Listeners;
 
+use App\Domains\Audit\AuditLogger;
 use App\Domains\Network\Events\DeviceRemoved;
-use App\Services\AuditLogger;
 
 /**
  * Smazání zařízení na kartu člena: trait zaloguje smazání device-centricky, ale

@@ -1,10 +1,10 @@
 <?php
 
-namespace App\Services;
+namespace App\Domains\Network\Support;
 
+use App\Domains\Network\Support\IpOwner;
 use App\Models\AllowedSubnet;
 use App\Models\AllowedSubnetsCount;
-use App\Domains\Network\Support\IpOwner;
 use App\Models\Setting;
 use Illuminate\Support\Facades\DB;
 

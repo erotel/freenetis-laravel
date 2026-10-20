@@ -1,12 +1,12 @@
 <?php
 
-namespace App\Services\Contracts;
+namespace App\Domains\Contracts\Otp;
 
+use App\Domains\Notifications\Channels\KlikniavolejDriver;
+use App\Domains\Notifications\Channels\SmsManagerDriver;
 use App\Models\Contract;
 use App\Models\ContractEvent;
 use App\Models\Setting;
-use App\Services\KlikniavolejDriver;
-use App\Services\SmsManagerDriver;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;

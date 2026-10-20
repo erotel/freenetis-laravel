@@ -2,8 +2,8 @@
 
 namespace App\Http\Controllers;
 
+use App\Domains\Access\Gpon\GponService;
 use App\Domains\Access\Repositories\OntRepository;
-use App\Services\GponService;
 use Illuminate\Http\Request;
 
 class GponController extends Controller

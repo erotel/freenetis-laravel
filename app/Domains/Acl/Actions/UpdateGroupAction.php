@@ -2,9 +2,9 @@
 
 namespace App\Domains\Acl\Actions;
 
+use App\Domains\Acl\AclService;
 use App\Domains\Acl\Repositories\AroGroupRepository;
 use App\Models\AroGroup;
-use App\Services\AclService;
 
 /** Přejmenování / přesun skupiny; dědičnost práv se mění → celá ACL cache. */
 class UpdateGroupAction

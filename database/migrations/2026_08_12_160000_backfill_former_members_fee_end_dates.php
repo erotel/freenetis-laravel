@@ -1,6 +1,6 @@
 <?php
 
-use App\Services\MemberFeesTermination;
+use App\Domains\Billing\Fees\MemberFeesTermination;
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Support\Facades\DB;
 

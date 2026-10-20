@@ -2,8 +2,8 @@
 
 namespace Tests\Feature\Notifications;
 
+use App\Domains\Billing\Documents\PaymentQrService;
 use App\Models\Message;
-use App\Services\PaymentQrService;
 use Illuminate\Support\Facades\DB;
 use Tests\DatabaseTestCase;
 

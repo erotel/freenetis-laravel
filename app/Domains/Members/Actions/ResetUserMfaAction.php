@@ -2,8 +2,8 @@
 
 namespace App\Domains\Members\Actions;
 
-use App\Services\AuditLogger;
-use App\Services\MfaService;
+use App\Domains\Audit\AuditLogger;
+use App\Domains\Members\Auth\MfaService;
 
 /**
  * Admin reset cizího MFA (ztracený telefon i záložní kódy): smaže TOTP

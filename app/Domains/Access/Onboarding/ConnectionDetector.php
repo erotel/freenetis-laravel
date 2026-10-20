@@ -2,9 +2,9 @@
 
 namespace App\Domains\Access\Onboarding;
 
+use App\Domains\Access\Onboarding\SnmpMacDetector;
 use App\Domains\Access\Repositories\ConnectionRequestRepository;
 use App\Models\Setting;
-use App\Services\SnmpMacDetector;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 

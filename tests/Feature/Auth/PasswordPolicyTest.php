@@ -2,10 +2,10 @@
 
 namespace Tests\Feature\Auth;
 
+use App\Domains\Acl\AclService;
 use App\Domains\Members\Support\PasswordStrength;
 use App\Models\Setting;
 use App\Models\User;
-use App\Services\AclService;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Tests\DatabaseTestCase;

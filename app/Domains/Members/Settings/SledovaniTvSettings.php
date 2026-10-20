@@ -2,8 +2,8 @@
 
 namespace App\Domains\Members\Settings;
 
+use App\Domains\Members\SledovaniTv\SledovaniTvService;
 use App\Models\Setting;
-use App\Services\SledovaniTvService;
 use Illuminate\Support\Facades\Log;
 
 /** Nastavení → SledovaniTV: přístup k partnerskému API a ruční sync na členy. */

@@ -2,8 +2,8 @@
 
 namespace App\Domains\Network\Settings;
 
+use App\Domains\Access\Isolation\LanIsolationService;
 use App\Models\Setting;
-use App\Services\LanIsolationService;
 
 /**
  * Nastavení → Síť: přesměrování, sítě, M2M (allowlist, vynucení tokenu),

@@ -2,7 +2,7 @@
 
 namespace App\Console\Commands;
 
-use App\Services\SledovaniTvService;
+use App\Domains\Members\SledovaniTv\SledovaniTvService;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\DB;
 

@@ -2,7 +2,12 @@
 
 namespace App\Domains\Members\Queries;
 
+use App\Domains\Access\Isolation\LanIsolationService;
+use App\Domains\Billing\Documents\PaymentQrService;
+use App\Domains\Billing\Fees\AllowedSubnetFeesResolver;
 use App\Domains\Billing\Fees\FeePolicy;
+use App\Domains\Contracts\Repositories\ContractRepository;
+use App\Domains\Members\Auth\LoginLockService;
 use App\Domains\Members\Repositories\MembershipInterruptRepository;
 use App\Domains\Notifications\Repositories\RedirectionRepository;
 use App\Models\AccountAttribute;
@@ -12,11 +17,6 @@ use App\Models\MemberFee;
 use App\Models\MemberLanAccess;
 use App\Models\Setting;
 use App\Models\User;
-use App\Services\AllowedSubnetFeesResolver;
-use App\Domains\Contracts\Repositories\ContractRepository;
-use App\Services\LanIsolationService;
-use App\Services\LoginLockService;
-use App\Services\PaymentQrService;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 

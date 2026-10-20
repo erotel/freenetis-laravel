@@ -2,8 +2,8 @@
 
 namespace App\Console\Commands;
 
+use App\Domains\Members\SledovaniTv\SledovaniTvService;
 use App\Models\Setting;
-use App\Services\SledovaniTvService;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\Log;
 

@@ -624,12 +624,12 @@ function addBccRow() {
     <div class="m-form-group">
         <label class="m-form-label">Vnitřní síť</label>
         <input class="m-form-input" type="text" name="lan_isolation_network" style="max-width:220px;font-family:monospace"
-            value="{{ old('lan_isolation_network', ($networkSettings['lan_isolation_network'] ?? '') ?: \App\Services\LanIsolationService::DEFAULT_NETWORK) }}">
+            value="{{ old('lan_isolation_network', ($networkSettings['lan_isolation_network'] ?? '') ?: \App\Domains\Access\Isolation\LanIsolationService::DEFAULT_NETWORK) }}">
         @error('lan_isolation_network')<div style="color:#c00;font-size:14px">{{ $message }}</div>@enderror
     </div>
     <div class="m-form-group">
         <label class="m-form-label">Veřejné služby (povolené všem)</label>
-        <textarea class="m-form-input" name="lan_isolation_public" rows="4" style="font-family:monospace">{{ old('lan_isolation_public', ($networkSettings['lan_isolation_public'] ?? '') ?: \App\Services\LanIsolationService::DEFAULT_PUBLIC) }}</textarea>
+        <textarea class="m-form-input" name="lan_isolation_public" rows="4" style="font-family:monospace">{{ old('lan_isolation_public', ($networkSettings['lan_isolation_public'] ?? '') ?: \App\Domains\Access\Isolation\LanIsolationService::DEFAULT_PUBLIC) }}</textarea>
         <div class="m-form-hint">IP nebo rozsahy (CIDR), jeden na řádek — typicky DNS, FreenetIS, web.</div>
         @error('lan_isolation_public')<div style="color:#c00;font-size:14px">{{ $message }}</div>@enderror
     </div>

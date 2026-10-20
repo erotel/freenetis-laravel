@@ -2,9 +2,9 @@
 
 namespace App\Domains\Billing\Fees;
 
+use App\Domains\Billing\Fees\AllowedSubnetFeesResolver;
 use App\Domains\Billing\Repositories\FeeRepository;
 use App\Models\Setting;
-use App\Services\AllowedSubnetFeesResolver;
 
 /**
  * Jediná pravda o tom, KOLIK má člen měsíčně platit.

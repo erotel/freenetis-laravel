@@ -2,10 +2,10 @@
 
 namespace App\Domains\Acl\Actions;
 
+use App\Domains\Acl\AclService;
 use App\Domains\Acl\Exceptions\GroupNotDeletable;
 use App\Domains\Acl\Repositories\AroGroupRepository;
 use App\Models\AroGroup;
-use App\Services\AclService;
 
 /** Smaže prázdnou skupinu (bez podskupin a uživatelů) i její přiřazení pravidel. */
 class DeleteGroupAction

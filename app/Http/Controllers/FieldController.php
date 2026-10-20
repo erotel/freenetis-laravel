@@ -3,12 +3,12 @@
 namespace App\Http\Controllers;
 
 use App\Domains\Members\Actions\AddAccountNoteAction;
+use App\Domains\Members\Auth\LoginService;
 use App\Domains\Members\Queries\FieldMemberCardQuery;
 use App\Domains\Members\Queries\FieldSearchQuery;
 use App\Domains\Members\Repositories\MemberRepository;
 use App\Domains\Network\Queries\FieldDeviceQuery;
 use App\Models\Setting;
-use App\Services\LoginService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;

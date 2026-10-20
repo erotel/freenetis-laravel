@@ -2,12 +2,12 @@
 
 namespace App\Domains\Billing\Actions;
 
+use App\Domains\Billing\Bank\FioApiService;
 use App\Domains\Billing\Documents\FioPaymentOrdersXml;
 use App\Domains\Billing\Exceptions\OutgoingPaymentRejected;
 use App\Domains\Billing\Repositories\OutgoingPaymentRepository;
 use App\Models\BankAccount;
 use App\Models\OutgoingPayment;
-use App\Services\FioApiService;
 use Illuminate\Support\Facades\Cache;
 
 /**

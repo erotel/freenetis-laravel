@@ -1,6 +1,6 @@
 <?php
 
-namespace App\Services;
+namespace App\Domains\Access\Isolation;
 
 use App\Models\MemberLanAccess;
 use App\Models\Setting;

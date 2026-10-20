@@ -2,8 +2,8 @@
 
 namespace Tests\Feature\Auth;
 
+use App\Domains\Members\Auth\MfaService;
 use App\Models\User;
-use App\Services\MfaService;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use PragmaRX\Google2FA\Google2FA;

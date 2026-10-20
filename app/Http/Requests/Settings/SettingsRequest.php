@@ -2,7 +2,7 @@
 
 namespace App\Http\Requests\Settings;
 
-use App\Services\AclService;
+use App\Domains\Acl\AclService;
 use Illuminate\Foundation\Http\FormRequest;
 
 /**

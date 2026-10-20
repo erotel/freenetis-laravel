@@ -2,6 +2,7 @@
 
 namespace App\Domains\Contracts\Actions;
 
+use App\Domains\Contracts\Pdf\PdfService;
 use App\Domains\Contracts\Support\AddonEffects;
 use App\Domains\Contracts\Support\AddonType;
 use App\Domains\Contracts\Support\ContractEventLog;
@@ -11,7 +12,6 @@ use App\Models\ContractParty;
 use App\Models\EmailQueue;
 use App\Models\EmailQueueAttachment;
 use App\Models\Setting;
-use App\Services\Contracts\PdfService;
 use Illuminate\Support\Facades\Log;
 
 /**

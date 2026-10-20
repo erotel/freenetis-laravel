@@ -1,6 +1,6 @@
 <?php
 
-namespace App\Services;
+namespace App\Domains\Notifications\Channels;
 
 /**
  * SMS driver for KlikniaVolej.cz gateway.

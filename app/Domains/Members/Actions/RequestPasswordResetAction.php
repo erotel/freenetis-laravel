@@ -2,9 +2,9 @@
 
 namespace App\Domains\Members\Actions;
 
+use App\Domains\Audit\AuditLogger;
 use App\Domains\Members\Repositories\PasswordResetRepository;
 use App\Models\Setting;
-use App\Services\AuditLogger;
 use Illuminate\Support\Str;
 
 /**

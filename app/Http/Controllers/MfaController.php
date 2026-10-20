@@ -2,8 +2,8 @@
 
 namespace App\Http\Controllers;
 
-use App\Services\MfaEnforcementService;
-use App\Services\MfaService;
+use App\Domains\Members\Auth\MfaEnforcementService;
+use App\Domains\Members\Auth\MfaService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;

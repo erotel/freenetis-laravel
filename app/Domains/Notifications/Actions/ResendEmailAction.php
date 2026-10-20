@@ -2,8 +2,8 @@
 
 namespace App\Domains\Notifications\Actions;
 
+use App\Domains\Notifications\Channels\EmailSenderService;
 use App\Models\EmailQueue;
-use App\Services\EmailSenderService;
 
 /** Znovu odešle e-mail z fronty hned (ne přes cron): výsledek → stav odesláno / chyba. */
 class ResendEmailAction

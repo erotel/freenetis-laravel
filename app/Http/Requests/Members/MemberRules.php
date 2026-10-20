@@ -2,7 +2,7 @@
 
 namespace App\Http\Requests\Members;
 
-use App\Services\AclService;
+use App\Domains\Acl\AclService;
 
 /** Sdílená pravidla formulářů člena (založení i úprava). */
 trait MemberRules

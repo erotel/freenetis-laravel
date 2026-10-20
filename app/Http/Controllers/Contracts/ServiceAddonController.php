@@ -3,8 +3,8 @@
 namespace App\Http\Controllers\Contracts;
 
 use App\Domains\Contracts\Actions\CreateServiceAddonAction;
+use App\Domains\Contracts\Pdf\PdfService;
 use App\Domains\Contracts\Support\AddonType;
-use App\Services\Contracts\PdfService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 

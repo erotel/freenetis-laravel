@@ -2,12 +2,12 @@
 
 namespace App\Domains\Notifications\Actions;
 
+use App\Domains\Billing\Documents\PaymentQrService;
 use App\Domains\Notifications\Queries\NotificationRecipientsQuery;
 use App\Domains\Notifications\Repositories\RedirectionRepository;
 use App\Domains\Notifications\Support\Outbox;
 use App\Models\Message;
 use App\Models\Setting;
-use App\Services\PaymentQrService;
 use Illuminate\Support\Facades\DB;
 
 /**

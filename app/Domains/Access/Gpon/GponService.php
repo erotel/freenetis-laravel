@@ -1,6 +1,6 @@
 <?php
 
-namespace App\Services;
+namespace App\Domains\Access\Gpon;
 
 use App\Models\GponOlt;
 use App\Models\Ont;

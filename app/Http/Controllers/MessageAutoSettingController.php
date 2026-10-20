@@ -1,10 +1,10 @@
 <?php
 namespace App\Http\Controllers;
 
+use App\Domains\Audit\AuditLogger;
 use App\Domains\Notifications\Activation\ActivationRule;
 use App\Domains\Notifications\Repositories\ActivationRuleRepository;
 use App\Domains\Notifications\Repositories\MessageRepository;
-use App\Services\AuditLogger;
 use Illuminate\Http\Request;
 
 /** Pravidla automatické aktivace upozornění (dlužník / upomínka); data v doméně Notifications. */

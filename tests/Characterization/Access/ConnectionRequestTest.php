@@ -2,11 +2,11 @@
 
 namespace Tests\Characterization\Access;
 
+use App\Domains\Access\Onboarding\SnmpMacDetector;
+use App\Domains\Acl\AclService;
 use App\Models\ConnectionRequest;
 use App\Models\Setting;
 use App\Models\User;
-use App\Services\AclService;
-use App\Services\SnmpMacDetector;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Tests\DatabaseTestCase;

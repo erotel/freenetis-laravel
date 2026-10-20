@@ -2,8 +2,8 @@
 
 namespace Tests\Characterization\Access;
 
+use App\Domains\Access\Gpon\GponService;
 use App\Models\Setting;
-use App\Services\GponService;
 use Illuminate\Support\Facades\DB;
 use Mockery;
 use Tests\Characterization\Catalog\CatalogTestCase;

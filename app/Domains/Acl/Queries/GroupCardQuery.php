@@ -4,7 +4,7 @@ namespace App\Domains\Acl\Queries;
 
 use App\Domains\Acl\Repositories\AclRuleRepository;
 use App\Domains\Acl\Repositories\AroGroupRepository;
-use App\Services\MfaEnforcementService;
+use App\Domains\Members\Auth\MfaEnforcementService;
 
 /** Karta skupiny: pravidla, členové, kandidáti k přidání, povinné MFA. */
 class GroupCardQuery

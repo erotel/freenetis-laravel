@@ -1,6 +1,6 @@
 <?php
 
-namespace App\Services;
+namespace App\Domains\Members\Auth;
 
 use App\Models\MfaRecoveryCode;
 use App\Models\Setting;

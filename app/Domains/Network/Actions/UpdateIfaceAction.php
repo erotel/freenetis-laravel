@@ -4,10 +4,10 @@ namespace App\Domains\Network\Actions;
 
 use App\Domains\Network\Exceptions\IfaceIpRejected;
 use App\Domains\Network\Repositories\IfaceRepository;
+use App\Domains\Network\Support\AllowedSubnetSyncService;
 use App\Domains\Network\Support\Ip6Sync;
-use App\Models\Iface;
-use App\Services\AllowedSubnetSyncService;
 use App\Domains\Notifications\Actions\SyncPendingCustomerRedirectAction;
+use App\Models\Iface;
 use Illuminate\Support\Facades\DB;
 
 /**

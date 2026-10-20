@@ -2,8 +2,8 @@
 
 namespace Tests\Characterization\Members;
 
+use App\Domains\Members\Auth\WebAuthnService;
 use App\Models\User;
-use App\Services\WebAuthnService;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use lbuchs\WebAuthn\Binary\ByteBuffer;

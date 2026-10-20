@@ -2,11 +2,11 @@
 
 namespace App\Domains\Billing\Actions;
 
+use App\Domains\Billing\Bank\FioApiService;
+use App\Domains\Billing\Bank\FioCsvParser;
 use App\Domains\Billing\Repositories\BankLedgerRepository;
 use App\Models\BankAccount;
 use App\Models\Setting;
-use App\Services\FioApiService;
-use App\Services\FioCsvParser;
 
 /**
  * Stažení výpisu z FIO API (token per bankovní účet v nastavení) a rozparsování.

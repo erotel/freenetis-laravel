@@ -1,6 +1,6 @@
 <?php
 
-namespace App\Services;
+namespace App\Domains\Billing\Documents;
 
 use App\Models\Member;
 use App\Models\Setting;

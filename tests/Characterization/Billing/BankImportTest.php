@@ -2,11 +2,11 @@
 
 namespace Tests\Characterization\Billing;
 
+use App\Domains\Acl\AclService;
+use App\Domains\Billing\Bank\FioApiService;
 use App\Http\Controllers\ImportController;
 use App\Models\Setting;
 use App\Models\User;
-use App\Services\AclService;
-use App\Services\FioApiService;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;

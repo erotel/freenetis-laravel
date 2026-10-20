@@ -6,7 +6,7 @@ use Illuminate\Database\Eloquent\Model;
 
 /**
  * Výjimka z izolace klientů: člen smí ze zákaznického segmentu do daného cíle
- * ve vnitřní síti (jedna IP nebo CIDR). Viz {@see \App\Services\LanIsolationService}.
+ * ve vnitřní síti (jedna IP nebo CIDR). Viz {@see \App\Domains\Access\Isolation\LanIsolationService}.
  */
 class MemberLanAccess extends Model
 {

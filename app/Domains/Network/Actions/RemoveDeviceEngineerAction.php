@@ -2,8 +2,8 @@
 
 namespace App\Domains\Network\Actions;
 
+use App\Domains\Audit\AuditLogger;
 use App\Domains\Network\Repositories\DeviceRepository;
-use App\Services\AuditLogger;
 
 /** Odebrání technika ze zařízení + audit (hromadný delete nespustí model eventy). */
 class RemoveDeviceEngineerAction

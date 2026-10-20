@@ -2,12 +2,12 @@
 
 namespace App\Domains\Members\Actions;
 
+use App\Domains\Audit\AuditLogger;
 use App\Domains\Billing\Actions\ChargeMonthlyFeeNowAction;
 use App\Domains\Members\Exceptions\MemberNotRestorable;
 use App\Domains\Members\Repositories\MemberDeviceRepository;
 use App\Domains\Members\Repositories\MemberRepository;
 use App\Domains\Members\Repositories\MembershipInterruptRepository;
-use App\Services\AuditLogger;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
 

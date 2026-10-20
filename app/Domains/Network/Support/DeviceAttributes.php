@@ -2,10 +2,10 @@
 
 namespace App\Domains\Network\Support;
 
+use App\Domains\Members\Support\AddressResolverService;
 use App\Domains\Network\Exceptions\DeviceOwnerInvalid;
 use App\Domains\Network\Repositories\DeviceRepository;
 use App\Models\Device;
-use App\Services\AddressResolverService;
 
 /**
  * Převod validovaných dat formuláře zařízení na sloupce devices:

@@ -2,9 +2,9 @@
 
 namespace Tests\Feature\Devices;
 
+use App\Domains\Acl\AclService;
 use App\Models\Device;
 use App\Models\User;
-use App\Services\AclService;
 use Illuminate\Support\Facades\DB;
 use Tests\DatabaseTestCase;
 

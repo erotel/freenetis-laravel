@@ -2,7 +2,7 @@
 
 namespace App\Http\Requests\Acl;
 
-use App\Services\AclService;
+use App\Domains\Acl\AclService;
 use Illuminate\Foundation\Http\FormRequest;
 
 /** Správa ACL — práva na Aro_groups_Controller/aro_group (authorize() před validací). */

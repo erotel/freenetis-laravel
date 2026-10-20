@@ -1,23 +1,23 @@
 <?php
 
 use App\Http\Controllers\AccountController;
-use App\Http\Controllers\InvoiceController;
-use App\Http\Controllers\SettingController;
+use App\Http\Controllers\AllowedSubnetController;
+use App\Http\Controllers\AroGroupController;
+use App\Http\Controllers\AuditLogController;
+use App\Http\Controllers\Auth\LoginController;
+use App\Http\Controllers\Auth\MfaChallengeController;
+use App\Http\Controllers\BankAccountAutoDownloadController;
 use App\Http\Controllers\BankAccountController;
 use App\Http\Controllers\BankStatementController;
 use App\Http\Controllers\BankTransferController;
-use App\Http\Controllers\ImportController;
-use App\Http\Controllers\OutgoingPaymentController;
-use App\Http\Controllers\FeeController;
-use App\Http\Controllers\MemberFeeController;
-use App\Http\Controllers\VariableSymbolController;
-use App\Http\Controllers\IfaceController;
-use App\Http\Controllers\LoginLogController;
-use App\Http\Controllers\TransferController;
-use App\Http\Controllers\Auth\LoginController;
-use App\Http\Controllers\Auth\MfaChallengeController;
-use App\Http\Controllers\MfaController;
+use App\Http\Controllers\CommentController;
+use App\Http\Controllers\ConnectionRequestController;
 use App\Http\Controllers\ContactController;
+use App\Http\Controllers\ContractController;
+use App\Http\Controllers\Contracts\ConnectionPointAddonController;
+use App\Http\Controllers\Contracts\LegacyAddonController;
+use App\Http\Controllers\Contracts\ServiceAddonController;
+use App\Http\Controllers\Contracts\TariffAddonController;
 use App\Http\Controllers\DeviceController;
 use App\Http\Controllers\Devices\DeviceEngineerController;
 use App\Http\Controllers\Devices\DeviceFromTemplateController;
@@ -25,53 +25,53 @@ use App\Http\Controllers\Devices\DeviceInventoryController;
 use App\Http\Controllers\Devices\DevicePppoeController;
 use App\Http\Controllers\Devices\DhcpExportController;
 use App\Http\Controllers\DeviceTemplateController;
+use App\Http\Controllers\EmailQueueController;
+use App\Http\Controllers\EnumTypeController;
+use App\Http\Controllers\FeeController;
+use App\Http\Controllers\FieldController;
+use App\Http\Controllers\ForgottenPasswordController;
+use App\Http\Controllers\GponController;
+use App\Http\Controllers\IfaceController;
+use App\Http\Controllers\ImportController;
+use App\Http\Controllers\InvoiceController;
 use App\Http\Controllers\IpAddressController;
+use App\Http\Controllers\LineIdAnomalyController;
+use App\Http\Controllers\LoginLogController;
+use App\Http\Controllers\LogQueueController;
+use App\Http\Controllers\MeetingController;
 use App\Http\Controllers\MemberController;
+use App\Http\Controllers\MemberFeeController;
+use App\Http\Controllers\MemberLanAccessController;
 use App\Http\Controllers\Members\MemberDocumentController;
 use App\Http\Controllers\Members\MembershipController;
 use App\Http\Controllers\Members\MyNotificationsController;
-use App\Http\Controllers\MeetingController;
-use App\Http\Controllers\SubnetController;
-use App\Http\Controllers\LineIdAnomalyController;
-use App\Http\Controllers\VlanController;
-use App\Http\Controllers\StreetController;
-use App\Http\Controllers\TownController;
-use App\Http\Controllers\UserController;
-use App\Http\Controllers\AroGroupController;
-use App\Http\Controllers\AuditLogController;
-use App\Http\Controllers\SpeedClassController;
-use App\Http\Controllers\AllowedSubnetController;
-use App\Http\Controllers\SavedFilterController;
-use App\Http\Controllers\StatsController;
-use App\Http\Controllers\EnumTypeController;
+use App\Http\Controllers\MembershipInterruptController;
+use App\Http\Controllers\MemberWhitelistController;
 use App\Http\Controllers\MessageAutoSettingController;
 use App\Http\Controllers\MessageController;
-use App\Http\Controllers\RegistrationController;
-use App\Http\Controllers\ForgottenPasswordController;
-use App\Http\Controllers\SearchController;
-use App\Http\Controllers\WebInterfaceController;
+use App\Http\Controllers\MfaController;
+use App\Http\Controllers\NotificationController;
+use App\Http\Controllers\OutgoingPaymentController;
+use App\Http\Controllers\PohodaRefundQueueController;
 use App\Http\Controllers\PublicIpNat1to1Controller;
 use App\Http\Controllers\PublicPortForwardController;
-use App\Http\Controllers\NotificationController;
-use App\Http\Controllers\MembershipInterruptController;
-use App\Http\Controllers\CommentController;
-use App\Http\Controllers\LogQueueController;
-use App\Http\Controllers\BankAccountAutoDownloadController;
-use App\Http\Controllers\MemberWhitelistController;
-use App\Http\Controllers\MemberLanAccessController;
 use App\Http\Controllers\RedirectController;
-use App\Http\Controllers\EmailQueueController;
-use App\Http\Controllers\PohodaRefundQueueController;
-use App\Http\Controllers\ConnectionRequestController;
+use App\Http\Controllers\RegistrationController;
+use App\Http\Controllers\SavedFilterController;
+use App\Http\Controllers\SearchController;
+use App\Http\Controllers\SettingController;
 use App\Http\Controllers\SmsMessageController;
-use App\Http\Controllers\GponController;
-use App\Http\Controllers\ContractController;
-use App\Http\Controllers\Contracts\ConnectionPointAddonController;
-use App\Http\Controllers\Contracts\LegacyAddonController;
-use App\Http\Controllers\Contracts\ServiceAddonController;
-use App\Http\Controllers\Contracts\TariffAddonController;
-use App\Http\Controllers\FieldController;
+use App\Http\Controllers\SpeedClassController;
+use App\Http\Controllers\StatsController;
+use App\Http\Controllers\StreetController;
+use App\Http\Controllers\SubnetController;
+use App\Http\Controllers\TownController;
+use App\Http\Controllers\TransferController;
+use App\Http\Controllers\UserController;
+use App\Http\Controllers\VariableSymbolController;
+use App\Http\Controllers\VlanController;
 use App\Http\Controllers\WebAuthnController;
+use App\Http\Controllers\WebInterfaceController;
 use Illuminate\Support\Facades\Route;
 
 // ── Web Interface API (machine-to-machine, IP-restricted, no session auth) ──
@@ -201,7 +201,7 @@ Route::get('ares/lookup-public/{ico}', function (string $ico) {
         $psc          = preg_replace('/\D/', '', $sidlo['psc'] ?? '');
 
         // Město/ulici z ARES (důvěryhodný zdroj) najdi, a když chybí, založ.
-        $addr = app(\App\Services\AddressResolverService::class)
+        $addr = app(\App\Domains\Members\Support\AddressResolverService::class)
             ->resolveOrCreate($mestNazev, $psc, $uliceNazev);
 
         return response()->json([
@@ -337,7 +337,7 @@ Route::middleware('auth')->group(function () {
             $psc          = preg_replace('/\D/', '', $sidlo['psc'] ?? '');
 
             // Město/ulici z ARES (důvěryhodný zdroj) najdi, a když chybí, založ.
-            $addr = app(\App\Services\AddressResolverService::class)
+            $addr = app(\App\Domains\Members\Support\AddressResolverService::class)
                 ->resolveOrCreate($mestNazev, $psc, $uliceNazev);
 
             return response()->json([

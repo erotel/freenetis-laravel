@@ -2,8 +2,8 @@
 
 namespace App\Domains\Members\Listeners;
 
+use App\Domains\Audit\AuditLogger;
 use App\Domains\Members\Events\MemberApproved;
-use App\Services\AuditLogger;
 
 /**
  * Zapíše schválení jako samostatnou auditní akci 'approved' (NIS2 audit trail).

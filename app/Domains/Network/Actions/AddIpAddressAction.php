@@ -3,10 +3,10 @@
 namespace App\Domains\Network\Actions;
 
 use App\Domains\Network\Repositories\IpAddressRepository;
+use App\Domains\Network\Support\AllowedSubnetSyncService;
 use App\Domains\Network\Support\Ip6Sync;
-use App\Models\IpAddress;
-use App\Services\AllowedSubnetSyncService;
 use App\Domains\Notifications\Actions\SyncPendingCustomerRedirectAction;
+use App\Models\IpAddress;
 
 /**
  * Nová IP: odvozená IPv6, expirace DHCP podsítě, přípojné místo vlastníka

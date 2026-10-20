@@ -3,9 +3,9 @@
 namespace App\Domains\Network\Actions;
 
 use App\Domains\Network\Repositories\IpAddressRepository;
+use App\Domains\Network\Support\AllowedSubnetSyncService;
 use App\Domains\Network\Support\Ip6Sync;
 use App\Models\IpAddress;
-use App\Services\AllowedSubnetSyncService;
 
 /** Smaže IP i odvozenou IPv6 rozhraní; expirace DHCP podsítě, vlastníkovi bez další IP v podsíti odejde přípojné místo. */
 class RemoveIpAddressAction

@@ -2,7 +2,7 @@
 
 namespace Tests\Feature\Fees;
 
-use App\Services\AllowedSubnetFeesResolver;
+use App\Domains\Billing\Fees\AllowedSubnetFeesResolver;
 use Illuminate\Support\Facades\DB;
 use Tests\DatabaseTestCase;
 

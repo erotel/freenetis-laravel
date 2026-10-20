@@ -2,8 +2,8 @@
 
 namespace App\Domains\Billing\Listeners;
 
+use App\Domains\Audit\AuditLogger;
 use App\Domains\Billing\Events\FeesDeducted;
-use App\Services\AuditLogger;
 
 /**
  * Audit trail: souhrn automatického strhávání (cron, user_id=NULL = systém).

@@ -2,8 +2,8 @@
 
 namespace Tests\Feature\Audit;
 
+use App\Domains\Audit\AuditLogger;
 use App\Models\AllowedSubnet;
-use App\Services\AuditLogger;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\DB;
 use Tests\DatabaseTestCase;

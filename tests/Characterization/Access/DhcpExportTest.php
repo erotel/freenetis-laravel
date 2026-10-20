@@ -344,7 +344,7 @@ class DhcpExportTest extends DatabaseTestCase
 
     public function test_prihlaseny_s_acl_bez_tokenu_nic_nezapise(): void
     {
-        $acl = $this->mock(\App\Services\AclService::class);
+        $acl = $this->mock(\App\Domains\Acl\AclService::class);
         $acl->shouldReceive('hasAccess')->andReturn(true);
         $admin = \App\Models\User::find((int) DB::table('users')->where('type', 1)->value('id'));
         DB::table('subnets')->where('id', $this->subnet['A'])->update(['dhcp_expired' => 1]);

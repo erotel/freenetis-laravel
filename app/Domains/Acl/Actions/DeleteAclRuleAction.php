@@ -2,9 +2,9 @@
 
 namespace App\Domains\Acl\Actions;
 
+use App\Domains\Acl\AclService;
 use App\Domains\Acl\Repositories\AclRuleRepository;
-use App\Services\AclService;
-use App\Services\AuditLogger;
+use App\Domains\Audit\AuditLogger;
 
 class DeleteAclRuleAction
 {

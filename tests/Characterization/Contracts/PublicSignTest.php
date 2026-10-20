@@ -2,11 +2,11 @@
 
 namespace Tests\Characterization\Contracts;
 
+use App\Domains\Contracts\Otp\OtpService;
+use App\Domains\Contracts\Pdf\PdfService;
 use App\Models\ContractAddon;
 use App\Models\Message;
 use App\Models\Setting;
-use App\Services\Contracts\OtpService;
-use App\Services\Contracts\PdfService;
 use Illuminate\Support\Facades\DB;
 use Tests\DatabaseTestCase;
 

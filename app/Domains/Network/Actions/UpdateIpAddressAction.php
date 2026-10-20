@@ -3,9 +3,9 @@
 namespace App\Domains\Network\Actions;
 
 use App\Domains\Network\Repositories\IpAddressRepository;
+use App\Domains\Network\Support\AllowedSubnetSyncService;
 use App\Domains\Network\Support\Ip6Sync;
 use App\Models\IpAddress;
-use App\Services\AllowedSubnetSyncService;
 
 /** Úprava IP: přepočet IPv6, expirace DHCP nové i původní podsítě, přesun přípojného místa. */
 class UpdateIpAddressAction

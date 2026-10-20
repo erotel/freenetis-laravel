@@ -2,9 +2,9 @@
 
 namespace App\Console\Commands;
 
+use App\Domains\Audit\AuditLogger;
+use App\Domains\Network\Support\AllowedSubnetSyncService;
 use App\Models\Setting;
-use App\Services\AllowedSubnetSyncService;
-use App\Services\AuditLogger;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\DB;
 

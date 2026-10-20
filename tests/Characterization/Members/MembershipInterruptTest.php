@@ -2,9 +2,9 @@
 
 namespace Tests\Characterization\Members;
 
+use App\Domains\Acl\AclService;
 use App\Models\Setting;
 use App\Models\User;
-use App\Services\AclService;
 use Illuminate\Support\Facades\DB;
 use Tests\DatabaseTestCase;
 

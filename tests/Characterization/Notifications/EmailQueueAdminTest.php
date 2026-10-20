@@ -2,10 +2,10 @@
 
 namespace Tests\Characterization\Notifications;
 
+use App\Domains\Acl\AclService;
+use App\Domains\Notifications\Channels\EmailSenderService;
 use App\Models\EmailQueue;
 use App\Models\User;
-use App\Services\AclService;
-use App\Services\EmailSenderService;
 use Illuminate\Support\Facades\DB;
 use Tests\DatabaseTestCase;
 

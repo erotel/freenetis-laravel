@@ -1,6 +1,6 @@
 <?php
 
-namespace App\Services;
+namespace App\Domains\Members\SledovaniTv;
 
 use App\Models\Setting;
 use Illuminate\Support\Facades\DB;

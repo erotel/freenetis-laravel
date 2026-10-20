@@ -1,7 +1,8 @@
 <?php
 
-namespace App\Services;
+namespace App\Domains\Members\Auth;
 
+use App\Domains\Audit\AuditLogger;
 use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
