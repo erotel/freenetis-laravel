@@ -3,9 +3,8 @@
 namespace App\View\Components;
 
 use App\Domains\Acl\AclService;
-use App\Domains\Contracts\Queries\ContractListQuery;
 use App\Models\Setting;
-use Illuminate\Support\Facades\DB;
+use App\View\Queries\MenuBadgesQuery;
 use Illuminate\View\Component;
 
 class FreenetisMenu extends Component
@@ -31,47 +30,21 @@ class FreenetisMenu extends Component
             return;
         }
 
-        // Badge counts (only query if user has access, lazy via closures resolved below)
-        $countUnidentified = fn() => (int) DB::table('transfers as t')
-            ->join('bank_transfers as bt', 'bt.transfer_id', '=', 't.id')
-            ->join('accounts as a', 'a.id', '=', 't.origin_id')
-            ->whereNull('t.member_id')
-            ->where('a.account_attribute_id', 684000)
-            ->count();
-
-        $countDraftOutgoing = fn() => (int) DB::table('outgoing_payments')
-            ->where('status', 'draft')
-            ->count();
-
-        $countApplicants  = fn() => (int) DB::table('members')->whereIn('type', [1, 17, 18])->count();
-        $countCustomers   = fn() => (int) DB::table('members')->where('type', 2)->count();
-        $countRegular     = fn() => (int) DB::table('members')->where('type', 90)->count();
-        // Pouze aktivní (typ 2/90) — bývalí by se měli flagů zbavit při endMembership,
-        // ale i tak filtrujeme, aby case nesouladu nezpůsobil "ghost" counter.
-        $countPendingTermination = fn() => (int) DB::table('members')
-            ->where('pending_termination', 1)->whereIn('type', [2, 90])->count();
-        $countLogErrors   = fn() => (int) DB::table('log_queues')->whereIn('type', [0, 1])->where('state', 0)->count();
-        $countEmailUnsent            = fn() => (int) DB::table('email_queues')->where('state', 0)->count();
-        $countSmsUnsent              = fn() => (int) DB::table('sms_messages')->where('type', 1)->where('state', 1)->count();
-        $countConnectionRequests     = fn() => (int) DB::table('connection_requests')->where('state', 0)->count();
-        $countUnsignedContracts = fn() => app(ContractListQuery::class)->countUnsigned();
-
-        $countDhcpErrors = fn() => (int) DB::table('devices as d')
-            ->join('ifaces as i', 'i.device_id', '=', 'd.id')
-            ->join('ip_addresses as ip', 'ip.iface_id', '=', 'i.id')
-            ->where('ip.gateway', 1)
-            ->where('ip.dhcp', 1)
-            ->whereNotNull('d.access_time')
-            ->where('d.access_time', '!=', '0000-00-00 00:00:00')
-            ->where('d.access_time', '<', now()->subMinutes(5))
-            ->distinct('d.id')
-            ->count('d.id');
-
-        // Otevřené kritické line-id anomálie (přehození portů apod.). Guard na
-        // neexistující tabulku — na produkci nemusí být migrace nasazená.
-        $countLineIdAnomalies = fn() => \Illuminate\Support\Facades\Schema::hasTable('line_id_anomalies')
-            ? (int) DB::table('line_id_anomalies')->whereNull('resolved_at')->where('severity', 'critical')->count()
-            : 0;
+        // Odznaky — počítají se líně, jen u položek viditelných pro uživatele.
+        $badges = app(MenuBadgesQuery::class);
+        $countUnidentified       = fn () => $badges->unidentifiedPayments();
+        $countDraftOutgoing      = fn () => $badges->draftOutgoingPayments();
+        $countApplicants         = fn () => $badges->applicants();
+        $countCustomers          = fn () => $badges->customers();
+        $countRegular            = fn () => $badges->regularMembers();
+        $countPendingTermination = fn () => $badges->pendingTermination();
+        $countLogErrors          = fn () => $badges->logErrors();
+        $countEmailUnsent        = fn () => $badges->unsentEmails();
+        $countSmsUnsent          = fn () => $badges->unsentSms();
+        $countConnectionRequests = fn () => $badges->pendingConnectionRequests();
+        $countUnsignedContracts  = fn () => $badges->unsignedContracts();
+        $countDhcpErrors         = fn () => $badges->dhcpServerErrors();
+        $countLineIdAnomalies    = fn () => $badges->criticalLineIdAnomalies();
 
         $menuGroups = [
             ['name' => 'home', 'label' => 'Domů', 'items' => [
