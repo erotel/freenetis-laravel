@@ -4,10 +4,10 @@ namespace App\Console\Commands;
 use App\Domains\Notifications\Actions\ActivateAutoMessageAction;
 use App\Domains\Notifications\Activation\ActivationRule;
 use App\Domains\Notifications\Queries\NotificationRecipientsQuery;
+use App\Domains\Notifications\Repositories\ActivationRuleRepository;
 use App\Models\Message;
 use App\Models\Setting;
 use Illuminate\Console\Command;
-use Illuminate\Support\Facades\DB;
 
 /**
  * Automatická upozornění dlužníkům / upomínky podle pravidel
@@ -59,7 +59,7 @@ class NotificationActivation extends Command
         }
 
         foreach (Message::whereIn('type', self::AUTO_TYPES)->get() as $message) {
-            $rules = DB::table('messages_automatical_activations')->where('message_id', $message->id)->get();
+            $rules = app(ActivationRuleRepository::class)->forMessage((int) $message->id);
             if ($rules->isEmpty()) continue;
 
             // Víc platných pravidel = OR kanálů → JEDNA sada notifikací, ne N (jako Kohana).

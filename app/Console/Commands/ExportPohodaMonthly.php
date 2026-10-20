@@ -2,10 +2,10 @@
 
 namespace App\Console\Commands;
 
-use App\Models\Setting;
 use App\Domains\Billing\Actions\ExportPohodaAction;
+use App\Domains\Notifications\Repositories\EmailQueueRepository;
+use App\Models\Setting;
 use Illuminate\Console\Command;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 
 class ExportPohodaMonthly extends Command
@@ -15,7 +15,7 @@ class ExportPohodaMonthly extends Command
                                 {--force : Run even if already sent this period}';
     protected $description = 'Export monthly invoices and refunds to Pohoda XML and email to accountant';
 
-    public function handle(ExportPohodaAction $service): int
+    public function handle(ExportPohodaAction $service, EmailQueueRepository $emails): int
     {
         // Determine target month
         if ($this->option('month')) {
@@ -98,22 +98,9 @@ class ExportPohodaMonthly extends Command
 
             $body = nl2br(htmlspecialchars(implode("\n", $lines), ENT_QUOTES, 'UTF-8'));
 
-            $emailId = DB::table('email_queues')->insertGetId([
-                'from'    => $fromEmail,
-                'to'      => $accountantEmail,
-                'subject' => $subject,
-                'body'    => $body,
-                'state'   => 0,
-            ]);
-
+            $emailId = $emails->enqueue($fromEmail, $accountantEmail, $subject, $body);
             foreach ($attachments as $file) {
-                DB::table('email_queue_attachments')->insert([
-                    'email_queue_id' => $emailId,
-                    'path'           => $file,
-                    'name'           => basename($file),
-                    'mime'           => 'application/xml',
-                    'created_at'     => now(),
-                ]);
+                $emails->attach($emailId, $file, basename($file), 'application/xml');
             }
 
             $this->info("Email queued to {$accountantEmail}: {$subject}");
