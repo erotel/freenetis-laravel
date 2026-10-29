@@ -4,7 +4,6 @@ namespace App\Http\Controllers\Contracts;
 
 use App\Domains\Contracts\Actions\FinalizeContractSignAction;
 use App\Domains\Contracts\Actions\FinalizeLegacyAddonSignAction;
-use App\Domains\Contracts\Actions\GenerateTerminationAction;
 use App\Domains\Contracts\Actions\SignAddonAction;
 use App\Domains\Contracts\Exceptions\ContractSigningFailed;
 use App\Domains\Contracts\Otp\OtpService;
@@ -168,7 +167,6 @@ class PublicSignController extends Controller
         $path = match ($row->file_type) {
             'contract'    => $contract->pdf_path,
             'addon'       => $contract->addon_pdf_path,
-            'termination' => $this->terminationPath($contract->id),
             'tariff_addon', 'service_addon', 'connection_point_addon'
                           => ($row->addon_id ?? null) ? app(ContractAddonRepository::class)->findAny((int) $row->addon_id)?->pdf_path : null,
             default       => null,
@@ -210,24 +208,6 @@ class PublicSignController extends Controller
         }
 
         return $this->signedResponse($contract->id, 'addon', $sha256);
-    }
-
-    public function finalizeTermination(Request $request, GenerateTerminationAction $generate): JsonResponse
-    {
-        $contract = $this->resolveContract($request);
-        if (!$contract) return $this->unauthorizedJson();
-
-        if (!in_array($contract->status, ['otp_verified', 'signed'], true)) {
-            return response()->json(['error' => 'Smlouva nebyla ověřena.'], 409);
-        }
-
-        try {
-            $sha256 = $generate->handle($contract, $request);
-        } catch (ContractSigningFailed $e) {
-            return $this->serverError($e);
-        }
-
-        return $this->signedResponse($contract->id, 'termination', $sha256);
     }
 
     // ── Dodatky tarif / služba / přípojné místo (contract_addons) ───────────
@@ -378,11 +358,4 @@ class PublicSignController extends Controller
         return '****' . $tail;
     }
 
-    private function terminationPath(int $contractId): ?string
-    {
-        $cfg  = (string) (\App\Models\Setting::get('storage', null) ?? config('services.contracts.storage', 'storage/app/private/contracts'));
-        $base = str_starts_with($cfg, '/') ? $cfg : base_path(ltrim($cfg, '/'));
-        $path = rtrim($base, '/') . "/termination-{$contractId}.pdf";
-        return is_file($path) ? $path : null;
-    }
 }

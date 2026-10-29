@@ -51,7 +51,7 @@ class PublicSignTest extends DatabaseTestCase
         Message::whereIn('type', [Message::CONTRACT_SIGNED, Message::CONTRACT_ADDON_SIGNED])->update(['email_text' => '']);
 
         $pdf = $this->createMock(PdfService::class);
-        foreach (['renderContractPdf', 'renderAddonPdf', 'renderTerminationPdf', 'renderTariffAddonPdf', 'renderServiceAddonPdf', 'renderConnectionPointAddonPdf'] as $m) {
+        foreach (['renderContractPdf', 'renderAddonPdf', 'renderTariffAddonPdf', 'renderServiceAddonPdf', 'renderConnectionPointAddonPdf'] as $m) {
             $pdf->method($m)->willReturnCallback(fn ($x, $preview = false) => $preview === true ? '%PDF-preview-' . $m : $this->file($m));
         }
         $this->app->instance(PdfService::class, $pdf);
@@ -160,7 +160,6 @@ class PublicSignTest extends DatabaseTestCase
         DB::connection('contracts')->table('contracts')->where('id', $this->contractId)->update(['status' => 'draft']);
         $t = $this->token();
         $this->postJson(route('sign.finalize'), ['t' => $t])->assertStatus(409)->assertExactJson(['error' => 'Smlouva nebyla ověřena.']);
-        $this->postJson(route('sign.terminate'), ['t' => $t])->assertStatus(409);
         $this->postJson(route('sign.finalize'), ['t' => 'x'])->assertStatus(401);
 
         DB::connection('contracts')->table('contracts')->where('id', $this->contractId)->update(['status' => 'signed']);
@@ -169,7 +168,7 @@ class PublicSignTest extends DatabaseTestCase
         $this->assertSame(0, $this->events('post_sign_email_sent')->count(), 'vypnuté přílohy → žádný e-mail');
     }
 
-    public function test_stary_dodatek_a_vypoved(): void
+    public function test_stary_dodatek_a_zrusena_vypoved(): void
     {
         $t = $this->token();
         $this->postJson(route('sign.addon.otp.send'), ['t' => $t])->assertOk();
@@ -187,10 +186,12 @@ class PublicSignTest extends DatabaseTestCase
         $res = $this->get(route('sign.addon.preview', ['t' => $t]))->assertOk();
         $this->assertSame('inline; filename="addon-preview.pdf"', $res->headers->get('Content-Disposition'));
 
-        $res = $this->postJson(route('sign.terminate'), ['t' => $t])->assertOk();
-        $this->assertSame([['sha256' => hash('sha256', '%PDF-renderTerminationPdf')]], $this->events('termination_generated')->all());
-        $this->assertSame('ano', DB::connection('contracts')->table('contract_parties')->where('contract_id', $this->contractId)->value('termination'));
-        $this->assertSame('termination', $this->dlRow($res->json('download_url'))->file_type);
+        // Veřejná „výpověď" (pozůstatek převodu členů na zákazníky) je zrušená:
+        // adresa neexistuje, nic se nevygeneruje ani nepřepíše.
+        $this->assertFalse(\Illuminate\Support\Facades\Route::has('sign.terminate'));
+        $this->postJson('/sign/terminate', ['t' => $t])->assertNotFound();
+        $this->assertSame(0, $this->events('termination_generated')->count());
+        $this->assertSame('ano', DB::connection('contracts')->table('contract_parties')->where('contract_id', $this->contractId)->value('termination'), 'příznak strany beze změny');
     }
 
     public function test_stazeni_tokenem(): void

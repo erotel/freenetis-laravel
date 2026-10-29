@@ -398,42 +398,6 @@ class PdfService
         return $fullpath;
     }
 
-    /**
-     * Generate the membership-termination PDF.
-     */
-    public function renderTerminationPdf(Contract $contract, ?Request $request = null): string
-    {
-        $party = ContractParty::where('contract_id', $contract->id)->orderByDesc('id')->first();
-        $p     = $party?->toArray() ?? [];
-
-        $repl = [
-            '{{today}}'           => now()->format('Y-m-d'),
-            '{{email}}'           => $this->h($p['email'] ?? ''),
-            '{{full_name}}'       => $this->h($p['full_name'] ?? ''),
-            '{{street}}'          => $this->h($p['street'] ?? ''),
-            '{{town}}'            => $this->h($p['town'] ?? ''),
-            '{{country}}'         => $this->h($p['country'] ?? ''),
-            '{{ico}}'             => $this->h($p['ico'] ?? ''),
-            '{{dic}}'             => $this->h($p['dic'] ?? ''),
-            '{{variable_symbol}}' => $this->h($p['variable_symbol'] ?? ''),
-            '{{phone_mask}}'      => $this->h($this->maskPhone((string) ($contract->phone ?? ''))),
-        ];
-
-        $html   = $this->resolveTemplateAssets(strtr($this->loadTemplate('termination.html'), $repl));
-        $tmpDir = $this->tmpDir();
-        $mpdf   = new Mpdf(['tempDir' => $tmpDir]);
-        $mpdf->WriteHTML($html);
-        $mpdf->AddPage();
-        $mpdf->WriteHTML($this->buildEvidenceHtml($contract, $request, true));
-
-        $outDir   = $this->storageDir();
-        $filename = "termination-{$contract->id}.pdf";
-        $fullpath = $outDir . '/' . $filename;
-        $mpdf->Output($fullpath, Destination::FILE);
-
-        return $fullpath;
-    }
-
     // ── helpers ────────────────────────────────────────────────────────────
 
     private function loadTemplate(string $name): string

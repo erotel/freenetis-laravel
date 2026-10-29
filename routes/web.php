@@ -255,7 +255,6 @@ Route::prefix('sign')->name('sign.')->group(function () {
     Route::get ('addon/preview',    [\App\Http\Controllers\Contracts\PublicSignController::class, 'previewAddon'])->name('addon.preview');
     Route::post('addon/otp/send',   [\App\Http\Controllers\Contracts\PublicSignController::class, 'sendAddonOtp'])->name('addon.otp.send');
     Route::post('addon/otp/verify', [\App\Http\Controllers\Contracts\PublicSignController::class, 'verifyAddonOtp'])->name('addon.otp.verify');
-    Route::post('terminate',        [\App\Http\Controllers\Contracts\PublicSignController::class, 'finalizeTermination'])->name('terminate');
     // Dodatek – změna tarifu (token nese cid+aid; OTP se odesílá přes addon/otp/send)
     Route::get ('tariff-addon',            [\App\Http\Controllers\Contracts\PublicSignController::class, 'showTariffAddon'])->name('tariff_addon.show');
     Route::post('tariff-addon/info',       [\App\Http\Controllers\Contracts\PublicSignController::class, 'tariffAddonInfo'])->name('tariff_addon.info');
