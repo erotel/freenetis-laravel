@@ -374,7 +374,7 @@ $isDark = ($userSettings['dark_mode'] ?? 0) == 1;
                 .then(function(data){
                     if(!data.length){whisper.style.display='none';return;}
                     var html=data.map(function(item){
-                        return '<a href="'+item.url+'" style="display:block;padding:7px 12px;text-decoration:none;color:#333;border-bottom:1px solid #f0f0f0;">'+
+                        return '<a href="'+escHtml(item.url)+'" style="display:block;padding:7px 12px;text-decoration:none;color:#333;border-bottom:1px solid #f0f0f0;">'+
                             '<strong style="color:#e8651a;">'+highlight(item.title,q)+'</strong>'+
                             (item.detail?'<br><small style="color:#888;font-size:13px;">'+highlight(item.detail,q)+'</small>':'')+
                             '</a>';
@@ -384,10 +384,17 @@ $isDark = ($userSettings['dark_mode'] ?? 0) == 1;
                 })
                 .catch(function(){whisper.style.display='none';});
         }
+        function escHtml(s){
+            return String(s==null?'':s).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];});
+        }
+        /* Text (login, kontakt z registrace) escapovat po kouscích — liché = shoda. */
         function highlight(text,q){
-            if(!q||!text)return text;
+            text=String(text==null?'':text);
+            if(!q)return escHtml(text);
             var e=q.replace(/[.*+?^${}()|[\]\\]/g,'\\$&');
-            return String(text).replace(new RegExp('('+e+')','gi'),'<span style="background:#fff3cd;font-weight:600;">$1</span>');
+            return text.split(new RegExp('('+e+')','gi')).map(function(p,i){
+                return i%2?'<span style="background:#fff3cd;font-weight:600;">'+escHtml(p)+'</span>':escHtml(p);
+            }).join('');
         }
     }
 
