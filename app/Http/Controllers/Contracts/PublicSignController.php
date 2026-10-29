@@ -200,6 +200,12 @@ class PublicSignController extends Controller
         $contract = $this->resolveContract($request);
         if (!$contract) return $this->unauthorizedJson();
 
+        // SMS jen když je co podepsat — jinak by šlo platnou (i starou) linkou
+        // posílat placené SMS donekonečna.
+        if (!$this->hasPendingAddon($contract, $request)) {
+            return response()->json(['error' => 'Žádný dodatek nečeká na podpis.'], 409);
+        }
+
         $res = $this->otp->sendAddonOtp($contract, $request);
         return $this->fromServiceResult($res);
     }
@@ -327,6 +333,19 @@ class PublicSignController extends Controller
                 'download_url' => route('sign.download', ['t' => $dlToken]),
             ]);
         });
+    }
+
+    /** Token s aid → ten dodatek této smlouvy nepodepsaný; bez aid → starý dodatek (contracts.addon). */
+    private function hasPendingAddon(Contract $contract, Request $request): bool
+    {
+        $token = (string) ($request->input('t') ?: $request->query('t', ''));
+        $aid   = app(SignLinkToken::class)->addonId($token);
+        if ($aid) {
+            $addon = app(ContractAddonRepository::class)->findAny($aid);
+            return $addon && (int) $addon->contract_id === (int) $contract->id
+                && in_array($addon->status, ['draft', 'otp_sent'], true);
+        }
+        return (int) $contract->addon === 1 && (int) $contract->addon_signed === 0;
     }
 
     private function resolveAddon(Request $request, AddonType $type): ?ContractAddon

@@ -58,6 +58,16 @@ class AppServiceProvider extends ServiceProvider
             ];
         });
 
+        // Veřejné podepisování (/sign/*): bez přihlášení, ale každá SMS s kódem stojí
+        // peníze. Celkově velkoryse (stránka sama udělá ~7 požadavků), SMS přísně
+        // per IP+odkaz a per IP. Denní strop na smlouvu hlídá OtpService.
+        $tooMany = fn () => response()->json(['error' => 'Příliš mnoho požadavků, zkuste to za chvíli.'], 429);
+        RateLimiter::for('sign', fn (Request $request) => Limit::perMinute(30)->by('sign_ip:' . $request->ip())->response($tooMany));
+        RateLimiter::for('sign-sms', fn (Request $request) => [
+            Limit::perMinutes(10, 3)->by('sign_sms:' . sha1($request->ip() . '|' . $request->input('t')))->response($tooMany),
+            Limit::perMinutes(10, 10)->by('sign_sms_ip:' . $request->ip())->response($tooMany),
+        ]);
+
         // Register Blade components
         Blade::component('freenetis-menu', FreenetisMenu::class);
 

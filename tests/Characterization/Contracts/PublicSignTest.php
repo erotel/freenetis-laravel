@@ -227,6 +227,7 @@ class PublicSignTest extends DatabaseTestCase
 
     public function test_stary_dodatek_a_zrusena_vypoved(): void
     {
+        DB::connection('contracts')->table('contracts')->where('id', $this->contractId)->update(['addon' => 1]);
         $t = $this->token();
         $this->postJson(route('sign.addon.otp.send'), ['t' => $t])->assertOk();
         $this->postJson(route('sign.addon.otp.verify'), ['t' => $t, 'otp' => '0'])->assertStatus(422);

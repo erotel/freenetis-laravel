@@ -243,17 +243,17 @@ Route::get('/redirection', [\App\Http\Controllers\RedirectionController::class, 
     ->name('redirection');
 
 // Public contract-sign flow (no auth — gated by HMAC access token)
-Route::prefix('sign')->name('sign.')->group(function () {
+Route::prefix('sign')->name('sign.')->middleware('throttle:sign')->group(function () {
     Route::get ('contract',         [\App\Http\Controllers\Contracts\PublicSignController::class, 'showContract'])->name('show');
     Route::post('info',             [\App\Http\Controllers\Contracts\PublicSignController::class, 'info'])->name('info');
     Route::get ('preview',          [\App\Http\Controllers\Contracts\PublicSignController::class, 'previewContract'])->name('preview');
-    Route::post('otp/send',         [\App\Http\Controllers\Contracts\PublicSignController::class, 'sendOtp'])->name('otp.send');
+    Route::post('otp/send',         [\App\Http\Controllers\Contracts\PublicSignController::class, 'sendOtp'])->name('otp.send')->middleware('throttle:sign-sms');
     Route::post('otp/verify',       [\App\Http\Controllers\Contracts\PublicSignController::class, 'verifyOtp'])->name('otp.verify');
     Route::post('finalize',         [\App\Http\Controllers\Contracts\PublicSignController::class, 'finalizeContract'])->name('finalize');
     Route::get ('download',         [\App\Http\Controllers\Contracts\PublicSignController::class, 'downloadContract'])->name('download');
     Route::get ('addon',            [\App\Http\Controllers\Contracts\PublicSignController::class, 'showAddon'])->name('addon.show');
     Route::get ('addon/preview',    [\App\Http\Controllers\Contracts\PublicSignController::class, 'previewAddon'])->name('addon.preview');
-    Route::post('addon/otp/send',   [\App\Http\Controllers\Contracts\PublicSignController::class, 'sendAddonOtp'])->name('addon.otp.send');
+    Route::post('addon/otp/send',   [\App\Http\Controllers\Contracts\PublicSignController::class, 'sendAddonOtp'])->name('addon.otp.send')->middleware('throttle:sign-sms');
     Route::post('addon/otp/verify', [\App\Http\Controllers\Contracts\PublicSignController::class, 'verifyAddonOtp'])->name('addon.otp.verify');
     // Dodatek – změna tarifu (token nese cid+aid; OTP se odesílá přes addon/otp/send)
     Route::get ('tariff-addon',            [\App\Http\Controllers\Contracts\PublicSignController::class, 'showTariffAddon'])->name('tariff_addon.show');

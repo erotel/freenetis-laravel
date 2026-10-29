@@ -46,7 +46,11 @@ class OtpService
             return ['ok' => false, 'status' => 409, 'error' => 'Smlouva je již podepsaná.'];
         }
 
-        if (!$this->canSendAgain($contract->id)) {
+        // Každá SMS stojí peníze — denní strop na smlouvu (smlouva i dodatky dohromady).
+        if ($this->sentToday($contract->id) >= (int) $this->cfg('otp_daily_limit', 5)) {
+            return ['ok' => false, 'status' => 429, 'error' => 'Dosažen denní limit ověřovacích SMS. Zkuste to zítra nebo kontaktujte podporu.'];
+        }
+        if (!$this->claimSendSlot($contract->id)) {
             return ['ok' => false, 'status' => 429, 'error' => 'Požadavek odeslán, počkejte na sms.'];
         }
 
@@ -91,6 +95,7 @@ class OtpService
             DB::connection('contracts')->commit();
         } catch (\Throwable $e) {
             DB::connection('contracts')->rollBack();
+            $this->releaseSendSlot($contract->id);
             return ['ok' => false, 'status' => 500, 'error' => 'Server error', 'detail' => $e->getMessage()];
         }
 
@@ -98,11 +103,10 @@ class OtpService
             $msgWhat = $isAddon ? 'pro dodatek smlouvy' : '';
             $smsText = trim("Vas overovaci kod {$msgWhat}: {$otp} (plati {$ttl} min)");
             if (!$this->sendSms($phone, $smsText)) {
+                $this->releaseSendSlot($contract->id);
                 return ['ok' => false, 'status' => 502, 'error' => 'SMS se nepodařilo odeslat.'];
             }
         }
-
-        $this->noteSentNow($contract->id);
 
         return [
             'ok'         => true,
@@ -255,15 +259,27 @@ class OtpService
         return '****' . $tail;
     }
 
-    private function canSendAgain(int $contractId): bool
-    {
-        return !Cache::has(self::RESEND_CACHE_PREFIX . $contractId);
-    }
-
-    private function noteSentNow(int $contractId): void
+    /**
+     * Atomicky zabere okno pro další SMS (Cache::add) — dva souběžné požadavky
+     * nepošlou dvě SMS, jak to šlo s has() + put() až po odeslání.
+     */
+    private function claimSendSlot(int $contractId): bool
     {
         $window = (int) $this->cfg('otp_resend_window_sec', 60);
-        Cache::put(self::RESEND_CACHE_PREFIX . $contractId, time(), max(1, $window));
+        return Cache::add(self::RESEND_CACHE_PREFIX . $contractId, time(), max(1, $window));
+    }
+
+    /** Neodeslaná SMS okno neblokuje — klient může hned zkusit znovu. */
+    private function releaseSendSlot(int $contractId): void
+    {
+        Cache::forget(self::RESEND_CACHE_PREFIX . $contractId);
+    }
+
+    private function sentToday(int $contractId): int
+    {
+        $since = now()->startOfDay();
+        return DB::connection('contracts')->table('contract_otps')->where('contract_id', $contractId)->where('created_at', '>=', $since)->count()
+             + DB::connection('contracts')->table('contract_addon_otps')->where('contract_id', $contractId)->where('created_at', '>=', $since)->count();
     }
 
     /**
