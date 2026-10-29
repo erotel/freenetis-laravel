@@ -44,6 +44,18 @@ class RegistrationNameCharsTest extends DatabaseTestCase
         $this->assertFalse(DB::table('users')->where('login', $this->tag)->exists());
     }
 
+    public function test_telefon_a_login_jen_bezne_znaky(): void
+    {
+        foreach (['<img src=x onerror=alert(1)>', '777 abc 123', '12345', '+420 777"000'] as $bad) {
+            $this->post(route('registration.store'), $this->data(['phone' => $bad]))->assertSessionHasErrors('phone');
+        }
+        foreach (['<svg/onload=x>', 'jan novak', 'm&m12', 'jan"x1'] as $bad) {
+            $this->post(route('registration.store'), $this->data(['login' => $bad]))->assertSessionHasErrors('login');
+        }
+        $this->post(route('registration.store'), $this->data(['phone' => '+420 777 000 111', 'login' => "{$this->tag}.a_b-c"]))
+            ->assertSessionDoesntHaveErrors(['phone', 'login']);
+    }
+
     public function test_bezne_firemni_znaky_projdou(): void
     {
         $this->post(route('registration.store'), $this->data([

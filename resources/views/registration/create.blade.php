@@ -97,7 +97,7 @@
         <label class="m-form-label" for="reg-login">Login <span style="color:#c0392b">*</span></label>
         <input class="m-form-input" type="text" id="reg-login" name="login" value="{{ old('login') }}"
                minlength="5" maxlength="20" autocomplete="off">
-        <div class="m-form-hint">5–20 znaků, unikátní</div>
+        <div class="m-form-hint">5–20 znaků (písmena bez diakritiky, číslice, . _ -), unikátní</div>
         @error('login') <div class="m-form-hint" style="color:#c0392b">{{ $message }}</div> @enderror
     </div>
     <div class="m-form-row">
