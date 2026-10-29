@@ -36,8 +36,8 @@ class RegistrationController extends Controller
 
         $validated = $request->validate([
             'registration_type'           => 'required|in:3,17,18',
-            'name'                        => ['required', 'string', 'max:100', 'regex:/^[^<>{};]+$/u'],
-            'surname'                     => ['nullable', 'string', 'max:100', 'regex:/^[^<>{};]+$/u'],
+            'name'                        => ['required', 'string', 'max:100', 'regex:/^[^<>{};"\[\]$\\\\\p{Cc}]+$/u'],
+            'surname'                     => ['nullable', 'string', 'max:100', 'regex:/^[^<>{};"\[\]$\\\\\p{Cc}]+$/u'],
             'birthday'                    => $birthdayRules,
             'login'                       => 'required|string|min:5|max:20|unique:users,login',
             'password'                    => \App\Rules\StrongPassword::rules($request->input('login')),
