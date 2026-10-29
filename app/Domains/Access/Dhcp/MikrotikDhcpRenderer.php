@@ -45,13 +45,14 @@ class MikrotikDhcpRenderer
             $rangesStr = !empty($s['ranges'])
                 ? implode(',', $s['ranges'])
                 : "{$s['range_start']}-{$s['range_end']}";
-            $nm = $s['name'];
+            $nm = self::quote($s['name']);
             $out .= ":if ([:len [/ip pool find name=\"{$nm}\"]]=0)"
                   . " do={/ip pool add name=\"{$nm}\" ranges={$rangesStr}}"
                   . " else={/ip pool set [/ip pool find name=\"{$nm}\"] ranges={$rangesStr}}\r\n";
         }
         $out .= "/ip dhcp-server\r\nremove [find]\r\n";
         foreach ($servers as $s) {
+            $nm = self::quote($s['name']);
             // use-radius: ipoe subnet (RADIUS Framed-IP podle line-id) NEBO MK trvale
             // vynucený v dhcp_force_radius (optické brány jedou přes RADIUS i než se
             // subnet přepne na ipoe). tr101: jen MK v dhcp_force_tr101 (bridge/direct
@@ -63,14 +64,14 @@ class MikrotikDhcpRenderer
             if ($relayInterface !== null) {
                 // Relay režim: matchujeme podle relay=<gateway> (giaddr), interface
                 // je společné relay rozhraní (např. vlan1010), ne lokální iface.
-                $iface = self::ascii($relayInterface);
+                $iface = self::quote(self::ascii($relayInterface));
                 if ($isStatic) {
-                    $out .= "add name=\"{$s['name']}\" authoritative=after-10sec-delay bootp-support=static disabled=no interface=\"{$iface}\" relay={$s['gateway']} lease-time={$leaseTime} address-pool=static-only{$useRadius}{$tr101}\r\n";
+                    $out .= "add name=\"{$nm}\" authoritative=after-10sec-delay bootp-support=static disabled=no interface=\"{$iface}\" relay={$s['gateway']} lease-time={$leaseTime} address-pool=static-only{$useRadius}{$tr101}\r\n";
                 } else {
-                    $out .= "add name=\"{$s['name']}\" address-pool=\"{$s['name']}\" authoritative=yes bootp-support=static disabled=no interface=\"{$iface}\" relay={$s['gateway']} lease-time={$leaseTime}{$useRadius}{$tr101}\r\n";
+                    $out .= "add name=\"{$nm}\" address-pool=\"{$nm}\" authoritative=yes bootp-support=static disabled=no interface=\"{$iface}\" relay={$s['gateway']} lease-time={$leaseTime}{$useRadius}{$tr101}\r\n";
                 }
             } else {
-                $out .= "add name=\"{$s['name']}\" address-pool=\"{$s['name']}\" authoritative=after-2sec-delay bootp-support=static disabled=no interface=\"{$s['interface']}\" lease-time={$leaseTime}{$useRadius}{$tr101}\r\n";
+                $out .= "add name=\"{$nm}\" address-pool=\"{$nm}\" authoritative=after-2sec-delay bootp-support=static disabled=no interface=\"" . self::quote($s['interface']) . "\" lease-time={$leaseTime}{$useRadius}{$tr101}\r\n";
             }
         }
         $out .= "/ip dhcp-server network\r\nremove [find]\r\n";
@@ -85,7 +86,7 @@ class MikrotikDhcpRenderer
             // podle line-id. Viz fáze B.
             if (!empty($s['ipoe'])) continue;
             foreach ($s['hosts'] as $h) {
-                $out .= "add address={$h['ip_address']} disabled=no mac-address={$h['mac']} server=\"{$h['server']}\" comment=\"{$h['comment']}\"\r\n";
+                $out .= "add address={$h['ip_address']} disabled=no mac-address={$h['mac']} server=\"" . self::quote($h['server']) . "\" comment=\"" . self::comment($h['comment']) . "\"\r\n";
             }
         }
 
@@ -99,17 +100,17 @@ class MikrotikDhcpRenderer
         // = název subnetu (=sdílený pool), local-address = brána, dns z nastavení,
         // change-tcp-mss=yes (PPPoE 1492 → MSS clamp).
         if (Setting::get('pppoe_enabled', 0) && $relayInterface === null) {
-            $serviceName = self::ascii((string) Setting::get('pppoe_service_name', 'service1'));
+            $serviceName = self::quote(self::ascii((string) Setting::get('pppoe_service_name', 'service1')));
             $seenIfaces  = [];
             foreach ($servers as $s) {
-                $nm  = $s['name'];
+                $nm  = self::quote($s['name']);
                 $dns = implode(',', $s['dns_servers']);
                 $out .= ":if ([:len [/ppp profile find name=\"{$nm}\"]]=0)"
                       . " do={/ppp profile add name=\"{$nm}\" local-address={$s['gateway']} remote-address=\"{$nm}\" dns-server={$dns} use-ipv6=yes change-tcp-mss=yes}\r\n";
 
                 // pppoe-server: max 1 na rozhraní (víc subnetů na jednom iface →
                 // první profil jako default; RADIUS stejně přepíše IP per-user).
-                $iface = $s['interface'];
+                $iface = self::quote($s['interface']);
                 if (isset($seenIfaces[$iface])) continue;
                 $seenIfaces[$iface] = true;
                 $out .= ":if ([:len [/interface pppoe-server server find interface=\"{$iface}\"]]=0)"
@@ -124,11 +125,11 @@ class MikrotikDhcpRenderer
     {
         $out = "/ip dhcp-server lease\r\n";
         foreach ($servers as $s) {
-            $out .= "remove [find server=\"{$s['name']}\"]\r\n";
+            $out .= "remove [find server=\"" . self::quote($s['name']) . "\"]\r\n";
             // IPoE subnet: bez statických leasů (IP z RADIUSu podle line-id).
             if (!empty($s['ipoe'])) continue;
             foreach ($s['hosts'] as $h) {
-                $out .= "add address={$h['ip_address']} disabled=no mac-address={$h['mac']} server=\"{$h['server']}\" comment=\"{$h['comment']}\"\r\n";
+                $out .= "add address={$h['ip_address']} disabled=no mac-address={$h['mac']} server=\"" . self::quote($h['server']) . "\" comment=\"" . self::comment($h['comment']) . "\"\r\n";
             }
         }
         return $out;
@@ -137,5 +138,22 @@ class MikrotikDhcpRenderer
     public static function ascii(string $s): string
     {
         return iconv('UTF-8', 'ASCII//TRANSLIT//IGNORE', $s) ?: $s;
+    }
+
+    /**
+     * Hodnota do RouterOS řetězce v uvozovkách: escapuje \ " $ ? a řídicí znaky
+     * (nový řádek by ukončil příkaz) nahradí mezerou — jinak by název/jméno
+     * vložilo vlastní příkaz do importovaného skriptu.
+     */
+    public static function quote(string $s): string
+    {
+        $s = preg_replace('/[\x00-\x1F\x7F]/', ' ', $s);
+        return strtr($s, ['\\' => '\\\\', '"' => '\\"', '$' => '\\$', '?' => '\\?']);
+    }
+
+    /** Volný popisek (komentář leasu): navíc bez [] {} — závorky jen kulaté. */
+    public static function comment(string $s): string
+    {
+        return self::quote(strtr($s, ['[' => '(', ']' => ')', '{' => '(', '}' => ')']));
     }
 }
