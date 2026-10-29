@@ -20,6 +20,7 @@ use App\Models\ContractAddon;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
+use Illuminate\Support\Facades\Cache;
 use Symfony\Component\HttpFoundation\BinaryFileResponse;
 
 class PublicSignController extends Controller
@@ -132,17 +133,30 @@ class PublicSignController extends Controller
         $contract = $this->resolveContract($request);
         if (!$contract) return $this->unauthorizedJson();
 
-        if (!in_array($contract->status, ['otp_verified', 'signed'], true)) {
-            return response()->json(['error' => 'Smlouva nebyla ověřena.'], 409);
-        }
+        return $this->exclusively('contract:' . $contract->id, function () use ($contract, $request, $finalize) {
+            $contract->refresh();
 
-        try {
-            $sha256 = $finalize->handle($contract, $request);
-        } catch (ContractSigningFailed $e) {
-            return $this->serverError($e);
-        }
+            // Opakované volání (obnova stránky, druhý klik, starý odkaz) už podepsanou
+            // smlouvu nepřepíše ani znovu neaktivuje/neposílá e-mail — jen nový odkaz
+            // ke stažení uloženého PDF.
+            if ($contract->status === 'signed') {
+                if (!$contract->pdf_path || !is_file($contract->pdf_path)) {
+                    return response()->json(['error' => 'Smlouva je již podepsaná.'], 409);
+                }
+                return $this->signedResponse($contract->id, 'contract', bin2hex((string) $contract->pdf_sha256));
+            }
+            if ($contract->status !== 'otp_verified') {
+                return response()->json(['error' => 'Smlouva nebyla ověřena.'], 409);
+            }
 
-        return $this->signedResponse($contract->id, 'contract', $sha256);
+            try {
+                $sha256 = $finalize->handle($contract, $request);
+            } catch (ContractSigningFailed $e) {
+                return $this->serverError($e);
+            }
+
+            return $this->signedResponse($contract->id, 'contract', $sha256);
+        });
     }
 
     /**
@@ -195,19 +209,26 @@ class PublicSignController extends Controller
         $contract = $this->resolveContract($request);
         if (!$contract) return $this->unauthorizedJson();
 
-        $otp = trim((string) $request->input('otp', ''));
-        $res = $this->otp->verifyAddonOtp($contract, $otp, $request);
-        if (!($res['ok'] ?? false)) {
-            return $this->fromServiceResult($res);
-        }
+        return $this->exclusively('legacy_addon:' . $contract->id, function () use ($contract, $request, $finalize) {
+            $contract->refresh();
+            if ((int) $contract->addon_signed === 1) {
+                return response()->json(['error' => 'Dodatek je již podepsán.'], 409);
+            }
 
-        try {
-            $sha256 = $finalize->handle($contract, $request);
-        } catch (ContractSigningFailed $e) {
-            return $this->serverError($e);
-        }
+            $otp = trim((string) $request->input('otp', ''));
+            $res = $this->otp->verifyAddonOtp($contract, $otp, $request);
+            if (!($res['ok'] ?? false)) {
+                return $this->fromServiceResult($res);
+            }
 
-        return $this->signedResponse($contract->id, 'addon', $sha256);
+            try {
+                $sha256 = $finalize->handle($contract, $request);
+            } catch (ContractSigningFailed $e) {
+                return $this->serverError($e);
+            }
+
+            return $this->signedResponse($contract->id, 'addon', $sha256);
+        });
     }
 
     // ── Dodatky tarif / služba / přípojné místo (contract_addons) ───────────
@@ -279,29 +300,33 @@ class PublicSignController extends Controller
         if (!$contract || !$addon || (int) $addon->contract_id !== (int) $contract->id) {
             return $this->unauthorizedJson();
         }
-        if ($addon->status === 'signed') {
-            return response()->json(['error' => 'Dodatek je již podepsán.'], 409);
-        }
+        // Dva souběžné podpisy by dopad (tarif, přiřazení placené služby) provedly dvakrát.
+        return $this->exclusively('addon:' . $addon->id, function () use ($contract, $addon, $type, $request) {
+            $addon->refresh();
+            if ($addon->status === 'signed') {
+                return response()->json(['error' => 'Dodatek je již podepsán.'], 409);
+            }
 
-        $otp = trim((string) $request->input('otp', ''));
-        $res = $this->otp->verifyAddonOtp($contract, $otp, $request);
-        if (!($res['ok'] ?? false)) {
-            return $this->fromServiceResult($res);
-        }
+            $otp = trim((string) $request->input('otp', ''));
+            $res = $this->otp->verifyAddonOtp($contract, $otp, $request);
+            if (!($res['ok'] ?? false)) {
+                return $this->fromServiceResult($res);
+            }
 
-        try {
-            $addon = app(SignAddonAction::class)->handle($addon, $type, $this->pdf, $request);
-        } catch (\Throwable $e) {
-            return $this->serverError($e);
-        }
+            try {
+                $addon = app(SignAddonAction::class)->handle($addon, $type, $this->pdf, $request);
+            } catch (\Throwable $e) {
+                return $this->serverError($e);
+            }
 
-        app(PostSignEmails::class)->addon($contract, $addon, $type);
+            app(PostSignEmails::class)->addon($contract, $addon, $type);
 
-        $dlToken = app(DownloadTokenRepository::class)->issue($contract->id, $type->downloadFileType(), 86400, null, 1, $addon->id);
-        return response()->json([
-            'ok'           => true,
-            'download_url' => route('sign.download', ['t' => $dlToken]),
-        ]);
+            $dlToken = app(DownloadTokenRepository::class)->issue($contract->id, $type->downloadFileType(), 86400, null, 1, $addon->id);
+            return response()->json([
+                'ok'           => true,
+                'download_url' => route('sign.download', ['t' => $dlToken]),
+            ]);
+        });
     }
 
     private function resolveAddon(Request $request, AddonType $type): ?ContractAddon
@@ -322,6 +347,23 @@ class PublicSignController extends Controller
         $cid = app(SignLinkToken::class)->contractId($token);
         if (!$cid) return null;
         return app(ContractRepository::class)->find((int) $cid);
+    }
+
+    /**
+     * Podpis jednoho dokumentu najednou — souběžný požadavek (dvojklik, dvě
+     * záložky) dostane 409 místo druhého PDF, aktivace a e-mailu.
+     */
+    private function exclusively(string $key, \Closure $fn): JsonResponse
+    {
+        $lock = Cache::lock('contract_sign:' . $key, 120);
+        if (!$lock->get()) {
+            return response()->json(['error' => 'Podpis se právě zpracovává, zkuste to za chvíli.'], 409);
+        }
+        try {
+            return $fn();
+        } finally {
+            $lock->release();
+        }
     }
 
     /** Úspěšný podpis: otisk + jednorázový odkaz ke stažení (24 h). */

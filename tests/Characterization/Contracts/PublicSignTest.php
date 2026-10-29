@@ -162,10 +162,67 @@ class PublicSignTest extends DatabaseTestCase
         $this->postJson(route('sign.finalize'), ['t' => $t])->assertStatus(409)->assertExactJson(['error' => 'Smlouva nebyla ověřena.']);
         $this->postJson(route('sign.finalize'), ['t' => 'x'])->assertStatus(401);
 
-        DB::connection('contracts')->table('contracts')->where('id', $this->contractId)->update(['status' => 'signed']);
         Setting::set('contract_email_attachments_enabled', 0);
+        DB::connection('contracts')->table('contracts')->where('id', $this->contractId)->update(['status' => 'otp_verified']);
         $this->postJson(route('sign.finalize'), ['t' => $t])->assertOk();
         $this->assertSame(0, $this->events('post_sign_email_sent')->count(), 'vypnuté přílohy → žádný e-mail');
+    }
+
+    public function test_podepsana_smlouva_se_znovu_negeneruje(): void
+    {
+        $pdf = $this->file('puvodni');
+        $signedAt = now()->subMonth()->startOfSecond();
+        DB::connection('contracts')->table('contracts')->where('id', $this->contractId)->update([
+            'status' => 'signed', 'signed_at' => $signedAt, 'pdf_path' => $pdf, 'pdf_sha256' => hash('sha256', '%PDF-puvodni', true),
+        ]);
+        $t = $this->token();
+
+        $res = $this->postJson(route('sign.finalize'), ['t' => $t])->assertOk();
+        $this->assertSame([true, hash('sha256', '%PDF-puvodni')], [$res->json('ok'), $res->json('pdf_sha256')]);
+
+        $c = DB::connection('contracts')->table('contracts')->where('id', $this->contractId)->first();
+        $this->assertSame([$pdf, $signedAt->toDateTimeString()], [$c->pdf_path, (string) $c->signed_at], 'PDF ani datum podpisu se nepřepsaly');
+        $this->assertSame('%PDF-puvodni', file_get_contents($pdf));
+        $this->assertSame(0, $this->events('pdf_generated')->count());
+        $this->assertSame(0, $this->events('member_activated')->count());
+        $this->assertSame(0, $this->events('post_sign_email_sent')->count());
+        $this->assertSame('ano', DB::connection('contracts')->table('contract_parties')->where('contract_id', $this->contractId)->value('termination'));
+        $this->assertSame(18, (int) DB::table('members')->where('id', $this->memberId)->value('type'), 'člen se znovu neaktivuje');
+
+        $this->assertSame('%PDF-puvodni', $this->get($res->json('download_url'))->assertOk()->streamedContent());
+
+        // podepsaná bez uloženého PDF → nic negenerovat
+        DB::connection('contracts')->table('contracts')->where('id', $this->contractId)->update(['pdf_path' => null]);
+        $this->postJson(route('sign.finalize'), ['t' => $t])->assertStatus(409)->assertExactJson(['error' => 'Smlouva je již podepsaná.']);
+        $this->assertSame(0, $this->events('pdf_generated')->count());
+    }
+
+    public function test_soubezny_podpis_dostane_409(): void
+    {
+        $t = $this->token();
+        $lock = \Illuminate\Support\Facades\Cache::lock('contract_sign:contract:' . $this->contractId, 120);
+        $this->assertTrue($lock->get());
+        $this->postJson(route('sign.finalize'), ['t' => $t])->assertStatus(409)
+            ->assertExactJson(['error' => 'Podpis se právě zpracovává, zkuste to za chvíli.']);
+        $this->assertSame('otp_verified', DB::connection('contracts')->table('contracts')->where('id', $this->contractId)->value('status'));
+        $lock->release();
+
+        $this->postJson(route('sign.finalize'), ['t' => $t])->assertOk();
+    }
+
+    public function test_podepsany_stary_dodatek_se_znovu_nepodepise(): void
+    {
+        $pdf = $this->file('dodatek-puvodni');
+        DB::connection('contracts')->table('contracts')->where('id', $this->contractId)->update([
+            'addon' => 1, 'addon_signed' => 1, 'addon_signed_at' => now()->subWeek(), 'addon_pdf_path' => $pdf,
+        ]);
+        $t = $this->token();
+
+        $this->postJson(route('sign.addon.otp.verify'), ['t' => $t, 'otp' => '1234'])->assertStatus(409)
+            ->assertExactJson(['error' => 'Dodatek je již podepsán.']);
+        $this->assertSame($pdf, DB::connection('contracts')->table('contracts')->where('id', $this->contractId)->value('addon_pdf_path'));
+        $this->assertSame(0, $this->events('addon_generated')->count());
+        $this->assertSame(0, $this->events('addon_post_sign_email_sent')->count());
     }
 
     public function test_stary_dodatek_a_zrusena_vypoved(): void
