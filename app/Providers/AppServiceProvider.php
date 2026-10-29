@@ -14,6 +14,7 @@ use Illuminate\Support\Facades\Blade;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\RateLimiter;
+use Illuminate\Support\Facades\URL;
 use Illuminate\Support\Facades\View;
 use Illuminate\Support\ServiceProvider;
 
@@ -26,6 +27,14 @@ class AppServiceProvider extends ServiceProvider
 
     public function boot(): void
     {
+        // Absolutní odkazy (reset hesla, podpis smlouvy, assety) vždy z APP_URL,
+        // ne z Host hlavičky požadavku — Apache pustí do aplikace jakýkoli Host,
+        // takže by cizí Host podvrhl doménu v odkazu s tokenem v e-mailu.
+        if ($root = rtrim((string) config('app.url'), '/')) {
+            URL::forceRootUrl($root);
+            URL::forceScheme(parse_url($root, PHP_URL_SCHEME) ?: 'https');
+        }
+
         // Register custom user provider
         Auth::provider('freenetis', function ($app, array $config) {
             return new FreenetisUserProvider(
