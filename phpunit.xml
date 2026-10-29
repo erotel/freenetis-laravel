@@ -49,6 +49,9 @@
         <env name="PULSE_ENABLED" value="false"/>
         <env name="TELESCOPE_ENABLED" value="false"/>
         <env name="NIGHTWATCH_ENABLED" value="false"/>
+        <!-- testy nikdy neposílají skutečné SMS (OTP, cron); přístupy v DB maže testing:refresh-db -->
+        <env name="SMS_API_KEY" value=""/>
+        <env name="SMS_SENDER" value=""/>
         <!-- testy nikdy nesahají na živou Kea (flush host-cache) -->
         <env name="KEA_CONTROL_NODES" value=""/>
         <env name="KEA_CONTROL_SOCKET" value=""/>

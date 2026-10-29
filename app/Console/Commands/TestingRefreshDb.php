@@ -79,7 +79,19 @@ class TestingRefreshDb extends Command
             $this->info("[{$target}] {$copied} tabulek s daty z {$source}.");
         }
 
+        $this->scrubSmsCredentials(DB::connection('mysql'));
+
         return self::SUCCESS;
+    }
+
+    /**
+     * Nastavení se kopíruje i s přístupy k SMS bráně — test se skutečným
+     * OtpService mimo testovací režim by poslal placenou SMS na číslo z testu.
+     */
+    public static function scrubSmsCredentials(Connection $db): void
+    {
+        $db->table('config')->where(fn ($q) => $q->where('name', 'like', 'sms\\_password%')->orWhere('name', 'like', 'sms\\_user%'))
+            ->update(['value' => '']);
     }
 
     private function dropAll(Connection $db, string $target): void
