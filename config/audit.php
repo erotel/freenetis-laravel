@@ -48,6 +48,10 @@ return [
         'snmp_auth_pass',
         'snmp_priv_pass',
         'totp_secret',
+        'wpa_key',            // devices — šifrovaný, do auditu šel rozšifrovaný
+        'pppoe_secret',       // connection_requests, pppoe_secrets
+        'password_request',   // users — token pro reset hesla
+        'md5secret',
     ],
 
     /*

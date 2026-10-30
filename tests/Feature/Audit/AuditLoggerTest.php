@@ -58,6 +58,53 @@ class AuditLoggerTest extends DatabaseTestCase
         $this->assertSame('admin', $new['login']); // necitlivé pole zůstává
     }
 
+    public function test_wpa_klic_zarizeni_se_rediguje(): void
+    {
+        $device = \App\Models\Device::query()->firstOrFail();
+        $key = \Tests\Support\Fake::secret('wpa');
+        $device->wpa_key = $key;
+        $device->save();
+
+        $row = $this->lastFor('devices', (int) $device->id);
+        $this->assertSame('***', json_decode($row->new_values, true)['wpa_key']);
+        $this->assertStringNotContainsString($key, (string) $row->new_values . $row->old_values);
+    }
+
+    /**
+     * Pojistka: každý atribut, který model šifruje (cast `encrypted` nebo
+     * accessor přes encryptSensitive), musí být v audit.redact — accessor ho
+     * pro audit rozšifruje, takže by se do audit_logs zapsal v plaintextu.
+     */
+    public function test_vsechna_sifrovana_pole_modelu_jsou_redigovana(): void
+    {
+        $redact = (array) config('audit.redact');
+        $found  = [];
+        foreach (glob(app_path('Models/*.php')) as $file) {
+            $class = 'App\\Models\\' . basename($file, '.php');
+            if (!class_exists($class) || !is_subclass_of($class, \Illuminate\Database\Eloquent\Model::class)) {
+                continue;
+            }
+            foreach ((new $class)->getCasts() as $attr => $cast) {
+                if (str_starts_with((string) $cast, 'encrypted')) {
+                    $found[] = $attr;
+                }
+            }
+            $src = (string) file_get_contents($file);
+            preg_match_all('/function (\w+)\(\): Attribute\s*\{(.*?)\n    \}/s', $src, $m, PREG_SET_ORDER);
+            foreach ($m as [, $method, $body]) {
+                if (str_contains($body, 'encryptSensitive')) {
+                    $found[] = \Illuminate\Support\Str::snake($method);
+                }
+            }
+        }
+
+        $this->assertContains('wpa_key', $found, 'detekce šifrovaných polí nic nenašla');
+        $this->assertSame([], array_values(array_diff($found, $redact)), 'šifrované pole chybí v config/audit.php redact');
+        foreach (['pppoe_secret', 'password_request', 'md5secret'] as $plain) {
+            $this->assertContains($plain, $redact);
+        }
+    }
+
     public function test_preskoci_prazdnou_zmenu(): void
     {
         $before = DB::table('audit_logs')->count();
