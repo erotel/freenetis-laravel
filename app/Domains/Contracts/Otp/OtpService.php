@@ -186,12 +186,12 @@ class OtpService
                 return ['ok' => false, 'status' => 401, 'error' => 'Neplatný ověřovací kód.'];
             }
 
-            // success
-            if ($isAddon) {
-                DB::connection('contracts')->table($tableOtps)
-                    ->where('id', $row->id)
-                    ->update(['attempts_left' => 0]);
-            } else {
+            // success — kód je jednorázový (smlouva i dodatek), jinak by šel
+            // do vypršení použít znovu
+            DB::connection('contracts')->table($tableOtps)
+                ->where('id', $row->id)
+                ->update(['attempts_left' => 0]);
+            if (!$isAddon) {
                 DB::connection('contracts')->table('contracts')
                     ->where('id', $contract->id)
                     ->update(['status' => 'otp_verified']);
