@@ -56,6 +56,11 @@ class SettingController extends Controller
         ContractSettings $contracts, SledovaniTvSettings $tv,
     ) {
         $apiTokens = $tokens->ensure();
+        // Celé tokeny (zadávají se na brány/routery) jen pro toho, kdo smí
+        // nastavení měnit; kdo smí jen číst, uvidí začátek.
+        if (!$this->aclCheck('edit_all', 'Settings_Controller', 'finance_settings')) {
+            $apiTokens = array_map(fn ($t) => $t ? substr((string) $t, 0, 4) . '••••••••' : $t, $apiTokens);
+        }
 
         return view('settings.index', [
             'bankAccounts'         => $bank->associationAccounts(),

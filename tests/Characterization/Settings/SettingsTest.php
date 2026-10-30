@@ -112,6 +112,24 @@ class SettingsTest extends DatabaseTestCase
         $this->assertSame('banka', $this->as()->get(route('settings.index'))->viewData('activeTab'));
     }
 
+    public function test_api_tokeny_cele_jen_s_pravem_edit(): void
+    {
+        $dhcp = \Tests\Support\Fake::secret('selftestdhcptok');
+        $wi   = \Tests\Support\Fake::secret('selftestwitok');
+        Setting::set('dhcp_api_token', $dhcp);
+        Setting::set('web_interface_api_token', $wi);
+
+        $html = $this->as()->get(route('settings.index', ['tab' => 'network']))->assertOk()->getContent();
+        $this->assertStringContainsString($dhcp, $html);
+        $this->assertStringContainsString($wi, $html);
+
+        $this->acl(['edit_all/Settings_Controller/finance_settings']);
+        $html = $this->as()->get(route('settings.index', ['tab' => 'network']))->assertOk()->getContent();
+        $this->assertStringNotContainsString($dhcp, $html);
+        $this->assertStringNotContainsString($wi, $html);
+        $this->assertStringContainsString(substr($dhcp, 0, 4) . '••••••••', $html);
+    }
+
     public function test_index_bez_prava(): void
     {
         $this->acl(['view_all/Settings_Controller/finance_settings']);
