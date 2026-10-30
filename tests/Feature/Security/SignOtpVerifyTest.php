@@ -60,4 +60,23 @@ class SignOtpVerifyTest extends DatabaseTestCase
 
         $this->postJson(route('sign.otp.verify'), ['t' => $t, 'otp' => '482913'])->assertStatus(410);
     }
+
+    public function test_overeni_zamyka_radek_kodu(): void
+    {
+        $t = $this->token();
+        $this->otp('contract_otps', '482913');
+        $this->otp('contract_addon_otps', '482913');
+        DB::connection('contracts')->table('contracts')->where('id', $this->contractId)->update(['addon' => 1]);
+
+        DB::connection('contracts')->enableQueryLog();
+        $this->postJson(route('sign.otp.verify'), ['t' => $t, 'otp' => '111222'])->assertStatus(401);
+        $this->postJson(route('sign.addon.otp.verify'), ['t' => $t, 'otp' => '111222'])->assertStatus(401);
+        $selects = collect(DB::connection('contracts')->getQueryLog())->pluck('query')
+            ->filter(fn ($q) => preg_match('/^select .* from `contract(_addon)?_otps`/i', $q))->values();
+
+        $this->assertCount(2, $selects);
+        foreach ($selects as $q) {
+            $this->assertStringEndsWith('for update', strtolower($q));
+        }
+    }
 }

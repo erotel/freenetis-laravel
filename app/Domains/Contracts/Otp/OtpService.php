@@ -164,6 +164,7 @@ class OtpService
                 ->where('contract_id', $contract->id)
                 ->where('expires_at', '>', now())
                 ->orderByDesc('id')
+                ->lockForUpdate()   // souběžné pokusy se seřadí — jinak by stejný kód prošel dvakrát a chybné pokusy se nesčítaly
                 ->first();
 
             if (!$row || (int) $row->attempts_left <= 0) {
