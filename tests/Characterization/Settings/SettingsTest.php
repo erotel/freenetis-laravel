@@ -345,6 +345,18 @@ class SettingsTest extends DatabaseTestCase
             ->assertRedirect(route('settings.index', ['tab' => 'gpon']))->assertSessionHas('success', 'OLT byl aktualizován.');
         $m->refresh();
         $this->assertSame(['Char OLT 2', null], [$m->name, $m->vlan_map]);
+
+        // hesla se do stránky neposílají; úprava s prázdnými hesly je ponechá
+        $html = $this->as()->get(route('settings.index', ['tab' => 'gpon']))->assertOk()->getContent();
+        $this->assertStringContainsString('Char OLT 2', $html);
+        $this->assertStringNotContainsString(\Tests\Support\Fake::secret('selftesta'), $html);
+        $this->assertStringNotContainsString(\Tests\Support\Fake::secret('selftestp'), $html);
+        $this->as()->put(route('settings.gpon-olts.update', $m->id), ['snmp_auth_pass' => '', 'snmp_priv_pass' => '', 'name' => 'Char OLT 3'] + $olt)
+            ->assertSessionHasNoErrors()->assertSessionHas('success', 'OLT byl aktualizován.');
+        $m->refresh();
+        $this->assertSame(['Char OLT 3', \Tests\Support\Fake::secret('selftesta'), \Tests\Support\Fake::secret('selftestp')], [$m->name, $m->snmp_auth_pass, $m->snmp_priv_pass]);
+        $this->as()->post(route('settings.gpon-olts.store'), ['ip' => '192.0.2.78', 'snmp_auth_pass' => '', 'snmp_priv_pass' => ''] + $olt)
+            ->assertSessionHasErrors(['snmp_auth_pass', 'snmp_priv_pass']);
         $this->as()->put(route('settings.gpon-olts.update', 999999999), $olt)->assertNotFound();
 
         DB::table('onts')->insert(['serial' => 'CHAR0001', 'olt_ip' => '192.0.2.77', 'reg_status' => 'registered', 'gpon_port' => '0/1/0', 'port_num' => 0,

@@ -24,8 +24,9 @@ class SaveGponOltRequest extends SettingsRequest
             'name'            => 'required|string|max:100',
             'ip'              => 'required|ip|unique:gpon_olts,ip' . ($id !== null ? ',' . (int) $id : ''),
             'snmp_user'       => 'required|string|max:100',
-            'snmp_auth_pass'  => 'required|string|max:100',
-            'snmp_priv_pass'  => 'required|string|max:100',
+            // u úpravy prázdné = ponechat uložené heslo (do formuláře se neposílá)
+            'snmp_auth_pass'  => ($id !== null ? 'nullable' : 'required') . '|string|max:100',
+            'snmp_priv_pass'  => ($id !== null ? 'nullable' : 'required') . '|string|max:100',
             'snmp_auth_proto' => 'required|in:SHA,MD5',
             'snmp_priv_proto' => 'required|in:AES,DES',
             'line_prof'       => 'required|string|max:100',
@@ -45,6 +46,11 @@ class SaveGponOltRequest extends SettingsRequest
         $data = $this->validated();
         $decoded = !empty($data['vlan_map']) ? json_decode($data['vlan_map'], true) : null;
         $data['vlan_map'] = is_array($decoded) ? $decoded : null;
+        foreach (['snmp_auth_pass', 'snmp_priv_pass'] as $key) {
+            if (($data[$key] ?? '') === '') {
+                unset($data[$key]);
+            }
+        }
         return $data;
     }
 }

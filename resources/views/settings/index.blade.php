@@ -972,7 +972,6 @@ tinymce.init({
 <script>
 function gponOltEdit(btn) {
     const olt = JSON.parse(btn.dataset.olt);
-    console.log('edit olt:', olt);
 
     document.getElementById('gpon-olt-form-title').textContent = 'Upravit OLT: ' + olt.name;
 
@@ -992,8 +991,13 @@ function gponOltEdit(btn) {
     form.querySelector('[name="ip"]').value            = olt.ip            || '';
     form.querySelector('[name="gpon_port"]').value     = olt.gpon_port     || '';
     form.querySelector('[name="snmp_user"]').value     = olt.snmp_user     || '';
-    form.querySelector('[name="snmp_auth_pass"]').value = olt.snmp_auth_pass || '';
-    form.querySelector('[name="snmp_priv_pass"]').value = olt.snmp_priv_pass || '';
+    // hesla se do stránky neposílají — prázdné pole = ponechat uložené
+    for (const name of ['snmp_auth_pass', 'snmp_priv_pass']) {
+        const input = form.querySelector('[name="' + name + '"]');
+        input.value = '';
+        input.required = false;
+        input.placeholder = '•••••••• (beze změny)';
+    }
     form.querySelector('[name="snmp_auth_proto"]').value = olt.snmp_auth_proto || 'SHA';
     form.querySelector('[name="snmp_priv_proto"]').value = olt.snmp_priv_proto || 'AES';
     form.querySelector('[name="line_prof"]').value     = olt.line_prof     || '';
@@ -1015,6 +1019,11 @@ function gponOltReset() {
     const method = form.querySelector('input[name="_method"]');
     if (method) method.remove();
     form.reset();
+    for (const name of ['snmp_auth_pass', 'snmp_priv_pass']) {
+        const input = form.querySelector('[name="' + name + '"]');
+        input.required = true;
+        input.placeholder = '';
+    }
     document.getElementById('golt-submit-btn').textContent   = 'Přidat OLT';
     document.getElementById('golt-cancel-btn').style.display = 'none';
 }

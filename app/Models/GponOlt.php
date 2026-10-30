@@ -18,6 +18,10 @@ class GponOlt extends Model
         'traffic_table', 'gpon_port', 'base_vlan', 'port_count', 'vlan_map', 'geocode_city',
     ];
 
+    // SNMPv3 hesla nikdy do toArray()/JSON — editační formulář je dostal
+    // rozšifrovaná do HTML (data-olt) i pro toho, kdo smí nastavení jen číst.
+    protected $hidden = ['snmp_auth_pass', 'snmp_priv_pass'];
+
     protected $casts = [
         'vlan_map'   => 'array',
         'base_vlan'  => 'integer',
