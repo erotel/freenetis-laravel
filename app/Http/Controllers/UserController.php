@@ -25,6 +25,12 @@ class UserController extends Controller
         return $this->aclCheck($action, self::ACL_SECTION, $value);
     }
 
+    /** Cílový účet nemá vyšší práva než přihlášený (jinak převzetí účtu přes heslo/MFA). */
+    private function manages(int $userId): bool
+    {
+        return app(\App\Domains\Acl\AclService::class)->canManageUser((int) auth()->id(), $userId);
+    }
+
     public function index(Request $request)
     {
         $allowedSorts = ['id', 'login', 'surname', 'name', 'type'];
@@ -76,15 +82,17 @@ class UserController extends Controller
             abort(404);
         }
 
+        $manages = $this->manages((int) $user->id);
+
         return view('users.show', [
             'user'                 => $user,
             'aroGroups'            => $this->users->aclGroups((int) $user->id),
             'deviceAdmins'         => $this->users->deviceAdmins((int) $user->id),
             'deviceEngineers'      => $this->users->deviceEngineers((int) $user->id),
-            'canEdit'              => $this->can('edit_all'),
-            'canChangePassword'    => $this->can('edit_all', 'password'),
+            'canEdit'              => $this->can('edit_all') && $manages,
+            'canChangePassword'    => $this->can('edit_all', 'password') && $manages,
             'canViewAppPwd'        => $this->can('view_all', 'application_password'),
-            'canChangeAppPwd'      => $this->can('edit_all', 'application_password'),
+            'canChangeAppPwd'      => $this->can('edit_all', 'application_password') && $manages,
             'canViewContacts'      => $this->aclCheck('view_all',   'Users_Controller', 'additional_contacts'),
             'canAddContact'        => $this->aclCheck('new_all',    'Users_Controller', 'additional_contacts'),
             'canEditContact'       => $this->aclCheck('edit_all',   'Users_Controller', 'additional_contacts'),
@@ -92,7 +100,7 @@ class UserController extends Controller
             'canViewDevices'       => $this->aclCheck('view_all', 'Devices_Controller',    'devices'),
             'canViewLoginLogs'     => $this->aclCheck('view_all', 'Login_logs_Controller', 'logs'),
             'mfaEnabled'           => app(MfaService::class)->isEnabled((int) $user->id),
-            'canResetMfa'          => $this->can('edit_all'),
+            'canResetMfa'          => $this->can('edit_all') && $manages,
             'loginLock'            => app(LoginLockService::class)->status((int) $user->id),
             'canUnlockLogin'       => $this->can('edit_all'),
         ]);
@@ -118,7 +126,9 @@ class UserController extends Controller
     public function resetMfa(int $id, ResetUserMfaAction $reset)
     {
         abort_unless($this->can('edit_all'), 403);
-        $reset->handle((int) $this->users->findOrFail($id)->id, auth()->id(), request()->ip());
+        $user = $this->users->findOrFail($id);
+        abort_unless($this->manages((int) $user->id), 403);
+        $reset->handle((int) $user->id, auth()->id(), request()->ip());
 
         return back()->with('success', 'Dvoufázové přihlášení uživatele bylo resetováno.');
     }
@@ -186,6 +196,7 @@ class UserController extends Controller
         if (!$user) {
             abort(404);
         }
+        abort_unless($this->manages((int) $user->id), 403);
         $members = $this->users->membersByName();
 
         return view('users.edit', [
@@ -207,6 +218,7 @@ class UserController extends Controller
         if (!$user) {
             abort(404);
         }
+        abort_unless($this->manages((int) $user->id), 403);
 
         $rules = [
             'name'        => 'nullable|string|max:100',
@@ -251,6 +263,7 @@ class UserController extends Controller
         if (!$user) {
             abort(404);
         }
+        abort_unless($this->manages((int) $user->id), 403);
 
         try {
             $remove->handle($user, auth()->id());
@@ -267,7 +280,7 @@ class UserController extends Controller
     public function changePassword(int $id)
     {
         $isSelf  = (int) auth()->id() === (int) $id;
-        $isAdmin = $this->can('edit_all', 'password');
+        $isAdmin = $this->can('edit_all', 'password') && $this->manages($id);
         abort_unless($isSelf || $isAdmin, 403);
 
         $user = $this->users->find($id);
@@ -282,7 +295,7 @@ class UserController extends Controller
     public function updatePassword(Request $request, int $id)
     {
         $isSelf  = (int) auth()->id() === (int) $id;
-        $isAdmin = $this->can('edit_all', 'password');
+        $isAdmin = $this->can('edit_all', 'password') && $this->manages($id);
         abort_unless($isSelf || $isAdmin, 403);
 
         $user = $this->users->find($id);

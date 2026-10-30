@@ -34,6 +34,7 @@ class PasswordPolicyTest extends DatabaseTestCase
     {
         $acl = $this->mock(AclService::class);
         $acl->shouldReceive('hasAccess')->andReturnTrue();
+        $acl->shouldReceive('canManageUser')->andReturnTrue();   // ochrana vyšších účtů: tests/Feature/Security/UserPrivilegeEscalationTest
         $acl->shouldReceive('flushUserCache')->andReturnNull();
         return $this->actingAs(User::find($this->adminId));
     }

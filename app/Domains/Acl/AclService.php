@@ -31,6 +31,27 @@ class AclService
     }
 
     /**
+     * Smí $actorId spravovat účet $targetId (heslo, MFA, úprava, smazání)?
+     * Jen když cíl nemá žádné právo, které by aktér neměl — jinak by technik
+     * s edit_all na uživatele nastavil superadminovi heslo a převzal jeho
+     * práva. Vlastní účet vždy (změna vlastního hesla hlídá aktuální heslo).
+     */
+    public function canManageUser(int $actorId, int $targetId): bool
+    {
+        if ($actorId === $targetId) {
+            return true;
+        }
+        $actor = $this->getPermissionsForUser($actorId);
+        foreach (array_diff($this->getPermissionsForUser($targetId), $actor) as $perm) {
+            // právo k vlastním údajům (view_own…) pokrývá stejné právo ke všem (view_all…)
+            if (!preg_match('/^(\w+)_own#(.*)$/', $perm, $m) || !in_array("{$m[1]}_all#{$m[2]}", $actor, true)) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    /**
      * Replicate MY_Controller::acl_check():
      *   - if member_id matches the logged-in user's member_id, check own first
      *   - then check all
@@ -111,7 +132,7 @@ class AclService
         return $this->groupHierarchy;
     }
 
-    private function getPermissionsForUser(int $userId): array
+    protected function getPermissionsForUser(int $userId): array
     {
         // 1) request-local cache (avoids re-hitting Cache 11× per page load from the menu)
         if (isset($this->userPermissions[$userId])) {

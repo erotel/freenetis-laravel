@@ -38,6 +38,7 @@ class UsersTest extends DatabaseTestCase
     {
         $acl = $this->mock(AclService::class);
         $acl->shouldReceive('hasAccess')->andReturnUsing(fn ($u, $aco, $section, $value) => (int) $u === $this->adminId && !in_array("{$aco}/{$section}/{$value}", $deny, true));
+        $acl->shouldReceive('canManageUser')->andReturnTrue();   // ochrana vyšších účtů: tests/Feature/Security/UserPrivilegeEscalationTest
         $acl->shouldReceive('flushUserCache')->andReturnNull();
     }
 
