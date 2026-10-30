@@ -2,6 +2,7 @@
 
 namespace App\Console\Commands;
 
+use App\Domains\Notifications\Support\SecretLinks;
 use App\Models\EmailQueue;
 use App\Models\Setting;
 use Illuminate\Console\Command;
@@ -82,7 +83,8 @@ class SendEmailQueue extends Command
                 }
 
                 $mailer->send($email);
-                $queued->update(['state' => EmailQueue::STATE_SENT]);
+                // odeslaný e-mail už token resetu hesla nepotřebuje — z fronty pryč
+                $queued->update(['state' => EmailQueue::STATE_SENT, 'body' => SecretLinks::strip((string) $queued->body)]);
                 $sent++;
                 $this->info("Sent [{$queued->id}]: {$queued->subject} → {$queued->to}");
 

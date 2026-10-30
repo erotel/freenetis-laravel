@@ -129,6 +129,24 @@ class EmailQueueAdminTest extends DatabaseTestCase
         $this->assertSame("<p><a href=\"{$url}\">{$url}</a></p>", DB::table('email_queues')->where('id', $id)->value('body'), 'čekající e-mail má token pro odeslání');
     }
 
+    public function test_po_odeslani_token_resetu_zmizi_z_fronty(): void
+    {
+        $token = \Tests\Support\Fake::secret('resettok');
+        $url   = route('forgotten-password.reset') . '?request=' . $token;
+        $body  = "<p>Odkaz: <a href=\"{$url}\">{$url}</a></p>";
+        $id = (int) DB::table('email_queues')->insertGetId(['from' => 'noreply@example.test', 'to' => "{$this->tag}@example.invalid",
+            'subject' => "Obnova hesla {$this->tag}", 'body' => $body, 'state' => 0]);
+
+        $sender = $this->mock(EmailSenderService::class);
+        $sender->shouldReceive('sendOne')->once()->with(\Mockery::on(fn ($q) => str_contains($q->body, $token)))->andReturnTrue();
+        $this->as()->post(route('email_queues.resend', $id))->assertSessionHas('success');
+        $this->assertSame('<p>Odkaz: <a href="[odkaz odstraněn]">[odkaz odstraněn]</a></p>', DB::table('email_queues')->where('id', $id)->value('body'));
+
+        // stejné strip() volá po odeslání i cron email:send-queue
+        $this->assertSame('x [odkaz odstraněn] y', \App\Domains\Notifications\Support\SecretLinks::strip("x {$url} y"));
+        $this->assertSame('<p>bez odkazu</p>', \App\Domains\Notifications\Support\SecretLinks::strip('<p>bez odkazu</p>'));
+    }
+
     public function test_znovuodeslani(): void
     {
         $id = $this->mail(2);

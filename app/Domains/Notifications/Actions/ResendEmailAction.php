@@ -3,6 +3,7 @@
 namespace App\Domains\Notifications\Actions;
 
 use App\Domains\Notifications\Channels\EmailSenderService;
+use App\Domains\Notifications\Support\SecretLinks;
 use App\Models\EmailQueue;
 
 /** Znovu odešle e-mail z fronty hned (ne přes cron): výsledek → stav odesláno / chyba. */
@@ -16,7 +17,8 @@ class ResendEmailAction
     {
         $queued->update(['state' => EmailQueue::STATE_NEW]);
         $ok = $this->sender->sendOne($queued);
-        $queued->update(['state' => $ok ? EmailQueue::STATE_SENT : EmailQueue::STATE_FAILED, 'access_time' => now()]);
+        $queued->update(['state' => $ok ? EmailQueue::STATE_SENT : EmailQueue::STATE_FAILED, 'access_time' => now()]
+            + ($ok ? ['body' => SecretLinks::strip((string) $queued->body)] : []));
         return $ok;
     }
 }

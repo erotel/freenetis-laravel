@@ -8,8 +8,8 @@ namespace App\Domains\Notifications\Support;
  */
 final class SecretLinks
 {
-    private const TOKEN = '~(forgotten-password/reset\?request=)[A-Za-z0-9]+~';
-    private const LINK  = '~https?://[^\s"\'<>]*forgotten-password/reset\?request=[A-Za-z0-9]+~';
+    private const TOKEN = '~(forgotten-password/reset\?request=)[A-Za-z0-9_-]+~';
+    private const LINK  = '~https?://[^\s"\'<>]*forgotten-password/reset\?request=[A-Za-z0-9_-]+~';
 
     /** Pro zobrazení ve frontě: token nahradí tečkami, zbytek odkazu zůstane. */
     public static function mask(string $body): string
