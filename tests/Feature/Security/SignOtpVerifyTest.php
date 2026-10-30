@@ -79,4 +79,33 @@ class SignOtpVerifyTest extends DatabaseTestCase
             $this->assertStringEndsWith('for update', strtolower($q));
         }
     }
+
+    public function test_kod_k_dodatku_plati_jen_pro_ten_dodatek(): void
+    {
+        DB::connection('contracts')->table('contracts')->where('id', $this->contractId)->update(['status' => 'signed', 'addon' => 1]);
+        Setting::set('otp_resend_window_sec', 60);
+        $mk = fn () => (int) DB::connection('contracts')->table('contract_addons')->insertGetId(['contract_id' => $this->contractId,
+            'type' => 'connection_point', 'effective_date' => now()->toDateString(), 'status' => 'draft']);
+        [$a, $b] = [$mk(), $mk()];
+        $ta = $this->token($a);
+        $tb = $this->token($b);
+
+        // odeslání ukládá dodatek z odkazu (SMS se nepošle — žádný driver)
+        $this->postJson(route('sign.addon.otp.send'), ['t' => $ta])->assertStatus(502);
+        $this->assertSame([$a], DB::connection('contracts')->table('contract_addon_otps')->where('contract_id', $this->contractId)->pluck('addon_id')->map(fn ($v) => (int) $v)->all());
+        DB::connection('contracts')->table('contract_addon_otps')->where('contract_id', $this->contractId)->delete();
+
+        $this->otp('contract_addon_otps', '482913', ['addon_id' => $a]);
+
+        // kód k A nepodepíše B ani starý dodatek
+        $this->postJson(route('sign.connection_point.otp.verify'), ['t' => $tb, 'otp' => '482913'])->assertStatus(410);
+        $this->postJson(route('sign.addon.otp.verify'), ['t' => $this->token(), 'otp' => '482913'])->assertStatus(410);
+        $this->assertSame(0, (int) DB::connection('contracts')->table('contracts')->where('id', $this->contractId)->value('addon_signed'));
+        $this->assertSame(['otp_sent', 'otp_sent'], DB::connection('contracts')->table('contract_addons')->whereIn('id', [$a, $b])->orderBy('id')->pluck('status')->all());
+
+        // starý dodatek jen s kódem bez dodatku
+        $this->otp('contract_addon_otps', '573104');
+        $this->postJson(route('sign.connection_point.otp.verify'), ['t' => $tb, 'otp' => '573104'])->assertStatus(410);
+        $this->assertSame(5, (int) DB::connection('contracts')->table('contract_addon_otps')->where('contract_id', $this->contractId)->whereNull('addon_id')->value('attempts_left'));
+    }
 }

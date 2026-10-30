@@ -206,7 +206,7 @@ class PublicSignController extends Controller
             return response()->json(['error' => 'Žádný dodatek nečeká na podpis.'], 409);
         }
 
-        $res = $this->otp->sendAddonOtp($contract, $request);
+        $res = $this->otp->sendAddonOtp($contract, $request, $this->tokenAddonId($request));
         return $this->fromServiceResult($res);
     }
 
@@ -222,7 +222,7 @@ class PublicSignController extends Controller
             }
 
             $otp = trim((string) $request->input('otp', ''));
-            $res = $this->otp->verifyAddonOtp($contract, $otp, $request);
+            $res = $this->otp->verifyAddonOtp($contract, $otp, $request, null);
             if (!($res['ok'] ?? false)) {
                 return $this->fromServiceResult($res);
             }
@@ -314,7 +314,7 @@ class PublicSignController extends Controller
             }
 
             $otp = trim((string) $request->input('otp', ''));
-            $res = $this->otp->verifyAddonOtp($contract, $otp, $request);
+            $res = $this->otp->verifyAddonOtp($contract, $otp, $request, (int) $addon->id);
             if (!($res['ok'] ?? false)) {
                 return $this->fromServiceResult($res);
             }
@@ -338,9 +338,7 @@ class PublicSignController extends Controller
     /** Token s aid → ten dodatek této smlouvy nepodepsaný; bez aid → starý dodatek (contracts.addon). */
     private function hasPendingAddon(Contract $contract, Request $request): bool
     {
-        $token = (string) ($request->input('t') ?: $request->query('t', ''));
-        $aid   = app(SignLinkToken::class)->addonId($token);
-        if ($aid) {
+        if ($aid = $this->tokenAddonId($request)) {
             $addon = app(ContractAddonRepository::class)->findAny($aid);
             return $addon && (int) $addon->contract_id === (int) $contract->id
                 && in_array($addon->status, ['draft', 'otp_sent'], true);
@@ -348,11 +346,16 @@ class PublicSignController extends Controller
         return (int) $contract->addon === 1 && (int) $contract->addon_signed === 0;
     }
 
-    private function resolveAddon(Request $request, AddonType $type): ?ContractAddon
+    /** id dodatku z odkazu (tarif/služba/místo), null = odkaz smlouvy/starého dodatku. */
+    private function tokenAddonId(Request $request): ?int
     {
         $token = (string) ($request->input('t') ?: $request->query('t', ''));
-        if ($token === '') return null;
-        $aid = app(SignLinkToken::class)->addonId($token);
+        return $token === '' ? null : app(SignLinkToken::class)->addonId($token);
+    }
+
+    private function resolveAddon(Request $request, AddonType $type): ?ContractAddon
+    {
+        $aid = $this->tokenAddonId($request);
         if (!$aid) return null;
         return app(ContractAddonRepository::class)->find($aid, $type);
     }

@@ -26,21 +26,23 @@ class OtpService
         return $this->verifyOtpInternal($contract, $otp, false, $request);
     }
 
-    public function sendAddonOtp(Contract $contract, ?Request $request = null): array
+    /** @param ?int $addonId contract_addons.id; null = starý dodatek (contracts.addon) */
+    public function sendAddonOtp(Contract $contract, ?Request $request = null, ?int $addonId = null): array
     {
         $phone = trim((string) $contract->phone);
         if ($phone === '') {
             return ['ok' => false, 'status' => 422, 'error' => 'U smlouvy není uložené telefonní číslo.'];
         }
-        return $this->sendOtpInternal($contract, $phone, true, $request);
+        return $this->sendOtpInternal($contract, $phone, true, $request, $addonId);
     }
 
-    public function verifyAddonOtp(Contract $contract, string $otp, ?Request $request = null): array
+    /** Kód platí jen pro dodatek, ke kterému byl poslán ({@see sendAddonOtp}). */
+    public function verifyAddonOtp(Contract $contract, string $otp, ?Request $request = null, ?int $addonId = null): array
     {
-        return $this->verifyOtpInternal($contract, $otp, true, $request);
+        return $this->verifyOtpInternal($contract, $otp, true, $request, $addonId);
     }
 
-    private function sendOtpInternal(Contract $contract, string $phone, bool $isAddon, ?Request $request): array
+    private function sendOtpInternal(Contract $contract, string $phone, bool $isAddon, ?Request $request, ?int $addonId = null): array
     {
         if (!$isAddon && !in_array($contract->status, ['draft', 'otp_sent', 'otp_verified'], true)) {
             return ['ok' => false, 'status' => 409, 'error' => 'Smlouva je již podepsaná.'];
@@ -67,7 +69,7 @@ class OtpService
 
         DB::connection('contracts')->beginTransaction();
         try {
-            DB::connection('contracts')->table($tableOtps)->insert([
+            DB::connection('contracts')->table($tableOtps)->insert(($isAddon ? ['addon_id' => $addonId] : []) + [
                 'contract_id'   => $contract->id,
                 'otp_hash'      => $hashHex,
                 'attempts_left' => $attempts,
@@ -116,7 +118,7 @@ class OtpService
         ];
     }
 
-    private function verifyOtpInternal(Contract $contract, string $otp, bool $isAddon, ?Request $request): array
+    private function verifyOtpInternal(Contract $contract, string $otp, bool $isAddon, ?Request $request, ?int $addonId = null): array
     {
         if (!preg_match('/^\d{6}$/', $otp)) {
             return ['ok' => false, 'status' => 400, 'error' => 'Invalid data'];
@@ -162,6 +164,7 @@ class OtpService
         try {
             $row = DB::connection('contracts')->table($tableOtps)
                 ->where('contract_id', $contract->id)
+                ->when($isAddon, fn ($q) => $addonId ? $q->where('addon_id', $addonId) : $q->whereNull('addon_id'))
                 ->where('expires_at', '>', now())
                 ->orderByDesc('id')
                 ->lockForUpdate()   // souběžné pokusy se seřadí — jinak by stejný kód prošel dvakrát a chybné pokusy se nesčítaly
