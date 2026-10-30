@@ -23,12 +23,15 @@ class EmailSettings
     private const BCC_SLOTS = 10;
     private const BCC_FIELDS = ['message_id', 'subject_prefix', 'address'];
 
+    /** Pro formulář — heslo se do stránky neposílá, jen příznak, že je uložené. */
     public function values(): array
     {
         $out = [];
         foreach (self::KEYS as $key) {
             $out[$key] = Setting::get($key, '');
         }
+        $out['email_password_set'] = $out['email_password'] !== '';
+        $out['email_password']     = '';
         return $out;
     }
 
@@ -56,10 +59,13 @@ class EmailSettings
         return Message::orderBy('name')->get(['id', 'name', 'type']);
     }
 
-    /** @param array<string, mixed> $values klíč z KEYS => hodnota */
+    /** @param array<string, mixed> $values klíč z KEYS => hodnota; prázdné heslo = ponechat uložené */
     public function save(array $values): void
     {
         foreach (self::KEYS as $key) {
+            if ($key === 'email_password' && (string) ($values[$key] ?? '') === '') {
+                continue;
+            }
             Setting::set($key, $values[$key] ?? '');
         }
     }

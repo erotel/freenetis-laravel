@@ -80,7 +80,7 @@ class SettingsTest extends DatabaseTestCase
             ['message_id' => '', 'subject_prefix' => '', 'address' => ''],
             ['message_id' => '', 'subject_prefix' => '', 'address' => ''],
         ], $v('bccRules'), 'neprázdná pravidla + doplnit na 3');
-        $this->assertSame(\App\Http\Controllers\SettingController::EMAIL_KEYS, array_keys($v('emailSettings')));
+        $this->assertSame([...\App\Http\Controllers\SettingController::EMAIL_KEYS, 'email_password_set'], array_keys($v('emailSettings')));
         $this->assertSame(\App\Http\Controllers\SettingController::FINANCE_KEYS, array_keys($v('financeSettings')));
         $this->assertSame(\App\Http\Controllers\SettingController::SYSTEM_KEYS, array_keys($v('systemSettings')));
         $this->assertSame(\App\Http\Controllers\SettingController::USERS_KEYS, array_keys($v('usersSettings')));
@@ -159,6 +159,15 @@ class SettingsTest extends DatabaseTestCase
 
         $this->as()->put(route('settings.update-email'), ['registration_summary_pdf_file' => UploadedFile::fake()->create('x.txt', 1, 'text/plain')])
             ->assertSessionHasErrors('registration_summary_pdf_file');
+
+        // heslo se do stránky neposílá; uložení s prázdným polem ho ponechá
+        $secret = \Tests\Support\Fake::secret('smtp');
+        Setting::set('email_password', $secret);
+        $html = $this->as()->get(route('settings.index', ['tab' => 'email']))->assertOk()->getContent();
+        $this->assertStringNotContainsString($secret, $html);
+        $this->assertStringContainsString('•••••••• (beze změny)', $html);
+        $this->as()->put(route('settings.update-email'), ['email_hostname' => 'smtp2.example.test', 'email_password' => ''])->assertSessionHasNoErrors();
+        $this->assertSame(['smtp2.example.test', $secret], [Setting::get('email_hostname'), Setting::get('email_password')]);
     }
 
     // ── finance ──────────────────────────────────────────────────────────────
@@ -319,6 +328,15 @@ class SettingsTest extends DatabaseTestCase
             ['sms_enabled', 'sms_sender_number', 'sms_driver', 'sms_driver_state3', 'sms_hostname3', 'sms_user3', 'sms_password3', 'sms_test_mode3',
              'sms_driver_state5', 'sms_test_mode5']));
         $this->save('settings.update-sms', ['sms_sender_number' => str_repeat('1', 21)])->assertSessionHasErrors('sms_sender_number');
+
+        // heslo / API klíč se do stránky neposílá; prázdné pole = ponechat
+        $secret = \Tests\Support\Fake::secret('smsapi');
+        Setting::set('sms_password5', $secret);
+        $html = $this->as()->get(route('settings.index', ['tab' => 'sms']))->assertOk()->getContent();
+        $this->assertStringNotContainsString($secret, $html);
+        $this->assertStringContainsString('•••••••• (beze změny)', $html);
+        $this->save('settings.update-sms', ['sms_driver' => '5', 'sms_password5' => '', 'sms_password3' => ''])->assertSessionHasNoErrors();
+        $this->assertSame([$secret, 'p'], [Setting::get('sms_password5'), Setting::get('sms_password3')]);
     }
 
     public function test_gpon_a_olt(): void

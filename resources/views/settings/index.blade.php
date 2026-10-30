@@ -137,7 +137,8 @@
         </div>
         <div class="m-form-group">
             <label class="m-form-label">Heslo</label>
-            <input class="m-form-input" type="password" name="email_password" value="{{ $emailSettings['email_password'] ?? '' }}">
+            <input class="m-form-input" type="password" name="email_password" value="" autocomplete="new-password"
+                placeholder="{{ !empty($emailSettings['email_password_set']) ? '•••••••• (beze změny)' : '' }}">
         </div>
     </div>
     <div class="m-form-group">
@@ -792,7 +793,8 @@ tinymce.init({
         </div>
         <div class="m-form-group">
             <label class="m-form-label">{{ $dId === 5 ? 'API klíč' : 'Heslo' }}</label>
-            <input class="m-form-input" type="password" name="sms_password{{ $dId }}" value="{{ $ds['password'] ?? '' }}">
+            <input class="m-form-input" type="password" name="sms_password{{ $dId }}" value="" autocomplete="new-password"
+                placeholder="{{ !empty($ds['password_set']) ? '•••••••• (beze změny)' : '' }}">
         </div>
     </div>
     @if($dCfg['has_test_mode'])

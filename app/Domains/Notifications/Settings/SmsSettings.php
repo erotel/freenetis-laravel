@@ -30,7 +30,9 @@ class SmsSettings
                 'state'     => Setting::get('sms_driver_state' . $id, '1'),
                 'hostname'  => Setting::get('sms_hostname' . $id, ''),
                 'user'      => Setting::get('sms_user' . $id, ''),
-                'password'  => Setting::get('sms_password' . $id, ''),
+                // heslo / API klíč se do stránky neposílá, jen příznak
+                'password'  => '',
+                'password_set' => (string) Setting::get('sms_password' . $id, '') !== '',
                 'test_mode' => Setting::get('sms_test_mode' . $id, '0'),
             ];
         }
@@ -51,7 +53,9 @@ class SmsSettings
             Setting::set('sms_driver_state' . $id, in_array($d['state'], [1, 2]) ? $d['state'] : 1);
             Setting::set('sms_hostname' . $id, trim($d['hostname']));
             Setting::set('sms_user' . $id, trim($d['user']));
-            Setting::set('sms_password' . $id, trim($d['password']));
+            if (trim($d['password']) !== '') {   // prázdné = ponechat uložené
+                Setting::set('sms_password' . $id, trim($d['password']));
+            }
             Setting::set('sms_test_mode' . $id, $d['test_mode'] ? 1 : 0);
         }
     }
