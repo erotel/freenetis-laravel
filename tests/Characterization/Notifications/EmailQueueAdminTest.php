@@ -116,6 +116,19 @@ class EmailQueueAdminTest extends DatabaseTestCase
 
     // ── znovuodeslání, mazání ────────────────────────────────────────────────
 
+    public function test_detail_neukaze_token_resetu_hesla(): void
+    {
+        $token = \Tests\Support\Fake::secret('resettok');
+        $url   = route('forgotten-password.reset') . '?request=' . $token;
+        $id = (int) DB::table('email_queues')->insertGetId(['from' => 'noreply@example.test', 'to' => "{$this->tag}@example.invalid",
+            'subject' => "Obnova hesla {$this->tag}", 'body' => "<p><a href=\"{$url}\">{$url}</a></p>", 'state' => 0]);
+
+        $html = $this->as()->get(route('email_queues.show', $id))->assertOk()->getContent();
+        $this->assertStringNotContainsString($token, $html);
+        $this->assertStringContainsString('forgotten-password/reset?request=•••', html_entity_decode($html));
+        $this->assertSame("<p><a href=\"{$url}\">{$url}</a></p>", DB::table('email_queues')->where('id', $id)->value('body'), 'čekající e-mail má token pro odeslání');
+    }
+
     public function test_znovuodeslani(): void
     {
         $id = $this->mail(2);

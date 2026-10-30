@@ -6,6 +6,7 @@ use App\Domains\Notifications\Actions\ResendEmailAction;
 use App\Domains\Notifications\Queries\EmailQueueListQuery;
 use App\Domains\Notifications\Repositories\EmailQueueRepository;
 use App\Domains\Notifications\Support\AttachmentFile;
+use App\Domains\Notifications\Support\SecretLinks;
 use App\Models\EmailQueue;
 use Illuminate\Http\Request;
 
@@ -58,7 +59,7 @@ class EmailQueueController extends Controller
 
         return view('email_queues.show', [
             'email'     => $email,
-            'bodyHtml'  => $this->resolveInlineCids($email),
+            'bodyHtml'  => SecretLinks::mask($this->resolveInlineCids($email)),
             'canSend'   => $this->canSend(),
             'canDelete' => $this->canDelete(),
         ]);
