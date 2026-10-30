@@ -334,4 +334,14 @@ class PublicSignTest extends DatabaseTestCase
         $this->assertSame(['Adresa 9', 'Char PS', 77.0], [$cpInfo['place_name'], $cpInfo['place_speed'], (float) $cpInfo['place_price']]);
         $this->postJson(route('sign.service_addon.info'), ['t' => $tokens[0]])->assertStatus(401, 'token tarifu na službu: typ nesedí');
     }
+
+    public function test_chyba_podpisu_neprozradi_detail(): void
+    {
+        $pdf = $this->createMock(PdfService::class);
+        $pdf->method('renderContractPdf')->willThrowException(new \RuntimeException('SQLSTATE /var/www/tajna/cesta'));
+        $this->app->instance(PdfService::class, $pdf);
+        $t = $this->token();
+
+        $this->postJson(route('sign.finalize'), ['t' => $t])->assertStatus(500)->assertExactJson(['error' => 'Server error']);
+    }
 }

@@ -401,7 +401,9 @@ class PublicSignController extends Controller
 
     private function serverError(\Throwable $e): JsonResponse
     {
-        return response()->json(['error' => 'Server error', 'detail' => $e->getMessage()], 500);
+        // text výjimky (SQL, cesty k souborům) jen do logu, ne veřejně
+        report($e);
+        return response()->json(['error' => 'Server error'], 500);
     }
 
     private function unauthorizedJson(): JsonResponse

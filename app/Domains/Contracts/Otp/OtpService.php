@@ -98,7 +98,7 @@ class OtpService
         } catch (\Throwable $e) {
             DB::connection('contracts')->rollBack();
             $this->releaseSendSlot($contract->id);
-            return ['ok' => false, 'status' => 500, 'error' => 'Server error', 'detail' => $e->getMessage()];
+            return $this->serverError($e, $contract->id);
         }
 
         if (!$testMode) {
@@ -155,7 +155,7 @@ class OtpService
                 DB::connection('contracts')->commit();
             } catch (\Throwable $e) {
                 DB::connection('contracts')->rollBack();
-                return ['ok' => false, 'status' => 500, 'error' => 'Server error', 'detail' => $e->getMessage()];
+                return $this->serverError($e, $contract->id);
             }
             return ['ok' => true, 'test_mode' => true];
         }
@@ -211,11 +211,18 @@ class OtpService
             return ['ok' => true];
         } catch (\Throwable $e) {
             DB::connection('contracts')->rollBack();
-            return ['ok' => false, 'status' => 500, 'error' => 'Server error', 'detail' => $e->getMessage()];
+            return $this->serverError($e, $contract->id);
         }
     }
 
     // ── helpers ────────────────────────────────────────────────────────────
+
+    /** Chyba jen do logu — text výjimky (SQL, cesty) nepatří do veřejné odpovědi. */
+    private function serverError(\Throwable $e, int $contractId): array
+    {
+        Log::error('contract.otp.failed', ['contract_id' => $contractId, 'exception' => $e]);
+        return ['ok' => false, 'status' => 500, 'error' => 'Server error'];
+    }
 
     private function cfg(string $key, $default = null)
     {
