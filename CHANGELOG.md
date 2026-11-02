@@ -6,6 +6,147 @@ formát podle [Keep a Changelog](https://keepachangelog.com/cs/1.1.0/).
 Verzi v souboru `config/version.php` bumpni samostatným commitem `chore: bump version to X.Y.Z`,
 ať lze changelog snadno regenerovat přes `git log vX..vY --oneline`.
 
+## [2.23.0] — 2026-11-02
+
+Od 2.22.1 (308 commitů, 2026-09-02 – 2026-11-02): IPoE line-id pro přístupovou
+síť (NIS2), schůze členů, izolace klientů od vnitřní sítě, přestavba na
+doménový modulární monolit (bez změny chování, kryto charakterizačními testy),
+opravy z revize všech controllerů a opravy z bezpečnostního auditu .54
+(2026-10-28). Vše je nasazené na produkci .54.
+
+### Added
+- **IPoE / line-id (přístupová síť NIS2)** — přidělení IP podle DHCP option 82
+  přes RADIUS, zapínané per podsíť (`subnets.ipoe`).
+  - Parser line-id: Huawei Vlanif (L3 relay), binární circuit-id
+    (TP-Link SG2008), generický fallback.
+  - Identita line-id = `circuit_id` + `remote_id` (proti kolizi mezi switchi),
+    uložená jako `VARBINARY`. Sdílené VLAN/relay line-id (bytovky) se
+    neukládají ani nehlásí jako anomálie a označí se v detailu podsítě.
+  - Detektor MAC anomálií, sloupec Line-ID v detailu podsítě (kdo má/nemá),
+    line-id na kartě zákazníka, GPON line-id (OLT do `device_ident`, ONT do portu).
+  - DHCP export trvale vynutí `use-radius` / `support-broadband-tr101` per MikroTik.
+  - Kea host-cache se pročistí po každé změně IPoE rezervace.
+  - Při registraci přípojky se IP z poolu převezme jako fixní IPv4.
+  - Cron `lineid:sync` (každých 5 min), příkaz `kea:flush-host-cache`.
+- **Schůze členů** — prezence, zmocněnci, usnášeníschopnost, CSV prezenční listina.
+- **Izolace klientů od vnitřní sítě** (firewall `fn-lan` v DHCP exportu)
+  s výjimkami per člen; infrastrukturní člen. Příkaz `members:move-network`
+  pro převod infrastruktury na jiného člena.
+- **Členové**
+  - Self-service export přihlášky pro řádné členy (`view_own`).
+  - Řádný člen (typ 90) nesmí mít tarif.
+  - Datum vstupu = den schválení (tlačítkem i editací stejně), uvítací e-mail
+    po schválení jen řádnému členovi, schválení i aktivace podpisem smlouvy
+    se zapíšou do auditu jako `approved`.
+  - Filtr „Blokace platby“ v pokročilých filtrech.
+- **SMS** — vyhledávání podle telefonního čísla v přehledu.
+- **GPON** — úprava čísla domu v detailu ONT: u registrované ONT přepíše popis
+  na OLT, pak znovu dohledá polohu pro mapu.
+- **Přihlášení** — vynucení síly hesla na serveru (`security_password_level`).
+- **Provoz**
+  - `schema:check` (denně 05:40) hlídá drift schématu `freenetis` i `contractsdb`
+    proti otisku v repu.
+  - Vlastní testovací DB `freenetis_test` / `contractsdb_test`
+    (`testing:refresh-db`); phpunit nikdy na živou DB.
+
+### Changed
+- **Architektura** — modulární monolit: domény Members, Access, Billing,
+  Contracts, Network, Notifications, Acl, Meetings, Audit, Settings
+  (repozitáře, akce, eventy, listenery). God-controllery rozděleny, `app/Services`
+  zrušeno, přímé SQL z controllerů pryč (vědomé výjimky zdokumentované).
+  Před každým přesunem charakterizační test; chování beze změny.
+- **Závislosti** — Laravel 13.15 → 13.39, Guzzle 8, `brick/math` 1.0,
+  Symfony 8.1.10, `league/commonmark` 2.10.4, `league/flysystem` 3.36.
+- Změna nebo reset hesla odhlásí ostatní přihlášení (`AuthenticateSession`).
+
+### Fixed
+- **Ukončení členství a výpovědní lhůta** (incident člena 6235): typ zůstává do
+  data odchodu a z kreditu odejde jen vratka; v den odchodu cron převede
+  zákazníka na typ 16 (ne 15) a doplní `+U` k VS. Formulář počítá měsíční
+  poplatek přes `FeePolicy`. Trvalé smazání (krok 1): řádný → 15, zákazník → 16.
+  Obnovení bývalého vrátí správný typ.
+- **Srážky a kredit**
+  - Žadatelé a čekající (1/17/18) se neúčtují; bývalí a členové ve výpovědní
+    lhůtě jsou mimo srážku.
+  - Poplatek po obnovení přerušení jde na provozní účet.
+  - Práh upomínky „Nízký kredit“ = skutečná měsíční srážka.
+  - „Zaplaceno do“ počítá i příplatky; bez strhávaného poplatku „—“.
+  - Selhaná sekce srážky → `fees:deduct` skončí kódem 1.
+- **Dvojí zaúčtování při souběhu** — export odchozích plateb, import výpisu,
+  vrácení neidentifikované platby a srážky poplatků (noční srážka, dohnání po
+  platbě, srážka při obnově) běží pod zámkem.
+- **Síť**
+  - IP adresa se kontroluje proti rozsahu podsítě; úprava rozhraní je
+    vše-nebo-nic.
+  - Podsítě: vypnutí DHCP/DNS/QoS, maska, kaskáda žádostí.
+  - Šablony zařízení šly založit a upravit.
+  - Vlastník IP jednotně (přímý člen, jinak zařízení).
+  - Přesun zařízení k jinému majiteli synchronizuje přípojná místa.
+  - `radacct` station id 255 znaků (accounting z DHCP relaye se zahazoval).
+- **GPON** — `ont_id` podle (`olt_ip` + `port_index`); geokódování přes curl
+  (IPv6/HTTPS).
+- **Upozornění** — bílá listina u automatických upozornění se nikdy neuplatnila;
+  kontrola atributu pravidla automatické aktivace; ruční aktivace jen zpráv
+  z nabídky.
+- **Další**
+  - Cyklus ve stromu skupin ACL zablokoval výpočet práv celé aplikace.
+  - Field Mode hledání podle IPv6.
+  - Úprava a smazání přerušení (`leaving_date` NULL).
+  - Opakované uzavření schůze připsalo zpětné absence.
+  - Náhled podepsaného dodatku vracel 500.
+  - Čekající žádost o připojení bez IP blokovala nové žádosti.
+  - Trvalou bílou listinu nešlo uložit.
+  - Smazání uživatele už nemaže jeho historii (odkaz `SET NULL`).
+  - Statistika „přijaté platby“ sčítala všechny kladné převody.
+
+### Security
+- **Bezpečnostní audit .54 (2026-10-28)**
+  - Escapování řetězců v RouterOS DHCP exportu (injekce skriptu přes jméno
+    z veřejné registrace); jméno, telefon a login z registrace jen s běžnými znaky.
+  - XSS v našeptávači horního vyhledávání.
+  - Absolutní odkazy (reset hesla, podpis smlouvy) vždy z `APP_URL`,
+    ne z hlavičky `Host`.
+- **Veřejný podpis smluv (`/sign/*`)**
+  - Zrušena veřejná „výpověď“ `POST /sign/terminate`.
+  - Podepsanou smlouvu ani dodatek nejde podepsat znovu.
+  - Limity placených SMS: throttle, atomické resend okno, 5 SMS na smlouvu
+    za den, SMS k dodatku jen když čeká na podpis.
+  - SMS kód je jednorázový, ověření zamyká řádek, kód k dodatku platí jen
+    pro ten dodatek.
+  - Chyby bez textu výjimky.
+- **Převzetí účtu**
+  - Heslo, MFA, úpravu, smazání ani kontakty cizího účtu s vyššími právy nejde
+    měnit (`AclService::canManageUser`).
+  - TOTP kód nejde použít opakovaně (`user_mfa.last_totp_step`).
+  - MFA: výměna autentizátoru a vypnutí u povinné role.
+  - Passkey jen s heslem, přihlášení passkey bez enumerace účtů.
+- **Tajné hodnoty**
+  - WPA klíč, PPPoE secret a token resetu hesla se v auditu redigují
+    (+ test-pojistka na všechna šifrovaná pole).
+  - SNMPv3 hesla OLT, heslo SMTP a hesla SMS bran se neposílají do HTML.
+  - API tokeny celé jen s právem nastavení měnit.
+  - FIO API token se už nevypisuje do formuláře účtu.
+  - Token resetu hesla ve frontě e-mailů skrytý a po odeslání smazaný.
+- **Další**
+  - Vratka při ukončení členství nikdy nad kredit.
+  - CSV exporty nespouštějí vzorce v Excelu.
+  - Tokeny a login poslané jako pole → 400 místo 500.
+  - Mazání port forwardu, SMTP výjimky a 1:1 NAT už nejde přes GET (CSRF).
+  - Kontrola pokrytí ACL nepočítá 404/401 ani komentáře; pokrytí 0 mezer.
+  - Záplaty závislostí (mj. CVE-2026-114509 TokenGuard bypass, ReDoS v http-foundation, viz Changed).
+
+### Poznámka k nasazení
+Vše už běží na .54. Pro jinou instanci:
+- `php artisan migrate --force` — 15 nových migrací (line-id + RADIUS/Kea views,
+  schůze, LAN izolace, `user_history` SET NULL, `contract_addon_otps.addon_id`,
+  `user_mfa.last_totp_step`); kódy k dodatkům odeslané před migrací `addon_id`
+  neprojdou, zákazník si pošle nový.
+- `composer install --no-dev` + reload php-fpm (nové verze závislostí).
+- Nové plánované úlohy: `lineid:sync` (5 min), `schema:check` (05:40),
+  `fees:deduct` nově `withoutOverlapping`.
+- Po migraci, která mění schéma, přegenerovat otisk:
+  `php artisan testing:refresh-db && php artisan schema:check --write --test`.
+
 ## [2.22.1] — 2026-08-28
 
 Oprava: ukončení členství s budoucím datem už zákazníkovi nesmaže rychlost hned.
