@@ -163,6 +163,18 @@ class EndMembershipNoticePeriodTest extends DatabaseTestCase
         $this->assertSame('9999-12-31', $this->row($x['member'])->leaving_date);
     }
 
+    /** Strop platí i při odchodu dnes — jinak libovolná odchozí platba na libovolný účet. */
+    public function test_vratka_dnes_nad_kredit_odmitnuta(): void
+    {
+        $x = $this->member(2, 1640);
+        $before = (int) DB::table('outgoing_payments')->max('id');
+        $this->end($x['member'], now()->format('Y-m-d'), 3, 50000)
+            ->assertSessionHasErrors(['refund_amount' => 'Vratka nesmí převýšit kredit člena (1 640,00 Kč).']);
+        $this->assertSame(2, (int) $this->row($x['member'])->type);
+        $this->assertEqualsWithDelta(1640, $this->balance($x['account']), 0.001);
+        $this->assertSame($before, (int) DB::table('outgoing_payments')->max('id'), 'žádná odchozí platba');
+    }
+
     public function test_druhe_ukonceni_ve_lhute_odmitnuto(): void
     {
         $x = $this->member(2, 500, now()->addDays(20)->format('Y-m-d'));

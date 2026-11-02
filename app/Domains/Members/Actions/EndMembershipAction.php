@@ -69,7 +69,9 @@ class EndMembershipAction
         $formerType = FormerType::for($type);
         $wantRefund = $endMode === EndMode::REFUND;
 
-        if ($inNotice && $wantRefund) {
+        // Vratka nikdy nad kredit — ani při odchodu dnes (dřív jen ve lhůtě):
+        // jinak šla zadat libovolná odchozí platba na libovolný účet.
+        if ($wantRefund) {
             $balance = (float) ($this->ledger->creditAccount($memberId)?->balance ?? 0);
             if (round((float) $refundAmount, 2) > round($balance, 2)) {
                 throw MembershipNotEndable::refundExceedsCredit($balance);

@@ -23,7 +23,7 @@ class MembershipNotEndable extends \DomainException
 
     public static function refundExceedsCredit(float $balance): self
     {
-        return new self('Ve výpovědní lhůtě nesmí vratka převýšit kredit (' . number_format($balance, 2, ',', ' ') . ' Kč).', 'refund_amount');
+        return new self('Vratka nesmí převýšit kredit člena (' . number_format($balance, 2, ',', ' ') . ' Kč).', 'refund_amount');
     }
 
     /**
