@@ -12,6 +12,8 @@ return Application::configure(basePath: dirname(__DIR__))
         health: '/up',
     )
     ->withMiddleware(function (Middleware $middleware): void {
+        // Tokeny / login / kódy jako pole → 400 hned na vstupu (dřív 500 v controllerech).
+        $middleware->prepend(\App\Http\Middleware\RejectArrayParams::class);
         $middleware->alias([
             'acl'          => \App\Http\Middleware\AclMiddleware::class,
             'gpon_enabled' => \App\Http\Middleware\GponEnabled::class,
