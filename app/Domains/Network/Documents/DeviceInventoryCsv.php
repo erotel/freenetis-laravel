@@ -4,6 +4,7 @@ namespace App\Domains\Network\Documents;
 
 use App\Models\Device;
 use App\Models\Iface;
+use App\Support\CsvCell;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 
 /**
@@ -74,7 +75,7 @@ class DeviceInventoryCsv
                         try { $wpa  = (string) ($d->wpa_key ?? ''); } catch (\Throwable $e) { $wpa = '(nešlo dešifrovat)'; }
                     }
 
-                    fputcsv($out, [
+                    fputcsv($out, CsvCell::row([
                         $d->id,
                         $d->name,
                         $d->enumType->value ?? $d->type,
@@ -96,7 +97,7 @@ class DeviceInventoryCsv
                         implode('; ', $macs),
                         implode('; ', $v4),
                         implode('; ', $v6),
-                    ], ';');
+                    ]), ';');
                 }
             });
             fclose($out);

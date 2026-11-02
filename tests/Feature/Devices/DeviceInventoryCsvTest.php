@@ -62,4 +62,23 @@ class DeviceInventoryCsvTest extends DatabaseTestCase
         $this->assertStringContainsString((string) $row->id, $csv, 'ID zařízení v CSV');
         $this->assertStringContainsString($row->mac, $csv, 'MAC zařízení v CSV');
     }
+
+    /** Text začínající = + - @ by Excel spustil jako vzorec (jméno/komentář z formuláře). */
+    public function test_vzorec_v_bunce_se_neprovede(): void
+    {
+        $this->acl(true);
+        $id = (int) DB::table('devices')->value('id');
+        DB::table('devices')->where('id', $id)->update(['comment' => '=HYPERLINK("http://x","klik")', 'name' => '@SUM(1)']);
+
+        $csv = $this->actingAs(User::find(1))->get(route('devices.inventory_export'))->streamedContent();
+        $this->assertStringContainsString("'=HYPERLINK(", $csv);
+        $this->assertStringContainsString("'@SUM(1)", $csv);
+        $this->assertStringNotContainsString(';"=HYPERLINK', $csv);
+    }
+
+    public function test_csv_bunka(): void
+    {
+        $this->assertSame(["'=1+1", "'+A1", '+420', "'-x", "'@a", "'\tA", 'Jan', -150, '-150.5', '', null, 12],
+            \App\Support\CsvCell::row(['=1+1', '+A1', '+420', '-x', '@a', "\tA", 'Jan', -150, '-150.5', '', null, 12]));
+    }
 }

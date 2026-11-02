@@ -5,6 +5,7 @@ namespace App\Domains\Meetings\Documents;
 use App\Domains\Meetings\Queries\MeetingCardQuery;
 use App\Domains\Meetings\Repositories\MeetingRepository;
 use App\Models\Meeting;
+use App\Support\CsvCell;
 
 /** Prezenční listina (CSV pro Excel: BOM, „;"): člen, stav, zmocněnec, příchod, podpis. */
 class PresenceListCsv
@@ -36,7 +37,7 @@ class PresenceListCsv
             } else {
                 [$stav, $zmoc] = ['Nepřítomen', ''];
             }
-            fputcsv($out, [$s->name, $stav, $zmoc, $a && $a->checked_in_at ? $a->checked_in_at->format('d.m.Y H:i') : '', ''], ';');
+            fputcsv($out, CsvCell::row([$s->name, $stav, $zmoc, $a && $a->checked_in_at ? $a->checked_in_at->format('d.m.Y H:i') : '', '']), ';');
         }
     }
 }
