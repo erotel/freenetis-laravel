@@ -22,6 +22,29 @@ class AclRouteCoverageFormRequestTest extends TestCase
         $this->assertFalse(AclRouteCoverage::formRequestChecksAcl(AclCoverageNoAuthorizeRequest::class));
         $this->assertFalse(AclRouteCoverage::formRequestChecksAcl(AclCoverageAllowAllRequest::class));
     }
+
+    /** Kontrola existence (404/401) ani marker v komentáři nejsou autorizace. */
+    public function test_marker_autorizace_v_tele_metody(): void
+    {
+        foreach ([
+            'abort_if(!$m, 404);',
+            'abort_unless($user, 401);',
+            '// TODO aclCheck tady chybí',
+            "/* abort_unless(\$this->can('edit_all'), 403) */ return 1;",
+            'abort(404);',
+        ] as $src) {
+            $this->assertFalse(AclRouteCoverage::hasMarker($src), $src);
+        }
+        foreach ([
+            "abort_unless(\$this->can('edit_all'), 403);",
+            "if (!\$this->aclCheck('view_all', 'X', 'y')) { abort(403); }",
+            'abort_if(!$ok, Response::HTTP_FORBIDDEN);',
+            'abort(403);',
+            "\$this->authorize('x');",
+        ] as $src) {
+            $this->assertTrue(AclRouteCoverage::hasMarker($src), $src);
+        }
+    }
 }
 
 class AclCoverageNoAuthorizeRequest extends FormRequest

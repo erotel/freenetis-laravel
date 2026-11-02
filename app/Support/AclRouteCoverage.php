@@ -29,6 +29,10 @@ class AclRouteCoverage
         'MfaController@regenerateRecovery' => 'vlastní MFA, vyžaduje heslo',
         'MfaController@disable'            => 'vlastní MFA, heslo + kód, ne u povinné role',
         'UserController@toggleDarkMode'    => 'vlastní UI preference',
+        'WebAuthnController@registerOptions' => 'vlastní passkey (Auth::user), vyžaduje heslo',
+        'WebAuthnController@register'      => 'vlastní passkey (Auth::user, stav z registerOptions)',
+        'MyNotificationsController@edit'   => 'vlastní nastavení upozornění (member_id přihlášeného)',
+        'MyNotificationsController@update' => 'vlastní nastavení upozornění (member_id přihlášeného)',
         'SavedFilterController@index'      => 'vlastní uložené filtry (ownership)',
         'SavedFilterController@store'      => 'vlastní uložené filtry (ownership)',
         'SavedFilterController@destroy'    => 'vlastní uložené filtry (ownership)',
@@ -37,9 +41,16 @@ class AclRouteCoverage
         'closure:/streets/by-town/{townId}' => 'číselník ulic pro dropdown (existuje i veřejná varianta)',
     ];
 
+    /**
+     * Doklad autorizace v těle metody (bez komentářů). abort/abort_if/
+     * abort_unless se počítá JEN s 403 — `abort_if(!$x, 404)` je kontrola
+     * existence, ne práv (dřív stačilo samotné „abort_if" i v komentáři).
+     */
     private const MARKERS = [
-        'aclCheck', 'abort_unless', 'abort_if', 'abort(403',
-        'abort(Response::HTTP_FORBIDDEN', '->can(', '$this->can(', 'authorize(',
+        '/\baclCheck\(/',
+        '/->can\(/',
+        '/\bauthorize\(/',
+        '/\babort(?:_if|_unless)?\((?:[^;]*?,\s*)?(?:403|Response::HTTP_FORBIDDEN)\b/s',
     ];
 
     /**
@@ -79,7 +90,7 @@ class AclRouteCoverage
             [$class, $method] = explode('@', $action);
             $src = $this->methodSource($class, $method);
 
-            if (($src !== null && $this->hasMarker($src)) || $this->authorizedByFormRequest($class, $method)) {
+            if (($src !== null && self::hasMarker($src)) || $this->authorizedByFormRequest($class, $method)) {
                 $byController++;
                 continue;
             }
@@ -176,13 +187,32 @@ class AclRouteCoverage
         }
     }
 
-    private function hasMarker(string $src): bool
+    /** @internal veřejné kvůli testu */
+    public static function hasMarker(string $src): bool
     {
-        foreach (self::MARKERS as $m) {
-            if (str_contains($src, $m)) {
+        $code = self::withoutComments($src);
+        foreach (self::MARKERS as $re) {
+            if (preg_match($re, $code)) {
                 return true;
             }
         }
         return false;
+    }
+
+    /** Zdroj metody bez komentářů (marker v komentáři autorizace není). */
+    private static function withoutComments(string $src): string
+    {
+        $out = '';
+        foreach (token_get_all('<?php ' . $src) as $t) {
+            if (is_array($t)) {
+                if (in_array($t[0], [T_COMMENT, T_DOC_COMMENT, T_OPEN_TAG], true)) {
+                    continue;
+                }
+                $out .= $t[1];
+            } else {
+                $out .= $t;
+            }
+        }
+        return $out;
     }
 }
