@@ -29,6 +29,12 @@ class ContactController extends Controller
         return $user;
     }
 
+    /** Kontakty cizího účtu s vyššími právy ne — změna e-mailu = reset hesla na cizí adresu. */
+    private function manages(int $userId): bool
+    {
+        return app(\App\Domains\Acl\AclService::class)->canManageUser((int) auth()->id(), $userId);
+    }
+
     public function showByUser(int $userId)
     {
         $user = $this->loadUser($userId);
@@ -47,9 +53,9 @@ class ContactController extends Controller
         return view('contacts.show_by_user', [
             'user'      => $user,
             'contacts'  => $contacts,
-            'canAdd'    => $this->can('new_all'),
-            'canEdit'   => $this->can('edit_all'),
-            'canDelete' => $this->can('delete_all'),
+            'canAdd'    => $this->can('new_all') && $this->manages($userId),
+            'canEdit'   => $this->can('edit_all') && $this->manages($userId),
+            'canDelete' => $this->can('delete_all') && $this->manages($userId),
         ]);
     }
 
@@ -60,6 +66,7 @@ class ContactController extends Controller
         }
 
         $user         = $this->loadUser($userId);
+        abort_unless($this->manages($userId), 403);
         // Při zakládání nového kontaktu schováme zastaralé protokoly
         // (ICQ/MSN/Jabber/Skype). Existující záznamy s těmito typy zůstávají
         // v UI viditelné — deprecated řeší jen nový vstup.
@@ -78,6 +85,7 @@ class ContactController extends Controller
         }
 
         $user   = $this->loadUser($userId);
+        abort_unless($this->manages($userId), 403);
         $typeId = (int) $request->input('type');
 
         $rules = [
@@ -112,6 +120,7 @@ class ContactController extends Controller
         }
 
         $user = $this->loadUser($userId);
+        abort_unless($this->manages($userId), 403);
 
         $contact = $this->contacts->ofUser($userId, $contactId, true);
 
@@ -132,6 +141,7 @@ class ContactController extends Controller
         }
 
         $this->loadUser($userId);
+        abort_unless($this->manages($userId), 403);
 
         $contact = $this->contacts->ofUser($userId, $contactId);
 
@@ -162,6 +172,7 @@ class ContactController extends Controller
         }
 
         $user = $this->loadUser($userId);
+        abort_unless($this->manages($userId), 403);
 
         $contact = $this->contacts->ofUser($userId, $contactId);
 

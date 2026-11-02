@@ -17,7 +17,9 @@ use Tests\DatabaseTestCase;
 class UserPrivilegeEscalationTest extends DatabaseTestCase
 {
     private const MANAGE = ['view_all#Users_Controller#users', 'edit_all#Users_Controller#users', 'edit_all#Users_Controller#password',
-        'delete_all#Users_Controller#users', 'edit_all#Users_Controller#login'];
+        'delete_all#Users_Controller#users', 'edit_all#Users_Controller#login',
+        'view_all#Users_Controller#additional_contacts', 'new_all#Users_Controller#additional_contacts',
+        'edit_all#Users_Controller#additional_contacts', 'delete_all#Users_Controller#additional_contacts'];
 
     private int $tech;
     private int $sysadmin;
@@ -98,5 +100,35 @@ class UserPrivilegeEscalationTest extends DatabaseTestCase
 
         $this->as($this->sysadmin)->put(route('users.password.update', $this->tech), $this->pwd())->assertSessionHasNoErrors()->assertRedirect();
         $this->as($this->sysadmin)->get(route('users.edit', $this->tech))->assertOk();
+    }
+
+    /** Změna e-mailu cizího účtu = reset hesla na cizí adresu (obchází ochranu hesla). */
+    public function test_technik_nezmeni_kontakty_sysadmina(): void
+    {
+        $mail = fn (int $u) => DB::table('contacts')->join('users_contacts', 'contacts.id', '=', 'users_contacts.contact_id')
+            ->where('users_contacts.user_id', $u)->where('contacts.type', \App\Models\Contact::TYPE_EMAIL)->value('contacts.value');
+        $link = function (int $u, string $value) {
+            $c = (int) DB::table('contacts')->insertGetId(['type' => \App\Models\Contact::TYPE_EMAIL, 'value' => $value]);
+            DB::table('users_contacts')->insert(['user_id' => $u, 'contact_id' => $c]);
+            return $c;
+        };
+        $c = $link($this->sysadmin, "{$this->tag}s@example.invalid");
+        $new = ['type' => \App\Models\Contact::TYPE_EMAIL, 'value' => "{$this->tag}utocnik@example.invalid"];
+
+        $this->as($this->tech)->get(route('contacts.create', $this->sysadmin))->assertForbidden();
+        $this->as($this->tech)->post(route('contacts.store', $this->sysadmin), $new)->assertForbidden();
+        $this->as($this->tech)->get(route('contacts.edit', [$this->sysadmin, $c]))->assertForbidden();
+        $this->as($this->tech)->put(route('contacts.update', [$this->sysadmin, $c]), ['value' => $new['value']])->assertForbidden();
+        $this->as($this->tech)->delete(route('contacts.destroy', [$this->sysadmin, $c]))->assertForbidden();
+        $this->assertSame("{$this->tag}s@example.invalid", $mail($this->sysadmin));
+        $this->assertSame(1, DB::table('users_contacts')->where('user_id', $this->sysadmin)->count());
+
+        $show = $this->as($this->tech)->get(route('contacts.show_by_user', $this->sysadmin))->assertOk();
+        $this->assertSame([false, false, false], [$show->viewData('canAdd'), $show->viewData('canEdit'), $show->viewData('canDelete')]);
+
+        // zákazníkovi ano
+        $cc = $link($this->customer, "{$this->tag}c@example.invalid");
+        $this->as($this->tech)->put(route('contacts.update', [$this->customer, $cc]), ['value' => "{$this->tag}c2@example.invalid"])->assertSessionHasNoErrors();
+        $this->assertSame("{$this->tag}c2@example.invalid", $mail($this->customer));
     }
 }
