@@ -79,12 +79,14 @@
             "columns": {
                 "id": "int(11) | not null | default ∅ | auto_increment | -",
                 "contract_id": "int(11) | not null | default ∅ | - | -",
+                "addon_id": "int(10) unsigned | null | default NULL | - | -",
                 "otp_hash": "char(64) | not null | default ∅ | - | ascii_general_ci",
                 "attempts_left": "tinyint(4) | not null | default 5 | - | -",
                 "expires_at": "datetime | not null | default ∅ | - | -",
                 "created_at": "datetime | not null | default current_timestamp() | - | -"
             },
             "indexes": {
+                "contract_addon_otps_contract_id_addon_id_index": "index (contract_id,addon_id)",
                 "contract_id": "index (contract_id)",
                 "PRIMARY": "unique (id)"
             }
