@@ -60,8 +60,7 @@ class MfaChallengeController extends Controller
         if ($mode === 'recovery') {
             $ok = $this->mfa->verifyAndConsumeRecovery($userId, (string) $request->input('code'));
         } else {
-            $mfa = $this->mfa->getConfirmed($userId);
-            $ok  = $mfa && $this->mfa->verifyTotp($mfa->totp_secret, (string) $request->input('code'));
+            $ok = $this->mfa->verifyTotpOnce((int) $userId, (string) $request->input('code'));
         }
 
         if (!$ok) {

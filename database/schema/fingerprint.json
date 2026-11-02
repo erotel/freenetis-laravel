@@ -2452,6 +2452,7 @@
                 "user_id": "int(11) | not null | default ∅ | - | -",
                 "totp_secret": "text | not null | default ∅ | - | utf8mb4_unicode_ci",
                 "confirmed_at": "timestamp | null | default NULL | - | -",
+                "last_totp_step": "bigint(20) unsigned | null | default NULL | - | -",
                 "created_at": "timestamp | null | default NULL | - | -",
                 "updated_at": "timestamp | null | default NULL | - | -"
             },

@@ -80,6 +80,28 @@ class MfaTest extends DatabaseTestCase
         $this->assertAuthenticatedAs(User::find($this->userId));
     }
 
+    /** Odchycený kód nejde zopakovat: stejný (i starší) 30s krok už neprojde, novější ano. */
+    public function test_totp_kod_nejde_pouzit_znovu(): void
+    {
+        $secret = $this->enableMfa();
+        $g   = new Google2FA();
+        $otp = $g->getCurrentOtp($secret);
+
+        $this->post('/login', ['login' => $this->login, 'password' => $this->pass]);
+        $this->post(route('mfa.challenge.verify'), ['code' => $otp, 'mode' => 'totp'])->assertRedirect(route('dashboard'));
+        $this->assertAuthenticatedAs(User::find($this->userId));
+
+        $this->post('/logout');
+        auth()->logout();
+        $this->post('/login', ['login' => $this->login, 'password' => $this->pass])->assertRedirect(route('mfa.challenge'));
+        $this->post(route('mfa.challenge.verify'), ['code' => $otp, 'mode' => 'totp'])->assertSessionHasErrors('code');
+        $this->post(route('mfa.challenge.verify'), ['code' => $g->oathTotp($secret, $g->getTimestamp() - 1), 'mode' => 'totp'])->assertSessionHasErrors('code');
+        $this->assertGuest();
+
+        $this->post(route('mfa.challenge.verify'), ['code' => $g->oathTotp($secret, $g->getTimestamp() + 1), 'mode' => 'totp'])
+            ->assertRedirect(route('dashboard'));
+    }
+
     public function test_spatny_totp_neprihlasi(): void
     {
         $this->enableMfa();

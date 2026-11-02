@@ -10,6 +10,7 @@ use Endroid\QrCode\Encoding\Encoding;
 use Endroid\QrCode\ErrorCorrectionLevel;
 use Endroid\QrCode\QrCode;
 use Endroid\QrCode\Writer\SvgWriter;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Str;
 use PragmaRX\Google2FA\Google2FA;
@@ -72,6 +73,37 @@ class MfaService
         } catch (\Throwable) {
             return false;
         }
+    }
+
+    /**
+     * Ověří TOTP kód přihlášeného MFA jednorázově: kód z 30s kroku, který už
+     * jednou prošel (nebo staršího), znovu neprojde — odchycený kód jinak šel
+     * zopakovat až 90 s (WINDOW). Řádek zamčený, dva souběžné pokusy se
+     * stejným kódem neprojdou oba. Krok se ukládá mimo audit (provozní stav).
+     */
+    public function verifyTotpOnce(int $userId, string $code): bool
+    {
+        $code = preg_replace('/\s+/', '', (string) $code);
+        if (!preg_match('/^\d{6}$/', $code)) {
+            return false;
+        }
+
+        return DB::transaction(function () use ($userId, $code) {
+            $mfa = UserMfa::where('user_id', $userId)->whereNotNull('confirmed_at')->lockForUpdate()->first();
+            if (!$mfa) {
+                return false;
+            }
+            try {
+                $step = $this->g->verifyKeyNewer((string) $mfa->totp_secret, $code, (int) ($mfa->last_totp_step ?? 0), self::WINDOW);
+            } catch (\Throwable) {
+                return false;
+            }
+            if ($step === false) {
+                return false;
+            }
+            DB::table('user_mfa')->where('id', $mfa->id)->update(['last_totp_step' => (int) $step]);
+            return true;
+        });
     }
 
     /** Má uživatel dokončené (potvrzené) MFA? */

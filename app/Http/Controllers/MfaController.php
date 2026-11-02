@@ -122,7 +122,7 @@ class MfaController extends Controller
         }
         $mfa = $this->mfa->getConfirmed($userId);
         $code = (string) $request->input('code');
-        if ($mfa && !$this->mfa->verifyTotp((string) $mfa->totp_secret, $code) && !$this->mfa->verifyAndConsumeRecovery($userId, $code)) {
+        if ($mfa && !$this->mfa->verifyTotpOnce((int) $userId, $code) && !$this->mfa->verifyAndConsumeRecovery($userId, $code)) {
             return back()->withErrors(['code' => 'Kód nesouhlasí.']);
         }
         $this->mfa->disable($userId);
