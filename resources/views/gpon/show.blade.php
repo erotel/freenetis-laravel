@@ -51,8 +51,30 @@
                     <span class="m-tag" style="background:#f3f4f6;color:#6b7280">Odebraná</span>
                 @endif
             </td></tr>
-        <tr><td style="padding:5px 0;color:var(--fn-text-muted)">Č. domu</td>
-            <td>{{ $ont->house_no ?: '—' }}</td></tr>
+        <tr><td style="padding:5px 0;color:var(--fn-text-muted);vertical-align:top">Č. domu</td>
+            <td>
+                <div id="house-display" style="display:{{ $errors->has('house_no') ? 'none' : 'flex' }};align-items:center;gap:8px;flex-wrap:wrap">
+                    <span>{{ $ont->house_no ?: '—' }}</span>
+                    <button type="button" class="m-btn" style="font-size:13px;padding:2px 8px"
+                            onclick="inlineEdit('house', true)">Upravit</button>
+                </div>
+                <form id="house-edit-form" method="POST"
+                      action="{{ route('gpon.update-house', $ont->id) }}"
+                      style="display:{{ $errors->has('house_no') ? 'block' : 'none' }};margin-top:6px">
+                    @csrf
+                    <input class="m-form-input" type="text" name="house_no" value="{{ old('house_no', $ont->house_no) }}"
+                           maxlength="32" placeholder="např. 123" style="max-width:160px;margin-bottom:6px">
+                    @if($ont->reg_status === 'registered')
+                    <div class="m-form-hint" style="margin-bottom:6px">Přepíše i popis ONT na OLT.</div>
+                    @endif
+                    <div style="display:flex;gap:6px">
+                        <button type="submit" class="m-btn m-btn-primary" style="font-size:14px;padding:3px 10px">Uložit</button>
+                        <button type="button" class="m-btn" style="font-size:14px;padding:3px 10px"
+                                onclick="inlineEdit('house', false)">Zrušit</button>
+                    </div>
+                </form>
+                @error('house_no') <div class="m-form-hint" style="color:#c0392b">{{ $message }}</div> @enderror
+            </td></tr>
         <tr><td style="padding:5px 0;color:var(--fn-text-muted)">Přidal</td>
             <td>
                 @if($ont->addedBy)
@@ -331,6 +353,10 @@
 
 
 <script>
+function inlineEdit(name, on) {
+    document.getElementById(name + '-display').style.display = on ? 'none' : 'flex';
+    document.getElementById(name + '-edit-form').style.display = on ? 'block' : 'none';
+}
 function memberEditShow() {
     document.getElementById('member-display').style.display = 'none';
     document.getElementById('member-edit-form').style.display = 'block';

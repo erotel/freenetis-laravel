@@ -93,6 +93,36 @@ class GponTest extends CatalogTestCase
         $this->as()->delete(route('gpon.destroy', $id))->assertNotFound();
     }
 
+    public function test_uprava_cisla_domu(): void
+    {
+        $id = $this->ont('registered');
+        $this->gpon->shouldReceive('updateHouseNo')->once()->with($id, '12/3a');
+        $this->as()->post(route('gpon.update-house', $id), ['house_no' => ' 12/3a '])
+            ->assertRedirect(route('gpon.show', $id))->assertSessionHas('success', 'Číslo domu upraveno.');
+
+        // jde do popisu na OLT a do shellu — jen znaky čísla domu
+        $this->as()->post(route('gpon.update-house', $id), ['house_no' => "12'; reboot"])->assertSessionHasErrors('house_no');
+        $this->as()->post(route('gpon.update-house', 999999999), ['house_no' => '1'])->assertNotFound();
+
+        $this->gpon->shouldReceive('updateHouseNo')->once()->with($id, '7')->andThrow(new \RuntimeException('SNMP timeout'));
+        $this->as()->post(route('gpon.update-house', $id), ['house_no' => '7'])
+            ->assertSessionHas('error', 'Číslo domu se nepodařilo změnit: SNMP timeout');
+
+        $html = $this->as()->get(route('gpon.show', $id))->assertOk()->getContent();
+        $this->assertStringContainsString(route('gpon.update-house', $id), $html);
+    }
+
+    /** Neregistrovaná ONT: jen DB (žádné SNMP), bez města OLT bez geokódování. */
+    public function test_cislo_domu_neregistrovane_ont_bez_olt(): void
+    {
+        $id = $this->ont('new', ['house_no' => '1', 'gps_lat' => 49.1, 'gps_lng' => 17.1]);
+        app()->forgetInstance(GponService::class);
+        app()->offsetUnset(GponService::class);
+        (new GponService())->updateHouseNo($id, '258');
+        $row = DB::table('onts')->where('id', $id)->first();
+        $this->assertSame(['258', 49.1, 17.1], [$row->house_no, (float) $row->gps_lat, (float) $row->gps_lng]);
+    }
+
     public function test_chyby_olt(): void
     {
         $id = $this->ont('new');
@@ -111,7 +141,7 @@ class GponTest extends CatalogTestCase
         foreach ([route('gpon.index'), route('gpon.show', $id), route('gpon.map')] as $url) {
             $this->as()->get($url)->assertForbidden();
         }
-        foreach ([route('gpon.scan'), route('gpon.register', $id), route('gpon.remove', $id), route('gpon.update-member', $id)] as $url) {
+        foreach ([route('gpon.scan'), route('gpon.register', $id), route('gpon.remove', $id), route('gpon.update-member', $id), route('gpon.update-house', $id)] as $url) {
             $this->as()->post($url)->assertForbidden();
         }
         $this->as()->delete(route('gpon.destroy', $id))->assertForbidden();

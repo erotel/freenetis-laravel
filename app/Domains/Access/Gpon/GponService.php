@@ -119,29 +119,63 @@ class GponService
             'user_name'  => $ont->user_name ?? auth()->user()?->login ?? null,
         ];
 
-        $city = $olt->geocode_city ?? '';
-        if ($houseNo !== '' && !empty($city)) {
-            $url = 'https://nominatim.openstreetmap.org/search?q=' . urlencode($city . ' ' . $houseNo . ', Czech Republic') . '&format=json&limit=1&countrycodes=cz';
-            Log::debug('GPON geocode request', ['url' => $url]);
-            // Přes curl, ne file_get_contents — DNS Nominatimu (fastly) vrací jen IPv6
-            // a PHP stream wrapper na tom HTTPS spojení na tomto hostu padá (false),
-            // kdežto curl projde. Bez toho zůstala nová ONT bez GPS na mapě.
-            $raw = $this->httpGet($url);
-            $geo = $raw !== null ? json_decode($raw, true) : null;
-            $lat = isset($geo[0]['lat']) ? (float) $geo[0]['lat'] : null;
-            $lng = isset($geo[0]['lon']) ? (float) $geo[0]['lon'] : null;
-            Log::debug('GPON geocode result', ['lat' => $lat, 'lng' => $lng]);
-            if ($lat !== null && $lat >= -90 && $lat <= 90 && $lng !== null && $lng >= -180 && $lng <= 180) {
-                $updateData['gps_lat'] = $lat;
-                $updateData['gps_lng'] = $lng;
-            } else {
-                Log::warning('GPON geocode: bez výsledku', ['url' => $url]);
+        $ont->update($updateData + $this->geocode((string) ($olt->geocode_city ?? ''), $houseNo));
+    }
+
+    /**
+     * Změna čísla domu u ONT (detail GPON). U registrované ONT nejdřív přepíše
+     * popis na OLT (hwGponDeviceOntDespt — při registraci = číslo domu), pak
+     * uloží číslo a znovu dohledá polohu pro mapu (nenalezená = poloha beze změny).
+     *
+     * @throws RuntimeException selhání SNMP — pak se nic neuloží
+     */
+    public function updateHouseNo(int $id, string $houseNo): void
+    {
+        $ont   = Ont::findOrFail($id);
+        $oltIp = $ont->olt_ip ?? Setting::get('gpon_olt_ip', '10.133.67.99');
+        $olt   = GponOlt::where('ip', $oltIp)->first();
+
+        if ($ont->reg_status === 'registered' && $houseNo !== '') {
+            $olt ??= $this->getOltConfig($oltIp);
+            $port = $ont->port_index ?? $this->getPortIndexForSerialOnOlt($ont->serial, $olt);
+            if (!$port) {
+                throw new RuntimeException('Nepodařilo se zjistit port index pro ONT ' . $ont->serial);
             }
-        } else {
-            Log::debug('GPON geocode skipped', ['houseNo' => $houseNo, 'city' => $city]);
+            $opt = $this->snmpOptForOlt($olt, '-M ' . escapeshellarg(base_path('resources/mibs')) . ' -Ir');
+            $dat = "hwGponDeviceOntDespt.{$port}.{$ont->ont_id} = " . escapeshellarg($houseNo);
+            $out = shell_exec("snmpset {$opt} -m HUAWEI-XPON-MIB " . escapeshellarg($oltIp) . " {$dat} 2>&1; echo $?");
+            $this->logGpon('/tmp/gpon_register.log', 'ONT DESCRIPTION', "snmpset {$opt} -m HUAWEI-XPON-MIB {$oltIp} {$dat}", $out);
+            $this->assertNoSnmpError($out, 'Chyba při změně popisu ONT na OLT');
         }
 
-        $ont->update($updateData);
+        $ont->update(['house_no' => $houseNo] + $this->geocode((string) ($olt?->geocode_city ?? ''), $houseNo));
+    }
+
+    /**
+     * Poloha ONT z čísla domu (Nominatim). Přes curl, ne file_get_contents —
+     * DNS Nominatimu (fastly) vrací jen IPv6 a PHP stream wrapper na tom HTTPS
+     * spojení na tomto hostu padá (false), kdežto curl projde.
+     *
+     * @return array{gps_lat?: float, gps_lng?: float} prázdné = bez výsledku
+     */
+    private function geocode(string $city, string $houseNo): array
+    {
+        if ($houseNo === '' || $city === '') {
+            Log::debug('GPON geocode skipped', ['houseNo' => $houseNo, 'city' => $city]);
+            return [];
+        }
+        $url = 'https://nominatim.openstreetmap.org/search?q=' . urlencode($city . ' ' . $houseNo . ', Czech Republic') . '&format=json&limit=1&countrycodes=cz';
+        Log::debug('GPON geocode request', ['url' => $url]);
+        $raw = $this->httpGet($url);
+        $geo = $raw !== null ? json_decode($raw, true) : null;
+        $lat = isset($geo[0]['lat']) ? (float) $geo[0]['lat'] : null;
+        $lng = isset($geo[0]['lon']) ? (float) $geo[0]['lon'] : null;
+        Log::debug('GPON geocode result', ['lat' => $lat, 'lng' => $lng]);
+        if ($lat !== null && $lat >= -90 && $lat <= 90 && $lng !== null && $lng >= -180 && $lng <= 180) {
+            return ['gps_lat' => $lat, 'gps_lng' => $lng];
+        }
+        Log::warning('GPON geocode: bez výsledku', ['url' => $url]);
+        return [];
     }
 
     /**

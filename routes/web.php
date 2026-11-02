@@ -731,6 +731,7 @@ Route::middleware('auth')->group(function () {
         Route::post('gpon/{id}/remove',        [GponController::class, 'remove'])->name('gpon.remove');
         Route::delete('gpon/{id}',             [GponController::class, 'destroy'])->name('gpon.destroy');
         Route::post('gpon/{id}/update-member', [GponController::class, 'updateMember'])->name('gpon.update-member');
+        Route::post('gpon/{id}/update-house',  [GponController::class, 'updateHouse'])->name('gpon.update-house');
     });
 
     // ── Smlouvy ───────────────────────────────────────────────────────────────

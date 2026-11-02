@@ -60,6 +60,25 @@ class GponController extends Controller
         return redirect()->route('gpon.show', $id)->with('success', 'Zákazník upraven.');
     }
 
+    /** Číslo domu: u registrované ONT i popis na OLT, poloha na mapě znovu. */
+    public function updateHouse(int $id, Request $request)
+    {
+        abort_unless($this->can('edit_all'), 403);
+        $this->onts->findOrFail($id);
+        $data = $request->validate([
+            // jde do popisu ONT na OLT — jen běžné znaky čísla domu
+            'house_no' => ['nullable', 'string', 'max:32', 'regex:/^[\pL\pN .,\/\-]*$/u'],
+        ], ['house_no.regex' => 'Číslo domu smí obsahovat jen písmena, číslice, mezeru a . , / -']);
+
+        try {
+            $this->gponService->updateHouseNo($id, trim((string) ($data['house_no'] ?? '')));
+        } catch (\RuntimeException $e) {
+            return redirect()->route('gpon.show', $id)->with('error', 'Číslo domu se nepodařilo změnit: ' . $e->getMessage());
+        }
+
+        return redirect()->route('gpon.show', $id)->with('success', 'Číslo domu upraveno.');
+    }
+
     public function scan(Request $request)
     {
         abort_unless($this->can('edit_all'), 403);
