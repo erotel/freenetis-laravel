@@ -2,6 +2,7 @@
 
 namespace App\Domains\Billing\Actions;
 
+use Illuminate\Support\Facades\DB;
 use App\Domains\Audit\AuditLogger;
 use App\Domains\Billing\Fees\FeePolicy;
 use App\Domains\Billing\Repositories\LedgerRepository;
@@ -44,14 +45,21 @@ class ChargeMonthlyFeeNowAction
         $operating = $this->ledger->organizationAccountId(AccountAttribute::OPERATING);
         if (!$operating) return self::NOOP;
 
-        if ($this->ledger->hasTransferAt((int) $credit->id, TransferType::MEMBER_FEE, $date)) return self::NOOP;
+        return DB::transaction(fn () => $this->charge($memberId, (int) $credit->id, $operating, $amount, $date, $userId));
+    }
 
-        if ((float) $credit->balance < $amount) {
+    /** Pod zámkem účtu — souběžná srážka (noční, dohnání po platbě) nestrhne podruhé. */
+    private function charge(int $memberId, int $creditId, int $operating, float $amount, string $date, ?int $userId): string
+    {
+        $balance = $this->ledger->lockAccountBalance($creditId);
+        if ($balance === null || $this->ledger->hasTransferAt($creditId, TransferType::MEMBER_FEE, $date)) return self::NOOP;
+
+        if ($balance < $amount) {
             $this->ledger->blockForPayment($memberId, $date);
             return self::SKIPPED_BLOCKED;
         }
 
-        $this->ledger->postFee((int) $credit->id, $operating, TransferType::MEMBER_FEE, $amount, $date,
+        $this->ledger->postFee($creditId, $operating, TransferType::MEMBER_FEE, $amount, $date,
             now()->format('Y-m-d H:i:s'), self::TEXT, $userId);
         $this->ledger->recalculateBalance($operating);
         AuditLogger::log('created', 'transfers', null, null, [

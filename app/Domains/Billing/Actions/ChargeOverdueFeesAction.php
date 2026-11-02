@@ -58,6 +58,9 @@ class ChargeOverdueFeesAction
 
         DB::beginTransaction();
         try {
+            // Souběžné dohnání (import + ruční spárování) / noční srážka čekají
+            // na zámek a pak už vidí stržené měsíce (hasTransferAt v chargeKind).
+            $this->ledger->lockAccountBalance((int) $credit->id);
             $charged = 0;
             $complete = true;
             foreach (self::KINDS as $type => $text) {

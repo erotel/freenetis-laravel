@@ -8,6 +8,7 @@ use App\Domains\Billing\Support\AccountAttribute;
 use App\Domains\Billing\Support\TransferType;
 use App\Models\Setting;
 use Closure;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 
@@ -45,6 +46,22 @@ class DeductFeesAction
         $this->report = $report ?? fn () => null;
         $this->failed = [];
 
+        // Jeden běh najednou (cron + ruční --force) — jinak oba vyberou stejné účty.
+        $lock = Cache::lock('fees:deduct', 3600);
+        if (!$lock->get()) {
+            $this->failed[] = 'already running';
+            ($this->report)('error', 'Srážka už běží (jiný proces) — přeskočeno.');
+            return 0;
+        }
+        try {
+            return $this->run($date, $only);
+        } finally {
+            $lock->release();
+        }
+    }
+
+    private function run(string $date, ?int $only): ?int
+    {
         $orgOperating      = $this->ledger->organizationAccountId(AccountAttribute::OPERATING);
         $orgInfrastructure = $this->ledger->organizationAccountId(AccountAttribute::INFRASTRUCTURE);
         if (!$orgOperating || !$orgInfrastructure) {
@@ -112,10 +129,15 @@ class DeductFeesAction
                 }
                 if ($feeAmount <= 0) continue;
 
+                // Pod zámkem účtu znovu: souběžné dohnání po platbě / ruční běh
+                // mohl mezitím strhnout; zůstatek až z uzamčeného řádku.
+                $balance = $this->ledger->lockAccountBalance((int) $account->account_id);
+                if ($balance === null || $this->ledger->hasTransferAt((int) $account->account_id, TransferType::MEMBER_FEE, $date)) continue;
+
                 // Prepaid pravidlo: stržení proběhne pouze pokud kredit pokryje
                 // celou částku. Kdo nemá → payment_blocked=1, transfer se nevytvoří
                 // a dohánění proběhne po platbě (ChargeOverdueFeesAction).
-                if ((float) $account->balance < $feeAmount) {
+                if ($balance < $feeAmount) {
                     $this->ledger->blockForPayment((int) $account->member_id, $date);
                     $flagged++;
                     continue;
@@ -168,8 +190,11 @@ class DeductFeesAction
                 $svcFee = (float) $account->svc_fee;
                 if ($svcFee <= 0) continue;
 
+                $balance = $this->ledger->lockAccountBalance((int) $account->account_id);
+                if ($balance === null || $this->ledger->hasTransferAt((int) $account->account_id, TransferType::ADDITIONAL_SERVICE_FEE, $date)) continue;
+
                 // Prepaid: strhnout jen pokud kredit pokryje celou částku služeb.
-                if ((float) $account->balance < $svcFee) {
+                if ($balance < $svcFee) {
                     $this->ledger->blockForPayment((int) $account->member_id, $date);
                     $flagged++;
                     continue;
@@ -232,7 +257,10 @@ class DeductFeesAction
                 $amount = (float) $account->amount;
                 if ($amount <= 0) continue;
 
-                if ((float) $account->balance < $amount) {
+                $balance = $this->ledger->lockAccountBalance((int) $account->account_id);
+                if ($balance === null || $this->ledger->hasTransferAt((int) $account->account_id, $type, $date)) continue;
+
+                if ($balance < $amount) {
                     $skipped++;
                     continue;
                 }

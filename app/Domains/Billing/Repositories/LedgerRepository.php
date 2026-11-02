@@ -244,6 +244,18 @@ class LedgerRepository
 
     // ── zápisy ────────────────────────────────────────────────────────────────
 
+    /**
+     * Zamkne účet do konce transakce (FOR UPDATE) a vrátí jeho aktuální zůstatek
+     * (null = účet neexistuje). Srážky téhož účtu se tak seřadí: noční srážka,
+     * dohnání po platbě i srážka při obnově si kontrolu „už strženo?" a zůstatek
+     * čtou až pod zámkem — souběžné volání jinak strhlo dvakrát.
+     */
+    public function lockAccountBalance(int $accountId): ?float
+    {
+        $balance = DB::table('accounts')->where('id', $accountId)->lockForUpdate()->value('balance');
+        return $balance === null ? null : (float) $balance;
+    }
+
     /** Existuje převod daného typu z účtu s `datetime` přesně = $date (idempotence srážek)? */
     public function hasTransferAt(int $fromAccount, int $type, string $date): bool
     {
