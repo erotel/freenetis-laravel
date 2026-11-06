@@ -337,7 +337,7 @@
     <div style="color:#9ca3af;font-size:13px">Na změnu tarifu nemáš oprávnění (qos_ceil).</div>
     @endif
     @if(session('tariff_addon_link'))
-    <div class="m-alert" style="background:#fef3c7;border:1px solid #fcd34d;padding:10px;border-radius:6px;margin-bottom:12px">
+    <div class="m-alert" style="background:#fef3c7;color:#92400e;border:1px solid #fcd34d;padding:10px;border-radius:6px;margin-bottom:12px">
         Odkaz k podpisu (pošli zákazníkovi, když nedorazil e-mailem):<br>
         <a href="{{ session('tariff_addon_link') }}" target="_blank" rel="noopener" style="word-break:break-all;color:#92400e">
             {{ session('tariff_addon_link') }}
@@ -432,7 +432,7 @@
         @endif
     @endif
     @if(session('service_addon_link'))
-    <div class="m-alert" style="background:#fef3c7;border:1px solid #fcd34d;padding:10px;border-radius:6px;margin-bottom:12px">
+    <div class="m-alert" style="background:#fef3c7;color:#92400e;border:1px solid #fcd34d;padding:10px;border-radius:6px;margin-bottom:12px">
         Odkaz k podpisu (pošli zákazníkovi, když nedorazil e-mailem):<br>
         <a href="{{ session('service_addon_link') }}" target="_blank" rel="noopener" style="word-break:break-all;color:#92400e">
             {{ session('service_addon_link') }}
@@ -547,7 +547,7 @@
         </div>
         @endif
         @foreach($placeHints['warnings'] as $warning)
-        <div class="m-alert" style="background:#fef3c7;border:1px solid #fcd34d;padding:10px;border-radius:6px;margin-bottom:12px;font-size:14px">{{ $warning }}</div>
+        <div class="m-alert" style="background:#fef3c7;color:#92400e;border:1px solid #fcd34d;padding:10px;border-radius:6px;margin-bottom:12px;font-size:14px">{{ $warning }}</div>
         @endforeach
         <script>
         function cpSyncAddress(selId, addrId) {
@@ -560,7 +560,7 @@
         </script>
     @endif
     @if(session('connection_point_addon_link'))
-    <div class="m-alert" style="background:#fef3c7;border:1px solid #fcd34d;padding:10px;border-radius:6px;margin-bottom:12px">
+    <div class="m-alert" style="background:#fef3c7;color:#92400e;border:1px solid #fcd34d;padding:10px;border-radius:6px;margin-bottom:12px">
         Odkaz k podpisu (pošli zákazníkovi, když nedorazil e-mailem):<br>
         <a href="{{ session('connection_point_addon_link') }}" target="_blank" rel="noopener" style="word-break:break-all;color:#92400e">
             {{ session('connection_point_addon_link') }}
