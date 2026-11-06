@@ -59,7 +59,7 @@ class ConnectionPointHintsQuery
             }
             if ($addon && ($place->charged || $addon->status !== 'signed')) {
                 $device = AllowedSubnetFeesResolver::deviceAddress($memberId, (int) $place->subnet_id);
-                if ($device !== '' && $this->normalized($device) !== $this->normalized((string) $addon->service_name)) {
+                if ($device !== '' && !$this->sameAddress($device, (string) $addon->service_name)) {
                     $warnings[] = "Dodatek č. {$addon->addon_no} uvádí adresu {$addon->service_name}, zařízení v podsíti {$name} má {$device}.";
                 }
             }
@@ -71,6 +71,14 @@ class ConnectionPointHintsQuery
     private function price(mixed $price): string
     {
         return number_format((float) $price, 0, ',', ' ');
+    }
+
+    /** Stejná adresa; jedna může vynechat ulici (v obcích bez ulic bývá stejná jako obec). */
+    private function sameAddress(string $a, string $b): bool
+    {
+        [$a, $b] = [$this->normalized($a), $this->normalized($b)];
+
+        return $a === $b || str_ends_with($a, ' ' . $b) || str_ends_with($b, ' ' . $a);
     }
 
     private function normalized(string $address): string

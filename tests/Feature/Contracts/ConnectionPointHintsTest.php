@@ -136,6 +136,20 @@ class ConnectionPointHintsTest extends DatabaseTestCase
         $this->assertStringContainsString('158', $warnings[0]);
     }
 
+    public function test_adresa_bez_ulice_shodne_s_obci_neni_rozdil(): void
+    {
+        $id = $this->place('NET bez ulice', $this->speedId, true);
+        $adresa = $this->device($id, 'ev. č. 11');
+        $bezUlice = trim(explode(' ', $adresa, 2)[1]);
+        $this->addon($id, 'signed', $bezUlice);
+        $this->assertSame([], $this->hints()['warnings']);
+
+        // jiné číslo domu rozdíl je, i když konec textu sedí jen zčásti
+        DB::connection('contracts')->table('contract_addons')->where('contract_id', $this->contractId)
+            ->update(['service_name' => '1' . $bezUlice]);
+        $this->assertCount(1, $this->hints()['warnings']);
+    }
+
     public function test_porovnava_nejnovejsi_dodatek_mista(): void
     {
         $id = $this->place('NET opravené', $this->speedId, true);
