@@ -113,6 +113,10 @@ $isDark = ($userSettings['dark_mode'] ?? 0) == 1;
     [data-theme="dark"] h2,[data-theme="dark"] h3{color:var(--fn-text)}
     [data-theme="dark"] #breadcrumbs{color:var(--fn-text-muted)}
     [data-theme="dark"] #breadcrumbs a{color:var(--fn-text-muted)}
+    /* Odkazy bez vlastní barvy: výchozí modrá/fialová prohlížeče je na tmavém pozadí nečitelná.
+       :where = nulová specificita, vlastní barvy tlačítek a tabulek zůstávají. */
+    :where([data-theme="dark"]) :where(a){color:#facc15}
+    :where([data-theme="dark"]) :where(a:hover){color:#fde68a}
     [data-theme="dark"] .m-page a{color:#e8a96a}
     [data-theme="dark"] .m-page a:hover{color:#f0c080}
     [data-theme="dark"] .fn-page{background:#1e1e1e !important;border-color:#333 !important;color:#ccc !important}
