@@ -17,6 +17,7 @@ class ContractCardQuery
         private ContractRepository $contracts,
         private ContractAddonRepository $addons,
         private FeePolicy $fees,
+        private ConnectionPointHintsQuery $placeHints,
     ) {
     }
 
@@ -46,6 +47,7 @@ class ContractCardQuery
             // Účtovaná místa (ZRUŠENÍ) a neúčtovaná s vlastní rychlostí (PŘIDÁNÍ).
             'assignablePlaces'      => AllowedSubnetFeesResolver::chargedPlaces($memberId),
             'availablePlaces'       => AllowedSubnetFeesResolver::chargeablePlaces($memberId),
+            'placeHints'            => $contract ? $this->placeHints->forMember($memberId, $contract->id) : ['unavailable' => [], 'warnings' => []],
             'speedClasses'          => SpeedClass::orderBy('name')->get(),
         ];
     }

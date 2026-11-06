@@ -538,6 +538,17 @@
             Člen nemá žádné přípojné místo s vlastní rychlostí. Nastav mu rychlost v <a href="{{ route('allowed_subnets.by_member', $member->id) }}">povolených podsítích člena</a>.
         </div>
         @endif
+        @if(!empty($placeHints['unavailable']))
+        <div style="font-size:14px;color:#6b7280;margin-bottom:12px">
+            <strong>Nelze vybrat do dodatku</strong> — místo nemá vlastní rychlost, jede na tarifu člena:
+            @foreach($placeHints['unavailable'] as $p)
+            <div>{{ $p['name'] }} → <a href="{{ route('allowed_subnets.by_member', $member->id) }}">nastavit rychlost</a></div>
+            @endforeach
+        </div>
+        @endif
+        @foreach($placeHints['warnings'] as $warning)
+        <div class="m-alert" style="background:#fef3c7;border:1px solid #fcd34d;padding:10px;border-radius:6px;margin-bottom:12px;font-size:14px">{{ $warning }}</div>
+        @endforeach
         <script>
         function cpSyncAddress(selId, addrId) {
             var sel = document.getElementById(selId);
