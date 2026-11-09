@@ -27,11 +27,24 @@ class UpdateSubnetAction
         }
 
         $wasIpoe = $subnet->dhcp && $subnet->ipoe;
-        $rangeChanged = $data['network_address'] !== $subnet->network_address || $data['netmask'] !== $subnet->netmask;
+        // Pole, ze kterých se skládá DHCP export (síť, maska, název serveru, DNS,
+        // IPoE = bez statických leasů + use-radius). Změna kteréhokoli = nová
+        // konfigurace ke stažení. Dřív jen síť/maska → přepnutí IPoE se k MikroTiku
+        // nedostalo (204 „beze změny"), incident 2026-11-09 subnet 1479.
+        $exportFields = ['network_address', 'netmask', 'name', 'dns', 'ipoe', 'dhcp'];
+        $norm = fn ($v) => is_bool($v) ? (int) $v : (string) $v;
+        $before = [];
+        foreach ($exportFields as $f) {
+            $before[$f] = $norm($subnet->{$f});
+        }
         $this->subnets->update($subnet, $data);
 
-        // jiná síť / maska = jiná konfigurace DHCP serveru → ke stažení
-        if ($rangeChanged && $subnet->dhcp) {
+        $exportChanged = false;
+        foreach ($exportFields as $f) {
+            $exportChanged = $exportChanged || $before[$f] !== $norm($subnet->{$f});
+        }
+        // Jen u zapnutého DHCP (při vypnutí se dhcp_expired výše naopak nuluje).
+        if ($exportChanged && $subnet->dhcp) {
             SubnetDhcpChanges::expire($subnet);
         }
 

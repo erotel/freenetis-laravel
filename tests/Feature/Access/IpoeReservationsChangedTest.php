@@ -131,4 +131,41 @@ class IpoeReservationsChangedTest extends DatabaseTestCase
         $this->assertTrue((bool) $s->fresh()->ipoe, 'subnet se přepnul');
         Event::assertDispatched(IpoeReservationsChanged::class, fn ($e) => $e->source === "subnet:{$s->id}");
     }
+
+    public function test_prepnuti_ipoe_oznaci_subnet_ke_stazeni_do_mikrotiku(): void
+    {
+        // Incident 2026-11-09 subnet 1479: ipoe=1 se uložilo, ale export zůstal 204
+        // (beze změny) → MikroTik dál posílal statické leasy, IPoE se neuplatnilo.
+        Event::fake([IpoeReservationsChanged::class]);
+        $acl = $this->mock(AclService::class);
+        $acl->shouldReceive('hasAccess')->andReturn(true);
+        $s = $this->subnet(1, 0);
+        $s->update(['dhcp_expired' => 0, 'dhcp_changed_at' => now()->subDay()]);
+        $admin = User::find((int) DB::table('users')->where('type', 1)->value('id'));
+
+        $this->actingAs($admin)->put(route('subnets.update', $s->id), [
+            'name' => 'char ipoe', 'network_address' => '10.250.9.0', 'netmask' => '255.255.255.0',
+            'dhcp' => 1, 'ipoe' => 1,
+        ]);
+
+        $f = $s->fresh();
+        $this->assertTrue((bool) $f->dhcp_expired, 'MikroTik si musí stáhnout export bez statických leasů');
+        $this->assertTrue($f->dhcp_changed_at->greaterThan(now()->subMinute()));
+    }
+
+    public function test_zmena_mimo_export_subnet_neoznaci(): void
+    {
+        $acl = $this->mock(AclService::class);
+        $acl->shouldReceive('hasAccess')->andReturn(true);
+        $s = $this->subnet(1, 0);
+        $s->update(['dhcp_expired' => 0]);
+        $admin = User::find((int) DB::table('users')->where('type', 1)->value('id'));
+
+        $this->actingAs($admin)->put(route('subnets.update', $s->id), [
+            'name' => 'char ipoe', 'network_address' => '10.250.9.0', 'netmask' => '255.255.255.0',
+            'dhcp' => 1, 'ipoe' => 0, 'qos' => 1,
+        ]);
+
+        $this->assertFalse((bool) $s->fresh()->dhcp_expired, 'QoS se do DHCP exportu nepromítá');
+    }
 }
