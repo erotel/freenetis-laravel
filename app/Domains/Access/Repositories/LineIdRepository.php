@@ -31,6 +31,43 @@ class LineIdRepository
         return DB::table('line_id_seen')->where('last_seen', '>=', $since)->get();
     }
 
+    /**
+     * Zapíše pozorování (circuit-id, remote-id, MAC) z leasu Kea do `line_id_seen`
+     * ve stejném tvaru jako FreeRADIUS accounting od MikroTiků ('0x…' malá hex,
+     * MAC velká s dvojtečkami). Na rozdíl od accountingu se volá opakovaně se
+     * stejným leasem (každý `lineid:sync`), proto počítadlo a last_seen posune jen
+     * když je lease novější než uložené pozorování. `reconciled` nemění.
+     *
+     * @return bool true = nový záznam nebo posun (novější lease)
+     */
+    public function recordSeenFromLease(string $circuitHex, string $remoteHex, string $mac, \DateTimeInterface $seenAt): bool
+    {
+        // last_seen je v místním čase (FreeRADIUS píše NOW()) → stejné pásmo i tady,
+        // jinak by se tentýž lease jevil o hodinu jiný a započítal by se znovu.
+        $seen = \Carbon\Carbon::instance($seenAt)->setTimezone(config('app.timezone'))->format('Y-m-d H:i:s');
+        $row = DB::table('line_id_seen')->where('circuit_id_hex', $circuitHex)->where('mac', $mac)->first();
+        if ($row === null) {
+            DB::table('line_id_seen')->insert([
+                'circuit_id_hex' => $circuitHex,
+                'remote_id_hex'  => $remoteHex,
+                'mac'            => $mac,
+                'seen_count'     => 1,
+                'reconciled'     => 0,
+                'last_seen'      => $seen,
+            ]);
+            return true;
+        }
+        if ($row->last_seen !== null && (string) $row->last_seen >= $seen) {
+            return false; // tentýž (nebo starší) lease, už započtený
+        }
+        DB::table('line_id_seen')->where('id', $row->id)->update([
+            'remote_id_hex' => $remoteHex !== '' ? $remoteHex : $row->remote_id_hex,
+            'seen_count'    => DB::raw('seen_count + 1'),
+            'last_seen'     => $seen,
+        ]);
+        return true;
+    }
+
     public function markSeenReconciled(int $seenId): void
     {
         DB::table('line_id_seen')->where('id', $seenId)->update(['reconciled' => 1]);

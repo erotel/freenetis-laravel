@@ -81,6 +81,68 @@ class KeaControlClient
         return null;
     }
 
+    /**
+     * Všechny aktivní v4 leasy (state 0) z Kea, nebo null když se nedalo zeptat.
+     * HA hot-standby: oba uzly drží stejné leasy, stačí první, který odpoví. Bez
+     * `kea.control_nodes` fallback na lokální unix socket (PoC/dev). Best-effort,
+     * nikdy nehodí výjimku. Vyžaduje hook lease_cmds; option82 u leasu jen se
+     * `store-extended-info: true`. Viz {@see \App\Domains\Access\Actions\IngestKeaLeasesAction}.
+     *
+     * @return list<array<string,mixed>>|null
+     */
+    public function activeLeases4(): ?array
+    {
+        $cmd = ['command' => 'lease4-get-all'];
+        $nodes = (array) config('kea.control_nodes', []);
+        $resp = null;
+        foreach ($nodes as $base) {
+            $resp = $this->keaHttpCommand((string) $base, $cmd);
+            if ($resp !== null) {
+                break;
+            }
+        }
+        if ($nodes === []) {
+            $resp = $this->keaSocketCommand($cmd);
+        }
+        if ($resp === null) {
+            return null;
+        }
+        // result 3 = žádné leasy (prázdný subnet), není to chyba.
+        if ((int) ($resp['result'] ?? 1) === 3) {
+            return [];
+        }
+        if ((int) ($resp['result'] ?? 1) !== 0) {
+            return null;
+        }
+        return array_values(array_filter(
+            (array) ($resp['arguments']['leases'] ?? []),
+            fn ($l) => is_array($l) && (int) ($l['state'] ?? 0) === 0
+        ));
+    }
+
+    /** Příkaz přes lokální unix socket `kea.control_socket`, dekódovaná odpověď nebo null. */
+    private function keaSocketCommand(array $cmd): ?array
+    {
+        $sock = (string) config('kea.control_socket', '');
+        if ($sock === '' || !@file_exists($sock)) {
+            return null;
+        }
+        try {
+            $client = @stream_socket_client('unix://' . $sock, $errno, $errstr, 2);
+            if (!$client) {
+                return null;
+            }
+            @fwrite($client, json_encode($cmd));
+            @stream_socket_shutdown($client, STREAM_SHUT_WR); // EOF → Kea zpracuje příkaz
+            $resp = (string) @stream_get_contents($client);
+            @fclose($client);
+            $json = json_decode($resp, true);
+            return is_array($json) ? $json : null;
+        } catch (\Throwable $e) {
+            return null;
+        }
+    }
+
     /** Pošle příkaz na Kea HTTP control endpoint, vrátí dekódovanou odpověď nebo null. */
     private function keaHttpCommand(string $base, array $cmd): ?array
     {

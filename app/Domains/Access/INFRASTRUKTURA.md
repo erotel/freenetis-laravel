@@ -50,6 +50,13 @@ username je **binární** (surové bajty option82), proto:
   takové bajty odmítl/poškodil a `CONCAT` ve `*_kea4_v` by nesedl. → **4b**.
 - `line_id_seen` — staging self-learningu. Píše `freenetis-pd` (.54 bez remote-id,
   Kea uzly s `remote_id_hex`), čte/označuje `lineid:sync` (LineIdRepository).
+  **Kea segmenty** (IPoE přes Kea) RADIUS accounting nemají — Kea RADIUS hook umí
+  atributy z výrazů jen v `access` a ten se kvůli host-cache při stejném portu
+  neopakuje. Proto `lineid:sync` nejdřív stáhne aktivní leasy (`lease4-get-all`
+  přes `kea.control_nodes`) a option82 z `user-context.ISC.relay-agent-info`
+  zapíše do `line_id_seen` ve stejném formátu (IngestKeaLeasesAction).
+  **Vyžaduje `"store-extended-info": true`** v kea-dhcp4.conf na obou uzlech;
+  bez něj lease option82 nenese (ve výpisu `lineid:sync` jako „bez option82").
 - **`line_id_pending`** — jen .54, mimo migrace i aplikaci. Píše site `kea4` na Kea
   uzlech pro **neznámý** circuit (Kea klient bez rezervace). 7 řádků, poslední
   2026-09-30. Aplikace ho dnes nečte — kandidát na onboarding UI, nebo sloučit
