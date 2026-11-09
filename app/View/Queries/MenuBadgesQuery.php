@@ -95,11 +95,15 @@ class MenuBadgesQuery
             ->count('d.id');
     }
 
-    /** Otevřené kritické line-id anomálie (guard: tabulka nemusí existovat). */
-    public function criticalLineIdAnomalies(): int
+    /**
+     * Všechny otevřené line-id anomálie (guard: tabulka nemusí existovat). Dřív jen
+     * kritické — výměna routeru (unknown_device = warning) pak v menu ukazovala 0,
+     * i když na stránce anomálie byla. Rozpad podle závažnosti je na stránce.
+     */
+    public function openLineIdAnomalies(): int
     {
         return Schema::hasTable('line_id_anomalies')
-            ? (int) DB::table('line_id_anomalies')->whereNull('resolved_at')->where('severity', 'critical')->count()
+            ? (int) DB::table('line_id_anomalies')->whereNull('resolved_at')->count()
             : 0;
     }
 }

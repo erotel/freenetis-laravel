@@ -44,7 +44,7 @@ class FreenetisMenu extends Component
         $countConnectionRequests = fn () => $badges->pendingConnectionRequests();
         $countUnsignedContracts  = fn () => $badges->unsignedContracts();
         $countDhcpErrors         = fn () => $badges->dhcpServerErrors();
-        $countLineIdAnomalies    = fn () => $badges->criticalLineIdAnomalies();
+        $countLineIdAnomalies    = fn () => $badges->openLineIdAnomalies();
 
         $menuGroups = [
             ['name' => 'home', 'label' => 'Domů', 'items' => [
