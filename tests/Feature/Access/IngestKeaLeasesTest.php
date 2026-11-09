@@ -134,8 +134,21 @@ class IngestKeaLeasesTest extends DatabaseTestCase
         ]);
         $this->kea([$this->lease('AC:AB:AA:11:22:33', now()->timestamp)]);
 
+        // Starý router na portu už dřív viděný → 2 MAC na portu (jako K364 Gi0/0/12).
+        $oldMac = strtoupper((string) DB::table('ifaces')->where('id', $ifaceId)->value('mac'));
+        DB::table('line_id_seen')->insert([
+            'circuit_id_hex' => '0x' . bin2hex(self::CIRCUIT), 'remote_id_hex' => '0x' . bin2hex(self::REMOTE),
+            'mac' => $oldMac, 'seen_count' => 3, 'reconciled' => 1, 'last_seen' => now()->subHour(),
+        ]);
+
         app(IngestKeaLeasesAction::class)->handle();
+        app(\App\Domains\Access\Actions\ReconcileLineIdsAction::class)->handle();
         app(DetectLineIdAnomaliesAction::class)->handle();
+
+        $this->assertNotNull(
+            app(LineIdRepository::class)->find(self::CIRCUIT, self::REMOTE),
+            'výměna routeru nesmí smazat mapování (zákazník by přišel o rezervaci)'
+        );
 
         $a = DB::table('line_id_anomalies')->where('seen_mac', 'AC:AB:AA:11:22:33')->first();
         $this->assertNotNull($a, 'detektor musí z Kea pozorování poznat cizí MAC na portu');

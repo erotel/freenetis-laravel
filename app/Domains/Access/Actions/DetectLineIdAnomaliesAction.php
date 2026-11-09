@@ -33,9 +33,10 @@ class DetectLineIdAnomaliesAction
             }
             $remote = $this->parser->decodeHex($row->remote_id_hex) ?? '';
 
-            // Sdílený relay/VLAN circuit-id (Vlanif / víc MACů na téže dvojici) není
-            // per-zákazník identita → víc MACů je tam normální, NEflagovat.
-            if ($this->shared->isShared($circuit, $row->circuit_id_hex, $row->remote_id_hex)) {
+            // Relay/VLAN circuit-id (Vlanif) není per-zákazník identita → víc MACů je
+            // tam normální, NEflagovat. Víc MAC na obyčejném portu se naopak hlásí
+            // (výměna routeru = unknown_device, cizí zákazník = identity_cross).
+            if ($this->shared->isStructural($circuit)) {
                 continue;
             }
 

@@ -155,8 +155,11 @@ class LineIdSyncTest extends DatabaseTestCase
         $this->assertFalse(DB::table('line_ids')->where('circuit_id', $this->circuit())->exists());
     }
 
-    public function test_sdileny_circuit_dve_mac_neulozi_a_smaze_line_id(): void
+    public function test_dve_mac_na_namapovanem_portu_mapovani_nesmaze(): void
     {
+        // Dřív: 2 MAC = „sdílený" → line_id smazán. Tím ale výměna routeru připravila
+        // zákazníka o rezervaci (incident 2026-11-09 K364 Gi0/0/12). Teď mapování
+        // zůstává, cizí registrovaná MAC = konflikt (→ detektor identity_cross).
         $a = $this->iface($this->mac(1));
         $this->iface($this->mac(2));
         $this->line($this->circuit(), $a);
@@ -165,11 +168,43 @@ class LineIdSyncTest extends DatabaseTestCase
 
         $r = $this->reconcile();
 
-        $this->assertFalse(DB::table('line_ids')->where('circuit_id', $this->circuit())->exists(), 'sdílený port nesmí být identita');
+        $this->assertSame($a, (int) DB::table('line_ids')->where('circuit_id', $this->circuit())->value('iface_id'), 'mapování registrované přípojky zůstává');
         $this->assertSame(1, (int) $this->seenRow($s1)->reconciled);
-        $this->assertSame(1, (int) $this->seenRow($s2)->reconciled);
+        $this->assertSame(0, (int) $this->seenRow($s2)->reconciled, 'cizí MAC = konflikt, ne reconciled');
+        $this->assertSame(1, $r['conflicts']);
+        $this->assertSame(0, $r['shared']);
+        $this->assertNull($r['cache_flushed'], 'rezervace se nezměnily → žádný flush');
+    }
+
+    public function test_vymena_routeru_mapovani_nesmaze_a_detektor_ji_nahlasi(): void
+    {
+        // Registrovaný router + nová (neregistrovaná) MAC po výměně na témže portu.
+        $a = $this->iface($this->mac(1));
+        $this->line($this->circuit(), $a);
+        $this->seen($this->circuit(), $this->mac(1), null, now()->subHour()->toDateTimeString());
+        $this->seen($this->circuit(), $this->mac(5));
+
+        $this->reconcile();
+        app(DetectLineIdAnomaliesAction::class)->handle();
+
+        $this->assertSame($a, (int) DB::table('line_ids')->where('circuit_id', $this->circuit())->value('iface_id'));
+        $anom = $this->anomaly($this->circuit(), $this->mac(5));
+        $this->assertSame('unknown_device', $anom->type);
+        $this->assertSame($a, (int) $anom->expected_iface_id);
+    }
+
+    public function test_dve_mac_na_novem_portu_mapovani_nevytvori(): void
+    {
+        $this->iface($this->mac(1));
+        $this->iface($this->mac(2));
+        $s1 = $this->seen($this->circuit(), $this->mac(1));
+        $this->seen($this->circuit(), $this->mac(2));
+
+        $r = $this->reconcile();
+
+        $this->assertFalse(DB::table('line_ids')->where('circuit_id', $this->circuit())->exists(), 'nevíme, komu port patří');
         $this->assertSame(2, $r['shared']);
-        $this->assertFalse($r['cache_flushed']);
+        $this->assertSame(1, (int) $this->seenRow($s1)->reconciled);
     }
 
     public function test_vlanif_circuit_je_sdileny(): void
@@ -285,17 +320,17 @@ class LineIdSyncTest extends DatabaseTestCase
         $this->assertNull($this->anomaly($this->circuit(), $this->mac(9))->resolved_at);
     }
 
-    public function test_sdileny_circuit_se_neflaguje_a_stare_zaznamy_se_ignoruji(): void
+    public function test_vlanif_se_neflaguje_a_stare_zaznamy_se_ignoruji(): void
     {
         $owner = $this->iface($this->mac(1));
-        $this->line($this->circuit(1), $owner);
-        $this->seen($this->circuit(1), $this->mac(8));
-        $this->seen($this->circuit(1), $this->mac(9));                       // 2 MAC = sdílený
+        $vlanif = "0180.0000.{$this->tag}:Vlanif180";
+        $this->seen($vlanif, $this->mac(8));
+        $this->seen($vlanif, $this->mac(9));                                   // relay/VLAN = sdílený
         $this->line($this->circuit(2), $owner);
         $this->seen($this->circuit(2), $this->mac(7), null, now()->subDays(8)); // mimo okno 7 dní
 
         app(DetectLineIdAnomaliesAction::class)->handle();
 
-        $this->assertFalse(DB::table('line_id_anomalies')->whereIn('circuit_id', [$this->circuit(1), $this->circuit(2)])->exists());
+        $this->assertFalse(DB::table('line_id_anomalies')->whereIn('circuit_id', [$vlanif, $this->circuit(2)])->exists());
     }
 }

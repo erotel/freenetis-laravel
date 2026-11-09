@@ -17,10 +17,25 @@ class SharedCircuitDetector
     ) {
     }
 
-    public function isShared(string $circuit, ?string $circuitHex = null, ?string $remoteHex = null): bool
+    /**
+     * Sdílený z podstaty: relay/VLAN circuit-id (Vlanif<N>) — identita celé VLAN,
+     * nikdy jednoho zákazníka. Jen u takového smí sync mapování smazat.
+     */
+    public function isStructural(string $circuit): bool
     {
         $p = $this->parser->parse($circuit);
-        if ($p['port'] !== null && stripos($p['port'], 'Vlanif') === 0) {
+        return $p['port'] !== null && stripos($p['port'], 'Vlanif') === 0;
+    }
+
+    /**
+     * Sdílený strukturálně NEBO víc MAC na téže dvojici (circuit, remote). Víc MAC
+     * ale znamená i obyčejnou výměnu routeru — takový port se proto nesmí z line_ids
+     * mazat (přišel by o rezervaci, viz incident 2026-11-09 K364 Gi0/0/12), jen
+     * se pro něj nevytváří nové mapování automaticky.
+     */
+    public function isShared(string $circuit, ?string $circuitHex = null, ?string $remoteHex = null): bool
+    {
+        if ($this->isStructural($circuit)) {
             return true;
         }
         if ($circuitHex !== null) {

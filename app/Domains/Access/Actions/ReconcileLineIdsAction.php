@@ -34,8 +34,7 @@ class ReconcileLineIdsAction
         // Self-healing: dorovnej parse u existujících záznamů s prázdným parsem
         // (např. po vylepšení parseru) — nezávisle na reconciled flagu.
         $this->backfillParse();
-        // Self-healing: vyházej sdílené (VLAN/relay) záznamy, které do line_ids nepatří
-        // (uložené dřív, nebo se staly sdílené až 2. MACem po uložení).
+        // Self-healing: vyházej relay/VLAN (Vlanif) záznamy, které do line_ids nepatří.
         // Změnu rezervací (vznik/smazání line_id nebo prune) si pamatujeme, ať na
         // konci pošleme Kee cache-clear (jinak špatný negative-cache verdikt přežije
         // reboot/renew). Viz [[project_lineid_tr101_gotcha]].
@@ -57,9 +56,9 @@ class ReconcileLineIdsAction
                 continue;
             }
 
-            // Sdílený relay/VLAN circuit-id NENÍ per-zákazník identita → neukládat
+            // Relay/VLAN circuit-id (Vlanif) NENÍ per-zákazník identita → neukládat
             // do line_ids; uklidit případný dřívější omyl. Bez toho falešné identity_cross.
-            if ($this->shared->isShared($circuit, $row->circuit_id_hex, $row->remote_id_hex)) {
+            if ($this->shared->isStructural($circuit)) {
                 $del = $this->lines->delete($circuit, $remote);
                 $this->lines->markSeenReconciled($row->id);
                 $changed = $changed || $del > 0; // smazaná rezervace → flush
@@ -68,6 +67,15 @@ class ReconcileLineIdsAction
             }
 
             $existing = $this->lines->find($circuit, $remote);
+
+            // Víc MAC na portu bez mapování → nevytvářet automaticky (nevíme, komu
+            // port patří). S mapováním pokračuje normálně: stejný zákazník = refresh,
+            // cizí = konflikt → detektor anomálií. NIKDY nemazat (výměna routeru).
+            if ($existing === null && $this->shared->isShared($circuit, $row->circuit_id_hex, $row->remote_id_hex)) {
+                $this->lines->markSeenReconciled($row->id);
+                $shared++;
+                continue;
+            }
 
             if ($existing === null) {
                 // Nový port → vytvoř mapování.
@@ -139,7 +147,9 @@ class ReconcileLineIdsAction
         foreach ($this->lines->allIdentities() as $l) {
             $hex = '0x' . bin2hex($l->circuit_id);
             $remoteHex = ($l->remote_id ?? '') !== '' ? '0x' . bin2hex($l->remote_id) : null;
-            if ($this->shared->isShared($l->circuit_id, $hex, $remoteHex)) {
+            // Jen strukturálně sdílené (Vlanif). Víc MAC na portu mapování NEMAŽE —
+            // výměna routeru by jinak zákazníka připravila o rezervaci.
+            if ($this->shared->isStructural($l->circuit_id)) {
                 $this->lines->deleteById($l->id);
                 $n++;
             }
