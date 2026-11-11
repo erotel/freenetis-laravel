@@ -150,6 +150,7 @@ class DhcpExportTest extends DatabaseTestCase
             . "/ip dhcp-server\r\nremove [find]\r\n"
             . "add name=\"Testovaci C\" address-pool=\"Testovaci C\" authoritative=after-2sec-delay bootp-support=static disabled=no interface=\"ether9\" lease-time=01:00:00\r\n"
             . "add name=\"IPoE B\" address-pool=\"IPoE B\" authoritative=after-2sec-delay bootp-support=static disabled=no interface=\"ether9\" lease-time=01:00:00 use-radius=yes\r\n"
+            . ":do {[[:parse \"/ip dhcp-server set [find name=\\\"IPoE B\\\"] conflict-detection=no\"]]} on-error={}\r\n"
             . "/ip dhcp-server network\r\nremove [find]\r\n"
             . "add address=10.250.1.0/28 dhcp-option=\"\" dns-server=10.250.1.1,10.133.37.37,10.133.37.38 gateway=10.250.1.1 ntp-server=\"\" wins-server=\"\"\r\n"
             . "add address=10.250.2.0/29 dhcp-option=\"\" dns-server=10.133.37.37,10.133.37.38 gateway=10.250.2.1 ntp-server=\"\" wins-server=\"\"\r\n"

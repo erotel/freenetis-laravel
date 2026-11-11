@@ -67,6 +67,26 @@ class DhcpForceRadiusExportTest extends DatabaseTestCase
         $this->assertStringNotContainsString('support-broadband-tr101=yes', $out);
     }
 
+    public function test_ipoe_vypne_conflict_detection_bezpecne_pro_starsi_routeros(): void
+    {
+        $out = ($this->render)($this->servers(true), null, 'primary', false, false);
+        // přes :parse + on-error → RouterOS bez parametru skript neshodí
+        $this->assertStringContainsString(
+            ':do {[[:parse "/ip dhcp-server set [find name=\\"urcice_skolni\\"] conflict-detection=no"]]} on-error={}',
+            $out
+        );
+        // až po add serveru, před sítěmi
+        $this->assertLessThan(strpos($out, '/ip dhcp-server network'), strpos($out, 'conflict-detection=no'));
+        $this->assertGreaterThan(strpos($out, 'add name="urcice_skolni"'), strpos($out, 'conflict-detection=no'));
+    }
+
+    public function test_bez_ipoe_conflict_detection_nemeni(): void
+    {
+        // i s vynuceným RADIUSem (subnet ještě není IPoE) → MK pool, ping dává smysl
+        $out = ($this->render)($this->servers(false), null, 'primary', true, true);
+        $this->assertStringNotContainsString('conflict-detection', $out);
+    }
+
     public function test_force_radius_v_relay_rezimu(): void
     {
         // 230.2/230.3 jedou relay → use-radius na relay add řádku, tr101 tam netřeba.

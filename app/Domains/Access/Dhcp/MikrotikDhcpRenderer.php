@@ -74,6 +74,15 @@ class MikrotikDhcpRenderer
                 $out .= "add name=\"{$nm}\" address-pool=\"{$nm}\" authoritative=after-2sec-delay bootp-support=static disabled=no interface=\"" . self::quote($s['interface']) . "\" lease-time={$leaseTime}{$useRadius}{$tr101}\r\n";
             }
         }
+        // IPoE: IP určuje RADIUS podle line-id, ověřovací ping (conflict-detection)
+        // tam škodí — router, který si při žádosti drží starou IP, na ni odpoví sám
+        // a MK mu pak natrvalo dá adresu z poolu (2026-11-11, Archer C80 v síti 172).
+        // Přes :parse, aby RouterOS bez tohoto parametru nespadl na celém skriptu.
+        foreach ($servers as $s) {
+            if (empty($s['ipoe'])) continue;
+            $cmd = '/ip dhcp-server set [find name="' . self::quote($s['name']) . '"] conflict-detection=no';
+            $out .= ':do {[[:parse "' . self::quote($cmd) . '"]]} on-error={}' . "\r\n";
+        }
         $out .= "/ip dhcp-server network\r\nremove [find]\r\n";
         foreach ($servers as $s) {
             $dns = implode(',', $s['dns_servers']);
