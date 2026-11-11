@@ -35,13 +35,26 @@ uzlech kea-a (10.133.230.22) a kea-b (10.133.230.23). **Produkce .54 = pravda**;
 |---|---|---|---|---|
 | `radcheck_v` / `radreply_v` | `UPPER(mac)` | `Delegated-IPv6-Prefix` | sql_freenetis (.54, kea-a/b) | .54 = .59 |
 | `radcheck_pppoe_v` / `radreply_pppoe_v` | PPPoE username | heslo, Framed-IP, v6 | sql_pppoe | .54 = .59, **v migraci** |
-| `radcheck_lineid_v` / `radreply_lineid_v` | circuit-id (bin) | Framed-IP | sql_lineid (MK BRAS) | .54 = .59, **v migraci** |
+| `radcheck_lineid_v` / `radreply_lineid_v` | circuit-id (bin) + sloupec `remote_id` | Framed-IP | sql_lineid (MK BRAS) | **v migraci** (`2026_11_11_100000` přidal `remote_id`) |
 | `radcheck_kea4_v` / `radreply_kea4_v` | `CONCAT(remote_id, circuit_id)` (bin) | Framed-IP (jen `dhcp=1 AND ipoe=1`, gateway=0, `10.%`) | sql_kea4 (Kea v4 flex-id) | **.59 starší** (jen circuit_id) |
 | `radcheck_kea6mac_v` / `radreply_kea6mac_v` | `UPPER(mac)` bez `:` | `Delegated-IPv6-Prefix` (jen MAC s právě 1 prefixem) | sql_kea6mac (Kea v6 hw-address) | **jen .54** |
 | ~~`radcheck_kea6_v` / `radreply_kea6_v`~~ | circuit-id | `Delegated-IPv6-Prefix` | nikdo (PoC) | smazáno z .59 2026-10-15 |
 
 Dotazy modulů: `sql_kea4` a `sql_lineid` hledají `HEX(username) = <hex z RADIUSu>` —
 username je **binární** (surové bajty option82), proto:
+
+**`sql_lineid` páruje dvojici (circuit-id, remote-id)** — TP-Link SG2008 posílá
+circuit jen jako název portu (`Gi1/0/1`), stejný na každém switchi; rozliší je
+remote-id (MAC switche). Přesná shoda remote-id má přednost, jinak mapování bez
+remote-id (OLT circuit, starší záznamy); mapování s **jiným** remote-id nikdy.
+Dotaz na kea-a i kea-b (`mods-enabled/sql_lineid`, reply stejně s `${authreply_table}`),
+test `RadiusViewsContractTest`:
+
+```
+authorize_check_query = "SELECT id, username, attribute, value, op FROM ${authcheck_table} WHERE HEX(username) = REPLACE(UPPER('%{SQL-User-Name}'),'0X','') AND (HEX(remote_id) = REPLACE(UPPER('%{ADSL-Agent-Remote-Id}'),'0X','') OR remote_id = '') ORDER BY (HEX(remote_id) = REPLACE(UPPER('%{ADSL-Agent-Remote-Id}'),'0X','')) DESC, id LIMIT 1"
+```
+Pořadí nasazení: nejdřív migrace (sloupec navíc starým dotazům nevadí), pak
+dotaz + **restart** FreeRADIUS (reload nestačí). Zpět obráceně.
 
 ## Tabulky — kontrakt
 

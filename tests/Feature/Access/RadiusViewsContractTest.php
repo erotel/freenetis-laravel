@@ -63,6 +63,78 @@ class RadiusViewsContractTest extends DatabaseTestCase
         $this->assertSame(0, DB::table('radreply_kea4_v')->where('username', $circuit . '-x')->count());
     }
 
+    /**
+     * Dotaz sql_lineid (FreeRADIUS na kea-a/kea-b, mods-enabled/sql_lineid) —
+     * MUSÍ se shodovat s konfigurací serverů. Hodnoty z RADIUSu jsou hex '0x…'
+     * (octets); chybějící Agent-Remote-Id = ''.
+     */
+    private function lineIdQuery(string $table, string $circuit, string $remote): array
+    {
+        $c = '0x' . bin2hex($circuit);
+        $r = $remote === '' ? '' : '0x' . bin2hex($remote);
+        $sql = "SELECT id, username, attribute, value, op FROM {$table}"
+             . " WHERE HEX(username) = REPLACE(UPPER(?),'0X','')"
+             . " AND (HEX(remote_id) = REPLACE(UPPER(?),'0X','') OR remote_id = '')"
+             . " ORDER BY (HEX(remote_id) = REPLACE(UPPER(?),'0X','')) DESC, id LIMIT 1";
+        return DB::select($sql, [$c, $r, $r]);
+    }
+
+    private function lineId(string $circuit, string $remote, string $ip): void
+    {
+        $if = $this->iface(null);
+        DB::table('ip_addresses')->insert(['iface_id' => $if, 'subnet_id' => $this->subnet(1), 'ip_address' => $ip, 'gateway' => 0]);
+        DB::table('line_ids')->insert(['circuit_id' => $circuit, 'remote_id' => $remote, 'iface_id' => $if, 'source' => 'manual']);
+    }
+
+    public function test_lineid_dva_switche_se_stejnym_portem_rozlisi_remote_id(): void
+    {
+        // SG2008 posílá circuit jen jako název portu — stejný na každém switchi.
+        $port = '__selftest_Gi1/0/1 ' . uniqid();
+        $sw1  = "\xd4\xd6\xdf\x19\xa8\x6e";
+        $sw2  = "\xd4\xd6\xdf\x19\xa8\x7f";
+        $this->lineId($port, $sw1, '10.250.7.31');
+        $this->lineId($port, $sw2, '10.250.7.32');
+
+        foreach ([[$sw1, '10.250.7.31'], [$sw2, '10.250.7.32']] as [$remote, $ip]) {
+            $reply = $this->lineIdQuery('radreply_lineid_v', $port, $remote);
+            $this->assertCount(1, $reply);
+            $this->assertSame('Framed-IP-Address', $reply[0]->attribute);
+            $this->assertSame($ip, $reply[0]->value, 'každý switch dostane IP svého zákazníka');
+            $this->assertCount(1, $this->lineIdQuery('radcheck_lineid_v', $port, $remote));
+        }
+
+        // Třetí, neregistrovaný switch se stejným portem nesmí dostat cizí IP.
+        $this->assertCount(0, $this->lineIdQuery('radreply_lineid_v', $port, "\xd4\xd6\xdf\x00\x00\x01"));
+        $this->assertCount(0, $this->lineIdQuery('radcheck_lineid_v', $port, "\xd4\xd6\xdf\x00\x00\x01"));
+    }
+
+    public function test_lineid_bez_remote_id_funguje_jako_dosud(): void
+    {
+        // OLT circuit bez remote-id (GPON za ONT bez switche) — MK remote nepošle.
+        $olt = '__selftest_F47960E73E46 xpon 0/2/0/4:3.1.1 ' . uniqid();
+        $this->lineId($olt, '', '10.250.7.41');
+
+        $reply = $this->lineIdQuery('radreply_lineid_v', $olt, '');
+        $this->assertCount(1, $reply);
+        $this->assertSame('10.250.7.41', $reply[0]->value);
+
+        // Mapování naučené bez remote-id, MK ho ale pošle → pořád stejná IP.
+        $reply = $this->lineIdQuery('radreply_lineid_v', $olt, "\x00\x11\x22\x33\x44\x55");
+        $this->assertCount(1, $reply);
+        $this->assertSame('10.250.7.41', $reply[0]->value);
+    }
+
+    public function test_lineid_presna_shoda_remote_ma_prednost_pred_mapovanim_bez_remote(): void
+    {
+        $port = '__selftest_Gi1/0/2 ' . uniqid();
+        $sw   = "\xd4\xd6\xdf\x19\xa8\x6e";
+        $this->lineId($port, '', '10.250.7.51');
+        $this->lineId($port, $sw, '10.250.7.52');
+
+        $this->assertSame('10.250.7.52', $this->lineIdQuery('radreply_lineid_v', $port, $sw)[0]->value);
+        $this->assertSame('10.250.7.51', $this->lineIdQuery('radreply_lineid_v', $port, '')[0]->value);
+    }
+
     public function test_kea6mac_klicuje_mac_bez_dvojtecek_jen_jednoznacny_prefix(): void
     {
         $if = $this->iface('02:c6:aa:bb:cc:01');
