@@ -2,6 +2,7 @@
 
 namespace App\Domains\Access\Repositories;
 
+use App\Domains\Access\Support\SharedCircuitDetector;
 use App\Models\LineId;
 use App\Models\LineIdAnomaly;
 use Illuminate\Support\Collection;
@@ -73,13 +74,29 @@ class LineIdRepository
         DB::table('line_id_seen')->where('id', $seenId)->update(['reconciled' => 1]);
     }
 
-    /** Počet různých MAC viděných na DVOJICI (circuit, remote) — >1 = sdílený port. */
-    public function distinctMacCount(string $circuitHex, ?string $remoteHex): int
+    /**
+     * Počet různých MAC viděných na DVOJICI (circuit, remote) — >1 = sdílený port.
+     * `$since`: počítat jen MAC viděné od té doby (stará MAC po výměně routeru
+     * jinak port navždy „zasekne" jako sdílený).
+     */
+    public function distinctMacCount(string $circuitHex, ?string $remoteHex, ?\DateTimeInterface $since = null): int
     {
         return DB::table('line_id_seen')
             ->where('circuit_id_hex', $circuitHex)
             ->whereRaw('COALESCE(remote_id_hex, "") = COALESCE(?, "")', [$remoteHex])
+            ->when($since !== null, fn ($q) => $q->where(fn ($w) => $w->where('last_seen', '>=', $since)->orWhereNull('last_seen')))
             ->distinct()->count('mac');
+    }
+
+    /** Nejnovější last_seen JINÉ MAC na dvojici (circuit, remote), nebo null. */
+    public function latestOtherSeen(string $circuitHex, ?string $remoteHex, string $mac): ?string
+    {
+        $v = DB::table('line_id_seen')
+            ->where('circuit_id_hex', $circuitHex)
+            ->whereRaw('COALESCE(remote_id_hex, "") = COALESCE(?, "")', [$remoteHex])
+            ->where('mac', '<>', $mac)
+            ->max('last_seen');
+        return $v === null ? null : (string) $v;
     }
 
     // ── line_ids ─────────────────────────────────────────────────────────────
@@ -179,27 +196,31 @@ class LineIdRepository
      * @param string[] $macs
      * @return array<string, string>
      */
-    public function sharedCircuitsByMac(array $macs): array
+    public function sharedCircuitsByMac(array $macs, ?\DateTimeInterface $since = null): array
     {
         if (empty($macs)) {
             return [];
         }
+        $since ??= now()->subDays(SharedCircuitDetector::RECENT_DAYS);
         $rows = DB::table('line_id_seen')->whereIn('mac', $macs)
-            ->get(['mac', 'circuit_id_hex']);
+            ->where(fn ($w) => $w->where('last_seen', '>=', $since)->orWhereNull('last_seen')) // NULL = neznámé stáří → počítat jako dřív
+            ->get(['mac', 'circuit_id_hex', 'remote_id_hex']);
         if ($rows->isEmpty()) {
             return [];
         }
-        // Circuit-idy sdílené víc MAC (přes CELOU tabulku, ne jen zadané MAC).
-        $sharedHexes = DB::table('line_id_seen')
+        // Dvojice (circuit, remote) s víc nedávnými MAC (přes CELOU tabulku, ne jen
+        // zadané MAC) — stejná pravidla jako SharedCircuitDetector::isShared.
+        $shared = DB::table('line_id_seen')
             ->whereIn('circuit_id_hex', $rows->pluck('circuit_id_hex')->unique()->all())
-            ->groupBy('circuit_id_hex')
+            ->where(fn ($w) => $w->where('last_seen', '>=', $since)->orWhereNull('last_seen'))
+            ->groupBy('circuit_id_hex', DB::raw('COALESCE(remote_id_hex, "")'))
             ->havingRaw('COUNT(DISTINCT mac) > 1')
-            ->pluck('circuit_id_hex')
-            ->flip();
+            ->get([DB::raw('circuit_id_hex'), DB::raw('COALESCE(remote_id_hex, "") AS remote')])
+            ->mapWithKeys(fn ($r) => [$r->circuit_id_hex . '|' . $r->remote => true]);
 
         $out = [];
         foreach ($rows as $r) {
-            if (!isset($sharedHexes[$r->circuit_id_hex])) {
+            if (!isset($shared[$r->circuit_id_hex . '|' . ($r->remote_id_hex ?? '')])) {
                 continue;
             }
             $hex = preg_replace('/^0x/i', '', (string) $r->circuit_id_hex);

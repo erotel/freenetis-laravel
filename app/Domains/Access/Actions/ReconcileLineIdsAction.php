@@ -71,7 +71,11 @@ class ReconcileLineIdsAction
             // Víc MAC na portu bez mapování → nevytvářet automaticky (nevíme, komu
             // port patří). S mapováním pokračuje normálně: stejný zákazník = refresh,
             // cizí = konflikt → detektor anomálií. NIKDY nemazat (výměna routeru).
-            if ($existing === null && $this->shared->isShared($circuit, $row->circuit_id_hex, $row->remote_id_hex)) {
+            // Stará MAC (port mezitím dostal nový router) — nevytvářet z ní mapování.
+            if ($existing === null && (
+                $this->shared->isShared($circuit, $row->circuit_id_hex, $row->remote_id_hex)
+                || $this->shared->isSuperseded($row->circuit_id_hex, $row->remote_id_hex, $row->mac, $row->last_seen)
+            )) {
                 $this->lines->markSeenReconciled($row->id);
                 $shared++;
                 continue;

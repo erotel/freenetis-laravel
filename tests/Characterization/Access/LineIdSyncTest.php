@@ -207,6 +207,57 @@ class LineIdSyncTest extends DatabaseTestCase
         $this->assertSame(1, (int) $this->seenRow($s1)->reconciled);
     }
 
+    public function test_stara_mac_na_portu_nebrani_novemu_mapovani(): void
+    {
+        // Výměna routeru bez mapování: starý router viděn před 30 dny, nový teď
+        // → port NENÍ sdílený (SharedCircuitDetector::RECENT_DAYS), mapování vznikne.
+        $this->iface($this->mac(1));
+        $new = $this->iface($this->mac(2));
+        $s1 = $this->seen($this->circuit(), $this->mac(1), null, now()->subDays(30)->toDateTimeString());
+        $s2 = $this->seen($this->circuit(), $this->mac(2));
+
+        $r = $this->reconcile();
+
+        // staré pozorování je překonané → odloží se (reconciled, počítá se do shared)
+        $this->assertSame(1, $r['shared']);
+        $this->assertSame(1, (int) $this->seenRow($s1)->reconciled);
+        $line = DB::table('line_ids')->where('circuit_id', $this->circuit())->first();
+        $this->assertNotNull($line, 'stará MAC už port neblokuje');
+        $this->assertSame($new, (int) $line->iface_id, 'mapování patří aktuálnímu routeru');
+        $this->assertSame(1, (int) $this->seenRow($s2)->reconciled);
+    }
+
+    public function test_dlouho_offline_zakaznik_dostane_mapovani(): void
+    {
+        // Dlouho offline přípojka: zákazník i cizí MAC naposledy před měsícem (stejné
+        // dny) → nic nedávného, nikdo nikoho nepřekonal → mapování pro registrovanou MAC.
+        $own = $this->iface($this->mac(1));
+        $this->seen($this->circuit(), $this->mac(9), null, now()->subDays(31)->toDateTimeString());
+        $s1 = $this->seen($this->circuit(), $this->mac(1), null, now()->subDays(30)->toDateTimeString());
+
+        $r = $this->reconcile();
+
+        $line = DB::table('line_ids')->where('circuit_id', $this->circuit())->first();
+        $this->assertNotNull($line);
+        $this->assertSame($own, (int) $line->iface_id);
+        $this->assertSame(1, (int) $this->seenRow($s1)->reconciled);
+        $this->assertSame(1, $r['unmatched'], 'cizí MAC zůstává onboarding kandidát');
+    }
+
+    public function test_dve_nedavne_mac_jsou_porad_sdilene(): void
+    {
+        // Obě MAC v okně RECENT_DAYS (bytovka) → pořád sdílený, nic se nevytvoří.
+        $this->iface($this->mac(1));
+        $this->iface($this->mac(2));
+        $this->seen($this->circuit(), $this->mac(1), null, now()->subDays(6)->toDateTimeString());
+        $this->seen($this->circuit(), $this->mac(2));
+
+        $r = $this->reconcile();
+
+        $this->assertSame(2, $r['shared']);
+        $this->assertFalse(DB::table('line_ids')->where('circuit_id', $this->circuit())->exists());
+    }
+
     public function test_vlanif_circuit_je_sdileny(): void
     {
         $this->iface($this->mac(1));

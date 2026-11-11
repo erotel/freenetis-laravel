@@ -11,6 +11,14 @@ use App\Domains\Access\Repositories\LineIdRepository;
  */
 class SharedCircuitDetector
 {
+    /**
+     * Do „víc MAC na portu" se počítají jen MAC viděné za posledních N dní.
+     * Starý router po výměně (nebo krátce připojené zařízení) jinak drží port
+     * jako sdílený napořád a nové mapování nevznikne (2026-11-11: 5 přípojek
+     * v jedné GPON síti).
+     */
+    public const RECENT_DAYS = 7;
+
     public function __construct(
         private CircuitIdParser $parser = new CircuitIdParser(),
         private LineIdRepository $lines = new LineIdRepository(),
@@ -28,7 +36,23 @@ class SharedCircuitDetector
     }
 
     /**
-     * Sdílený strukturálně NEBO víc MAC na téže dvojici (circuit, remote). Víc MAC
+     * Pozorování je překonané: na téže dvojici (circuit, remote) je JINÁ MAC viděná
+     * o víc než RECENT_DAYS později (port mezitím dostal nový router). Ze starého
+     * pozorování se pak mapování nesmí vytvořit, jinak by port připadl starému routeru.
+     */
+    public function isSuperseded(string $circuitHex, ?string $remoteHex, string $mac, ?string $lastSeen): bool
+    {
+        if ($lastSeen === null) {
+            return false;
+        }
+        $other = $this->lines->latestOtherSeen($circuitHex, $remoteHex, $mac);
+        return $other !== null
+            && strtotime($other) - strtotime($lastSeen) > self::RECENT_DAYS * 86400;
+    }
+
+    /**
+     * Sdílený strukturálně NEBO víc nedávných MAC (RECENT_DAYS) na téže dvojici
+     * (circuit, remote). Víc MAC
      * ale znamená i obyčejnou výměnu routeru — takový port se proto nesmí z line_ids
      * mazat (přišel by o rezervaci, viz incident 2026-11-09 K364 Gi0/0/12), jen
      * se pro něj nevytváří nové mapování automaticky.
@@ -42,7 +66,8 @@ class SharedCircuitDetector
             // Počítej MAC per DVOJICE (circuit, remote) — dva switche se stejným
             // circuit-id ale jiným remote-id (DCN na sdílené VLAN, TP-Link) tak
             // NEjsou „shared"; víc MAC na téže dvojici = fakt sdílený port (bytovka).
-            if ($this->lines->distinctMacCount($circuitHex, $remoteHex) > 1) {
+            $since = now()->subDays(self::RECENT_DAYS);
+            if ($this->lines->distinctMacCount($circuitHex, $remoteHex, $since) > 1) {
                 return true;
             }
         }

@@ -50,6 +50,32 @@ class SubnetSharedLineIdTest extends DatabaseTestCase
         $this->assertArrayNotHasKey('AA:AA:AA:AA:AA:99', $out);
     }
 
+    public function test_stara_mac_neni_sdilena(): void
+    {
+        // Starý router (30 dní) + aktuální → štítek „sdílený" se neukáže.
+        $hex = '0x' . bin2hex('__selftest stale circuit');
+        DB::table('line_id_seen')->insert([
+            ['circuit_id_hex' => $hex, 'mac' => 'AA:AA:AA:AA:AB:01', 'seen_count' => 1, 'reconciled' => 1, 'last_seen' => now()->subDays(30)],
+            ['circuit_id_hex' => $hex, 'mac' => 'AA:AA:AA:AA:AB:02', 'seen_count' => 1, 'reconciled' => 1, 'last_seen' => now()],
+        ]);
+
+        $out = ($this->shared)(['AA:AA:AA:AA:AB:01', 'AA:AA:AA:AA:AB:02']);
+
+        $this->assertSame([], $out);
+    }
+
+    public function test_stejny_port_na_dvou_switchich_neni_sdileny(): void
+    {
+        // TP-Link: circuit „Gi1/0/1" na dvou switchích, rozliší je remote-id.
+        $hex = '0x' . bin2hex('__selftest Gi1/0/1');
+        DB::table('line_id_seen')->insert([
+            ['circuit_id_hex' => $hex, 'remote_id_hex' => '0x' . bin2hex('__selftest-SW-A'), 'mac' => 'AA:AA:AA:AA:AC:01', 'seen_count' => 1, 'reconciled' => 1, 'last_seen' => now()],
+            ['circuit_id_hex' => $hex, 'remote_id_hex' => '0x' . bin2hex('__selftest-SW-B'), 'mac' => 'AA:AA:AA:AA:AC:02', 'seen_count' => 1, 'reconciled' => 1, 'last_seen' => now()],
+        ]);
+
+        $this->assertSame([], ($this->shared)(['AA:AA:AA:AA:AC:01', 'AA:AA:AA:AA:AC:02']));
+    }
+
     public function test_prazdny_vstup(): void
     {
         $this->assertSame([], ($this->shared)([]));
