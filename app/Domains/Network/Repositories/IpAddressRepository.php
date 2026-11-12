@@ -44,6 +44,54 @@ class IpAddressRepository
         return Member::orderBy('name')->get();
     }
 
+    /** Popisek rozhraní pro předvyplněný našeptávač: „Zařízení — rozhraní (MAC)". */
+    public function ifaceLabel(int $id): ?string
+    {
+        $r = \Illuminate\Support\Facades\DB::table('ifaces as i')
+            ->leftJoin('devices as d', 'd.id', '=', 'i.device_id')
+            ->where('i.id', $id)
+            ->select('i.name as iface_name', 'i.mac', 'd.name as device_name')
+            ->first();
+        if (!$r) {
+            return null;
+        }
+        $label = ($r->device_name ?? '(bez zařízení)') . ' — ' . ($r->iface_name ?: 'iface #' . $id);
+        return $r->mac ? $label . ' (' . $r->mac . ')' : $label;
+    }
+
+    public function memberName(int $id): ?string
+    {
+        return \Illuminate\Support\Facades\DB::table('members')->where('id', $id)->value('name');
+    }
+
+    public function ifaceMac(int $id): ?string
+    {
+        return \Illuminate\Support\Facades\DB::table('ifaces')->where('id', $id)->value('mac');
+    }
+
+    public function firstIfaceIdOfDevice(int $deviceId): ?int
+    {
+        $v = \Illuminate\Support\Facades\DB::table('ifaces')->where('device_id', $deviceId)->orderBy('name')->value('id');
+        return $v !== null ? (int) $v : null;
+    }
+
+    public function memberIdOfIface(int $ifaceId): ?int
+    {
+        $v = \Illuminate\Support\Facades\DB::table('ifaces as i')
+            ->join('devices as d', 'd.id', '=', 'i.device_id')
+            ->join('users as u', 'u.id', '=', 'd.user_id')
+            ->where('i.id', $ifaceId)->value('u.member_id');
+        return $v !== null ? (int) $v : null;
+    }
+
+    public function memberIdOfDevice(int $deviceId): ?int
+    {
+        $v = \Illuminate\Support\Facades\DB::table('devices as d')
+            ->join('users as u', 'u.id', '=', 'd.user_id')
+            ->where('d.id', $deviceId)->value('u.member_id');
+        return $v !== null ? (int) $v : null;
+    }
+
     public function subnet(?int $id): ?Subnet
     {
         return $id ? Subnet::find($id) : null;

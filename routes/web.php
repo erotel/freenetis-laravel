@@ -486,6 +486,11 @@ Route::middleware('auth')->group(function () {
     // ip-addresses — device-scoped create must come before resource to avoid wildcard conflict
     Route::get('ip-addresses/device/{deviceId}', [IpAddressController::class, 'create'])
         ->name('ip_addresses.create_for_device');
+    // Našeptávače vlastníka (AJAX) — dvousegmentové cesty, nekolidují s show {id}
+    Route::get('ip-addresses/options/ifaces', [IpAddressController::class, 'ifaceOptions'])
+        ->name('ip_addresses.options.ifaces');
+    Route::get('ip-addresses/options/members', [IpAddressController::class, 'memberOptions'])
+        ->name('ip_addresses.options.members');
     Route::get('ip-addresses', [IpAddressController::class, 'index'])->name('ip_addresses.index')
         ->middleware('acl:view_all,Ip_addresses_Controller,ip_address');
     Route::resource('ip-addresses', IpAddressController::class)

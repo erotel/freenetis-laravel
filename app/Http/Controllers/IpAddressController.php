@@ -5,6 +5,8 @@ namespace App\Http\Controllers;
 use App\Domains\Network\Actions\AddIpAddressAction;
 use App\Domains\Network\Actions\RemoveIpAddressAction;
 use App\Domains\Network\Actions\UpdateIpAddressAction;
+use App\Domains\Network\Queries\NetworkSearchQuery;
+use App\Domains\Members\Queries\MemberSearchQuery;
 use App\Domains\Network\Repositories\IpAddressRepository;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
@@ -78,15 +80,23 @@ class IpAddressController extends Controller
         $deviceId = $deviceId ?? ($request->query('device_id') ? (int) $request->query('device_id') : null);
         $ifaceId  = $request->query('iface_id') ? (int) $request->query('iface_id') : null;
 
-        [$ifaces, $subnets, $members, $preselectedIfaceId, $preselectedMemberId] =
-            $this->formData($deviceId, $ifaceId);
+        $subnets = $this->ips->subnetsForSelect();
+
+        // Předvýběr vlastníka (rozhraní/člen) z route/query; našeptávač se jinak
+        // plní AJAXem (seznam ~10 tis. rozhraní se do stránky nenačítá).
+        $preIfaceId  = $ifaceId ?: ($deviceId ? $this->ips->firstIfaceIdOfDevice($deviceId) : null);
+        $preMemberId = $preIfaceId
+            ? $this->ips->memberIdOfIface($preIfaceId)
+            : ($deviceId ? $this->ips->memberIdOfDevice($deviceId) : null);
+
+        [$ifaceValue, $ifaceText, $memberValue, $memberText] = $this->ownerPickerData($preIfaceId, $preMemberId);
 
         // IPoE optika: když port zákazníka už drží IP z poolu (čerstvé zapojení),
         // navrhni tuhle IP jako fixní — po registraci mu tak zůstane a nezmění se.
         // Viz KeaControlClient::currentLeaseIp / [[project_lineid_tr101_gotcha]].
         $suggestedIp = $suggestedSubnetId = null;
-        if ($preselectedIfaceId) {
-            $mac = $ifaces->firstWhere('id', $preselectedIfaceId)?->mac;
+        if ($preIfaceId) {
+            $mac = $this->ips->ifaceMac($preIfaceId);
             if ($mac && ($lease = app(\App\Domains\Access\Kea\KeaControlClient::class)->currentLeaseIp($mac))) {
                 $sid = $this->subnetIdForIp($subnets, $lease);
                 if ($sid !== null) { // jen IPoE subnet (dhcp+ipoe) → jinak nenavrhovat
@@ -97,9 +107,70 @@ class IpAddressController extends Controller
         }
 
         return view('ip_addresses.create', compact(
-            'ifaces', 'subnets', 'members', 'preselectedIfaceId', 'preselectedMemberId',
+            'subnets', 'ifaceValue', 'ifaceText', 'memberValue', 'memberText',
             'suggestedIp', 'suggestedSubnetId'
         ));
+    }
+
+    /** Vrátí JSON pro našeptávač rozhraní (vlastník IP). */
+    public function ifaceOptions(Request $request, NetworkSearchQuery $net)
+    {
+        if (!$this->can('edit_all') && !$this->can('new_all')) {
+            abort(403);
+        }
+        $q = trim((string) $request->query('q', ''));
+        if (mb_strlen($q) < 2) {
+            return response()->json([]);
+        }
+        $out = [];
+        foreach ($net->ifacesQuick($q, 15) as $r) {
+            $out[] = [
+                'id'     => (int) $r->id,
+                'label'  => ($r->device_name ?? '(bez zařízení)') . ' — ' . ($r->iface_name ?: 'iface #' . $r->id),
+                'detail' => collect([$r->mac, $r->member_name])->filter()->implode(' · '),
+            ];
+        }
+        return response()->json($out);
+    }
+
+    /** Vrátí JSON pro našeptávač členů (přímý vlastník IP). */
+    public function memberOptions(Request $request, MemberSearchQuery $members)
+    {
+        if (!$this->can('edit_all') && !$this->can('new_all')) {
+            abort(403);
+        }
+        $q = trim((string) $request->query('q', ''));
+        if (mb_strlen($q) < 2) {
+            return response()->json([]);
+        }
+        $out = [];
+        foreach ($members->membersQuick($q, 15) as $m) {
+            $out[] = [
+                'id'     => (int) $m->id,
+                'label'  => $m->name,
+                'detail' => $m->variable_symbol ? 'VS: ' . $m->variable_symbol : '',
+            ];
+        }
+        return response()->json($out);
+    }
+
+    /**
+     * Hodnoty pro našeptávače vlastníka: id + popisek z old() nebo předvýběru.
+     * @return array{0:?int,1:?string,2:?int,3:?string} [ifaceId, ifaceText, memberId, memberText]
+     */
+    private function ownerPickerData(?int $preIfaceId, ?int $preMemberId): array
+    {
+        $ifaceValue  = old('iface_id', $preIfaceId);
+        $memberValue = old('member_id', $preMemberId);
+        $ifaceValue  = $ifaceValue !== null && $ifaceValue !== '' ? (int) $ifaceValue : null;
+        $memberValue = $memberValue !== null && $memberValue !== '' ? (int) $memberValue : null;
+
+        return [
+            $ifaceValue,
+            $ifaceValue ? $this->ips->ifaceLabel($ifaceValue) : null,
+            $memberValue,
+            $memberValue ? $this->ips->memberName($memberValue) : null,
+        ];
     }
 
     public function store(Request $request, AddIpAddressAction $add)
@@ -133,9 +204,11 @@ class IpAddressController extends Controller
             abort(404);
         }
 
-        [$ifaces, $subnets, $members] = $this->formData();
+        $subnets = $this->ips->subnetsForSelect();
+        [$ifaceValue, $ifaceText, $memberValue, $memberText] =
+            $this->ownerPickerData($ip->iface_id, $ip->member_id);
 
-        return view('ip_addresses.edit', compact('ip', 'ifaces', 'subnets', 'members'));
+        return view('ip_addresses.edit', compact('ip', 'subnets', 'ifaceValue', 'ifaceText', 'memberValue', 'memberText'));
     }
 
     public function update(Request $request, int $id, UpdateIpAddressAction $update)
@@ -197,32 +270,6 @@ class IpAddressController extends Controller
         }
 
         return $data;
-    }
-
-
-
-
-    private function formData(?int $deviceId = null, ?int $ifaceId = null): array
-    {
-        $ifaces  = $this->ips->ifacesForSelect();
-        $subnets = $this->ips->subnetsForSelect();
-        $members = $this->ips->membersForSelect();
-
-        $preselectedIfaceId  = $ifaceId;
-        $preselectedMemberId = null;
-
-        if ($ifaceId) {
-            $iface = $ifaces->firstWhere('id', $ifaceId);
-            $preselectedMemberId = $iface?->device?->user?->member_id;
-        } elseif ($deviceId) {
-            $firstIface = $ifaces->firstWhere('device_id', $deviceId);
-            if ($firstIface) {
-                $preselectedIfaceId  = $firstIface->id;
-                $preselectedMemberId = $firstIface->device?->user?->member_id;
-            }
-        }
-
-        return [$ifaces, $subnets, $members, $preselectedIfaceId, $preselectedMemberId];
     }
 
     private function validateIpForm(Request $request, ?int $excludeId = null): array

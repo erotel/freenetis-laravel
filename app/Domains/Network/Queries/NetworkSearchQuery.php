@@ -52,6 +52,33 @@ class NetworkSearchQuery
         return [(clone $qb)->limit($limit)->get(), (clone $qb)->count()];
     }
 
+    /**
+     * Našeptávač rozhraní pro výběr vlastníka IP (jméno rozhraní, jméno
+     * zařízení, MAC i v jiném zápisu, IPv4). Vrací max $limit řádků.
+     */
+    public function ifacesQuick(string $query, int $limit): Collection
+    {
+        $like    = '%' . $query . '%';
+        $macNorm = MacAddress::normalize($query);
+
+        return DB::table('ifaces as i')
+            ->leftJoin('devices as d', 'd.id', '=', 'i.device_id')
+            ->leftJoin('users as u', 'u.id', '=', 'd.user_id')
+            ->leftJoin('members as m', 'm.id', '=', 'u.member_id')
+            ->leftJoin('ip_addresses as ip', 'ip.iface_id', '=', 'i.id')
+            ->where(function ($q) use ($like, $macNorm) {
+                $q->where('i.name', 'LIKE', $like)
+                  ->orWhere('d.name', 'LIKE', $like)
+                  ->orWhere('i.mac', 'LIKE', $like)
+                  ->orWhere('ip.ip_address', 'LIKE', $like);
+                if ($macNorm !== null) {
+                    $q->orWhere('i.mac', '=', $macNorm);
+                }
+            })
+            ->select('i.id', 'i.name as iface_name', 'i.mac', 'd.name as device_name', 'm.name as member_name')
+            ->distinct()->orderBy('d.name')->limit($limit)->get();
+    }
+
     private function devicesBase(string $query, \Closure $extra): Builder
     {
         $like    = '%' . $query . '%';

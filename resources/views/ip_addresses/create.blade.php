@@ -45,34 +45,10 @@
         </div>
     </div>
     <div class="m-form-row">
-        <div class="m-form-group">
-            <label class="m-form-label" for="iface_id">Rozhraní</label>
-            <select class="m-form-select" id="iface_id" name="iface_id">
-                <option value="">— žádné —</option>
-                @foreach($ifaces->groupBy(fn($i) => $i->device?->name ?? '(bez zařízení)') as $deviceName => $deviceIfaces)
-                    <optgroup label="{{ $deviceName }}">
-                        @foreach($deviceIfaces as $iface)
-                            <option value="{{ $iface->id }}" @selected(old('iface_id', $preselectedIfaceId) == $iface->id)>
-                                {{ $iface->name ?? 'iface #' . $iface->id }}
-                            </option>
-                        @endforeach
-                    </optgroup>
-                @endforeach
-            </select>
-            @error('iface_id') <div class="m-form-hint" style="color:#c0392b">{{ $message }}</div> @enderror
-        </div>
-        <div class="m-form-group">
-            <label class="m-form-label" for="member_id">Člen</label>
-            <select class="m-form-select" id="member_id" name="member_id">
-                <option value="">— žádný —</option>
-                @foreach($members as $member)
-                    <option value="{{ $member->id }}" @selected(old('member_id', $preselectedMemberId) == $member->id)>
-                        {{ $member->name }}
-                    </option>
-                @endforeach
-            </select>
-            @error('member_id') <div class="m-form-hint" style="color:#c0392b">{{ $message }}</div> @enderror
-        </div>
+        <x-ajax-picker name="iface_id" label="Rozhraní" :search-url="route('ip_addresses.options.ifaces')"
+                       :value="$ifaceValue" :text="$ifaceText" placeholder="Zařízení, rozhraní, MAC nebo IP…" />
+        <x-ajax-picker name="member_id" label="Člen" :search-url="route('ip_addresses.options.members')"
+                       :value="$memberValue" :text="$memberText" placeholder="Jméno člena, VS…" />
     </div>
     <div style="display:flex;gap:20px;flex-wrap:wrap;margin-top:4px">
         <label style="display:flex;align-items:center;gap:6px;font-size:16px;cursor:pointer">

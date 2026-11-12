@@ -67,7 +67,8 @@ class IpAddressesTest extends DatabaseTestCase
         $a = $this->subnet('10.240.1.0');
         $b = $this->subnet('10.240.2.0');
 
-        $this->as()->get(route('ip_addresses.create', ['iface_id' => $x['iface']]))->assertOk()->assertViewHas('preselectedMemberId', $x['member']);
+        $this->as()->get(route('ip_addresses.create', ['iface_id' => $x['iface']]))->assertOk()
+            ->assertViewHas('ifaceValue', $x['iface'])->assertViewHas('memberValue', $x['member']);
         $this->as()->post(route('ip_addresses.store'), ['iface_id' => $x['iface'], 'subnet_id' => $a, 'member_id' => 1, 'ip_address' => '10.240.1.5'])
             ->assertSessionHas('success', 'IP adresa byla úspěšně přidána.');
         $ip = $this->ip('10.240.1.5');
@@ -123,6 +124,29 @@ class IpAddressesTest extends DatabaseTestCase
         $this->as()->post(route('ip_addresses.store'), [])->assertForbidden();
         $this->as()->put(route('ip_addresses.update', $id), [])->assertForbidden();
         $this->as()->delete(route('ip_addresses.destroy', $id))->assertForbidden();
+        // Našeptávače vlastníka vyžadují edit_all nebo new_all
+        $this->as()->get(route('ip_addresses.options.ifaces', ['q' => 'char']))->assertForbidden();
+        $this->as()->get(route('ip_addresses.options.members', ['q' => 'char']))->assertForbidden();
+    }
+
+    /** AJAX našeptávače vlastníka: najdou rozhraní/člena a vrátí id+popisek. */
+    public function test_naseptavace_vlastnika(): void
+    {
+        $x = $this->iface();
+        DB::table('ifaces')->where('id', $x['iface'])->update(['name' => 'eth-lookup', 'mac' => 'AA:BB:CC:00:11:22']);
+
+        // krátký dotaz → prázdně
+        $this->as()->get(route('ip_addresses.options.ifaces', ['q' => 'e']))->assertOk()->assertExactJson([]);
+
+        $byName = $this->as()->get(route('ip_addresses.options.ifaces', ['q' => 'eth-lookup']))->assertOk()->json();
+        $this->assertSame($x['iface'], $byName[0]['id']);
+        $this->assertStringContainsString('eth-lookup', $byName[0]['label']);
+
+        $byMac = $this->as()->get(route('ip_addresses.options.ifaces', ['q' => 'aa:bb:cc:00:11:22']))->assertOk()->json();
+        $this->assertSame($x['iface'], collect($byMac)->firstWhere('id', $x['iface'])['id']);
+
+        $mem = $this->as()->get(route('ip_addresses.options.members', ['q' => 'Char IP']))->assertOk()->json();
+        $this->assertContains($x['member'], collect($mem)->pluck('id')->all());
     }
 
     /**
