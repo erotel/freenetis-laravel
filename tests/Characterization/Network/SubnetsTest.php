@@ -80,6 +80,23 @@ class SubnetsTest extends CatalogTestCase
         $this->as()->get(route('subnets.show', 999999999))->assertNotFound();
     }
 
+    /** Detail subnetu ukazuje u napárovaného line-id i remote-id (option82). */
+    public function test_detail_ukazuje_remote_id(): void
+    {
+        $id  = $this->subnet();
+        $dev = (int) DB::table('devices')->insertGetId(['name' => 'char-rem', 'type' => 1, 'user_id' => $this->adminId]);
+        $if  = (int) DB::table('ifaces')->insertGetId(['type' => 1, 'name' => 'e', 'device_id' => $dev, 'mac' => 'aa:00:00:00:00:07']);
+        DB::table('ip_addresses')->insert(['ip_address' => "{$this->net}.30", 'subnet_id' => $id, 'iface_id' => $if]);
+        DB::table('line_ids')->insert([
+            'iface_id' => $if, 'circuit_id' => 'ether4', 'remote_id' => '48:a9:8a:5e:58:c9',
+            'vendor' => 'mikrotik', 'device_ident' => 'Smer9', 'port' => 'ether4',
+        ]);
+
+        $this->as()->get(route('subnets.show', $id))->assertOk()
+            ->assertSee('remote:')
+            ->assertSee('48:a9:8a:5e:58:c9');
+    }
+
     public function test_zalozeni_uprava_smazani(): void
     {
         $this->as()->get(route('subnets.create'))->assertOk()->assertViewHas('canSetDhcp', true);

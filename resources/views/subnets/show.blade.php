@@ -85,6 +85,7 @@
                     @php $lid = $ip->iface->lineId; @endphp
                     <span class="m-tag m-tag-green" title="{{ $lid->circuit_id }}">{{ $lid->port ?: $lid->circuit_id }}</span>
                     <small style="color:#888">@if($lid->device_ident){{ $lid->device_ident }} · @endif{{ $lid->vendor }}</small>
+                    @if($lid->remote_display)<br><small style="color:#888" title="remote-id (option82)">remote: <span style="font-family:monospace">{{ $lid->remote_display }}</span></small>@endif
                 @elseif($ip->iface && isset($sharedLineIds[strtoupper($ip->iface->mac ?? '')]))
                     <span class="m-tag m-tag-amber" title="Sdílený circuit-id (víc zákazníků na jednom line-id, typicky bytovka za 1 ONT) — potřebuje L2 switch s option82. {{ $sharedLineIds[strtoupper($ip->iface->mac)] }}">sdílený</span>
                 @elseif($ip->iface)
